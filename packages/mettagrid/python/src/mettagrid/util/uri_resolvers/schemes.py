@@ -55,24 +55,17 @@ class FileSchemeResolver(SchemeResolver):
     def _get_latest_checkpoint_uri(self, parsed: FileParsedScheme) -> str | None:
         if not parsed.local_path.is_dir():
             return None
-
         best: tuple[int, Path] | None = None
-        for candidate in parsed.local_path.iterdir():
-            if not candidate.is_dir():
+        for entry in parsed.local_path.iterdir():
+            if not entry.is_dir():
                 continue
-            if ":v" not in candidate.name:
+            info = _extract_run_and_epoch(entry.name)
+            if not info:
                 continue
-            run_name, suffix = candidate.name.rsplit(":v", 1)
-            if not run_name or not suffix.isdigit():
-                continue
-            epoch = int(suffix)
-            if (candidate / "policy_spec.json").exists():
-                if best is None or epoch > best[0]:
-                    best = (epoch, candidate)
-
-        if best:
-            return f"file://{best[1].resolve()}"
-        return None
+            if (entry / "policy_spec.json").exists():
+                if best is None or info[1] > best[0]:
+                    best = (info[1], entry)
+        return f"file://{best[1].resolve()}" if best else None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -86,6 +79,15 @@ class FileSchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
+        if parsed.local_path.is_dir():
+            spec_path = parsed.local_path / "policy_spec.json"
+            if not spec_path.exists():
+                raise ValueError(f"Directory does not contain policy_spec.json: {parsed.local_path}")
+        elif parsed.local_path.suffix == ".json":
+            if Path(parsed.local_path).name != "policy_spec.json":
+                raise ValueError("Expected policy_spec.json")
+        else:
+            raise ValueError("Only policy_spec.json or directories containing it are supported")
         return parsed.canonical
 
 
@@ -124,7 +126,6 @@ class S3SchemeResolver(SchemeResolver):
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
             return None
-
         best: tuple[int, str] | None = None
         for obj in response["Contents"]:
             key = obj["Key"]
@@ -134,19 +135,10 @@ class S3SchemeResolver(SchemeResolver):
             if len(parts) < 2:
                 continue
             run_dir = parts[-2]
-            if ":v" not in run_dir:
-                continue
-            run_name, suffix = run_dir.rsplit(":v", 1)
-            if not run_name or not suffix.isdigit():
-                continue
-            epoch = int(suffix)
-            uri = f"s3://{parsed.bucket}/{run_dir}"
-            if best is None or epoch > best[0]:
-                best = (epoch, uri)
-
-        if best:
-            return best[1]
-        return None
+            info = _extract_run_and_epoch(run_dir)
+            if info and (best is None or info[1] > best[0]):
+                best = (info[1], f"s3://{parsed.bucket}/{run_dir}")
+        return best[1] if best else None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -280,28 +272,30 @@ def policy_spec_from_uri(
 ):
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
-    from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-    from mettagrid.util.file import read
 
     parsed = resolve_uri(uri)
 
     if parsed.scheme == "s3":
-        # Support both archive submissions (.zip) and spec directories
         if parsed.canonical.endswith(".zip"):
             return load_policy_spec_from_s3(
                 parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
             )
+        spec_uri = parsed.canonical
+        if not spec_uri.endswith("policy_spec.json"):
+            spec_uri = spec_uri.rstrip("/") + "/policy_spec.json"
+        import json
+        from mettagrid.util.file import read
 
-        spec_key = parsed.canonical
-        if not spec_key.endswith(POLICY_SPEC_FILENAME):
-            spec_key = parsed.canonical.rstrip("/") + f"/{POLICY_SPEC_FILENAME}"
-        spec_bytes = read(spec_key)
-        spec = PolicySpec.model_validate_json(spec_bytes.decode())
+        spec = PolicySpec.model_validate_json(json.loads(read(spec_uri)))
         if device is not None and "device" in spec.init_kwargs:
             spec.init_kwargs["device"] = device
         return spec
 
     if parsed.local_path:
+        if parsed.local_path.is_file():
+            return PolicySpec.model_validate_json(parsed.local_path.read_text())
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
-    raise ValueError(f"Cannot load policy spec from URI: {uri}")
+    raise ValueError(
+        "Provide a policy directory or policy_spec.json. Bare .mpt checkpoints are no longer supported."
+    )

@@ -9,10 +9,10 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from metta.rl.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.file import write_data, write_file
+from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -59,96 +59,51 @@ class CheckpointManager:
             logger.info("Remote prefix unset; policies will remain local.")
 
     def get_latest_checkpoint(self) -> str | None:
-        def _latest_local() -> tuple[str, int] | None:
-            if not self.checkpoint_dir.exists():
-                return None
-            best: tuple[str, int] | None = None
-            for candidate in self.checkpoint_dir.iterdir():
-                if not candidate.is_dir():
-                    continue
-                try:
-                    parsed = resolve_uri(str(candidate))
-                    info = parsed.checkpoint_info
-                except (ValueError, FileNotFoundError):
-                    continue
-                if not info:
-                    continue
-                if (candidate / POLICY_SPEC_FILENAME).exists():
-                    if best is None or info[1] > best[1]:
-                        best = (candidate.as_uri(), info[1])
-            return best
-
-        def _latest_remote() -> tuple[str, int] | None:
-            if not self._remote_prefix:
-                return None
+        def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
-                parsed = resolve_uri(self._remote_prefix)
+                parsed = resolve_uri(uri)
+                info = parsed.checkpoint_info
+                if info:
+                    return (parsed.canonical, info[1])
             except (ValueError, FileNotFoundError):
-                return None
-            if parsed.scheme != "s3":
-                return None
+                pass
+            return None
 
-            import boto3
-
-            bucket, key = parsed.canonical[5:].split("/", 1)
-            if not key.endswith("/"):
-                key = key + "/"
-            client = boto3.client("s3")
-            response = client.list_objects_v2(Bucket=bucket, Prefix=key)
-            best: tuple[str, int] | None = None
-            for obj in response.get("Contents", []):
-                k = obj["Key"]
-                if not k.endswith(POLICY_SPEC_FILENAME):
-                    continue
-                parts = k.split("/")
-                if len(parts) < 2:
-                    continue
-                run_dir = parts[-2]
-                if ":v" not in run_dir:
-                    continue
-                run, suffix = run_dir.rsplit(":v", 1)
-                if run != self.run_name or not suffix.isdigit():
-                    continue
-                epoch = int(suffix)
-                uri = f"s3://{bucket}/{run_dir}"
-                if best is None or epoch > best[1]:
-                    best = (uri, epoch)
-            return best
-
-        candidates = [c for c in [_latest_local(), _latest_remote()] if c]
+        local = try_resolve(f"file://{self.checkpoint_dir}")
+        remote = try_resolve(self._remote_prefix) if self._remote_prefix else None
+        candidates = [c for c in [local, remote] if c]
         if not candidates:
             return None
         return max(candidates, key=lambda x: x[1])[0]
 
-    def _write_policy_spec(self, directory: Path, *, checkpoint_uri: str) -> None:
-        spec = PolicySpec(
-            class_path="metta.rl.mpt_policy.MptPolicy",
-            init_kwargs={"checkpoint_uri": checkpoint_uri, "strict": True},
-        )
-        spec_path = directory / POLICY_SPEC_FILENAME
-        spec_path.write_text(spec.model_dump_json())
-
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        dir_name = checkpoint_filename(self.run_name, epoch)
-        checkpoint_dir = self.checkpoint_dir / dir_name
+        filename = checkpoint_filename(self.run_name, epoch)
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        checkpoint_dir = self.checkpoint_dir / filename
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         mpt_path = checkpoint_dir / "policy.mpt"
         local_mpt_uri = save_mpt(mpt_path, architecture=architecture, state_dict=state_dict)
-        self._write_policy_spec(checkpoint_dir, checkpoint_uri=local_mpt_uri)
 
-        local_dir_uri = checkpoint_dir.as_uri()
+        spec = PolicySpec(
+            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            init_kwargs={"checkpoint_uri": local_mpt_uri},
+        )
+        spec_path = checkpoint_dir / "policy_spec.json"
+        spec_path.write_text(spec.model_dump_json())
 
         if self._remote_prefix:
-            remote_dir = f"{self._remote_prefix}/{dir_name}"
+            remote_dir = f"{self._remote_prefix}/{filename}"
             remote_mpt_uri = f"{remote_dir}/policy.mpt"
-            write_file(remote_mpt_uri, str(mpt_path))
-            write_data(f"{remote_dir}/{POLICY_SPEC_FILENAME}", (checkpoint_dir / POLICY_SPEC_FILENAME).read_bytes())
+            write_data(remote_mpt_uri, mpt_path.read_bytes(), content_type="application/octet-stream")
+            write_data(f"{remote_dir}/policy_spec.json", spec.model_dump_json().encode("utf-8"),
+                       content_type="application/json")
             logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
             return remote_dir
 
-        logger.debug("Policy checkpoint saved locally to %s", local_dir_uri)
-        return local_dir_uri
+        logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
+        return checkpoint_dir.as_uri()
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -210,3 +165,7 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
+
+# Here temporarily for backwards-compatibility but we will move it
+CheckpointPolicy = MptPolicy

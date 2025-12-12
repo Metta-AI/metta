@@ -12,7 +12,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
-from metta.rl.mpt_policy import MptPolicy
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:

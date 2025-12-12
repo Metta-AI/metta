@@ -9,7 +9,7 @@ from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 class TestS3URIs:
     def test_checkpoint_info_parsing(self):
-        info = parse_uri("s3://bucket/foo/checkpoints/foo:v9").checkpoint_info
+        info = parse_uri("s3://bucket/foo/checkpoints/foo:v9.mpt").checkpoint_info
         assert info is not None
         run_name, epoch = info
         assert run_name == "foo"

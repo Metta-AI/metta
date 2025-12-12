@@ -16,7 +16,8 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
-from metta.rl.mpt_policy import MptPolicy
+from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, get_checkpoint_metadata, resolve_uri
 
@@ -65,18 +66,22 @@ class TestCheckpointManagerFlows:
     ):
         """During training resume, we need to find the latest checkpoint."""
         for epoch in [1, 5, 10]:
-            checkpoint_manager.save_policy_checkpoint(
-                state_dict=mock_agent.state_dict(), architecture=mock_policy_architecture, epoch=epoch
+            save_mpt(
+                checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, epoch),
+                architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
             )
 
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
-        assert ":v10" in latest or "%3Av10" in latest
+        assert ":v10.mpt" in latest or "%3Av10.mpt" in latest
 
     def test_trainer_state_save_and_restore(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Trainer state must be saved alongside policy for proper resume."""
-        checkpoint_manager.save_policy_checkpoint(
-            state_dict=mock_agent.state_dict(), architecture=mock_policy_architecture, epoch=5
+        save_mpt(
+            checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, 5),
+            architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
         )
 
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
@@ -94,8 +99,10 @@ class TestCheckpointManagerFlows:
     def test_resolve_latest_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """The :latest suffix is used by eval tools to find the newest checkpoint."""
         for epoch in [1, 7, 3]:
-            checkpoint_manager.save_policy_checkpoint(
-                state_dict=mock_agent.state_dict(), architecture=mock_policy_architecture, epoch=epoch
+            save_mpt(
+                checkpoint_manager.checkpoint_dir / checkpoint_filename(checkpoint_manager.run_name, epoch),
+                architecture=mock_policy_architecture,
+                state_dict=mock_agent.state_dict(),
             )
 
         latest_uri = f"file://{checkpoint_manager.checkpoint_dir}:latest"
@@ -105,14 +112,16 @@ class TestCheckpointManagerFlows:
 
     def test_mpt_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """MptPolicy is used for evaluation - it must load checkpoint and produce actions."""
-        checkpoint_manager.save_policy_checkpoint(
-            state_dict=mock_agent.state_dict(), architecture=mock_policy_architecture, epoch=1
+        save_mpt(
+            checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1.mpt",
+            architecture=mock_policy_architecture,
+            state_dict=mock_agent.state_dict(),
         )
         latest = checkpoint_manager.get_latest_checkpoint()
         assert latest is not None
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = MptPolicy(env_info, checkpoint_uri=latest.rstrip("/") + "/policy.mpt")
+        policy = MptPolicy(env_info, checkpoint_uri=latest)
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
