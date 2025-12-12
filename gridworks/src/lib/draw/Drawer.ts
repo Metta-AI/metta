@@ -83,7 +83,10 @@ function visibleRegion(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
 }
 
 export class Drawer {
-  private constructor(public readonly tileSets: TileSetCollection) {}
+  private constructor(
+    public readonly tileSets: TileSetCollection,
+    private cachedOffscreenFloorBitmap: ImageBitmap | null = null
+  ) {}
 
   static async load(): Promise<Drawer> {
     const tileSets = await loadMettaTileSets();
@@ -174,25 +177,60 @@ export class Drawer {
     }
   }
 
-  private drawFloor(
-    ctx: CanvasRenderingContext2D,
-    grid: MettaGrid,
-    visible: ReturnType<typeof visibleRegion>
-  ) {
-    const tile = this.tileSets.bitmap("wall.49");
+  private async generateOffscreenFloorBitmap() {
+    if (this.cachedOffscreenFloorBitmap) {
+      return this.cachedOffscreenFloorBitmap;
+    }
 
-    // Depending on the size of the grid, we want to draw less tiles
-    const step = Math.max(1, Math.floor(grid.width / 100));
-    for (let r = visible.minY; r < visible.maxY; r += step) {
-      for (let c = visible.minX; c < visible.maxX; c += step) {
-        const overflowR = Math.min(step, visible.maxY - r);
-        const overflowC = Math.min(step, visible.maxX - c);
-        ctx.drawImage(tile, c, r, overflowC, overflowR);
+    const bitmapSize = 10;
+    const tileSize = 64;
+
+    const getWeightedRandomInt = (weights: number[]): number => {
+      const totalWeight = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * totalWeight;
+      for (let i = 0; i < weights.length; i++) {
+        r -= weights[i];
+        if (r <= 0) {
+          return i;
+        }
+      }
+      return weights.length - 1; // Fallback
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmapSize * tileSize;
+    canvas.height = bitmapSize * tileSize;
+    const ctx = canvas.getContext("2d")!;
+
+    for (let i = 0; i < bitmapSize * bitmapSize; i++) {
+      const weights = [100, 50, 25, 10, 5, 2, 1];
+      const tileIndex = getWeightedRandomInt(weights) + 49;
+      const tileName = `wall.${tileIndex}`;
+      const tileBitmap = this.tileSets.bitmap(tileName);
+      const x = (i % bitmapSize) * tileSize;
+      const y = Math.floor(i / bitmapSize) * tileSize;
+      ctx.drawImage(tileBitmap, x, y, tileSize, tileSize);
+    }
+
+    const bitmap = await createImageBitmap(canvas);
+    this.cachedOffscreenFloorBitmap = bitmap;
+    return bitmap;
+  }
+
+  private async drawFloor(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+    const tile = await this.generateOffscreenFloorBitmap();
+    const step = 10;
+
+    for (let x = 0; x < grid.width; x += step) {
+      for (let y = 0; y < grid.height; y += step) {
+        const w = Math.min(step, grid.width - x);
+        const h = Math.min(step, grid.height - y);
+        ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, w, h);
       }
     }
   }
 
-  drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+  async drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
     // Preserve pixelated look when zoomed in
     ctx.imageSmoothingEnabled = false;
 
@@ -205,7 +243,7 @@ export class Drawer {
     ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
     // Draw floor over entire visible region
-    this.drawFloor(ctx, grid, visible);
+    await this.drawFloor(ctx, grid);
 
     // Sort objects into walls and other objects
     const objects: MettaObject[] = [];
