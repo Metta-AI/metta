@@ -101,10 +101,12 @@ class SlicedScriptedCloner(Loss):
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
+        train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
         shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-        # Make the entire minibatch available to PPO instead of masking out teacher-led slices.
+        shared_loss_data = shared_loss_data[train_ppo_mask]
+        shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
+        # Only pass the remainder slice to PPO losses.
 
         # sliced cloner MUST run first since it decides what to pass to PPO
         student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
@@ -112,7 +114,7 @@ class SlicedScriptedCloner(Loss):
         self.policy.reset_memory()
         student_td = self.policy.forward(student_td, action=flat_actions)
         student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td  # this is for passing to PPO losses
+        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
