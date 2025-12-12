@@ -124,9 +124,13 @@ def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
 
 
-def evaluate_latest_in_dir(dir_path: Path, max_steps: int = 10000, max_time_s: int = 120) -> EvaluateTool:
+def evaluate_latest_in_dir(dir_path: str, max_steps: int = 10000, max_time_s: int = 120) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
+    if dir_path.startswith("file://"):
+        local_path = Path(dir_path[7:])
+    else:
+        local_path = Path(dir_path)
+    checkpoints = local_path.glob("*.mpt")
     policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
     if not policy_uri:
         raise ValueError(f"No policies found in {dir_path}")
@@ -288,7 +292,7 @@ def play_ci() -> PlayTool:
 
 
 @ci_job(depends_on=train_ci, inject={"dir_path": "uri"}, timeout_s=120)
-def evaluate_ci(dir_path: Path) -> EvaluateTool:
+def evaluate_ci(dir_path: str) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
     return evaluate_latest_in_dir(dir_path, max_steps=10, max_time_s=60)
 
