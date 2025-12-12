@@ -113,7 +113,7 @@ def train(
         policy_uri="s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt",
         mode="logit_kickstarter",
         steps=1_000_000_000,
-        led_proportion=1.0,
+        teacher_led_proportion=1.0,
     )
 
     if policy_architecture is None:

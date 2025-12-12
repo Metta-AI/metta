@@ -25,7 +25,7 @@ class LogitKickstarterConfig(LossConfig):
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
     student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
-    led_proportion: float = Field(default=1.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
     logit_noise_prob: float = Field(default=0.0, ge=0.0, le=1.0)
     logit_noise_std: float = Field(default=1.0, ge=0.0)
     logit_dropout_prob: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -101,7 +101,7 @@ class LogitKickstarter(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.led_proportion:
+        if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
             td["actions"] = teacher_actions
 

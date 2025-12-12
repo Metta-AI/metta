@@ -20,8 +20,8 @@ class SlicedScriptedClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
     # PPO consumes whatever portion of the batch isn't claimed by these slices
-    student_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     def create(
         self,
@@ -137,8 +137,8 @@ class SlicedScriptedCloner(Loss):
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["led_proportion"].append(float(self.cfg.led_proportion))
-        self.loss_tracker["student_proportion"].append(float(self.cfg.student_proportion))
+        self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
@@ -151,8 +151,8 @@ class SlicedScriptedCloner(Loss):
 
         rand_assignments = torch.rand(B, device=self.device)
 
-        stud_threshold = self.cfg.student_proportion
-        teacher_threshold = stud_threshold + self.cfg.led_proportion
+        stud_threshold = self.cfg.student_led_proportion
+        teacher_threshold = stud_threshold + self.cfg.teacher_led_proportion
 
         self.stud_mask = rand_assignments < stud_threshold
         self.teacher_mask = (rand_assignments >= stud_threshold) & (rand_assignments < teacher_threshold)

@@ -117,7 +117,7 @@ def train(
         policy_uri="s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt",
         mode="sliced_kickstarter",
         steps=1_000_000_000,
-        led_proportion=0.2,
+        teacher_led_proportion=0.2,
     )
 
     tt = TrainTool(

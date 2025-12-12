@@ -28,8 +28,8 @@ class TeacherConfig(Config):
     steps: int | None = None
     # Teacher (led) and student slices should leave some remainder for PPO.
     # Match mainline BC defaults: start at 20% teacher-led, anneal to 0.
-    led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
-    student_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
+    student_led_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @property
     def enabled(self) -> bool:
@@ -73,7 +73,7 @@ def apply_teacher_phase(
             scheduler_rules.append(
                 HyperUpdateRule(
                     loss_instance_name=loss_name,
-                    attr_path="led_proportion",
+                    attr_path="teacher_led_proportion",
                     mode="progress",
                     style="linear",
                     start_value=start_value,
@@ -95,19 +95,19 @@ def apply_teacher_phase(
 
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
-        slicer.led_proportion = teacher_cfg.led_proportion
-        slicer.student_proportion = teacher_cfg.student_proportion
+        slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
+        slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
         _gate_loss("sliced_scripted_cloner")
-        _anneal_led("sliced_scripted_cloner", teacher_cfg.led_proportion)
+        _anneal_led("sliced_scripted_cloner", teacher_cfg.teacher_led_proportion)
 
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
-        supervisor.led_proportion = teacher_cfg.led_proportion
+        supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("supervisor")
-        _anneal_led("supervisor", teacher_cfg.led_proportion)
+        _anneal_led("supervisor", teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
                 HyperUpdateRule(
@@ -131,34 +131,34 @@ def apply_teacher_phase(
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
-        sliced_kick.led_proportion = teacher_cfg.led_proportion
-        sliced_kick.student_proportion = teacher_cfg.student_proportion
+        sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
+        sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
 
         _gate_loss("sliced_kickstarter")
         _gate_critic_after_teacher()
-        _anneal_led("sliced_kickstarter", teacher_cfg.led_proportion)
+        _anneal_led("sliced_kickstarter", teacher_cfg.teacher_led_proportion)
 
     elif teacher_cfg.mode == "kickstarter":
         _require_policy_uri(teacher_cfg)
         ks = losses.kickstarter
         ks.enabled = True
         ks.teacher_uri = teacher_cfg.policy_uri
-        ks.led_proportion = teacher_cfg.led_proportion
+        ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("kickstarter")
         _gate_critic_after_teacher()
-        _anneal_led("kickstarter", teacher_cfg.led_proportion)
+        _anneal_led("kickstarter", teacher_cfg.teacher_led_proportion)
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)
         logit = losses.logit_kickstarter
         logit.enabled = True
         logit.teacher_uri = teacher_cfg.policy_uri
-        logit.led_proportion = teacher_cfg.led_proportion
+        logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("logit_kickstarter")
         _gate_critic_after_teacher()
-        _anneal_led("logit_kickstarter", teacher_cfg.led_proportion)
+        _anneal_led("logit_kickstarter", teacher_cfg.teacher_led_proportion)
 
     else:
         raise ValueError(f"Unsupported teacher mode '{teacher_cfg.mode}'")
