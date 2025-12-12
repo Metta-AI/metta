@@ -8,6 +8,7 @@ from typing import Callable, get_type_hints
 
 from devops.stable.runner import AcceptanceCriterion, Job
 from metta.common.tool import Tool
+from metta.common.wandb.context import WandbConfig
 from metta.tools.train import TrainTool
 
 
@@ -160,13 +161,13 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
 
         return_type = get_type_hints(spec.func).get("return")
 
-        wandb_enabled = False
+        wandb_disabled = True
         if return_type is TrainTool:
             tool = spec.func()
             assert isinstance(tool, TrainTool)
-            wandb_enabled = tool.wandb.enabled
+            wandb_disabled = tool.wandb.enabled or tool.wandb == WandbConfig.Unconfigured()
 
-        if spec.acceptance and not wandb_enabled:
+        if spec.acceptance and wandb_disabled:
             raise ValueError(f"{spec.name} must have wandb enabled to use acceptance criteria")
 
         assert (spec.remote_gpus is not None) == (spec.remote_nodes is not None), (
@@ -209,7 +210,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
                 remote_gpus=spec.remote_gpus,
                 remote_nodes=spec.remote_nodes,
                 dependencies=dependencies,
-                wandb_run_name=job_name if wandb_enabled else None,
+                wandb_run_name=job_name if not wandb_disabled else None,
                 acceptance=spec.acceptance,
             )
         )
