@@ -10,7 +10,7 @@ import boto3
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.saved_settings import get_saved_settings
+from metta.setup.saved_settings import UserType, get_saved_settings
 from metta.setup.utils import debug, info, warning
 from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
 from softmax.aws.secrets_manager import get_secretsmanager_secret
@@ -83,7 +83,7 @@ class PrSimilaritySetup(SetupModule):
             warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
             return
 
-        from metta.setup.saved_settings import UserType
+        # Keep local import: slow loading (~1000ms)
         from metta.tools.pr_similarity import API_KEY_ENV
 
         saved_settings = get_saved_settings()

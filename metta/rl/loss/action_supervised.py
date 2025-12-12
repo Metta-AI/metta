@@ -6,13 +6,15 @@ from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
-if TYPE_CHECKING:
-    from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
+
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
 
 
 class ActionSupervisedConfig(LossConfig):

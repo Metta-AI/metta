@@ -216,6 +216,8 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
+        # Retained local import that resolves circular dependency:
+        # tools.local.kind <-> local_commands (low priority refactor)
         from metta.setup.local_commands import build_policy_evaluator_img_internal
 
         self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
@@ -240,6 +242,8 @@ class EksProd(Kind):
         info("Building AMD64 for EKS...")
 
         local_image_name = "metta-policy-evaluator-local:latest-amd64"
+        # Retained local import that resolves circular dependency:
+        # tools.local.kind <-> local_commands (low priority refactor)
         from metta.setup.local_commands import build_policy_evaluator_img_internal
 
         build_policy_evaluator_img_internal(
