@@ -413,6 +413,7 @@ def evaluate(
             variants=variants,
         ),
         policy_uris=policy_uris,
+        result_file_path="/dev/null",
     )
 
 
