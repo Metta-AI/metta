@@ -322,7 +322,7 @@ class CICollector(BaseCollector):
             workflow_name = workflow.get("name") or workflow.get("path", "").split("/")[-1]
             workflow_id = str(workflow.get("id", ""))
 
-            # Skip if this workflow matches by name OR id
+            # Skip if this workflow matches by name OR id (handle both string IDs and numeric IDs)
             if workflow_name in exclude_workflows or workflow_id in exclude_workflows:
                 continue
 
