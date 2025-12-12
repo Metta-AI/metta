@@ -10,7 +10,6 @@ import torch
 
 if torch.cuda.is_available():
     # Use torch.set_float32_matmul_precision which is the recommended API
-    # and avoids conflicts with torch.compile's internal checks
     torch.set_float32_matmul_precision("high")
 from pydantic import Field
 

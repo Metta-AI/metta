@@ -21,13 +21,10 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
-    if policy_architecture is None:
-        policy_architecture = TRXLConfig()
-
     return base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy_architecture,
+        policy_architecture=policy_architecture or TRXLConfig(),
     )
 
 
