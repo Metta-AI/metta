@@ -172,6 +172,7 @@ class Runner:
         job.exit_code = exit_code
         job.error = error
         job.completed_at = datetime.now().isoformat()
+        assert job.started_at is not None
         started = datetime.fromisoformat(job.started_at)
         job.duration_s = (datetime.fromisoformat(job.completed_at) - started).total_seconds()
         result = "PASSED" if status == JobStatus.SUCCEEDED else f"FAILED: {error}"
@@ -316,11 +317,16 @@ class Runner:
                 continue
 
             sky_job = status_by_id.get(job.skypilot_job_id)
-            sky_status = str(sky_job.get("status", "")).upper() if sky_job else "MISSING"
+            if not sky_job:
+                elapsed = (now - datetime.fromisoformat(job.started_at)).total_seconds()
+                if elapsed > 300:
+                    self._complete_job(job, JobStatus.FAILED, 1, "Job not found in SkyPilot queue")
+                continue
 
+            sky_status = str(sky_job.get("status", "")).upper()
             if "SUCCEEDED" in sky_status:
                 self._complete_job(job, JobStatus.SUCCEEDED, 0)
-            elif any(s in sky_status for s in ("FAILED", "CANCELLED", "MISSING")):
+            elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
                 self._complete_job(job, JobStatus.FAILED, 1, f"SkyPilot status: {sky_status}")
 
     def _fetch_metrics_and_evaluate(self) -> None:
