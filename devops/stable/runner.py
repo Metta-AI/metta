@@ -61,10 +61,6 @@ class Job(BaseModel):
         return self.remote_gpus is not None or self.remote_nodes is not None
 
     @property
-    def is_terminal(self) -> bool:
-        return self.status in (JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.SKIPPED)
-
-    @property
     def wandb_url(self) -> str | None:
         if not self.wandb_run_name:
             return None
@@ -146,12 +142,15 @@ class Runner:
                     break
                 if dep.status in (JobStatus.FAILED, JobStatus.SKIPPED):
                     job.status = JobStatus.SKIPPED
-                    job.error = f"Dependency failed: {dep_name}"
+                    job.error = f"Dependency {dep.status.value.lower()}: {dep_name}"
                     deps_satisfied = False
                     break
-                if not dep.is_terminal:
+                if dep.status == JobStatus.PENDING:
                     deps_satisfied = False
                     break
+                else:
+                    assert dep.status == JobStatus.SUCCEEDED
+
             if deps_satisfied and job.status == JobStatus.PENDING:
                 ready.append(job)
         return ready
