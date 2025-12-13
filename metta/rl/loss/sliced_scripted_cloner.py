@@ -57,6 +57,7 @@ class SlicedScriptedCloner(Loss):
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
         actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
+        rewards = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
             teacher_actions=teacher_actions,
@@ -64,6 +65,7 @@ class SlicedScriptedCloner(Loss):
             stud_mask=boolean,
             teacher_mask=boolean,
             ppo_mask=boolean,
+            rewards=rewards,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -72,6 +74,10 @@ class SlicedScriptedCloner(Loss):
                 self._create_slices(td.batch_size.numel())
 
             self.policy.forward(td)
+
+            # Ensure rewards exist for downstream losses even if PPO is gated off.
+            if "rewards" not in td.keys():
+                td["rewards"] = torch.zeros_like(td["dones"], dtype=torch.float32)
 
             if self.teacher_mask.any():
                 # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
