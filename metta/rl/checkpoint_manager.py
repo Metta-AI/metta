@@ -85,19 +85,26 @@ class CheckpointManager:
         mpt_path = checkpoint_dir / "policy.mpt"
         local_mpt_uri = save_mpt(mpt_path, architecture=architecture, state_dict=state_dict)
 
-        spec = PolicySpec(
+        local_spec = PolicySpec(
             class_path="mettagrid.policy.mpt_policy.MptPolicy",
             init_kwargs={"checkpoint_uri": local_mpt_uri},
         )
         spec_path = checkpoint_dir / "policy_spec.json"
-        spec_path.write_text(spec.model_dump_json())
+        spec_path.write_text(local_spec.model_dump_json())
 
         if self._remote_prefix:
             remote_dir = f"{self._remote_prefix}/{filename}"
             remote_mpt_uri = f"{remote_dir}/policy.mpt"
             write_data(remote_mpt_uri, mpt_path.read_bytes(), content_type="application/octet-stream")
-            write_data(f"{remote_dir}/policy_spec.json", spec.model_dump_json().encode("utf-8"),
-                       content_type="application/json")
+            remote_spec = PolicySpec(
+                class_path="mettagrid.policy.mpt_policy.MptPolicy",
+                init_kwargs={"checkpoint_uri": remote_mpt_uri},
+            )
+            write_data(
+                f"{remote_dir}/policy_spec.json",
+                remote_spec.model_dump_json().encode("utf-8"),
+                content_type="application/json",
+            )
             logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
             return remote_dir
 

@@ -134,10 +134,11 @@ class S3SchemeResolver(SchemeResolver):
             parts = key.split("/")
             if len(parts) < 2:
                 continue
+            dir_path = "/".join(parts[:-1])  # full directory path to the checkpoint
             run_dir = parts[-2]
             info = _extract_run_and_epoch(run_dir)
             if info and (best is None or info[1] > best[0]):
-                best = (info[1], f"s3://{parsed.bucket}/{run_dir}")
+                best = (info[1], f"s3://{parsed.bucket}/{dir_path}")
         return best[1] if best else None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
