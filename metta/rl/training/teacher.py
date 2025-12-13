@@ -53,12 +53,12 @@ def apply_teacher_phase(
     total_steps = teacher_cfg.steps if teacher_cfg.steps is not None else default_steps
     losses = trainer_cfg.losses
 
-    def _gate_loss(name: str) -> None:
-        if total_steps:
+    def _gate_loss(name: str, end_at_step: int | None = total_steps) -> None:
+        if end_at_step:
             scheduler_run_gates.extend(
                 [
-                    LossRunGate(loss_instance_name=name, phase="rollout", end_at_step=total_steps),
-                    LossRunGate(loss_instance_name=name, phase="train", end_at_step=total_steps),
+                    LossRunGate(loss_instance_name=name, phase="rollout", end_at_step=end_at_step),
+                    LossRunGate(loss_instance_name=name, phase="train", end_at_step=end_at_step),
                 ]
             )
 
@@ -111,6 +111,8 @@ def apply_teacher_phase(
         # If teacher + student consume the whole batch, skip PPO entirely.
         total_led = teacher_cfg.teacher_led_proportion + teacher_cfg.student_led_proportion
         disable_ppo = total_led >= 1.0
+        keep_cloner_after_teacher = teacher_cfg.student_led_proportion > 0.0
+        gate_end_step = None if keep_cloner_after_teacher else total_steps
 
         losses.ppo_critic.sample_enabled = True
         losses.ppo_critic.train_forward_enabled = True
@@ -122,7 +124,7 @@ def apply_teacher_phase(
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
-        _gate_loss("sliced_scripted_cloner")
+        _gate_loss("sliced_scripted_cloner", end_at_step=gate_end_step)
         _anneal_led("sliced_scripted_cloner", teacher_cfg.teacher_led_proportion)
         _grow_student(
             "sliced_scripted_cloner",
