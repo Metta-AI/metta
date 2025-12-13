@@ -101,7 +101,7 @@ def main(
     version = datetime.now().strftime("%Y.%m.%d-%H%M%S")
     user = os.environ.get("USER", "unknown")
     prefix = f"{user}.{suite or 'all'}.{version}"
-    state_dir = Path("devops/stable/state") / version
+    state_dir = Path("devops/stable/state/latest")
 
     specs = discover_jobs(suite)
     jobs = specs_to_jobs(specs, prefix)
