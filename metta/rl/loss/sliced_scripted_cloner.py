@@ -55,7 +55,7 @@ class SlicedScriptedCloner(Loss):
 
     def get_experience_spec(self) -> Composite:
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
-        actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
+        actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
