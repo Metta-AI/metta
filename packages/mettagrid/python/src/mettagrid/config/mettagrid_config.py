@@ -68,6 +68,21 @@ class DamageConfig(Config):
         "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
     )
 
+    @model_validator(mode="after")
+    def _validate_distinct_keys(self) -> "DamageConfig":
+        """Ensure that threshold and resources keys don't overlap."""
+        threshold_keys = set(self.threshold.keys())
+        resources_keys = set(self.resources.keys())
+        overlapping_keys = threshold_keys.intersection(resources_keys)
+        
+        if overlapping_keys:
+            raise ValueError(
+                f"Resources cannot appear in both threshold and resources maps. "
+                f"Overlapping keys: {sorted(overlapping_keys)}"
+            )
+        
+        return self
+
 
 # TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
