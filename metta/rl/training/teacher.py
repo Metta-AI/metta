@@ -108,6 +108,10 @@ def apply_teacher_phase(
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
+        # If teacher + student consume the whole batch, skip PPO entirely.
+        total_led = teacher_cfg.teacher_led_proportion + teacher_cfg.student_led_proportion
+        disable_ppo = total_led >= 1.0
+
         losses.ppo_critic.sample_enabled = True
         losses.ppo_critic.train_forward_enabled = True
         losses.ppo_critic.rollout_forward_enabled = True
@@ -125,6 +129,11 @@ def apply_teacher_phase(
             teacher_cfg.student_led_proportion,
             teacher_cfg.teacher_led_proportion,
         )
+
+        if disable_ppo:
+            for loss_name in ("ppo", "ppo_actor", "ppo_critic", "quantile_ppo_critic"):
+                if hasattr(losses, loss_name):
+                    getattr(losses, loss_name).enabled = False
 
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
