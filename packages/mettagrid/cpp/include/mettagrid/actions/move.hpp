@@ -20,7 +20,7 @@ struct GameConfig;
 class Move : public ActionHandler {
 public:
   explicit Move(const MoveActionConfig& cfg, [[maybe_unused]] const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _config(cfg), _allowed_directions(cfg.allowed_directions) {
+      : ActionHandler(cfg, "move"), _allowed_directions(cfg.allowed_directions) {
     // Build direction name to orientation mapping
     _direction_map["north"] = Orientation::North;
     _direction_map["south"] = Orientation::South;
@@ -123,7 +123,6 @@ protected:
   }
 
 private:
-  const MoveActionConfig& _config;
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
   std::unordered_map<std::string, ActionHandler*> _handlers;

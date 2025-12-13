@@ -82,7 +82,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  init_action_handlers(game_config);
+  init_action_handlers();
 
   _init_grid(game_config, map);
 
@@ -238,11 +238,11 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   _compute_observations(executed_actions);
 }
 
-void MettaGrid::init_action_handlers(const GameConfig& game_config) {
+void MettaGrid::init_action_handlers() {
   _max_action_priority = 0;
 
   // Noop
-  auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
+  auto noop = std::make_unique<Noop>(*_game_config.actions.at("noop"));
   noop->init(_grid.get(), &_rng);
   if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
   for (const auto& action : noop->actions()) {
@@ -251,8 +251,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _action_handler_impl.push_back(std::move(noop));
 
   // Move
-  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
-  auto move = std::make_unique<Move>(*move_config, &game_config);
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(_game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &_game_config);
   move->init(_grid.get(), &_rng);
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
@@ -263,8 +263,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
-  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(game_config.actions.at("attack"));
-  auto attack = std::make_unique<Attack>(*attack_config, &game_config);
+  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(_game_config.actions.at("attack"));
+  auto attack = std::make_unique<Attack>(*attack_config, &_game_config);
   attack->init(_grid.get(), &_rng);
   if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
   for (const auto& action : attack->actions()) {
@@ -280,8 +280,8 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
 
   // ChangeVibe
   auto change_vibe_config =
-      std::static_pointer_cast<const ChangeVibeActionConfig>(game_config.actions.at("change_vibe"));
-  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &game_config);
+      std::static_pointer_cast<const ChangeVibeActionConfig>(_game_config.actions.at("change_vibe"));
+  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &_game_config);
   change_vibe->init(_grid.get(), &_rng);
   if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
   for (const auto& action : change_vibe->actions()) {
