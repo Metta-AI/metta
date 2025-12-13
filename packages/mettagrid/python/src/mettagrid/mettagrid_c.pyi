@@ -122,9 +122,15 @@ class AttackActionConfig(ActionConfig):
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
+        armor_resources: dict[int, int] = {},
+        weapon_resources: dict[int, int] = {},
+        loot: Optional[list[int]] = None,
         enabled: bool = True,
     ) -> None: ...
     defense_resources: dict[int, int]
+    armor_resources: dict[int, int]
+    weapon_resources: dict[int, int]
+    loot: Optional[list[int]]
     enabled: bool
 
 class ChangeVibeActionConfig(ActionConfig):

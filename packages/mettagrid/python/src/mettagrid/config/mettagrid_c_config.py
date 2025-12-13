@@ -201,6 +201,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
             vibe_transfers=vibe_transfers_map,
+            initial_vibe=agent_props.get("initial_vibe", 0),
         )
         cpp_agent_config.tag_ids = tag_ids
 
@@ -403,13 +404,29 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
-    if actions_config.attack.enabled:
+    attack_cfg = actions_config.attack
+    if attack_cfg.enabled:
         action_params["defense_resources"] = {
-            resource_name_to_id[k]: v for k, v in actions_config.attack.defense_resources.items()
+            resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
         }
+        action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
+        action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
+        # Convert loot list from names to IDs if specified
+        if attack_cfg.loot is not None:
+            loot_ids = []
+            for name in attack_cfg.loot:
+                if name not in resource_name_to_id:
+                    raise ValueError(f"Loot resource '{name}' not found in resource_names")
+                loot_ids.append(resource_name_to_id[name])
+            action_params["loot"] = loot_ids
+        else:
+            action_params["loot"] = None
     else:
         action_params["defense_resources"] = {}
-    action_params["enabled"] = actions_config.attack.enabled
+        action_params["armor_resources"] = {}
+        action_params["weapon_resources"] = {}
+        action_params["loot"] = None
+    action_params["enabled"] = attack_cfg.enabled
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process change_vibe - always add to map
