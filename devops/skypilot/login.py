@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 
-import sys
-
 from sky.cli import cli
 
 from devops.skypilot.utils.terminal import disable_canonical_mode
