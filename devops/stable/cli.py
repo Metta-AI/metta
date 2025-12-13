@@ -19,7 +19,7 @@ import typer
 
 from devops.stable.asana_bugs import check_blockers
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
-from devops.stable.runner import Job, Runner, print_summary
+from devops.stable.runner import Job, Runner
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
@@ -86,6 +86,26 @@ def write_github_summary(runner: Runner) -> None:
 
     with open(summary_path, "a") as f:
         f.write("\n".join(lines))
+
+
+def print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
+    failed = [j for j in runner.jobs.values() if _is_failed(j)]
+    if not failed:
+        return
+
+    print("\n" + "=" * 60)
+    print("Failed Job Logs")
+    print("=" * 60)
+    for job in failed:
+        print(f"\n--- {job.name} ---")
+        if job.logs_path and Path(job.logs_path).exists():
+            lines = Path(job.logs_path).read_text().splitlines()
+            for line in lines[-tail_lines:]:
+                print(line)
+        elif job.error:
+            print(job.error)
+        else:
+            print("(no logs available)")
 
 
 def write_discord_summary(runner: Runner, state_dir: Path) -> None:
@@ -156,7 +176,11 @@ def main(
     print()
 
     runner.run_all()
-    success = print_summary(runner.jobs)
+
+    failed = [j for j in runner.jobs.values() if _is_failed(j)]
+    success = len(failed) == 0
+
+    print_failed_logs(runner)
     write_github_summary(runner)
     write_discord_summary(runner, state_dir)
 
