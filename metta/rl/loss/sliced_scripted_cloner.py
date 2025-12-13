@@ -117,8 +117,8 @@ class SlicedScriptedCloner(Loss):
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
-        shared_loss_data["sampled_mb"] = minibatch
         shared_loss_data = shared_loss_data[train_ppo_mask]
+        shared_loss_data["sampled_mb"] = minibatch[train_ppo_mask]
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
         # Only pass the remainder slice to PPO losses.
 
