@@ -88,6 +88,7 @@ class Trainer:
             policy_experience_spec=self._policy.get_agent_experience_spec(),
             losses=losses,
             device=self._device,
+            sampling_config=self._cfg.sampling,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)

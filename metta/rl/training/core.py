@@ -3,11 +3,12 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.utils import forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -248,6 +249,29 @@ class CoreTrainingLoop:
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
                 shared_loss_mb_data = self.experience.give_me_empty_md_td()
+
+                # Get advantages from losses for sampling
+                advantages = None
+                for loss_obj in self.losses.values():
+                    if hasattr(loss_obj, "advantages"):
+                        advantages = loss_obj.advantages
+                        break
+
+                # Sample using Experience.sample()
+                minibatch, indices, prio_weights = self.experience.sample(
+                    mb_idx=mb_idx,
+                    epoch=context.epoch,
+                    total_timesteps=context.config.total_timesteps,
+                    batch_size=context.config.batch_size,
+                    advantages=advantages,
+                )
+
+                shared_loss_mb_data["sampled_mb"] = minibatch
+                shared_loss_mb_data["indices"] = NonTensorData(indices)
+                shared_loss_mb_data["prio_weights"] = prio_weights
+
+                policy_td = forward_policy_for_training(self.policy, minibatch, self.policy_spec)
+                shared_loss_mb_data["policy_td"] = policy_td
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
