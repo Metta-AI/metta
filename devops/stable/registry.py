@@ -151,6 +151,7 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
     """
     jobs: list[Job] = []
 
+    func_to_spec: dict[Callable, JobSpec] = {spec.func: spec for spec in specs}
     spec_to_job_name: dict[Callable, str] = {}
     for spec in specs:
         spec_to_job_name[spec.func] = f"{prefix}-{spec.name}"
@@ -193,8 +194,11 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
             dep_job_name = spec_to_job_name[spec.depends_on]
             dependencies.append(dep_job_name)
 
+            dep_spec = func_to_spec[spec.depends_on]
+            dep_is_remote = dep_spec.remote_gpus is not None
+
             inject_args = []
-            available_references = spec.depends_on().output_references(job_name=dep_job_name)
+            available_references = spec.depends_on().output_references(job_name=dep_job_name, remote=dep_is_remote)
             for param_name, output_field in spec.input_references.items():
                 if output_field not in available_references:
                     raise ValueError(f"Dependency {dep_job_name} does not provide output field: {output_field}")
