@@ -134,12 +134,12 @@ jobs:
         uses: ./.github/actions/discord-webhook
         with:
           webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
-          content-file: devops/stable/state/*/discord_summary.txt
+          content-file: devops/stable/state/discord_summary.txt
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runner-logs
-          path: devops/stable/state/*/logs/
+          path: devops/stable/state/logs/
           retention-days: 30
