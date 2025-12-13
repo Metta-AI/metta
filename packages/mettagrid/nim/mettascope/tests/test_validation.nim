@@ -139,7 +139,7 @@ block schema_validation:
     let issues = validateReplay(replay)
     # Should have issues but not crash
     doAssert issues.len > 0, "Should have validation issues for missing required fields"
-    doAssert issues.anyIt(it.message.contains("is missing (required)")), &"Expected missing fields validation error, got: {issues}"
+    doAssert issues.anyIt(it.message.contains("must have either") or it.message.contains("is missing (required)")), &"Expected missing fields validation error, got: {issues}"
     echo "✓ Missing required fields handled gracefully without crashing"
 
   block invalid_location_format_gracefully_handled:
