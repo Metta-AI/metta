@@ -118,20 +118,21 @@ def _resolve_eval_variants(
 
 def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+    # Align with arena/basic defaults to reduce LR and PPO aggressiveness.
+    trainer_cfg.optimizer.learning_rate = 0.00092
+    trainer_cfg.optimizer.eps = 3.186531e-07
 
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo.clip_coef = 0.264407
+    trainer_cfg.losses.ppo.gae_lambda = 0.891477
+    trainer_cfg.losses.ppo.vf_coef = 0.897619
 
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.264407
 
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.891477
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.897619
 
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.891477
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.897619
     return trainer_cfg
 
 
