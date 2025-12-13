@@ -24,14 +24,6 @@ from devops.stable.runner import Job, Runner
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
 
-def get_state_dir(version: str) -> Path:
-    return Path("devops/stable/state") / version
-
-
-def generate_version() -> str:
-    return datetime.now().strftime("%Y.%m.%d-%H%M%S")
-
-
 def _is_acceptance_failed(job: Job) -> bool:
     return job.status.value == "succeeded" and job.acceptance_passed is False
 
@@ -152,10 +144,10 @@ def main(
             print("Asana check skipped (not configured or unavailable)")
         print()
 
-    version = generate_version()
+    version = datetime.now().strftime("%Y.%m.%d-%H%M%S")
     user = os.environ.get("USER", "unknown")
     prefix = f"{user}.{suite or 'all'}.{version}"
-    state_dir = get_state_dir(version)
+    state_dir = Path("devops/stable/state") / version
 
     specs = discover_jobs(suite)
     jobs = specs_to_jobs(specs, prefix)
@@ -165,15 +157,10 @@ def main(
         runner.add_job(j)
 
     print(f"Running {suite} jobs: {version}")
-    print(f"State: {state_dir}")
-    print(f"Logs: {runner.logs_dir}")
     print(f"Jobs: {len(runner.jobs)}")
-    print()
-
     for j in runner.jobs.values():
         remote = "remote" if j.is_remote else "local"
         print(f"  - {j.name} ({remote})")
-    print()
 
     runner.run_all()
 
