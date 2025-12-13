@@ -526,6 +526,14 @@ class LLMAgentPolicy(AgentPolicy):
         # Format: {object_type: (global_x, global_y)}
         self._discovered_objects: dict[str, tuple[int, int]] = {}
 
+        # Track extractor visits and resources collected
+        # Format: {extractor_type: {"position": (x, y), "visits": int, "collected": int}}
+        self._extractor_stats: dict[str, dict] = {}
+
+        # Track other agents' last seen positions and inventories
+        # Format: {agent_id: {"position": (x, y), "inventory": dict, "last_seen_step": int}}
+        self._other_agents_info: dict[int, dict] = {}
+
         # Track exploration direction and steps in that direction
         self._current_direction: str | None = None
         self._steps_in_direction: int = 0
@@ -900,6 +908,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         """Extract and track discovered objects from observation.
 
         Updates self._discovered_objects with global positions of important objects.
+        Also tracks extractor visits when agent steps on them.
 
         Args:
             obs: Agent observation
@@ -910,6 +919,12 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         # Important object types to track
         important_types = {
             "charger", "assembler", "chest",
+            "carbon_extractor", "oxygen_extractor",
+            "germanium_extractor", "silicon_extractor",
+        }
+
+        # Extractor types for visit tracking
+        extractor_types = {
             "carbon_extractor", "oxygen_extractor",
             "germanium_extractor", "silicon_extractor",
         }
@@ -927,6 +942,17 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                     # Store with global position (keep closest one if multiple)
                     if tag_name not in self._discovered_objects:
                         self._discovered_objects[tag_name] = (global_x, global_y)
+
+                    # Track extractor visits when agent is at extractor position (rel_x=0, rel_y=0)
+                    if tag_name in extractor_types and rel_x == 0 and rel_y == 0:
+                        if tag_name not in self._extractor_stats:
+                            self._extractor_stats[tag_name] = {
+                                "position": (global_x, global_y),
+                                "visits": 0,
+                                "collected": 0,
+                            }
+                        # Increment visit count (will track collection separately)
+                        self._extractor_stats[tag_name]["visits"] += 1
 
     def _extract_inventory_from_obs(self, obs: AgentObservation) -> dict[str, int]:
         """Extract current inventory from observation.
@@ -950,6 +976,120 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                     inventory["energy"] = token.value
 
         return inventory
+
+    def _update_extractor_collection(self, new_inventory: dict[str, int]) -> None:
+        """Update extractor collection stats based on inventory changes.
+
+        Compares new inventory to last inventory and attributes gains to extractors.
+
+        Args:
+            new_inventory: Current inventory
+        """
+        # Map resources to their extractors
+        resource_to_extractor = {
+            "carbon": "carbon_extractor",
+            "oxygen": "oxygen_extractor",
+            "germanium": "germanium_extractor",
+            "silicon": "silicon_extractor",
+        }
+
+        for resource, extractor in resource_to_extractor.items():
+            old_amount = self._last_inventory.get(resource, 0)
+            new_amount = new_inventory.get(resource, 0)
+            if new_amount > old_amount:
+                collected = new_amount - old_amount
+                # Update extractor stats if we've visited this extractor
+                if extractor in self._extractor_stats:
+                    self._extractor_stats[extractor]["collected"] += collected
+
+    def _extract_other_agents_info(self, obs: AgentObservation) -> None:
+        """Extract other agents' positions and inventories from observation.
+
+        Updates self._other_agents_info with latest seen data.
+
+        Args:
+            obs: Agent observation
+        """
+        agent_x = self.policy_env_info.obs_width // 2
+        agent_y = self.policy_env_info.obs_height // 2
+
+        # Track agents seen in this observation
+        agents_in_view: dict[int, dict] = {}
+
+        for token in obs.tokens:
+            # Skip our own position (center of view)
+            if token.row() == agent_x and token.col() == agent_y:
+                continue
+
+            # Look for agent ID tokens
+            if token.feature.name == "agent:id":
+                other_agent_id = token.value
+                # Calculate their global position
+                rel_x = token.row() - agent_x
+                rel_y = token.col() - agent_y
+                global_x = self._global_x + rel_x
+                global_y = self._global_y + rel_y
+
+                if other_agent_id not in agents_in_view:
+                    agents_in_view[other_agent_id] = {
+                        "position": (global_x, global_y),
+                        "inventory": {},
+                        "last_seen_step": self.prompt_builder.step_count,
+                    }
+
+            # Look for other agents' inventory (same position as agent:id)
+            # Inventory tokens are at the agent's position
+            if token.feature.name.startswith("inv:"):
+                # Find which agent this belongs to by checking if we already found an agent at this position
+                for _aid, info in agents_in_view.items():
+                    # Check if this inventory token is at the same relative position as the agent
+                    rel_x = token.row() - agent_x
+                    rel_y = token.col() - agent_y
+                    agent_global = (self._global_x + rel_x, self._global_y + rel_y)
+                    if info["position"] == agent_global:
+                        resource = token.feature.name[4:]
+                        if token.value > 0:
+                            info["inventory"][resource] = token.value
+                        break
+
+        # Update our tracking with any agents we saw
+        for aid, info in agents_in_view.items():
+            self._other_agents_info[aid] = info
+
+    def _get_other_agents_text(self) -> str:
+        """Get formatted text of other agents' last known states.
+
+        Returns:
+            Formatted string showing other agents' positions and inventories.
+        """
+        if not self._other_agents_info:
+            return ""
+
+        def pos_to_dir(x: int, y: int) -> str:
+            if x == 0 and y == 0:
+                return "at origin"
+            parts = []
+            if y < 0:
+                parts.append(f"{abs(y)}N")
+            elif y > 0:
+                parts.append(f"{y}S")
+            if x > 0:
+                parts.append(f"{x}E")
+            elif x < 0:
+                parts.append(f"{abs(x)}W")
+            return "".join(parts)
+
+        lines = ["=== OTHER AGENTS (last seen) ==="]
+        for agent_id, info in sorted(self._other_agents_info.items()):
+            pos = info["position"]
+            inv = info["inventory"]
+            step = info["last_seen_step"]
+            steps_ago = self.prompt_builder.step_count - step
+
+            inv_str = ", ".join(f"{k}={v}" for k, v in sorted(inv.items()) if v > 0) if inv else "empty"
+            lines.append(f"  Agent {agent_id}: {pos_to_dir(*pos)} ({steps_ago} steps ago) | inv: {inv_str}")
+
+        return "\n".join(lines)
 
     def _get_discovered_objects_text(self) -> str:
         """Get formatted text of discovered objects for the prompt.
@@ -975,8 +1115,24 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             return "".join(parts)
 
         lines = ["=== DISCOVERED OBJECTS (from exploration) ==="]
+
+        # Extractor types for special formatting with visit stats
+        extractor_types = {
+            "carbon_extractor", "oxygen_extractor",
+            "germanium_extractor", "silicon_extractor",
+        }
+
         for obj_type, (gx, gy) in sorted(self._discovered_objects.items()):
-            lines.append(f"  - {obj_type}: {pos_to_dir(gx, gy)}")
+            # Add visit stats for extractors
+            if obj_type in extractor_types and obj_type in self._extractor_stats:
+                stats = self._extractor_stats[obj_type]
+                visits = stats["visits"]
+                collected = stats["collected"]
+                resource = obj_type.replace("_extractor", "")
+                loc = pos_to_dir(gx, gy)
+                lines.append(f"  - {obj_type}: {loc} (visited {visits}x, collected {collected} {resource})")
+            else:
+                lines.append(f"  - {obj_type}: {pos_to_dir(gx, gy)}")
 
         return "\n".join(lines)
 
@@ -1141,8 +1297,14 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         # Extract and track discovered objects from this observation
         self._extract_discovered_objects(obs)
 
+        # Extract other agents' positions and inventories
+        self._extract_other_agents_info(obs)
+
         # Extract current inventory for strategic hints
         inventory = self._extract_inventory_from_obs(obs)
+
+        # Track resource collection before updating last inventory
+        self._update_extractor_collection(inventory)
         self._last_inventory = inventory
 
         # Increment summary step counter
@@ -1185,12 +1347,15 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             history_text = self._get_history_summary_text()
             user_prompt = history_text + "\n" + user_prompt
 
-        # Add discovered objects and strategic hints to every prompt
+        # Add discovered objects, other agents info, and strategic hints to every prompt
         discovered_text = self._get_discovered_objects_text()
+        other_agents_text = self._get_other_agents_text()
         strategic_hints = self._get_strategic_hints(inventory, obs)
 
         if discovered_text:
             user_prompt = user_prompt + "\n\n" + discovered_text
+        if other_agents_text:
+            user_prompt = user_prompt + "\n\n" + other_agents_text
         if strategic_hints:
             user_prompt = user_prompt + "\n\n" + strategic_hints
 
