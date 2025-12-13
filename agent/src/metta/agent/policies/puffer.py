@@ -39,6 +39,8 @@ class PufferPolicy(Policy):
         self.config = config or PufferPolicyConfig()
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
+        self.out_width = policy_env_info.obs_width
+        self.out_height = policy_env_info.obs_height
 
         self.num_layers = 24
         hidden_size = 512
@@ -172,7 +174,7 @@ class PufferPolicy(Policy):
         batch_size = encoded_obs.shape[0]
 
         # Initialize state if None
-        if self._hidden_state is None or self._cell_state is None or self._hidden_state.shape[1] != batch_size:
+        if self._hidden_state is None or self._cell_state is None:
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)

@@ -19,6 +19,7 @@ from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+from recipes.experiment.architectures import ARCHITECTURES
 from recipes.experiment.cfg import NAVIGATION_EVALS
 
 
@@ -169,6 +170,7 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    arch_type: str = "default",
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -176,10 +178,17 @@ def train(
         simulations=make_navigation_eval_suite(),
     )
 
-    return TrainTool(
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        evaluator=evaluator_cfg,
-    )
+    kwargs = {
+        "training_env": TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        "evaluator": evaluator_cfg,
+    }
+
+    if arch_type != "default":
+        if arch_type not in ARCHITECTURES:
+            raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
+        kwargs["policy_architecture"] = ARCHITECTURES[arch_type]
+
+    return TrainTool(**kwargs)
 
 
 def evaluate(
