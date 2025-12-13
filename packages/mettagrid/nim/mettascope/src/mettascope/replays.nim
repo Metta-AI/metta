@@ -198,6 +198,16 @@ proc getString*(obj: JsonNode, key: string, default: string = ""): string =
   ## Get a string field from JsonNode with a default value if key is missing.
   if key in obj: obj[key].getStr else: default
 
+proc getMapSize*(obj: JsonNode, default: (int, int) = (0, 0)): (int, int) =
+  ## Get map_size [width, height] with bounds checking.
+  if "map_size" in obj:
+    let mapSize = obj["map_size"]
+    if mapSize.kind == JArray and mapSize.len >= 2:
+      let w = if mapSize[0].kind == JInt: mapSize[0].getInt else: 0
+      let h = if mapSize[1].kind == JInt: mapSize[1].getInt else: 0
+      return (w, h)
+  default
+
 proc parseHook*(s: string, i: var int, v: var IVec2) =
   var arr: array[2, int32]
   parseHook(s, i, arr)
@@ -230,8 +240,8 @@ proc expand[T](data: JsonNode, numSteps: int, defaultValue: T): seq[T] =
       var j = 0
       var v: T = defaultValue
       for i in 0 ..< numSteps:
-        if j < data.len and data[j].kind == JArray and data[j][0].kind ==
-            JInt and data[j][0].getInt == i:
+        if j < data.len and data[j].kind == JArray and data[j].len >= 2 and
+            data[j][0].kind == JInt and data[j][0].getInt == i:
           v = data[j][1].to(T)
           j += 1
         result.add(v)
@@ -629,7 +639,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     typeNames: jsonObj["type_names"].to(seq[string]),
     numAgents: jsonObj["num_agents"].getInt,
     maxSteps: jsonObj["max_steps"].getInt,
-    mapSize: (jsonObj["map_size"][0].getInt, jsonObj["map_size"][1].getInt)
+    mapSize: getMapSize(jsonObj)
   )
 
   for actionName in drawnAgentActionNames:
@@ -651,15 +661,21 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       for i in 0 ..< inventoryRaw.len:
         var itemAmounts: seq[ItemAmount]
         for j in 0 ..< inventoryRaw[i].len:
-          itemAmounts.add(ItemAmount(itemId: inventoryRaw[i][j][0],
-              count: inventoryRaw[i][j][1]))
+          if inventoryRaw[i][j].len >= 2:
+            itemAmounts.add(ItemAmount(
+              itemId: inventoryRaw[i][j][0],
+              count: inventoryRaw[i][j][1]
+            ))
         inventory.add(itemAmounts)
 
     var location: seq[IVec2]
     if "location" in obj:
       let locationRaw = expand[seq[int]](obj["location"], replay.maxSteps, @[0, 0])
       for coords in locationRaw:
-        location.add(ivec2(coords[0].int32, coords[1].int32))
+        if coords.len >= 2:
+          location.add(ivec2(coords[0].int32, coords[1].int32))
+        else:
+          location.add(ivec2(0, 0))
     else:
       location = @[ivec2(0, 0)]
 
@@ -713,11 +729,18 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
-        entity.inputResources.add(ItemAmount(itemId: pair[0].getInt,
-            count: pair[1].getInt))
+        if pair.kind == JArray and pair.len >= 2:
+          entity.inputResources.add(ItemAmount(
+            itemId: if pair[0].kind == JInt: pair[0].getInt else: 0,
+            count: if pair[1].kind == JInt: pair[1].getInt else: 0
+          ))
+    if "output_resources" in obj:
       for pair in obj["output_resources"]:
-        entity.outputResources.add(ItemAmount(itemId: pair[0].getInt,
-            count: pair[1].getInt))
+        if pair.kind == JArray and pair.len >= 2:
+          entity.outputResources.add(ItemAmount(
+            itemId: if pair[0].kind == JInt: pair[0].getInt else: 0,
+            count: if pair[1].kind == JInt: pair[1].getInt else: 0
+          ))
       if "recipe_max" in obj:
         entity.recipeMax = obj["recipe_max"].getInt
       else:
