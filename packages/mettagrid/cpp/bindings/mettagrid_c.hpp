@@ -147,7 +147,7 @@ private:
   // Global systems
   std::unique_ptr<Clipper> _clipper;
 
-  void init_action_handlers(const GameConfig& game_config);
+  void init_action_handlers();
   void add_agent(Agent* agent);
   void _init_grid(const GameConfig& game_config, const py::list& map);
   void _make_buffers(unsigned int num_agents);

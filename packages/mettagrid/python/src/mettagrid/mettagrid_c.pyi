@@ -97,6 +97,7 @@ class AgentConfig(GridObjectConfig):
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, int] = {},
         diversity_tracked_resources: list[int] = [],
+        initial_vibe: int = 0,
         damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
@@ -111,6 +112,7 @@ class AgentConfig(GridObjectConfig):
     initial_inventory: dict[int, int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
+    initial_vibe: int
     damage_config: DamageConfig
 
 class ActionConfig:
