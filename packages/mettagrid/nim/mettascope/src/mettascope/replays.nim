@@ -353,9 +353,8 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   var objects = newJArray()
   var maxX = 0
   var maxY = 0
-  if "grid_objects" notin replayData:
-    return data
-  for gridObject in replayData["grid_objects"]:
+  let gridObjectsArr = getArray(replayData, "grid_objects", newJArray())
+  for gridObject in gridObjectsArr:
     # Expand position and layer series if present.
     if "c" in gridObject:
       gridObject["c"] = expandSequenceV2(gridObject["c"], maxSteps)
