@@ -318,9 +318,3 @@ def train_2b() -> TrainTool:
         training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
         policy_architecture=ViTDefaultConfig(),
     )
-
-
-@stable_job(depends_on=train_100m, input_references={"policy_uri": "policy_uri"}, timeout_s=1800)
-def evaluate_stable(policy_uri: str) -> EvaluateTool:
-    """Local evaluation of the 100M trained policy."""
-    return EvaluateTool(simulations=simulations(), policy_uris=[policy_uri])

@@ -83,12 +83,10 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
     sandbox: bool = False
 
-    def output_references(self, job_name: str, remote: bool = False) -> dict:
+    def output_references(self, job_name: str) -> dict:
         storage = auto_policy_storage_decision(job_name)
         if storage.remote_prefix:
             policy_uri = storage.remote_prefix
-        elif remote and storage.base_prefix:
-            policy_uri = f"{storage.base_prefix.rstrip('/')}/{job_name}"
         else:
             policy_uri = f"file://{self.system.data_dir / job_name / 'checkpoints'}"
         return {"policy_uri": policy_uri}
