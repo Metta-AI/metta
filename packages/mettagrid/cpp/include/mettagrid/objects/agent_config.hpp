@@ -41,8 +41,9 @@ struct AgentConfig : public GridObjectConfig {
               const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>&
                   inventory_regen_amounts = {},
               const std::vector<InventoryItem>& diversity_tracked_resources = {},
+              ObservationType initial_vibe = 0,
               const DamageConfig& damage_config = DamageConfig())
-      : GridObjectConfig(type_id, type_name, 0),
+      : GridObjectConfig(type_id, type_name, initial_vibe),
         group_id(group_id),
         group_name(group_name),
         freeze_duration(freeze_duration),
@@ -93,6 +94,7 @@ inline void bind_agent_config(py::module& m) {
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>&,
                     const std::vector<InventoryItem>&,
+                    ObservationType,
                     const DamageConfig&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
@@ -106,6 +108,7 @@ inline void bind_agent_config(py::module& m) {
            py::arg("inventory_regen_amounts") =
                std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>(),
            py::arg("diversity_tracked_resources") = std::vector<InventoryItem>(),
+           py::arg("initial_vibe") = 0,
            py::arg("damage_config") = DamageConfig())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
@@ -119,6 +122,7 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
       .def_readwrite("inventory_regen_amounts", &AgentConfig::inventory_regen_amounts)
       .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources)
+      .def_readwrite("initial_vibe", &AgentConfig::initial_vibe)
       .def_readwrite("damage_config", &AgentConfig::damage_config);
 }
 
