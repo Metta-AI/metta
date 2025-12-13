@@ -88,9 +88,9 @@ class StatelessPolicy(MultiAgentPolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        """Create a Policy instance for a specific agent."""
-        current_device = next(self._net.parameters()).device
-        return StatelessAgentPolicyImpl(self._net, current_device, self.num_actions)
+        policy_impl = StatelessAgentPolicyImpl(self._net, next(self._net.parameters()).device, self.num_actions)
+        policy_impl._policy_descriptor = self._policy_descriptor
+        return policy_impl
 
     def is_recurrent(self) -> bool:
         return False

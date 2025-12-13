@@ -1,8 +1,9 @@
 """Random policy implementation for CoGames."""
 
 import random
+from typing import Optional
 
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicyDescriptor
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
@@ -10,8 +11,8 @@ from mettagrid.simulator import Action, AgentObservation
 class RandomAgentPolicy(AgentPolicy):
     """Per-agent random policy."""
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface, policy_descriptor: PolicyDescriptor):
+        super().__init__(policy_env_info, policy_descriptor)
 
     def step(self, obs: AgentObservation) -> Action:
         return random.choice(self.policy_env_info.actions.actions())
@@ -26,8 +27,8 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
 
     short_names = ["random"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface,  policy_name: Optional[str] = None):
+        super().__init__(policy_env_info, policy_name=policy_name)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Get an AgentPolicy instance for a specific agent.
@@ -38,7 +39,7 @@ class RandomMultiAgentPolicy(MultiAgentPolicy):
         Returns:
             A RandomAgentPolicy instance
         """
-        return RandomAgentPolicy(self._policy_env_info)
+        return RandomAgentPolicy(self._policy_env_info, self._policy_descriptor)
 
     def agent_policies(self, num_agents: int) -> list[AgentPolicy]:
         """Get a list of AgentPolicy instances for all agents."""
