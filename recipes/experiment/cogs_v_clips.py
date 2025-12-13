@@ -357,6 +357,7 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        epoch_interval=600,
     )
 
     tt = TrainTool(
