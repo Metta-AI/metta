@@ -164,13 +164,16 @@ def apply_teacher_phase(
         losses.ppo_critic.train_forward_enabled = False
         losses.ppo_critic.deferred_training_start_step = total_steps
 
+        keep_kick_after_teacher = teacher_cfg.student_led_proportion > 0.0
+        gate_end_step = None if keep_kick_after_teacher else total_steps
+
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
 
-        _gate_loss("sliced_kickstarter")
+        _gate_loss("sliced_kickstarter", end_at_step=gate_end_step)
         _gate_critic_after_teacher()
         _anneal_led("sliced_kickstarter", teacher_cfg.teacher_led_proportion)
 
