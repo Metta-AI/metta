@@ -744,24 +744,30 @@ TEST_F(MettaGridCppTest, AssemblerGetCurrentProtocol) {
   // Add assembler to grid
   grid.add_object(assembler);
 
-  // Without agents around, should get protocol0
+  // Without agents around, should get protocol0 (compare properties, not pointers, due to deep copy)
   const Protocol* current_protocol = assembler->get_current_protocol();
-  EXPECT_EQ(current_protocol, protocol0.get());
+  EXPECT_NE(current_protocol, nullptr);
+  EXPECT_EQ(current_protocol->input_resources.size(), protocol0->input_resources.size());
+  EXPECT_EQ(current_protocol->input_resources.at(0), protocol0->input_resources.at(0));
 
-  // With one agent and no vibe, should still get 0
+  // With one agent and no vibe, should still get protocol0
   AgentConfig agent_cfg(1, "test_agent", 0, "test_group");
   auto resource_names = create_test_resource_names();
   Agent* agent = new Agent(4, 4, agent_cfg, &resource_names);  // NW of assembler
   grid.add_object(agent);
 
   current_protocol = assembler->get_current_protocol();
-  EXPECT_EQ(current_protocol, protocol0.get()) << "With one agent, should still get protocol0";
+  EXPECT_NE(current_protocol, nullptr) << "With one agent, should still get protocol0";
+  EXPECT_EQ(current_protocol->input_resources.at(0), protocol0->input_resources.at(0))
+      << "With one agent, should still get protocol0";
 
   // Now with a vibe, should get protocol1
   agent->vibe = 1;
 
   current_protocol = assembler->get_current_protocol();
-  EXPECT_EQ(current_protocol, protocol1.get()) << "With one agent and a vibe, should get protocol1";
+  EXPECT_NE(current_protocol, nullptr) << "With one agent and a vibe, should get protocol1";
+  EXPECT_EQ(current_protocol->input_resources.at(1), protocol1->input_resources.at(1))
+      << "With one agent and a vibe, should get protocol1";
 }
 
 TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
@@ -811,9 +817,10 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   // since input_protocol_offset and output_protocol_offset are not in AssemblerConfig
   EXPECT_GT(features.size(), 0) << "Should have observation features";
 
-  // Verify we're getting the right protocol
+  // Verify we're getting the right protocol (compare properties, not pointers, due to deep copy)
   const Protocol* current_protocol = assembler->get_current_protocol();
-  EXPECT_EQ(current_protocol, protocol0.get());
+  EXPECT_NE(current_protocol, nullptr);
+  EXPECT_EQ(current_protocol->input_resources.at(0), protocol0->input_resources.at(0));
 }
 
 TEST_F(MettaGridCppTest, AssemblerBalancedConsumptionAmpleResources) {
