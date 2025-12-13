@@ -21,16 +21,16 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.cogworks.curriculum.task_generator import Span
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes as vibes_module
-from mettagrid.config.mettagrid_config import ProtocolConfig
+from mettagrid.config.mettagrid_config import MettaGridConfig, ProtocolConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.random import Random
 from recipes.experiment import cogs_v_clips
@@ -85,6 +85,95 @@ def _make_assembler_protocols(
     return heart_protocols + gear_protocols
 
 
+# Discrete density/size configurations for labeled tasks
+MAP_SIZES = {
+    "small": {"width": 40, "height": 40},
+    "medium": {"width": 70, "height": 70},
+    "large": {"width": 100, "height": 100},
+}
+
+OBJECT_DENSITIES = {
+    "sparse": {
+        "assembler": 5,
+        "charger": 5,
+        "chest": 3,
+        "carbon_extractor": 5,
+        "oxygen_extractor": 5,
+        "germanium_extractor": 5,
+        "silicon_extractor": 5,
+    },
+    "medium": {
+        "assembler": 15,
+        "charger": 20,
+        "chest": 10,
+        "carbon_extractor": 20,
+        "oxygen_extractor": 20,
+        "germanium_extractor": 15,
+        "silicon_extractor": 20,
+    },
+    "dense": {
+        "assembler": 30,
+        "charger": 50,
+        "chest": 30,
+        "carbon_extractor": 50,
+        "oxygen_extractor": 50,
+        "germanium_extractor": 40,
+        "silicon_extractor": 50,
+    },
+}
+
+
+def _make_labeled_env(
+    num_cogs: int,
+    size_name: str,
+    density_name: str,
+) -> tuple[MettaGridConfig, str]:
+    """Create a labeled environment with specific size and density.
+
+    Args:
+        num_cogs: Number of agents
+        size_name: One of "small", "medium", "large"
+        density_name: One of "sparse", "medium", "dense"
+
+    Returns:
+        Tuple of (MettaGridConfig, label string)
+    """
+    mission = Mission(
+        name=f"random_maps_{density_name}_{size_name}",
+        description=f"{density_name.capitalize()} objects on {size_name} map",
+        site=HELLO_WORLD,
+        num_cogs=num_cogs,
+        variants=[TrainingVariant()],
+    )
+
+    env = mission.make_env()
+
+    # Use only first 13 vibes
+    first_13_vibes = [v.name for v in vibes_module.VIBES[:13]]
+    env.game.vibe_names = first_13_vibes
+    if env.game.actions.change_vibe:
+        env.game.actions.change_vibe.number_of_vibes = 13
+
+    size_cfg = MAP_SIZES[size_name]
+    density_cfg = OBJECT_DENSITIES[density_name]
+
+    env.game.map_builder = MapGen.Config(
+        width=size_cfg["width"],
+        height=size_cfg["height"],
+        border_width=5,
+        instance=Random.Config(
+            agents=num_cogs,
+            objects=density_cfg.copy(),
+            too_many_is_ok=True,
+        ),
+    )
+
+    label = f"{density_name}_{size_name}"
+    env.label = label  # type: ignore[attr-defined]
+
+    return env, label
+
+
 def make_random_maps_curriculum(
     num_cogs: int = 20,
     enable_detailed_slice_logging: bool = False,
@@ -96,6 +185,11 @@ def make_random_maps_curriculum(
 ) -> CurriculumConfig:
     """Create a curriculum with randomly generated maps.
 
+    Creates discrete labeled tasks for each density/size combination:
+    - Sizes: small (40x40), medium (70x70), large (100x100)
+    - Densities: sparse, medium, dense
+    - Labels: "sparse_small", "sparse_medium", ..., "dense_large" (9 total)
+
     Args:
         num_cogs: Number of agents per environment
         enable_detailed_slice_logging: Enable detailed logging for curriculum slices
@@ -106,129 +200,75 @@ def make_random_maps_curriculum(
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
 
     Returns:
-        A CurriculumConfig with learning progress algorithm across map sizes and object counts
+        A CurriculumConfig with learning progress algorithm across labeled density/size tasks
     """
-    # Create base mission with random map generation
-    mission = Mission(
-        name="random_maps_training",
-        description="Random procedural maps with varying dimensions and object counts",
-        site=HELLO_WORLD,
-        num_cogs=num_cogs,
-        variants=[TrainingVariant()],  # Apply training variant for better learnability
-    )
+    all_tasks = []
 
-    # Create base environment
-    base_env = mission.make_env()
+    # Create labeled tasks for each density/size combination
+    for size_name in MAP_SIZES:
+        for density_name in OBJECT_DENSITIES:
+            env, label = _make_labeled_env(num_cogs, size_name, density_name)
 
-    # Use only first 13 vibes from TRAINING_VIBES
-    # (excludes: assembler, chest, wall, red-heart)
-    from mettagrid.config import vibes as vibes_module
+            # Create bucketed tasks for this labeled environment
+            tasks = cc.bucketed(env)
 
-    first_13_vibes = [v.name for v in vibes_module.VIBES[:13]]
-    base_env.game.vibe_names = first_13_vibes
-    if base_env.game.actions.change_vibe:
-        base_env.game.actions.change_vibe.number_of_vibes = 13
+            # Bucket over extractor max_uses (resource scarcity)
+            tasks.add_bucket("game.objects.carbon_extractor.max_uses", [1, 3, 8, 10, 20])
+            tasks.add_bucket("game.objects.oxygen_extractor.max_uses", [1, 3, 8, 10, 20])
+            tasks.add_bucket("game.objects.germanium_extractor.max_uses", [1, 3, 8, 10, 20])
+            tasks.add_bucket("game.objects.silicon_extractor.max_uses", [1, 3, 8, 10, 20])
 
-    # Replace map builder with random map generator
-    # Random.Config has too_many_is_ok=True, so it will cap objects to available space
-    base_env.game.map_builder = MapGen.Config(
-        width=80,  # Default, will be bucketed
-        height=80,  # Default, will be bucketed
-        border_width=5,
-        instance=Random.Config(
-            agents=num_cogs,
-            objects={
-                "assembler": 10,  # Default, will be bucketed
-                "charger": 5,  # Default, will be bucketed
-                "chest": 2,  # Default, will be bucketed
-                "carbon_extractor": 5,  # Default, will be bucketed
-                "oxygen_extractor": 5,  # Default, will be bucketed
-                "germanium_extractor": 5,  # Default, will be bucketed
-                "silicon_extractor": 5,  # Default, will be bucketed
-            },
-            too_many_is_ok=True,  # Automatically caps to available space
-        ),
-    )
+            # Bucket over assembler protocols (vibe requirements)
+            tasks.add_bucket(
+                "game.objects.assembler.protocols",
+                [  # type: ignore[arg-type]
+                    _make_assembler_protocols(["heart_a"]),  # Hard
+                    _make_assembler_protocols(["heart_a", "heart_b"]),  # Medium
+                    _make_assembler_protocols(["default", "heart_a", "heart_b"]),  # Easy
+                    _make_assembler_protocols(
+                        [
+                            "default",
+                            "heart_a",
+                            "heart_b",
+                            "carbon_a",
+                            "carbon_b",
+                            "oxygen_a",
+                            "oxygen_b",
+                            "germanium_a",
+                            "germanium_b",
+                            "silicon_a",
+                            "silicon_b",
+                        ]
+                    ),  # All vibes
+                ],
+            )
 
-    # Create bucketed tasks
-    tasks = cc.bucketed(base_env)
+            # Standard buckets
+            tasks.add_bucket("game.max_steps", [1000, 1500, 2000, 2500, 3000, 4000])
+            tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [1])
 
-    # Bucket over map dimensions (20x20 to 150x150)
-    tasks.add_bucket("game.map_builder.width", [Span(30, 100)])
-    tasks.add_bucket("game.map_builder.height", [Span(30, 100)])
+            if resource_buckets:
+                tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.001])
+                tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.001])
+                tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.001])
+                tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.001])
 
-    # Bucket over object counts (sparse to dense)
-    # Using wide ranges that scale from small maps to large maps
-    # too_many_is_ok=True ensures we don't error on small maps
-    tasks.add_bucket("game.map_builder.instance.objects.assembler", [Span(10, 30)])
-    tasks.add_bucket("game.map_builder.instance.objects.charger", [Span(10, 50)])
-    tasks.add_bucket("game.map_builder.instance.objects.chest", [Span(10, 30)])
-    tasks.add_bucket("game.map_builder.instance.objects.carbon_extractor", [Span(10, 50)])
-    tasks.add_bucket("game.map_builder.instance.objects.oxygen_extractor", [Span(10, 50)])
-    tasks.add_bucket("game.map_builder.instance.objects.germanium_extractor", [Span(10, 40)])
-    tasks.add_bucket("game.map_builder.instance.objects.silicon_extractor", [Span(10, 50)])
-    # Bucket over extractor max_uses (resource scarcity)
-    # 0 = unlimited, higher = limited resource
-    tasks.add_bucket("game.objects.carbon_extractor.max_uses", [1, 3, 8, 10, 20])
-    tasks.add_bucket("game.objects.oxygen_extractor.max_uses", [1, 3, 8, 10, 20])
-    tasks.add_bucket("game.objects.germanium_extractor.max_uses", [1, 3, 8, 10, 20])
-    tasks.add_bucket("game.objects.silicon_extractor.max_uses", [1, 3, 8, 10, 20])
+            if heart_buckets:
+                tasks.add_bucket("game.agent.rewards.stats.heart.gained", [0.1, 0.333, 0.5])
+                stats_max_cap = 0.5
+                tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
+                tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [stats_max_cap])
+                tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [stats_max_cap])
+                tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [stats_max_cap])
 
-    # Bucket over entire assembler protocols list (different vibe requirements)
-    tasks.add_bucket(
-        "game.objects.assembler.protocols",
-        [
-            # Hard: Only heart_a vibe works
-            _make_assembler_protocols(["heart_a"]),
-            # Medium: heart_a or heart_b works
-            _make_assembler_protocols(["heart_a", "heart_b"]),
-            # Easy: default vibe also works
-            _make_assembler_protocols(["default", "heart_a", "heart_b"]),
-            # All vibes work
-            _make_assembler_protocols(
-                [
-                    "default",
-                    "heart_a",
-                    "heart_b",
-                    "carbon_a",
-                    "carbon_b",
-                    "oxygen_a",
-                    "oxygen_b",
-                    "germanium_a",
-                    "germanium_b",
-                    "silicon_a",
-                    "silicon_b",
-                ]
-            ),
-        ],
-    )
+            if initial_inventory_buckets:
+                tasks.add_bucket("game.agent.initial_inventory.carbon", [0, 20, 50, 75])
+                tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
+                tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
+                tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
+                tasks.add_bucket("game.agent.initial_inventory.heart", [0, 1, 2])
 
-    # Standard curriculum buckets
-    tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
-
-    tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3])
-
-    if heart_buckets:
-        tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
-    if resource_buckets:
-        tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0.0, 0.001])
-        tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0.0, 0.001])
-        tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0.0, 0.001])
-        tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0.0, 0.001])
-
-        stats_max_cap = 0.5
-        tasks.add_bucket("game.agent.rewards.stats_max.carbon.gained", [stats_max_cap])
-        tasks.add_bucket("game.agent.rewards.stats_max.oxygen.gained", [stats_max_cap])
-        tasks.add_bucket("game.agent.rewards.stats_max.germanium.gained", [stats_max_cap])
-        tasks.add_bucket("game.agent.rewards.stats_max.silicon.gained", [stats_max_cap])
-
-    if initial_inventory_buckets:
-        # Bucket over agent's starting inventory
-        tasks.add_bucket("game.agent.initial_inventory.carbon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.heart", [0, 1, 2])
+            all_tasks.append(tasks)
 
     # Configure learning progress algorithm
     if algorithm_config is None:
@@ -236,19 +276,21 @@ def make_random_maps_curriculum(
             use_bidirectional=True,
             ema_timescale=0.001,
             exploration_bonus=0.1,
-            max_memory_tasks=3000,
+            max_memory_tasks=2000,
             max_slice_axes=4,
             enable_detailed_slice_logging=enable_detailed_slice_logging,
         )
+    # Merge all labeled task generators into one curriculum
+    merged = cc.merge(all_tasks)
 
-    return tasks.to_curriculum(
-        num_active_tasks=2000,
+    return merged.to_curriculum(
+        num_active_tasks=1500,
         algorithm_config=algorithm_config,
     )
 
 
 def make_training_eval_suite(
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     max_evals: Optional[int] = 9,
 ) -> list[SimulationConfig]:
     """Create evaluation suite with TrainingVariant applied.
@@ -305,12 +347,14 @@ def make_training_eval_suite(
 
 
 def train(
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    heart_buckets=False,
-    resource_buckets=False,
-    initial_inventory_buckets=False,
+    heart_buckets: bool = False,
+    resource_buckets: bool = False,
+    initial_inventory_buckets: bool = False,
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> TrainTool:
     """Create a training tool for random maps curriculum.
 
@@ -321,6 +365,8 @@ def train(
         heart_buckets: Enable bucketing over heart inventory rewards
         resource_buckets: Enable bucketing over resource stat rewards
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set)
 
     Returns:
         A TrainTool configured with the random maps curriculum
@@ -334,6 +380,9 @@ def train(
 
         Train with initial inventory bucketing:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train initial_inventory_buckets=True
+
+        Train with behavioral cloning:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.train bc_policy_uri=thinky
     """
     resolved_curriculum = curriculum or make_random_maps_curriculum(
         num_cogs=num_cogs,
@@ -346,24 +395,57 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
+    scheduler = None
+
+    # Configure behavioral cloning if supervisor policy is provided
+    if bc_policy_uri is not None:
+        bc_total_steps = bc_steps if bc_steps is not None else 1_000_000_000
+
+        losses = trainer_cfg.losses
+        losses.ppo_critic.sample_enabled = False
+        losses.ppo_critic.train_forward_enabled = False
+        losses.sliced_scripted_cloner.enabled = True
+
+        scheduler = SchedulerConfig(
+            run_gates=[
+                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
+            ],
+            rules=[
+                HyperUpdateRule(
+                    loss_instance_name="sliced_scripted_cloner",
+                    attr_path="teacher_led_proportion",
+                    mode="progress",
+                    style="linear",
+                    start_value=0.2,
+                    end_value=0.0,
+                    start_agent_step=0,
+                    end_agent_step=bc_total_steps,
+                ),
+            ],
+        )
 
     # Use custom eval suite with TrainingVariant applied (matching 18-action space)
     eval_suite = make_training_eval_suite(num_cogs=num_cogs)
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        evaluate_local=True,  # Enable local evals to record replays on wandb
     )
 
     return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        trainer=trainer_cfg,  # type: ignore[call-arg]
+        training_env=TrainingEnvironmentConfig(
+            curriculum=resolved_curriculum,
+            supervisor_policy_uri=bc_policy_uri,
+        ),
         evaluator=evaluator_cfg,
+        scheduler=scheduler,
     )
 
 
 def evaluate(
     policy_uris: list[str] | str,
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     difficulty: str | None = "standard",
     variants: Optional[Sequence[str]] = None,
 ) -> EvaluateTool:
@@ -390,7 +472,7 @@ def evaluate(
 
 def play_sparse(
     policy_uri: Optional[str] = None,
-    num_cogs: int = 20,
+    num_cogs: int = 5,
     room_size: int = 80,
 ) -> PlayTool:
     """Play on a sparse randomly generated map (minimum objects).
@@ -605,6 +687,9 @@ def experiment(
     heart_buckets: bool = False,
     resource_buckets: bool = False,
     initial_inventory_buckets: bool = False,
+    supervision: bool = False,
+    bc_policy_uri: Optional[str] = None,
+    bc_steps: Optional[int] = None,
 ) -> None:
     """Submit a training job on AWS with 4 GPUs.
 
@@ -617,6 +702,9 @@ def experiment(
         heart_buckets: Enable bucketing over heart inventory rewards
         resource_buckets: Enable bucketing over resource stat rewards
         initial_inventory_buckets: Enable bucketing over agent's initial inventory
+        supervision: If True, use "thinky" as the BC policy (shorthand for bc_policy_uri=thinky).
+        bc_policy_uri: Optional policy URI for behavioral cloning supervision.
+        bc_steps: Number of steps for BC phase (default: 300M if bc_policy_uri is set).
 
     Examples:
         Submit training:
@@ -629,13 +717,19 @@ def experiment(
         Submit with initial inventory bucketing:
             uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
                 initial_inventory_buckets=True
+
+        Submit with behavioral cloning:
+            uv run ./tools/run.py recipes.experiment.cvc.cvc_random_maps.experiment \\
+                bc_policy_uri=thinky
     """
     if run_name is None:
-        timestamp = time.strftime("%Y-%m-%d_%H%M%S")
-        run_name = (
-            f"cvc_random_maps_{num_cogs}agent_heartbuckets_{heart_buckets}_"
-            f"resourcebuckets_{resource_buckets}_invbuckets_{initial_inventory_buckets}_{timestamp}"
-        )
+        timestamp = time.strftime("%m%d_%H%M%S")
+        # Use abbreviations to stay under W&B's 128 char limit
+        hb = "T" if heart_buckets else "F"
+        rb = "T" if resource_buckets else "F"
+        ib = "T" if initial_inventory_buckets else "F"
+        sup = "sup" if supervision else "nosup"
+        run_name = f"cvc_dense_{num_cogs}cog_hb{hb}_rb{rb}_ib{ib}_{sup}_{timestamp}"
 
     cmd = [
         "./devops/skypilot/launch.py",
@@ -654,6 +748,13 @@ def experiment(
 
     if additional_args:
         cmd.extend(additional_args)
+
+    # Handle BC supervision - supervision=True is shorthand for bc_policy_uri=thinky
+    effective_bc_policy_uri = bc_policy_uri if bc_policy_uri is not None else ("thinky" if supervision else None)
+    if effective_bc_policy_uri is not None:
+        cmd.append(f"bc_policy_uri={effective_bc_policy_uri}")
+    if bc_steps is not None:
+        cmd.append(f"bc_steps={bc_steps}")
 
     print(f"Launching random maps training job: {run_name}")
     print(f"  Agents: {num_cogs}")
@@ -675,11 +776,42 @@ __all__ = [
 ]
 
 if __name__ == "__main__":
-    experiment(heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
-    experiment(heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
-    experiment(heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
-    experiment(heart_buckets=False, resource_buckets=False)
-    experiment(heart_buckets=True, resource_buckets=False)
-    experiment(heart_buckets=True, resource_buckets=True)
-    experiment(heart_buckets=False, resource_buckets=True)
+
+    # # 8 cogs
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True)
+
+    # # 1 cog
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=False)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True)
+
+    #SUPERVISED
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=False, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=False, supervision=True)
+    experiment(num_cogs=1, heart_buckets=True, resource_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, supervision=True)
+    experiment(num_cogs=1, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+
+    #SUPERVISED
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, initial_inventory_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=False, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=False, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=True, resource_buckets=True, supervision=True)
+    # experiment(num_cogs=8, heart_buckets=False, resource_buckets=True, supervision=True)
