@@ -198,6 +198,33 @@ proc getString*(obj: JsonNode, key: string, default: string = ""): string =
   ## Get a string field from JsonNode with a default value if key is missing.
   if key in obj: obj[key].getStr else: default
 
+proc getFloat*(obj: JsonNode, key: string, default: float = 0.0): float =
+  ## Get a float field from JsonNode with a default value if key is missing.
+  ## Accepts integers and converts them to floats.
+  if key in obj:
+    if obj[key].kind == JFloat: obj[key].getFloat
+    elif obj[key].kind == JInt: obj[key].getInt.float
+    else: default
+  else: default
+
+proc getBool*(obj: JsonNode, key: string, default: bool = false): bool =
+  ## Get a boolean field from JsonNode with a default value if key is missing.
+  if key in obj and obj[key].kind == JBool: obj[key].getBool else: default
+
+proc getJsonNode*(obj: JsonNode, key: string, default: JsonNode = nil): JsonNode =
+  ## Get any JsonNode field with a default value if key is missing.
+  if key in obj: obj[key] else: default
+
+proc getArray*(obj: JsonNode, key: string, default: JsonNode = nil): JsonNode =
+  ## Get an array JsonNode field with a default value if key is missing.
+  if key in obj and obj[key].kind == JArray: obj[key] else: default
+
+proc getJsonNodeOr*(obj: JsonNode, key1: string, key2: string, default: JsonNode = nil): JsonNode =
+  ## Get JsonNode field, trying key1 first, then key2, then default.
+  if key1 in obj: obj[key1]
+  elif key2 in obj: obj[key2]
+  else: default
+
 proc getMapSize*(obj: JsonNode, default: (int, int) = (0, 0)): (int, int) =
   ## Get map_size [width, height] with bounds checking.
   if "map_size" in obj:
@@ -291,18 +318,21 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
 
   # action_names (with renames)
   var actionNames = newJArray()
-  for nameNode in replayData["action_names"]:
-    var name = nameNode.getStr
-    if name == "put_recipe_items":
-      name = "put_items"
-    elif name == "get_output":
-      name = "get_items"
-    actionNames.add(newJString(name))
+  let actionNamesArr = getArray(replayData, "action_names")
+  if actionNamesArr != nil:
+    for nameNode in actionNamesArr:
+      var name = nameNode.getStr
+      if name == "put_recipe_items":
+        name = "put_items"
+      elif name == "get_output":
+        name = "get_items"
+      actionNames.add(newJString(name))
   data["action_names"] = actionNames
 
   # item_names
-  if ("inventory_items" in replayData) and replayData["inventory_items"].len > 0:
-    data["item_names"] = replayData["inventory_items"]
+  let invItems = getArray(replayData, "inventory_items")
+  if invItems != nil and invItems.len > 0:
+    data["item_names"] = invItems
   else:
     var items = newJArray()
     for s in [
@@ -311,11 +341,11 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
       items.add(newJString(s))
     data["item_names"] = items
 
-  data["type_names"] = replayData["object_types"]
-  data["num_agents"] = replayData["num_agents"]
-  data["max_steps"] = replayData["max_steps"]
+  data["type_names"] = getArray(replayData, "object_types", newJArray())
+  data["num_agents"] = newJInt(getInt(replayData, "num_agents", 0))
+  data["max_steps"] = newJInt(getInt(replayData, "max_steps", 0))
 
-  let maxSteps = replayData["max_steps"].getInt
+  let maxSteps = getInt(data, "max_steps", 0)
 
   # Helpers
   proc pair(a, b: JsonNode): JsonNode = (result = newJArray(); result.add(a); result.add(b))
@@ -323,6 +353,8 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
   var objects = newJArray()
   var maxX = 0
   var maxY = 0
+  if "grid_objects" notin replayData:
+    return data
   for gridObject in replayData["grid_objects"]:
     # Expand position and layer series if present.
     if "c" in gridObject:
@@ -373,11 +405,11 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
 
     # Build v2 object.
     var obj = newJObject()
-    obj["id"] = gridObject["id"]
+    obj["id"] = newJInt(getInt(gridObject, "id", 0))
 
-    let typeId = gridObject["type"].getInt
+    let typeId = getInt(gridObject, "type", -1)
     obj["type_id"] = newJInt(typeId)
-    if typeId >= 0 and typeId < replayData["object_types"].len:
+    if typeId >= 0 and "object_types" in replayData and typeId < replayData["object_types"].len:
       obj["type_name"] = replayData["object_types"][typeId]
     else:
       obj["type_name"] = newJString("")
@@ -423,7 +455,7 @@ proc convertReplayV1ToV2(replayData: JsonNode): JsonNode =
 
       if "action_success" in gridObject:
         obj["action_success"] = gridObject["action_success"]
-      obj["group_id"] = gridObject["agent:group"]
+      obj["group_id"] = newJInt(getInt(gridObject, "agent:group", 0))
       if "agent:orientation" in gridObject:
         obj["orientation"] = gridObject["agent:orientation"]
       if "hp" in gridObject:
@@ -617,13 +649,13 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   ## Load a replay from a string.
   var jsonObj = fromJson(jsonData)
 
-  if jsonObj["version"].getInt == 1:
+  if getInt(jsonObj, "version") == 1:
     jsonObj = convertReplayV1ToV2(jsonObj)
 
-  if jsonObj["version"].getInt == 2:
+  if getInt(jsonObj, "version") == 2:
     jsonObj = convertReplayV2ToV3(jsonObj)
 
-  doAssert jsonObj["version"].getInt == 3
+  doAssert getInt(jsonObj, "version") == 3
 
   # Check for validation issues and log them to console
   let issues = validateReplay(jsonObj)
@@ -632,13 +664,24 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   else:
     echo "No validation issues found"
 
+  # Safe access to required fields with defaults.
+  let version = getInt(jsonObj, "version", 3)
+  let actionNamesArr = getArray(jsonObj, "action_names")
+  let actionNames = if actionNamesArr != nil: actionNamesArr.to(seq[string]) else: @[]
+  let itemNamesArr = getArray(jsonObj, "item_names")
+  let itemNames = if itemNamesArr != nil: itemNamesArr.to(seq[string]) else: @[]
+  let typeNamesArr = getArray(jsonObj, "type_names")
+  let typeNames = if typeNamesArr != nil: typeNamesArr.to(seq[string]) else: @[]
+  let numAgents = getInt(jsonObj, "num_agents", 0)
+  let maxSteps = getInt(jsonObj, "max_steps", 0)
+
   let replay = Replay(
-    version: jsonObj["version"].getInt,
-    actionNames: jsonObj["action_names"].to(seq[string]),
-    itemNames: jsonObj["item_names"].to(seq[string]),
-    typeNames: jsonObj["type_names"].to(seq[string]),
-    numAgents: jsonObj["num_agents"].getInt,
-    maxSteps: jsonObj["max_steps"].getInt,
+    version: version,
+    actionNames: actionNames,
+    itemNames: itemNames,
+    typeNames: typeNames,
+    numAgents: numAgents,
+    maxSteps: maxSteps,
     mapSize: getMapSize(jsonObj)
   )
 
@@ -646,14 +689,15 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     let idx = replay.actionNames.find(actionName)
     if idx != -1:
       replay.drawnAgentActionMask = replay.drawnAgentActionMask or (1'u64 shl idx)
-  if "file_name" in jsonObj:
-    replay.fileName = jsonObj["file_name"].getStr
+  replay.fileName = getString(jsonObj, "file_name")
 
-  if "mg_config" in jsonObj:
-    replay.mgConfig = jsonObj["mg_config"]
-    replay.config = fromJson($(jsonObj["mg_config"]), Config)
+  let mgConfig = getJsonNode(jsonObj, "mg_config")
+  if mgConfig != nil:
+    replay.mgConfig = mgConfig
+    replay.config = fromJson($mgConfig, Config)
 
-  for obj in jsonObj["objects"]:
+  let objectsArr = getArray(jsonObj, "objects", newJArray())
+  for obj in objectsArr:
 
     var inventory: seq[seq[ItemAmount]]
     if "inventory" in obj:
@@ -679,12 +723,10 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     else:
       location = @[ivec2(0, 0)]
 
-    var resolvedTypeName = "unknown"
-    if "type_name" in obj:
-      resolvedTypeName = obj["type_name"].getStr
+    var resolvedTypeName = getString(obj, "type_name", "unknown")
 
-    if resolvedTypeName == "unknown" and "type_id" in obj:
-      let candidateId = obj["type_id"].getInt
+    if resolvedTypeName == "unknown":
+      let candidateId = getInt(obj, "type_id", -1)
       if candidateId >= 0 and candidateId < replay.typeNames.len:
         resolvedTypeName = replay.typeNames[candidateId]
 
@@ -697,35 +739,34 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       inventoryMax: obj.getInt("inventory_max", 0),
       color: obj.getExpandedIntSeq("color", replay.maxSteps),
     )
-    if "group_id" in obj:
-      entity.groupId = obj["group_id"].getInt
+    entity.groupId = getInt(obj, "group_id", 0)
 
     entity.isAgent = resolvedTypeName == "agent"
     if "agent_id" in obj:
-      entity.agentId = obj["agent_id"].getInt
-      let frozenField = if "frozen" in obj: obj["frozen"] elif "is_frozen" in obj: obj["is_frozen"] else: newJBool(false)
+      entity.agentId = getInt(obj, "agent_id", 0)
+      let frozenField = getJsonNodeOr(obj, "frozen", "is_frozen", newJBool(false))
       entity.isFrozen = expand[bool](frozenField, replay.maxSteps, false)
-      entity.actionId = expand[int](obj["action_id"], replay.maxSteps, 0)
-      let actionParamField = if "action_parameter" in obj: obj["action_parameter"] elif "action_param" in obj: obj["action_param"] else: newJInt(0)
+      let actionIdField = getJsonNode(obj, "action_id", newJInt(0))
+      entity.actionId = expand[int](actionIdField, replay.maxSteps, 0)
+      let actionParamField = getJsonNodeOr(obj, "action_parameter", "action_param", newJInt(0))
       entity.actionParameter = expand[int](actionParamField, replay.maxSteps, 0)
-      entity.actionSuccess = expand[bool](obj["action_success"],
-          replay.maxSteps, false)
-      entity.currentReward = expand[float](obj["current_reward"],
-          replay.maxSteps, 0)
-      entity.totalReward = expand[float](obj["total_reward"], replay.maxSteps, 0)
-      if "frozen_progress" in obj:
-        entity.frozenProgress = expand[int](obj["frozen_progress"],
-            replay.maxSteps, 0)
+      let actionSuccessField = getJsonNode(obj, "action_success", newJBool(false))
+      entity.actionSuccess = expand[bool](actionSuccessField, replay.maxSteps, false)
+      let currentRewardField = getJsonNode(obj, "current_reward", newJFloat(0.0))
+      entity.currentReward = expand[float](currentRewardField, replay.maxSteps, 0)
+      let totalRewardField = getJsonNode(obj, "total_reward", newJFloat(0.0))
+      entity.totalReward = expand[float](totalRewardField, replay.maxSteps, 0)
+      let frozenProgressField = getJsonNode(obj, "frozen_progress")
+      if frozenProgressField != nil:
+        entity.frozenProgress = expand[int](frozenProgressField, replay.maxSteps, 0)
       else:
         entity.frozenProgress = @[0]
-      if "frozen_time" in obj:
-        entity.frozenTime = obj["frozen_time"].getInt
-      else:
-        entity.frozenTime = 0
+      entity.frozenTime = getInt(obj, "frozen_time", 0)
       entity.visionSize = 11 # TODO Fix this
 
-      if "vibe_id" in obj:
-        entity.vibeId = expand[int](obj["vibe_id"], replay.maxSteps, 0)
+      let vibeIdField = getJsonNode(obj, "vibe_id")
+      if vibeIdField != nil:
+        entity.vibeId = expand[int](vibeIdField, replay.maxSteps, 0)
 
     if "input_resources" in obj:
       for pair in obj["input_resources"]:
