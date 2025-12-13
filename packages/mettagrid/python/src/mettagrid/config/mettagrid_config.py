@@ -221,7 +221,6 @@ class AttackActionConfig(ActionConfig):
         return Action(name=f"attack_{location}")
 
 
-<<<<<<< HEAD
 class VibeTransfer(Config):
     """Configuration for resource transfers triggered by a specific vibe.
 
@@ -259,8 +258,6 @@ class TransferActionConfig(ActionConfig):
         return []
 
 
-=======
->>>>>>> d8324275fe (Remove Transfer action, keep only vibe-triggered Attack on Move)
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -271,11 +268,12 @@ class ActionsConfig(Config):
     noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
             [],
         )
 

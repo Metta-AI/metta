@@ -25,6 +25,16 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.simulator import Simulation
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 
+# Skip all tests in this module if C++ doesn't support transfer action
+try:
+    from mettagrid.mettagrid_c import TransferActionConfig as _  # noqa: F401
+
+    HAS_TRANSFER = True
+except ImportError:
+    HAS_TRANSFER = False
+
+pytestmark = pytest.mark.skipif(not HAS_TRANSFER, reason="Transfer action not available in C++ bindings")
+
 # Use vibes from the global VIBES list
 # Default (vibe id 0): "default"
 # Charger (vibe id 1): "charger" - use for energy transfer tests
