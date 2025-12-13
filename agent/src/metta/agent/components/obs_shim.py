@@ -154,7 +154,6 @@ class ObsTokenPadStrip(nn.Module):
         obs_mask = obs_mask[:, keep_cols]
 
         td[self.out_key] = observations
-        td["obs_mask"] = obs_mask
         return td
 
 

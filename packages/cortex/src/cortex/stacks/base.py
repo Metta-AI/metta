@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from torch.profiler import record_function
 
 from cortex.blocks import ColumnBlock, build_block
 from cortex.blocks.base import BaseBlock
@@ -31,6 +33,8 @@ class CortexStack(nn.Module):
         self._tf32_configured: bool = False
 
         compile_requested = bool(getattr(cfg, "compile_blocks", False))
+        if os.environ.get("CORTEX_DISABLE_COMPILE") == "1":
+            compile_requested = False
         if compile_requested and not torch.cuda.is_available():
             logger.warning("Disabling block compilation for CortexStack: running on CPU.")
             compile_requested = False
@@ -99,7 +103,8 @@ class CortexStack(nn.Module):
                 call = self._compiled_blocks[i]
             else:
                 call = block
-            y, block_next_state = call(y, block_state, resets=resets)
+            with record_function(f"cortex.block.{block.__class__.__name__}.{i}"):
+                y, block_next_state = call(y, block_state, resets=resets)
             next_state[block_key] = (
                 block_next_state
                 if isinstance(block_next_state, TensorDict)

@@ -48,11 +48,17 @@ class PolicyAutoBuilder(Policy):
         )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        td = self._sequential_network(td)
-        self.action_probs(td, action)
+        for name, component in self.components.items():
+            with torch.profiler.record_function(f"policy.component.{name}"):
+                td = component(td)
+
+        with torch.profiler.record_function("policy.action_probs"):
+            self.action_probs(td, action)
+
         # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
-            td["values"] = td["values"].flatten()
+            with torch.profiler.record_function("policy.flatten_values"):
+                td["values"] = td["values"].flatten()
         return td
 
     def initialize_to_environment(

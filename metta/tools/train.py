@@ -332,14 +332,11 @@ class TrainTool(Tool):
 
         torch.set_float32_matmul_precision("high")
 
-        # Opportunistically enable flash attention when available
+        # Prefer fast SDPA kernels; explicitly enable flash/mem-efficient unless overridden.
         if os.environ.get("FLASH_ATTENTION") is None:
-            try:
-                import flash_attn  # noqa: F401 # type: ignore[import-not-found]
-            except ImportError:
-                pass
-            else:
-                os.environ["FLASH_ATTENTION"] = "1"
+            os.environ["FLASH_ATTENTION"] = "1"
+        if os.environ.get("MEM_EFFICIENT_ATTENTION") is None:
+            os.environ["MEM_EFFICIENT_ATTENTION"] = "1"
 
         context = build_sdpa_context(
             prefer_flash=True,
