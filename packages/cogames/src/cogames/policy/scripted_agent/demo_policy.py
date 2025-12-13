@@ -228,8 +228,8 @@ class DemoPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 class DemoPolicy(MultiAgentPolicy):
     short_names = ["tiny_baseline"]
 
-    def __init__(self, policy_env_info, hyperparams=None, *, heart_recipe=None):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info, device: str = "cpu", hyperparams=None, *, heart_recipe=None):
+        super().__init__(policy_env_info, device=device)
         self._hyperparams = hyperparams or BaselineHyperparameters()
         self._heart_recipe = heart_recipe
         self._agent_policies = {}

@@ -153,12 +153,14 @@ class TokenPolicy(MultiAgentPolicy):
         self,
         features: list[ObservationFeatureSpec],
         actions_cfg: ActionsConfig,
-        device: torch.device,
+        device: str,
         policy_env_info: PolicyEnvInterface,
     ):
-        super().__init__(policy_env_info)
-        self._net = TokenPolicyNet(features, actions_cfg).to(device)
-        self._device = device
+        super().__init__(policy_env_info, device=device)
+
+        torch_device = torch.device(device)
+        self._net = TokenPolicyNet(features, actions_cfg).to(torch_device)
+        self._device = torch_device
         self._num_actions = len(actions_cfg.actions())
 
     def network(self) -> nn.Module:

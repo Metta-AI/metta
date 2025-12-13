@@ -440,8 +440,13 @@ class UnclippingPolicy(MultiAgentPolicy):
 
     short_names = ["ladybug"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[UnclippingHyperparameters] = None):
-        super().__init__(policy_env_info)
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        device: str = "cpu",
+        hyperparams: Optional[UnclippingHyperparameters] = None,
+    ):
+        super().__init__(policy_env_info, device=device)
         self._agent_policies: dict[int, StatefulAgentPolicy[UnclippingAgentState]] = {}
         self._hyperparams = hyperparams or UnclippingHyperparameters()
 

@@ -19,6 +19,7 @@ from mettagrid.util.module import load_symbol
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
+    device_override: str | None = None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
@@ -29,13 +30,14 @@ def initialize_or_load_policy(
     """
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    kwargs = policy_spec.init_kwargs or {}
+    if device_override is not None:
+        kwargs["device"] = device_override
 
     try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
     except TypeError as e:
-        raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
-        ) from e
+        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
 
     if policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)
