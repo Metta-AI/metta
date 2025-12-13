@@ -58,14 +58,20 @@ class SlicedScriptedCloner(Loss):
         actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
         rewards = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        dones = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        truncateds = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        act_log_prob = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
             teacher_actions=teacher_actions,
             actions=actions,
+            act_log_prob=act_log_prob,
             stud_mask=boolean,
             teacher_mask=boolean,
             ppo_mask=boolean,
             rewards=rewards,
+            dones=dones,
+            truncateds=truncateds,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
