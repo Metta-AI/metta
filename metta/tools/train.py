@@ -7,7 +7,6 @@ from typing import Any, Optional
 
 import torch
 
-
 if torch.cuda.is_available():
     # Use torch.set_float32_matmul_precision which is the recommended API
     torch.set_float32_matmul_precision("high")

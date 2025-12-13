@@ -10,4 +10,3 @@ ARCHITECTURES = {
     "default": ViTDefaultConfig(),
     "trxl": TRXLConfig(),
 }
-

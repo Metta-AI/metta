@@ -2,7 +2,6 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from recipes.experiment.architectures import ARCHITECTURES
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -20,6 +19,7 @@ from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+from recipes.experiment.architectures import ARCHITECTURES
 from recipes.experiment.cfg import NAVIGATION_EVALS
 
 
@@ -185,9 +185,7 @@ def train(
 
     if arch_type != "default":
         if arch_type not in ARCHITECTURES:
-            raise ValueError(
-                f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})"
-            )
+            raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
         kwargs["policy_architecture"] = ARCHITECTURES[arch_type]
 
     return TrainTool(**kwargs)

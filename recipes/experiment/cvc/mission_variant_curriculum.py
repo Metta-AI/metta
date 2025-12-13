@@ -14,7 +14,6 @@ from typing import NamedTuple, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.variants import VARIANTS
-from recipes.experiment.architectures import ARCHITECTURES
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -30,6 +29,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.architectures import ARCHITECTURES
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -530,9 +530,7 @@ def train(
 
     if arch_type != "default":
         if arch_type not in ARCHITECTURES:
-            raise ValueError(
-                f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})"
-            )
+            raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
         kwargs["policy_architecture"] = ARCHITECTURES[arch_type]
 
     return TrainTool(**kwargs)

@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from recipes.experiment.architectures import ARCHITECTURES
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -24,6 +23,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     ProtocolConfig,
 )
+from recipes.experiment.architectures import ARCHITECTURES
 
 curriculum_args = {
     "level_0": {
@@ -412,9 +412,7 @@ def train(
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
     if arch_type not in ARCHITECTURES:
-        raise ValueError(
-            f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})"
-        )
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
     policy_config = ARCHITECTURES[arch_type]
 
     return TrainTool(
