@@ -211,7 +211,7 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
 
 def _enforce_training_vibes(env: MettaGridConfig) -> None:
     """Enforce the training set of vibes and action space consistency."""
-    training_vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+    training_vibe_names = [v.name for v in vibes.VIBES]
     env.game.vibe_names = training_vibe_names
 
     if env.game.actions:
@@ -575,7 +575,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
     # Select the appropriate vibe set
     if num_vibes == 16:
-        vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+        vibe_names = [v.name for v in vibes.VIBES]
     elif num_vibes == 13:
         vibe_names = [v.name for v in vibes.VIBES[:13]]
     elif num_vibes <= len(vibes.VIBES):

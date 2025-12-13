@@ -5,10 +5,8 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
-from __future__ import annotations
-
 import logging
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -31,6 +29,7 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -119,20 +118,21 @@ def _resolve_eval_variants(
 
 def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+    # Align with arena/basic defaults to reduce LR and PPO aggressiveness.
+    trainer_cfg.optimizer.learning_rate = 0.00092
+    trainer_cfg.optimizer.eps = 3.186531e-07
 
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo.clip_coef = 0.264407
+    trainer_cfg.losses.ppo.gae_lambda = 0.891477
+    trainer_cfg.losses.ppo.vf_coef = 0.897619
 
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.264407
 
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.891477
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.897619
 
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.891477
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.897619
     return trainer_cfg
 
 
@@ -323,12 +323,9 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
-    bc_policy_uri: Optional[str] = None,
-    bc_teacher_lead_prob: float = 1.0,
-    bc_steps: Optional[int] = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    teacher: TeacherConfig | None = None,
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 50,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -360,6 +357,7 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        epoch_interval=600,
     )
 
     tt = TrainTool(
@@ -374,66 +372,14 @@ def train(
     scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[HyperUpdateRule] = []
 
-    if bc_policy_uri is not None:
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
-        losses = tt.trainer.losses
-        bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
-        scheduler_run_gates = [
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
-        ]
-
-        if bc_mode == "sliced_cloner":
-            losses.ppo_critic.sample_enabled = False
-            losses.ppo_critic.train_forward_enabled = False
-            losses.sliced_scripted_cloner.enabled = True
-            anneal_start = 0
-            loss_instance_name = "sliced_scripted_cloner"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.2,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                )
-            ]
-        else:
-            losses.supervisor.enabled = True
-            losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
-            anneal_start = int(bc_total_steps * 0.5)
-            loss_instance_name = "supervisor"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=1.0,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="teacher_lead_prob",
-                    mode="progress",
-                    style="linear",
-                    start_value=bc_teacher_lead_prob,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-            ]
-
-        bc_run_gates = [
-            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_total_steps)
-            for phase in ("rollout", "train")
-        ]
-        scheduler_run_gates += bc_run_gates
-        scheduler_rules += bc_rules
+    if teacher and teacher.enabled:
+        apply_teacher_phase(
+            trainer_cfg=tt.trainer,
+            training_env_cfg=tt.training_env,
+            scheduler_rules=scheduler_rules,
+            scheduler_run_gates=scheduler_run_gates,
+            teacher_cfg=teacher,
+        )
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
@@ -447,6 +393,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
@@ -490,6 +437,7 @@ def train_variants(
         curriculum=curriculum,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
 
 
@@ -499,6 +447,8 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -515,6 +465,8 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
+        maps_cache_size=maps_cache_size,
     )
 
 
@@ -655,6 +607,7 @@ def sweep(
         **SP.PPO_GAE_LAMBDA,
         **SP.PPO_VF_COEF,
         **SP.ADAM_EPS,
+        **SP.PPO_ENT_COEF,
         **SP.param(
             "trainer.total_timesteps",
             D.INT_UNIFORM,
@@ -669,7 +622,7 @@ def sweep(
         recipe="recipes.experiment.cogs_v_clips",
         train_entrypoint="train_sweep",
         eval_entrypoint="evaluate_stub",
-        metric_key="env_agent/heart.gained",
+        metric_key="env_game/assembler.heart.created",
         search_space=search_space,
         cost_key="metric/total_time",
         max_trials=max_trials,

@@ -149,13 +149,22 @@ class PPO(Loss):
         if mb_idx == 0:
             self.advantages, self.anneal_beta = self._on_first_mb(context)
 
-        # Then sample from the buffer (this happens at every minibatch)
-        minibatch, indices, prio_weights = self._sample_minibatch(
-            advantages=self.advantages,
-            prio_alpha=config.prioritized_experience_replay.prio_alpha,
-            prio_beta=self.anneal_beta,
-            mb_idx=mb_idx,
-        )
+        shared_mb = shared_loss_data.get("sampled_mb", None)
+        if shared_mb is not None:
+            minibatch = shared_mb
+            indices = shared_loss_data.get("indices", None)
+            if isinstance(indices, NonTensorData):
+                indices = indices.elem
+            if indices is None:
+                indices = torch.arange(minibatch.batch_size[0], device=self.device)
+            prio_weights = torch.ones(minibatch.batch_size, device=self.device)
+        else:
+            minibatch, indices, prio_weights = self._sample_minibatch(
+                advantages=self.advantages,
+                prio_alpha=config.prioritized_experience_replay.prio_alpha,
+                prio_beta=self.anneal_beta,
+                mb_idx=mb_idx,
+            )
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
