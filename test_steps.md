@@ -128,6 +128,57 @@ uv run cogames play -m hello_world -c 2 -s 200 -p "class=llm-anthropic,kw.model=
 
 ---
 
+---
+
+### Test C3: Persistent extractor memory + agent inventory tracking (2 agents, 200 steps, hello_world)
+
+**New features to implement:**
+1. **Persistent extractor memory with visit counts**
+   - Track: "oxygen_extractor at 15N8E (visited 3 times, collected 6 oxygen)"
+   - Include in every prompt so agent knows where to return
+
+2. **Other agents' last seen inventory**
+   - Track: "Agent 1 last seen at 5N3E with: carbon=2, silicon=15"
+   - Helps coordination - agent knows what others have collected
+
+```bash
+uv run cogames play -m hello_world -c 2 -s 200 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_hello_world_2agents_200steps_c3.log
+```
+**Estimated cost:** ~$10.00
+
+**What we're measuring:**
+- [ ] Do agents return to known extractors instead of re-exploring?
+- [ ] Do agents use knowledge of other agents' inventories?
+- [ ] Faster resource collection than C2?
+
+**Success criteria:**
+- Reward > 15 (improvement over C2's 12.87)
+- OR faster heart crafting (hearts deposited before step 150)
+
+**C3 Results:**
+| Test | Reward | Cost   | Notes             |
+|------|--------|--------|-------------------|
+| C2   | 12.87  | $10.79 | Baseline          |
+| C3   | 1.12   | $10.76 | REGRESSION - wall navigation issue |
+
+**Analysis:** The new features (extractor memory, other agents' inventories) ARE working - agents can see `"Agent 1 at 10N8E with germanium=2, oxygen=10"`. However, performance dropped because both agents got stuck trying to navigate around walls to reach visible extractors. The bottleneck is **pathfinding**, not memory.
+
+---
+
+### Test C4 (Future): Pathfinding hints
+- Add "To reach silicon_extractor, go: E→E→N→E→E"
+- More complex, save for later
+
+---
+
+## Results Log Update
+
+| Test | Date | Reward | Cost | Notes |
+|------|------|--------|------|-------|
+| C3   | 12/12 | 1.12 (0.17 + 0.95) | $10.76 | REGRESSION - Features work but wall navigation blocked both agents. Agent 0: carbon=2 (missing O/Ge/Si). Agent 1: O=10, Ge=2, Si=15 (missing 1 carbon). Both got stuck on walls trying to reach visible extractors. |
+
+---
+
 ## Next Steps (based on C1 results)
 - If exploration is weak → Add spatial memory map or pathfinding hints
 - If gets stuck in loops → Add backtracking prevention
