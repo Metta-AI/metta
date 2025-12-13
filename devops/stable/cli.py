@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Stable release validation CLI.
-
-Usage:
-    ./cli.py                    # Run all jobs (ci + stable)
-    ./cli.py --suite=ci         # Run CI jobs only
-    ./cli.py --suite=stable     # Run stable jobs only
-"""
-
 from __future__ import annotations
 
 import os
@@ -24,64 +16,55 @@ from devops.stable.runner import Job, Runner
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
 
-def _is_acceptance_failed(job: Job) -> bool:
-    return job.status.value == "succeeded" and job.acceptance_passed is False
+def _failed(job: Job) -> bool:
+    return job.status.value == "failed" or (job.status.value == "succeeded" and job.acceptance_passed is False)
 
 
-def _is_failed(job: Job) -> bool:
-    return job.status.value == "failed" or _is_acceptance_failed(job)
+def _status(job: Job) -> str:
+    if _failed(job):
+        return "FAILED"
+    return job.status.value.upper()
 
 
-def _is_succeeded(job: Job) -> bool:
-    return job.status.value == "succeeded" and job.acceptance_passed in (None, True)
-
-
-def write_github_summary(runner: Runner) -> None:
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if not summary_path:
-        return
-
+def _write_summary(runner: Runner, state_dir: Path) -> None:
     jobs = list(runner.jobs.values())
-    succeeded = [j for j in jobs if _is_succeeded(j)]
-    failed = [j for j in jobs if _is_failed(j)]
+    failed = [j for j in jobs if _failed(j)]
+    passed = [j for j in jobs if j.status.value == "succeeded" and not _failed(j)]
     skipped = [j for j in jobs if j.status.value == "skipped"]
 
-    lines = [
-        "# Stable Release Validation",
-        "",
-        f"**Result**: {'PASSED' if not failed else 'FAILED'}",
-        f"**Jobs**: {len(succeeded)} succeeded, {len(failed)} failed, {len(skipped)} skipped",
-        "",
-        "## Job Results",
-        "",
-        "| Job | Status | Duration |",
-        "|-----|--------|----------|",
-    ]
-
-    for job in runner.jobs.values():
-        status = job.status.value
-        if _is_acceptance_failed(job):
-            status = "failed"
+    header = f"{len(passed)} passed, {len(failed)} failed, {len(skipped)} skipped"
+    table = []
+    for job in jobs:
+        name = job.name.split(".")[-1]
         duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
-        lines.append(f"| {job.name} | {status.upper()} | {duration} |")
+        table.append(f"{name:<40} {_status(job):<10} {duration}")
 
-    if failed:
-        lines.extend(["", "## Failed Jobs", ""])
-        for job in failed:
-            lines.append(f"### {job.name}")
-            lines.append(f"- Exit code: {job.exit_code}")
-            if job.error:
-                lines.append(f"- Error: {job.error}")
-            if job.wandb_url:
-                lines.append(f"- WandB: {job.wandb_url}")
-            lines.append("")
+    # Discord summary (file)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    lines = [f"**Jobs**: {header}", "", "```", *table, "```"]
+    (state_dir / "discord_summary.txt").write_text("\n".join(lines))
 
-    with open(summary_path, "a") as f:
-        f.write("\n".join(lines))
+    # GitHub summary (env var)
+    gh_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if gh_path:
+        md = [
+            "# Stable Release Validation",
+            "",
+            f"**Result**: {'PASSED' if not failed else 'FAILED'}",
+            f"**Jobs**: {header}",
+            "",
+            "| Job | Status | Duration |",
+            "|-----|--------|----------|",
+        ]
+        for job in jobs:
+            duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
+            md.append(f"| {job.name} | {_status(job)} | {duration} |")
+        with open(gh_path, "a") as f:
+            f.write("\n".join(md))
 
 
-def print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
-    failed = [j for j in runner.jobs.values() if _is_failed(j)]
+def _print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
+    failed = [j for j in runner.jobs.values() if _failed(j)]
     if not failed:
         return
 
@@ -100,39 +83,10 @@ def print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
             print("(no logs available)")
 
 
-def write_discord_summary(runner: Runner, state_dir: Path) -> None:
-    jobs = list(runner.jobs.values())
-    succeeded = [j for j in jobs if _is_succeeded(j)]
-    failed = [j for j in jobs if _is_failed(j)]
-    skipped = [j for j in jobs if j.status.value == "skipped"]
-
-    lines = [
-        f"**Jobs**: {len(succeeded)} passed, {len(failed)} failed, {len(skipped)} skipped",
-        "",
-        "```",
-        f"{'Job':<45} {'Status':<8} {'Duration':<10}",
-        "-" * 65,
-    ]
-
-    for job in runner.jobs.values():
-        status = job.status.value
-        if _is_acceptance_failed(job):
-            status = "failed"
-        name = job.name.split(".")[-1]
-        duration = f"{job.duration_s:.0f}s" if job.duration_s else "-"
-        lines.append(f"{name:<45} {status.upper():<8} {duration:<10}")
-
-    lines.append("```")
-
-    state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / "discord_summary.txt").write_text("\n".join(lines))
-
-
 @app.callback()
 def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
 ):
-    """Run job validation."""
     has_blockers = False
     if suite != Suite.CI:
         print("Checking for blocking bugs in Asana...")
@@ -164,18 +118,15 @@ def main(
 
     runner.run_all()
 
-    failed = [j for j in runner.jobs.values() if _is_failed(j)]
-    success = len(failed) == 0
-
-    print_failed_logs(runner)
-    write_github_summary(runner)
-    write_discord_summary(runner, state_dir)
+    failed = [j for j in runner.jobs.values() if _failed(j)]
+    _print_failed_logs(runner)
+    _write_summary(runner, state_dir)
 
     if has_blockers:
         print("\nFAILED: Blocking bugs found in Asana")
         sys.exit(1)
 
-    sys.exit(0 if success else 1)
+    sys.exit(0 if not failed else 1)
 
 
 if __name__ == "__main__":
