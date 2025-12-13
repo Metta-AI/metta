@@ -141,6 +141,8 @@ def evaluate(
     result_file_path: str | None = None,
     enable_doxascope: bool = False,
     doxascope_output_dir: str = "./train_dir/doxascope/raw_data/",
+    num_episodes: int = 1,
+    max_steps: int | None = None,
 ) -> EvalWithResultTool:
     """
     Run the V0 Leaderboard Evaluation.
@@ -155,6 +157,8 @@ def evaluate(
         result_file_path: Path to write result JSON file
         enable_doxascope: Enable doxascope logging for data collection
         doxascope_output_dir: Directory for doxascope output files
+        num_episodes: Number of episodes per scenario (default: 1)
+        max_steps: Maximum steps per episode (default: None, uses env default)
     """
     if policy_version_id and not policy_uri:
         policy_uri = f"metta://policy/{policy_version_id}"
@@ -181,8 +185,15 @@ def evaluate(
         )
         logger.info(f"Doxascope logging enabled, output dir: {doxascope_output_dir}")
 
+    # Get simulations and override num_episodes if specified
+    sims = simulations(map_seed=seed, minimal=True)
+    for sim in sims:
+        sim.num_episodes = num_episodes
+        if max_steps is not None:
+            sim.env.game.max_steps = max_steps
+
     tool = EvalWithResultTool(
-        simulations=simulations(map_seed=seed, minimal=True),
+        simulations=sims,
         policy_uris=policy_uris,
         verbose=True,
         result_file_path=result_file_path or f"leaderboard_eval_{policy_version_id}.json",
