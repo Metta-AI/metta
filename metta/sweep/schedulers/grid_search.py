@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
+from metta.adaptive.run_phase import RunPhaseManager
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
 from metta.sweep.core import CategoricalParameterConfig
 from metta.sweep.schedulers.state import SchedulerState
@@ -43,6 +44,8 @@ class GridSearchSchedulerConfig(Config):
     max_trials: int | None = None
     # Max concurrent evaluations; None means unlimited
     max_concurrent_evals: Optional[int] = None
+    # If True, don't schedule eval jobs
+    skip_evaluation: bool = False
     # Flat dict of categorical parameters (dot-path keys)
     parameters: Dict[str, Any] = Field(default_factory=dict)
 
@@ -50,42 +53,48 @@ class GridSearchSchedulerConfig(Config):
 class GridSearchScheduler:
     """Scheduler that enumerates a fixed grid of categorical suggestions."""
 
-    def __init__(self, config: GridSearchSchedulerConfig):
+    def __init__(self, config: GridSearchSchedulerConfig, phase_manager: RunPhaseManager):
         self.config = config
+        self.phase_manager = phase_manager
         self.state = SchedulerState()
         # Precompute full grid suggestions
         dims = self._flatten_dims(config.parameters)
         self._dim_names: list[str] = list(dims.keys())
         self._grid: list[dict[str, Any]] = self._cartesian_product(dims)
-        logger.info("[GridSearchScheduler] Initialized with grid size=%s", len(self._grid))
+        logger.info(
+            "[GridSearchScheduler] Initialized with grid size=%s, skip_evaluation=%s",
+            len(self._grid),
+            config.skip_evaluation,
+        )
 
     # ---------- Scheduling API ----------
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
         jobs: list[JobDefinition] = []
 
-        self.state.refresh(runs)
+        self.state.refresh(runs, self.phase_manager)
 
-        # 1) Schedule evals for any runs with training done (throttled)
-        eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
+        # 1) Schedule evals for any runs with training done (unless skipped)
+        if not self.config.skip_evaluation:
+            eval_candidates = [r for r in runs if self.phase_manager.get_phase(r) == JobStatus.TRAINING_DONE_NO_EVAL]
 
-        eval_capacity: Optional[int] = None
-        if self.config.max_concurrent_evals is not None:
-            eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
+            eval_capacity: Optional[int] = None
+            if self.config.max_concurrent_evals is not None:
+                eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
 
-        if eval_candidates:
-            to_schedule = eval_candidates if eval_capacity is None else eval_candidates[:eval_capacity]
-            for run in to_schedule:
-                job = create_eval_job(
-                    run_id=run.run_id,
-                    experiment_id=self.config.experiment_id,
-                    recipe_module=self.config.recipe_module,
-                    eval_entrypoint=self.config.eval_entrypoint,
-                    stats_server_uri=self.config.stats_server_uri,
-                    eval_overrides=self.config.eval_overrides,
-                )
-                jobs.append(job)
-                self.state.mark_eval_scheduled(run.run_id)
-                logger.info("[GridSearchScheduler] Scheduling evaluation for %s", run.run_id)
+            if eval_candidates:
+                to_schedule = eval_candidates if eval_capacity is None else eval_candidates[:eval_capacity]
+                for run in to_schedule:
+                    job = create_eval_job(
+                        run_id=run.run_id,
+                        experiment_id=self.config.experiment_id,
+                        recipe_module=self.config.recipe_module,
+                        eval_entrypoint=self.config.eval_entrypoint,
+                        stats_server_uri=self.config.stats_server_uri,
+                        eval_overrides=self.config.eval_overrides,
+                    )
+                    jobs.append(job)
+                    self.state.mark_eval_scheduled(run.run_id)
+                    logger.info("[GridSearchScheduler] Scheduling evaluation for %s", run.run_id)
 
         # 2) Respect training capacity
         remaining_capacity = max(0, available_training_slots)
@@ -138,11 +147,15 @@ class GridSearchScheduler:
         return jobs
 
     def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
-        finished = [r for r in runs if r.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)]
+        finished = [
+            r
+            for r in runs
+            if self.phase_manager.get_phase(r) in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)
+        ]
         target = len(self._grid) if self.config.max_trials is None else min(self.config.max_trials, len(self._grid))
         is_done = len(finished) >= target
         if is_done:
-            completed = [r for r in runs if r.status == JobStatus.COMPLETED]
+            completed = [r for r in runs if self.phase_manager.get_phase(r) == JobStatus.COMPLETED]
             logger.info(
                 "[GridSearchScheduler] Experiment complete! %s/%s trials finished (%s successful)",
                 len(finished),

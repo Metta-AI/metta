@@ -3,10 +3,13 @@
 import hashlib
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from metta.adaptive.models import JobDefinition, JobTypes, RunInfo
 from metta.common.util.constants import PROD_STATS_SERVER_URI, SOFTMAX_S3_POLICY_PREFIX
+
+if TYPE_CHECKING:
+    from metta.adaptive.run_phase import RunPhaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +20,7 @@ def make_monitor_table(
     logger_prefix: str = "",
     include_score: bool = True,
     truncate_run_id: bool = True,
+    phase_manager: Optional["RunPhaseManager"] = None,
 ) -> list[str]:
     """Create a formatted table showing run status.
 
@@ -26,6 +30,7 @@ def make_monitor_table(
         logger_prefix: Prefix to add to each log line (e.g., "[OptimizingScheduler]")
         include_score: Whether to include the score column
         truncate_run_id: Whether to truncate run IDs to just show trial numbers
+        phase_manager: RunPhaseManager for computing phase (required)
 
     Returns:
         List of formatted lines that can be logged
@@ -39,9 +44,9 @@ def make_monitor_table(
 
     # Header
     if include_score:
-        lines.append(f"{prefix}{'Run ID':<25} {'Status':<25} {'Progress':<30} {'Score':<15} {'Cost':<10}")
+        lines.append(f"{prefix}{'Run ID':<25} {'Phase':<25} {'Progress':<30} {'Score':<15} {'Cost':<10}")
     else:
-        lines.append(f"{prefix}{'Run ID':<25} {'Status':<25} {'Progress':<30}")
+        lines.append(f"{prefix}{'Run ID':<25} {'Phase':<25} {'Progress':<30}")
     lines.append(f"{prefix}{'-' * 110}")
 
     # Rows
@@ -61,25 +66,23 @@ def make_monitor_table(
         else:
             progress_str = "-"
 
+        # Get phase from phase_manager
+        phase_str = str(phase_manager.get_phase(run)) if phase_manager else "UNKNOWN"
+
         # Format score and cost
         if include_score:
-            # Try to get score/cost from sweep namespace first, then from observation field (backwards compat)
+            # Try to get score/cost from sweep namespace first
             summary = run.summary if isinstance(run.summary, dict) else {}
             score = summary.get("sweep/score")
             cost = summary.get("sweep/cost")
 
-            # Backwards compatibility: check old observation field
-            if score is None and hasattr(run, "observation") and (run_observation := getattr(run, "observation", None)):
-                score = run_observation.score
-                cost = run_observation.cost
-
             score_str = f"{float(score):.4f}" if score is not None else "N/A"
             cost_str = f"${float(cost):.2f}" if cost is not None else "N/A"
             lines.append(
-                f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30} {score_str:<15} {cost_str:<10}"
+                f"{prefix}{display_id:<25} {phase_str:<25} {progress_str:<30} {score_str:<15} {cost_str:<10}"
             )
         else:
-            lines.append(f"{prefix}{display_id:<25} {str(run.status):<25} {progress_str:<30}")
+            lines.append(f"{prefix}{display_id:<25} {phase_str:<25} {progress_str:<30}")
 
     lines.append(f"{prefix}{'=' * 110}")
 

@@ -1,15 +1,35 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from metta.adaptive.models import RunInfo
+from metta.adaptive.run_phase import RunPhaseManager
 from metta.sweep.schedulers.state import SchedulerState
+
+
+class MockStore:
+    """Mock store that records update calls."""
+
+    def __init__(self):
+        self.summaries: dict[str, dict[str, Any]] = {}
+
+    def update_run_summary(self, run_id: str, data: dict[str, Any]) -> bool:
+        if run_id not in self.summaries:
+            self.summaries[run_id] = {}
+        self.summaries[run_id].update(data)
+        return True
 
 
 def _now():
     return datetime.now(timezone.utc)
 
 
+def _make_phase_manager():
+    return RunPhaseManager(MockStore())
+
+
 def test_scheduler_state_refresh_and_transitions():
     state = SchedulerState()
+    phase_manager = _make_phase_manager()
     now = _now()
 
     pending = RunInfo(
@@ -18,8 +38,6 @@ def test_scheduler_state_refresh_and_transitions():
         last_updated_at=now,
         has_started_training=False,
         has_completed_training=False,
-        has_started_eval=False,
-        has_been_evaluated=False,
         has_failed=False,
     )
     in_eval = RunInfo(
@@ -28,10 +46,11 @@ def test_scheduler_state_refresh_and_transitions():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=True,
-        has_been_evaluated=False,
         has_failed=False,
-        summary={"sweep/suggestion": {"lr": 0.01}},
+        summary={
+            "sweep/suggestion": {"lr": 0.01},
+            "sweep/eval_started": True,  # Eval has started
+        },
     )
     completed = RunInfo(
         run_id="done",
@@ -39,13 +58,15 @@ def test_scheduler_state_refresh_and_transitions():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=True,
-        has_been_evaluated=True,
         has_failed=False,
-        summary={"sweep/suggestion": {"lr": 0.02}},
+        summary={
+            "sweep/suggestion": {"lr": 0.02},
+            "sweep/eval_started": True,
+            "sweep/score": 0.5,  # Observation recorded = completed
+        },
     )
 
-    state.refresh([pending, in_eval, completed], force_eval=True)
+    state.refresh([pending, in_eval, completed], phase_manager, force_eval=True)
 
     assert state.runs_in_training == {"pending"}
     assert state.runs_pending_force_eval == {"in_eval"}
@@ -66,12 +87,14 @@ def test_scheduler_state_refresh_and_transitions():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=True,
-        has_been_evaluated=True,
         has_failed=False,
-        summary={"sweep/suggestion": {"lr": 0.01}},
+        summary={
+            "sweep/suggestion": {"lr": 0.01},
+            "sweep/eval_started": True,
+            "sweep/score": 0.75,  # Now completed
+        },
     )
-    state.refresh([pending, in_eval_done], force_eval=False)
+    state.refresh([pending, in_eval_done], phase_manager, force_eval=False)
 
     assert "in_eval" in state.runs_completed
     assert "in_eval" not in state.in_progress_suggestions
@@ -80,6 +103,7 @@ def test_scheduler_state_refresh_and_transitions():
 
 def test_force_eval_counts_capacity_and_is_one_shot():
     state = SchedulerState()
+    phase_manager = _make_phase_manager()
     now = _now()
 
     run = RunInfo(
@@ -88,13 +112,14 @@ def test_force_eval_counts_capacity_and_is_one_shot():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=True,
-        has_been_evaluated=False,
         has_failed=False,
+        summary={
+            "sweep/eval_started": True,  # Eval has started
+        },
     )
 
     # First refresh should mark pending force eval and also track as in-eval for capacity
-    state.refresh([run], force_eval=True)
+    state.refresh([run], phase_manager, force_eval=True)
     assert state.runs_pending_force_eval == {"r1"}
     assert state.runs_in_eval == {"r1"}
     assert state.eval_capacity(max_concurrent_evals=1) == 0
@@ -104,12 +129,13 @@ def test_force_eval_counts_capacity_and_is_one_shot():
     assert state.runs_pending_force_eval == set()
 
     # Subsequent refresh should NOT re-add to pending while still in eval
-    state.refresh([run], force_eval=True)
+    state.refresh([run], phase_manager, force_eval=True)
     assert state.runs_pending_force_eval == set()
 
 
 def test_training_done_no_eval_keeps_eval_tracking():
     state = SchedulerState()
+    phase_manager = _make_phase_manager()
     now = _now()
 
     in_eval = RunInfo(
@@ -118,11 +144,12 @@ def test_training_done_no_eval_keeps_eval_tracking():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=True,
-        has_been_evaluated=False,
         has_failed=False,
+        summary={
+            "sweep/eval_started": True,  # Eval has started
+        },
     )
-    state.refresh([in_eval], force_eval=False)
+    state.refresh([in_eval], phase_manager, force_eval=False)
     assert state.runs_in_eval == {"r_eval"}
 
     training_done = RunInfo(
@@ -131,11 +158,10 @@ def test_training_done_no_eval_keeps_eval_tracking():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=True,
-        has_started_eval=False,
-        has_been_evaluated=False,
         has_failed=False,
+        summary={},  # No sweep/eval_started
     )
-    state.refresh([training_done], force_eval=False)
+    state.refresh([training_done], phase_manager, force_eval=False)
 
     # Should keep eval tracking to avoid rescheduling duplicates
     assert state.runs_in_eval == {"r_eval"}
@@ -144,6 +170,7 @@ def test_training_done_no_eval_keeps_eval_tracking():
 
 def test_suggestion_caching_is_sticky():
     state = SchedulerState()
+    phase_manager = _make_phase_manager()
     now = _now()
 
     first = RunInfo(
@@ -152,12 +179,10 @@ def test_suggestion_caching_is_sticky():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=False,
-        has_started_eval=False,
-        has_been_evaluated=False,
         has_failed=False,
         summary={"sweep/suggestion": {"lr": 0.1}},
     )
-    state.refresh([first], force_eval=False)
+    state.refresh([first], phase_manager, force_eval=False)
     assert state.in_progress_suggestions["r_sugg"]["lr"] == 0.1
 
     updated = RunInfo(
@@ -166,12 +191,10 @@ def test_suggestion_caching_is_sticky():
         last_updated_at=now,
         has_started_training=True,
         has_completed_training=False,
-        has_started_eval=False,
-        has_been_evaluated=False,
         has_failed=False,
         summary={"sweep/suggestion": {"lr": 0.2}},
     )
-    state.refresh([updated], force_eval=False)
+    state.refresh([updated], phase_manager, force_eval=False)
 
     # Existing suggestion should not be overwritten
     assert state.in_progress_suggestions["r_sugg"]["lr"] == 0.1

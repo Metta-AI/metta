@@ -25,7 +25,6 @@ class WandbStore:
     """WandB implementation of adaptive experiment store."""
 
     # WandB run states
-    # TODO We shuold probably just put this into a string enum
     STATUS_RUNNING = "running"
     STATUS_FINISHED = "finished"
     STATUS_CRASHED = "crashed"
@@ -35,10 +34,9 @@ class WandbStore:
     def __init__(self, entity: str, project: str, evaluator_prefix: Optional[str] = None):
         self.entity = entity
         self.project = project
-        # Optional evaluator metrics prefix (e.g., "evaluator/eval_sweep") used to detect eval completion
-        # If None, falls back to broad detection of any "evaluator/" metrics
+        # Optional evaluator metrics prefix - no longer used for phase detection
+        # but may still be useful for metric queries
         self.evaluator_prefix = evaluator_prefix
-        # Don't store api instance - create fresh one each time to avoid caching
 
     @_wandb_retry
     def init_run(
@@ -119,7 +117,7 @@ class WandbStore:
                     info = self._convert_run_to_info(run)
                     run_infos.append(info)
                     count += 1
-                    logger.debug(f"[WandbStore] Converted run {run.id}: state={run.state}, status={info.status}")
+                    logger.debug(f"[WandbStore] Converted run {run.id}: state={run.state}")
                 except Exception as e:
                     logger.warning(f"[WandbStore] Failed to convert run {run.id}: {e}")
                     continue
@@ -151,43 +149,25 @@ class WandbStore:
 
             run.summary.update()  # Force sync with WandB
 
-            # Verify the update took effect
-            refreshed_run = api.run(f"{self.entity}/{self.project}/{run_id}")
-            refreshed_summary = normalize_summary(refreshed_run.summary)
-            logger.debug(
-                "[WandbStore] After update, run %s has_started_eval=%s",
-                run_id,
-                refreshed_summary.get("has_started_eval"),
-            )
-
             return True
         except Exception as e:
             logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}", exc_info=True)
             return False
 
     def _convert_run_to_info(self, run: Any) -> RunInfo:
-        """Convert WandB run to RunInfo."""
+        """Convert WandB run to RunInfo.
+
+        Note: This only populates the raw data fields. The lifecycle phase
+        is computed by RunPhaseManager.get_phase() based on sweep/* summary fields.
+        """
         summary = normalize_summary(run.summary)
 
-        # Debug log the summary to see what's available
-        logger.debug(
-            f"[WandbStore] Run {run.id} summary keys: "
-            f"{list(summary.keys()) if isinstance(summary, dict) else 'not a dict'}"
-        )
-        logger.debug(
-            f"[WandbStore] Run {run.id} has_started_eval in summary: "
-            f"{'has_started_eval' in summary if isinstance(summary, dict) else 'N/A'}"
-        )
-        if isinstance(summary, dict) and "has_started_eval" in summary:
-            logger.debug(f"[WandbStore] Run {run.id} has_started_eval value: {summary.get('has_started_eval')}")
-
-        # Determine training/eval status from run state and summary
+        # Determine training status from run state
         has_started_training = False
         has_completed_training = False
-        has_started_eval = False
-        has_been_evaluated = False
         has_failed = False
-        # Check run state and runtime to determine actual status
+
+        # Check run state and runtime
         runtime = float(summary.get("_runtime", 0))
         if runtime == 0 and hasattr(run, "duration"):
             try:
@@ -195,49 +175,25 @@ class WandbStore:
             except Exception:
                 runtime = 0.0
 
-        if run.state == self.STATUS_CRASHED or run.state == self.STATUS_FAILED or run.state == self.STATUS_CANCELLED:
+        if run.state in (self.STATUS_CRASHED, self.STATUS_FAILED, self.STATUS_CANCELLED):
             has_failed = True
         if run.state == self.STATUS_RUNNING:
             has_started_training = True
-        elif run.state in [self.STATUS_FINISHED, self.STATUS_CRASHED, self.STATUS_FAILED]:
+        elif run.state in (self.STATUS_FINISHED, self.STATUS_CRASHED, self.STATUS_FAILED):
             if runtime > 0:
                 # Actually ran training
                 has_started_training = True
-                # Completion will be determined by comparing current_steps to total_timesteps below
             else:
                 # Just initialized, never actually ran - stays PENDING
                 has_started_training = False
 
-        # Check evaluation status (regardless of run state)
-        # This needs to be outside the elif block because eval can cause run to go back to RUNNING
-        if "has_started_eval" in summary and summary["has_started_eval"] is True:  # type: ignore
-            has_started_eval = True
-            logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag found and set to True")
-        else:
-            eval_value = summary.get("has_started_eval") if "has_started_eval" in summary else "missing"
-            logger.debug(f"[WandbStore] Run {run.id} has_started_eval flag not found or not True. Value: {eval_value}")
-
-        # Check for evaluator metrics under configured namespace (if provided) to avoid false positives
-        if self.evaluator_prefix:
-            has_evaluator_metrics = any(k.startswith(self.evaluator_prefix) for k in summary.keys())  # type: ignore
-        else:
-            # Backward-compatible behavior: any evaluator/* metric counts
-            has_evaluator_metrics = any(k.startswith("evaluator/") for k in summary.keys())  # type: ignore
-
-        if has_evaluator_metrics:
-            has_started_eval = True
-            has_been_evaluated = True
-
         # Extract runtime and cost
-        # Runtime is stored under _runtime in WandB
-        runtime = float(summary.get("_runtime", 0.0))  # type: ignore
+        runtime = float(summary.get("_runtime", 0.0))
         if runtime == 0.0 and hasattr(run, "duration"):
             runtime = float(run.duration) if run.duration else 0.0
 
         # Cost is stored under monitor/cost/accrued_total in WandB; default to 0
-        cost = summary.get("monitor/cost/accrued_total", 0)  # type: ignore
-
-        # Note: observation field is no longer used - sweep data is stored in summary instead
+        cost = summary.get("monitor/cost/accrued_total", 0)
 
         # Extract training progress metrics
         total_timesteps = None
@@ -267,7 +223,7 @@ class WandbStore:
 
         # Get current_steps from summary
         if "metric/agent_step" in summary:
-            current_steps = int(summary["metric/agent_step"])  # type: ignore
+            current_steps = int(summary["metric/agent_step"])
 
         # Determine training completion based on progress
         # Training is complete only if we've reached the target timesteps
@@ -318,11 +274,9 @@ class WandbStore:
             started_at=None,  # WandB doesn't have separate started_at
             completed_at=None,  # Could be derived from state change
             last_updated_at=last_updated_at,
-            summary=summary,  # type: ignore
+            summary=summary,
             has_started_training=has_started_training,
             has_completed_training=has_completed_training,
-            has_started_eval=has_started_eval,
-            has_been_evaluated=has_been_evaluated,
             has_failed=has_failed,
             cost=cost,
             runtime=runtime,
@@ -341,7 +295,7 @@ def normalize_summary(summary: Any) -> dict[str, Any]:
 
     # WandB HTTPSummary exposes _json_dict, which may itself be a dict or JSON string
     if hasattr(summary, "_json_dict"):
-        raw = summary._json_dict  # type: ignore[attr-defined]
+        raw = summary._json_dict
         return normalize_summary(raw)
 
     if isinstance(summary, Mapping):
