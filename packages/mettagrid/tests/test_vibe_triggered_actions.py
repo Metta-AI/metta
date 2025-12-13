@@ -6,6 +6,7 @@ from mettagrid.config.mettagrid_config import (
     AttackActionConfig,
     ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -64,12 +65,12 @@ class TestVibeTriggeredAttack:
                 AgentConfig(
                     team_id=0,
                     freeze_duration=5,
-                    initial_inventory={"energy": 10, "heart": 5},
+                    inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
                 AgentConfig(
                     team_id=1,
                     freeze_duration=5,
-                    initial_inventory={"energy": 10, "heart": 5},
+                    inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
             ],
         )
@@ -128,12 +129,12 @@ class TestVibeTriggeredAttack:
                 AgentConfig(
                     team_id=0,
                     freeze_duration=5,
-                    initial_inventory={"energy": 10, "heart": 5},
+                    inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
                 AgentConfig(
                     team_id=1,
                     freeze_duration=5,
-                    initial_inventory={"energy": 10, "heart": 5},
+                    inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
                 ),
             ],
         )
@@ -179,7 +180,7 @@ class TestVibeActionWithEmptyTarget:
             ),
             objects={"wall": WallConfig()},
             agent=AgentConfig(
-                initial_inventory={"energy": 10},
+                inventory=InventoryConfig(initial={"energy": 10}),
             ),
         )
 
