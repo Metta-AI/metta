@@ -17,5 +17,5 @@ RUN pip install -e /app/softmax
 
 ENV PYTHONPATH="/app"
 
-# Run CI collector and push to Datadog
+# Run metrics collector and push to Datadog
 CMD ["python", "-m", "devops.datadog.cli", "collect", "--push"]
