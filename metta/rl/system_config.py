@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 import numpy as np
-import torch
 from pydantic import ConfigDict, Field
 
 from mettagrid.base_config import Config
@@ -15,6 +14,9 @@ from mettagrid.base_config import Config
 def guess_device() -> str:
     if platform.system() == "Darwin":
         return "mps"
+
+    import torch  # Lazy import: torch is heavy and not needed at module load time
+
     if not torch.cuda.is_available():
         return "cpu"
 
@@ -57,6 +59,8 @@ def seed_everything(system_cfg: SystemConfig):
     # Despite these efforts, we still don't get deterministic behavior. But presumably
     # this is better than nothing.
     # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+    import torch  # Lazy import: torch is heavy and not needed at module load time
+
     rank = int(os.environ.get("RANK", 0))
 
     seed = system_cfg.seed
