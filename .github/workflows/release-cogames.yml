@@ -49,9 +49,43 @@ jobs:
           name: cogames-dist
           path: dist/*
 
+  smoke-test:
+    name: Smoke test (standalone install)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cogames-dist
+          path: dist
+
+      - name: Build mettagrid wheel
+        run: |
+          pip install build
+          python -m build --wheel --outdir dist packages/mettagrid
+
+      - name: Install in isolated venv (no metta)
+        run: |
+          python -m venv /tmp/smoke-test-venv
+          source /tmp/smoke-test-venv/bin/activate
+          pip install dist/mettagrid-*.whl dist/cogames-*.whl
+
+      - name: Run smoke test
+        run: |
+          source /tmp/smoke-test-venv/bin/activate
+          cogames play -m machina_1 -r none -s 10
+
   publish:
     name: Publish to PyPI
-    needs: build
+    needs: [build, smoke-test]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
