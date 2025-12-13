@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,8 @@ public:
   unsigned int steps_without_motion;
   // Inventory regeneration amounts (per-agent)
   std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  // Damage configuration
+  DamageConfig damage_config;
 
   Agent(GridCoord r,
         GridCoord c,
@@ -55,6 +58,10 @@ public:
   void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
+
+  // Check and apply damage if all threshold stats are reached
+  // Returns true if damage was applied
+  bool check_and_apply_damage(std::mt19937& rng);
 
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;
