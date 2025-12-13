@@ -75,7 +75,6 @@ class AgentConfig(GridObjectConfig):
         soul_bound_resources: list[int] | None = None,
         inventory_regen_amounts: dict[int, int] | None = None,
         diversity_tracked_resources: list[int] | None = None,
-        vibe_transfers: dict[int, dict[int, int]] | None = None,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -84,13 +83,12 @@ class AgentConfig(GridObjectConfig):
     group_name: str
     freeze_duration: int
     resource_limits: dict[int, int]
-    stat_rewards: dict[str, float]  # Added this
-    stat_reward_max: dict[str, float]  # Added this
+    stat_rewards: dict[str, float]
+    stat_reward_max: dict[str, float]
     initial_inventory: dict[int, int]
     soul_bound_resources: list[int]
     inventory_regen_amounts: dict[int, int]
     diversity_tracked_resources: list[int]
-    vibe_transfers: dict[int, dict[int, int]]
 
 class ActionConfig:
     def __init__(
@@ -125,6 +123,26 @@ class AttackActionConfig(ActionConfig):
         enabled: bool = True,
     ) -> None: ...
     defense_resources: dict[int, int]
+    enabled: bool
+
+class VibeTransferEffect:
+    def __init__(
+        self,
+        target_deltas: dict[int, int] = {},
+        actor_deltas: dict[int, int] = {},
+    ) -> None: ...
+    target_deltas: dict[int, int]
+    actor_deltas: dict[int, int]
+
+class TransferActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+        vibe_transfers: dict[int, VibeTransferEffect] = {},
+        enabled: bool = True,
+    ) -> None: ...
+    vibe_transfers: dict[int, VibeTransferEffect]
     enabled: bool
 
 class ChangeVibeActionConfig(ActionConfig):

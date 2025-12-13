@@ -19,6 +19,8 @@ from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
+from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
+from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -162,13 +164,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
-        # Convert vibe_transfers: vibe -> resource -> delta
-        vibe_transfers_map = {}
-        for vibe_name, resource_deltas in agent_props.get("vibe_transfers", {}).items():
-            vibe_id = vibe_name_to_id[vibe_name]
-            resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
-            vibe_transfers_map[vibe_id] = resource_deltas_cpp
-
         # Build inventory config with support for grouped limits
         limits_list = []
 
@@ -200,7 +195,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             soul_bound_resources=soul_bound_resources,
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
-            vibe_transfers=vibe_transfers_map,
         )
         cpp_agent_config.tag_ids = tag_ids
 
@@ -411,6 +405,27 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         action_params["defense_resources"] = {}
     action_params["enabled"] = actions_config.attack.enabled
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
+
+    # Process transfer - vibes are derived from vibe_transfers keys in C++
+    transfer_cfg = actions_config.transfer
+    vibe_transfers_cpp = {}
+    seen_vibes: set[str] = set()
+    for vt in transfer_cfg.vibe_transfers:
+        if vt.vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        if vt.vibe in seen_vibes:
+            raise ValueError(f"Duplicate vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        seen_vibes.add(vt.vibe)
+        vibe_id = vibe_name_to_id[vt.vibe]
+        target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
+        actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
+        vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
+    actions_cpp_params["transfer"] = CppTransferActionConfig(
+        required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
+        consumed_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.consumed_resources.items()},
+        vibe_transfers=vibe_transfers_cpp,
+        enabled=transfer_cfg.enabled,
+    )
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)

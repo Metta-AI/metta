@@ -31,6 +31,8 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
+    TransferActionConfig,
+    VibeTransfer,
 )
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
@@ -178,6 +180,10 @@ class Mission(Config):
                         else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
                     )
                 ),
+                transfer=TransferActionConfig(
+                    enabled=True,
+                    vibe_transfers=[VibeTransfer(vibe="charger", target={"energy": 20}, actor={"energy": -20})],
+                ),
             ),
             agent=AgentConfig(
                 resource_limits={
@@ -196,7 +202,6 @@ class Mission(Config):
                 initial_inventory={
                     "energy": self.energy_capacity,
                 },
-                vibe_transfers={"charger": {"energy": 20}},
                 inventory_regen_amounts={"energy": self.energy_regen_amount},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
