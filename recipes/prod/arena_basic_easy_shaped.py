@@ -2,11 +2,12 @@
 This recipe is automatically validated in CI and release processes.
 """
 
-from pathlib import Path
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
+from devops.stable.registry import ci_job, stable_job
+from devops.stable.runner import AcceptanceCriterion
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
@@ -14,8 +15,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -120,19 +122,6 @@ def train(
 def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
     """Evaluate policies on arena simulations."""
     return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
-
-
-def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
-    """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
-        raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
-    sim = mettagrid(num_agents=6)
-    return EvaluateTool(
-        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
-    )
 
 
 def play(policy_uri: Optional[str] = None) -> PlayTool:
@@ -255,4 +244,79 @@ def sweep(sweep_name: str) -> SweepTool:
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you can set this number.
         num_parallel_trials=4,
+    )
+
+
+@ci_job(timeout_s=300)
+def train_ci() -> TrainTool:
+    """Minimal train for CI smoke test."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=100),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=make_curriculum(),
+            forward_pass_minibatch_target_size=96,
+            vectorization="serial",
+        ),
+        evaluator=EvaluatorConfig(evaluate_local=False, evaluate_remote=False),
+        checkpointer=CheckpointerConfig(epoch_interval=1),
+        policy_architecture=ViTDefaultConfig(),
+        wandb=WandbConfig.Off(),
+    )
+
+
+@ci_job(timeout_s=120)
+def play_ci() -> PlayTool:
+    """Play test with random policy."""
+    return PlayTool(
+        sim=simulations()[0],
+        max_steps=10,
+        render="log",
+        open_browser_on_start=False,
+    )
+
+
+@ci_job(depends_on=train_ci, input_references={"policy_uri": "policy_uri"}, timeout_s=120)
+def evaluate_ci(policy_uri: str) -> EvaluateTool:
+    """Evaluate the trained policy from train_ci."""
+    sim = mettagrid(num_agents=6)
+    sim.game.max_steps = 10
+    return EvaluateTool(
+        simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim, max_time_s=60)],
+        policy_uris=[policy_uri],
+    )
+
+
+@stable_job(
+    remote_gpus=1,
+    remote_nodes=1,
+    timeout_s=7200,
+    acceptance=[
+        AcceptanceCriterion(metric="overview/sps", threshold=40000),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
+    ],
+)
+def train_100m() -> TrainTool:
+    """Arena single GPU - 100M timesteps."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=100_000_000),
+        training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
+        policy_architecture=ViTDefaultConfig(),
+    )
+
+
+@stable_job(
+    remote_gpus=4,
+    remote_nodes=4,
+    timeout_s=172800,
+    acceptance=[
+        AcceptanceCriterion(metric="overview/sps", threshold=80000),
+        AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=1.0),
+    ],
+)
+def train_2b() -> TrainTool:
+    """Arena multi GPU - 2B timesteps."""
+    return TrainTool(
+        trainer=TrainerConfig(total_timesteps=2_000_000_000),
+        training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
+        policy_architecture=ViTDefaultConfig(),
     )

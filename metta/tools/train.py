@@ -46,6 +46,7 @@ from metta.rl.training import (
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
+    auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
@@ -81,6 +82,14 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
     sandbox: bool = False
+
+    def output_references(self, job_name: str) -> dict:
+        storage = auto_policy_storage_decision(job_name)
+        if storage.remote_prefix:
+            policy_uri = storage.remote_prefix
+        else:
+            policy_uri = f"file://{self.system.data_dir / job_name / 'checkpoints'}"
+        return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
