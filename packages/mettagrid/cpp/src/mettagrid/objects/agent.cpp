@@ -132,8 +132,13 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
     }
   }
 
+  // Subtract threshold values from inventory first
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
+  }
+
   // Find which resources from the damage map the agent has above their minimum
-  // and build weights based on quantity available for removal
+  // and build weights based on quantity available for removal (after threshold subtraction)
   std::vector<InventoryItem> available_resources;
   std::vector<int> weights;
   for (const auto& [item, minimum] : damage_config.resources) {
@@ -153,11 +158,6 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
     this->inventory.update(item_to_remove, -1);
     this->stats.incr("damage.items_lost");
     this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));
-  }
-
-  // Subtract threshold values from inventory
-  for (const auto& [item, threshold_value] : damage_config.threshold) {
-    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
   }
 
   this->stats.incr("damage.triggered");
