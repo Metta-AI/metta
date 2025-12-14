@@ -119,8 +119,6 @@ def _resolve_eval_variants(
 
 def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.total_timesteps = 952_192_000
-
     trainer_cfg.optimizer.learning_rate = 0.009999999776482582
     trainer_cfg.optimizer.eps = 1.3297974277293179e-08
     trainer_cfg.optimizer.warmup_steps = 1926
