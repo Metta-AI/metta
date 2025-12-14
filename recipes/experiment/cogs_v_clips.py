@@ -119,20 +119,29 @@ def _resolve_eval_variants(
 
 def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+    trainer_cfg.optimizer.learning_rate = 0.009999999776482582
+    trainer_cfg.optimizer.eps = 1.3297974277293179e-08
+    trainer_cfg.optimizer.warmup_steps = 1926
 
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo.clip_coef = 0.2301655262708664
     trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.ppo.ent_coef = 0.030000006780028343
+    trainer_cfg.losses.ppo.gamma = 0.9700000286102295
+    trainer_cfg.losses.ppo.vf_clip_coef = 0.1
 
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.2301655262708664
+    trainer_cfg.losses.ppo_actor.ent_coef = 0.030000006780028343
 
+    trainer_cfg.losses.ppo_critic.gamma = 0.9700000286102295
     trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.ppo_critic.vf_clip_coef = 0.1
 
+    trainer_cfg.losses.quantile_ppo_critic.gamma = 0.9700000286102295
     trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.quantile_ppo_critic.vf_clip_coef = 0.1
     return trainer_cfg
 
 
@@ -367,6 +376,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
+    tt.policy_architecture.core_resnet_layers = 2
 
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
