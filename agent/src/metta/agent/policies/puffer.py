@@ -173,8 +173,13 @@ class PufferPolicy(Policy):
         lstm_input = encoded_obs.unsqueeze(0)
         batch_size = encoded_obs.shape[0]
 
-        # Initialize state if None
-        if self._hidden_state is None or self._cell_state is None:
+        # Initialize or reset state if None or batch size changed
+        if (
+            self._hidden_state is None
+            or self._cell_state is None
+            or self._hidden_state.shape[1] != batch_size
+            or self._cell_state.shape[1] != batch_size
+        ):
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
