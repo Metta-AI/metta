@@ -101,8 +101,13 @@ class AgentConfig(Config):
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    inventory_regen_amounts: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
+        description=(
+            "Vibe-dependent inventory regeneration. Maps vibe name to resource amounts. "
+            "Use 'default' for fallback when agent's vibe isn't specified. "
+            "Example: {'default': {'energy': 1}, 'weapon': {'energy': 2}}"
+        ),
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,

@@ -152,10 +152,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             resource_name_to_id[resource_name] for resource_name in agent_props.get("soul_bound_resources", [])
         ]
 
-        # Convert inventory regeneration amounts from names to IDs
+        # Convert inventory regeneration amounts from names to IDs (vibe -> resource -> amount)
+        # "default" is a special key that maps to vibe ID 0 (used as fallback for any vibe)
         inventory_regen_amounts = {}
-        for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
-            inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
+        for vibe_name, resource_amounts in agent_props.get("inventory_regen_amounts", {}).items():
+            if vibe_name == "default":
+                vibe_id = 0  # "default" always maps to vibe ID 0
+            else:
+                vibe_id = vibe_name_to_id[vibe_name]
+            inventory_regen_amounts[vibe_id] = {
+                resource_name_to_id[resource_name]: amount for resource_name, amount in resource_amounts.items()
+            }
 
         diversity_tracked_resources = [
             resource_name_to_id[resource_name]

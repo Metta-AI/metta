@@ -96,7 +96,7 @@ class TestDamage:
             threshold={"damage": 5},
             resources={"battery": 0, "weapon": 0, "shield": 0},
         )
-        cfg.game.agent.inventory_regen_amounts = {"damage": 1}
+        cfg.game.agent.inventory_regen_amounts = {"default": {"damage": 1}}
         cfg.game.inventory_regen_interval = 1
         cfg.game.actions.noop.enabled = True
 
