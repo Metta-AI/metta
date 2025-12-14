@@ -555,6 +555,22 @@ class LLMAgentPolicy(AgentPolicy):
         if self.debug_mode:
             logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
 
+        # Debug: Check if AssemblerDrawsFromChestsVariant is active
+        self._assembler_draws_from_chests = False
+        if mg_cfg is not None:
+            assembler_cfg = mg_cfg.game.objects.get("assembler")
+            if assembler_cfg is not None and hasattr(assembler_cfg, "chest_search_distance"):
+                chest_dist = assembler_cfg.chest_search_distance
+                if chest_dist > 0:
+                    self._assembler_draws_from_chests = True
+                    print(f"[DEBUG AssemblerDrawsFromChestsVariant] ACTIVE - chest_search_distance={chest_dist}")
+                else:
+                    print(f"[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - chest_search_distance={chest_dist}")
+            else:
+                print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no assembler config found")
+        else:
+            print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no mg_cfg provided")
+
         # Initialize observation debugger if debug mode is enabled
         if self.debug_mode:
             self.debugger = ObservationDebugger(policy_env_info)

@@ -165,7 +165,33 @@ uv run cogames play -m hello_world -c 2 -s 200 -p "class=llm-anthropic,kw.model=
 
 ---
 
-### Test C4 (Future): Pathfinding hints
+### Test C4: Verify AssemblerDrawsFromChestsVariant detection
+
+**Goal:** Confirm we can detect whether a mission has the AssemblerDrawsFromChestsVariant active (assembler can pull resources from nearby chests).
+
+**Test commands:**
+```bash
+# Test 1: hello_world (should NOT have variant)
+uv run cogames play -m hello_world -c 1 -s 1 -p "class=llm-ollama,kw.model=qwen3-coder:30b" --render none 2>&1 | tee has_assembler_draws_from_chest_variant_hello_world_false.log
+
+# Test 2: machina_1.open_world_with_chests (should HAVE variant)
+uv run cogames play -m machina_1.open_world_with_chests -c 1 -s 1 -p "class=llm-ollama,kw.model=qwen3-coder:30b" --render none 2>&1 | tee has_assembler_draws_from_chest_variant_machina1_true.log
+
+# Check results
+grep "AssemblerDrawsFromChestsVariant" has_assembler_draws_from_chest_variant_*.log
+```
+
+**Expected output:**
+- `has_assembler_draws_from_chest_variant_hello_world_false.log`: `[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - chest_search_distance=0`
+- `has_assembler_draws_from_chest_variant_machina1_true.log`: `[DEBUG AssemblerDrawsFromChestsVariant] ACTIVE - chest_search_distance=2`
+
+**Success criteria:**
+- [ ] hello_world shows NOT ACTIVE
+- [ ] open_world_with_chests shows ACTIVE with chest_search_distance > 0
+
+---
+
+### Test C5 (Future): Pathfinding hints
 - Add "To reach silicon_extractor, go: E→E→N→E→E"
 - More complex, save for later
 
