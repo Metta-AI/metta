@@ -1,5 +1,6 @@
 from typing import List
 
+from pydantic import ConfigDict, Field
 from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
@@ -22,11 +23,13 @@ class ViTDefaultConfig(PolicyArchitecture):
     """
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    model_config = ConfigDict(populate_by_name=True)
 
     _token_embed_dim = 8
     _fourier_freqs = 3
-    _latent_dim = 64
-    _actor_hidden = 256
+    latent_dim: int = Field(default=64, alias="_latent_dim")
+    actor_hidden: int = Field(default=256, alias="_actor_hidden")
+    core_num_heads: int = Field(default=4, alias="_core_num_heads")
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
@@ -59,19 +62,19 @@ class ViTDefaultConfig(PolicyArchitecture):
                 in_key="obs_attr_embed",
                 out_key="obs_latent_attn",
                 feat_dim=self._token_embed_dim + (4 * self._fourier_freqs) + 1,
-                latent_dim=self._latent_dim,
+                latent_dim=self.latent_dim,
                 num_latents=12,
-                num_heads=4,
+                num_heads=self.core_num_heads,
                 num_layers=2,
             ),
             CortexTDConfig(
                 in_key="obs_latent_attn",
                 out_key="core",
-                d_hidden=self._latent_dim,
-                out_features=self._latent_dim,
+                d_hidden=self.latent_dim,
+                out_features=self.latent_dim,
                 key_prefix="vit_cortex_state",
                 stack_cfg=build_cortex_auto_config(
-                    d_hidden=self._latent_dim,
+                    d_hidden=self.latent_dim,
                     num_layers=self.core_resnet_layers,
                     pattern=self.core_resnet_pattern,
                     post_norm=self.core_use_layer_norm,
@@ -83,19 +86,19 @@ class ViTDefaultConfig(PolicyArchitecture):
                 in_key="core",
                 out_key="actor_hidden",
                 name="actor_mlp",
-                in_features=self._latent_dim,
-                hidden_features=[self._actor_hidden],
-                out_features=self._actor_hidden,
+                in_features=self.latent_dim,
+                hidden_features=[self.actor_hidden],
+                out_features=self.actor_hidden,
             ),
             MLPConfig(
                 in_key="core",
                 out_key="values",
                 name="critic",
-                in_features=self._latent_dim,
+                in_features=self.latent_dim,
                 out_features=1,
                 hidden_features=[self._critic_hidden],
             ),
-            ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self._actor_hidden),
+            ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self.actor_hidden),
         ]
 
         return super().make_policy(policy_env_info)
