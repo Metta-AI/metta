@@ -53,7 +53,7 @@ struct GameConfig {
   std::shared_ptr<ClipperConfig> clipper = nullptr;
 
   // Observation encoding settings
-  unsigned int token_value_max = 255;  // Maximum value per inventory token (base for encoding)
+  unsigned int token_value_base = 256;  // Base for multi-token inventory encoding (value per token: 0 to base-1)
 };
 
 namespace py = pybind11;
@@ -127,7 +127,7 @@ inline void bind_game_config(py::module& m) {
            py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr),
 
            // Observation encoding
-           py::arg("token_value_max") = 255)
+           py::arg("token_value_base") = 256)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -158,7 +158,7 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("clipper", &GameConfig::clipper)
 
       // Observation encoding
-      .def_readwrite("token_value_max", &GameConfig::token_value_max);
+      .def_readwrite("token_value_base", &GameConfig::token_value_base);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

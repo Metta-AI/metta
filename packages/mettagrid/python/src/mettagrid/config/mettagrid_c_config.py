@@ -348,9 +348,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         if name in resource_name_to_id
                     }
                     limit_defs.append(
-                        CppLimitDef(
-                            resources=resource_ids, base_limit=min(resource_limit.limit, 255), modifiers=modifier_ids
-                        )
+                        CppLimitDef(resources=resource_ids, base_limit=resource_limit.limit, modifiers=modifier_ids)
                     )
 
             inventory_config = CppInventoryConfig()
@@ -383,7 +381,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         game_cpp_params["obs_width"] = obs_config["width"]
         game_cpp_params["obs_height"] = obs_config["height"]
         game_cpp_params["num_observation_tokens"] = obs_config["num_tokens"]
-        game_cpp_params["token_value_max"] = obs_config.get("token_value_max", 255)
+        game_cpp_params["token_value_base"] = obs_config.get("token_value_base", 256)
         # Note: token_dim is not used by C++ GameConfig, it's only used in Python
 
     # Convert observation features from Python to C++

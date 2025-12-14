@@ -15,12 +15,12 @@ if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import GameConfig
 
 
-def num_inventory_tokens_needed(max_inventory_value: int, token_value_max: int) -> int:
+def num_inventory_tokens_needed(max_inventory_value: int, token_value_base: int) -> int:
     """Calculate how many tokens are needed to encode max_inventory_value with given base.
 
     Args:
         max_inventory_value: Maximum inventory value to encode (e.g., 65535 for uint16_t)
-        token_value_max: Maximum value per token (base for encoding)
+        token_value_base: Base for encoding (value per token: 0 to base-1)
 
     Returns:
         Number of tokens needed
@@ -28,7 +28,7 @@ def num_inventory_tokens_needed(max_inventory_value: int, token_value_max: int) 
     if max_inventory_value == 0:
         return 1
     # Need ceil(log_base(max_value + 1)) tokens
-    return math.ceil(math.log(max_inventory_value + 1, token_value_max))
+    return math.ceil(math.log(max_inventory_value + 1, token_value_base))
 
 
 class ObservationFeatureSpec(BaseModel):
@@ -137,14 +137,14 @@ class IdMap:
         feature_id += 1
 
         # Inventory features using multi-token encoding with configurable base
-        # inv:{resource} = amount % token_value_max (always emitted)
-        # inv:{resource}:p1 = (amount / token_value_max) % token_value_max (emitted if amount >= token_value_max)
-        # inv:{resource}:p2 = (amount / token_value_max^2) % token_value_max (emitted if amount >= token_value_max^2)
+        # inv:{resource} = amount % token_value_base (always emitted)
+        # inv:{resource}:p1 = (amount / token_value_base) % token_value_base (emitted if amount >= token_value_base)
+        # inv:{resource}:p2 = (amount / token_value_base^2) % token_value_base (emitted if amount >= token_value_base^2)
         # etc.
         # Number of tokens is computed based on max uint16_t value (65535)
-        token_value_max = self._config.obs.token_value_max
-        num_inv_tokens = num_inventory_tokens_needed(65535, token_value_max)
-        normalization = float(token_value_max)
+        token_value_base = self._config.obs.token_value_base
+        num_inv_tokens = num_inventory_tokens_needed(65535, token_value_base)
+        normalization = float(token_value_base)
         for resource_name in self._config.resource_names:
             # Base token (always present)
             name = f"inv:{resource_name}"

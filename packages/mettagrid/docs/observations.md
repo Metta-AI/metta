@@ -116,7 +116,7 @@ depend on your game configuration (number of resources, whether protocol details
 | `cooldown_remaining`              | Remaining cooldown time for objects                                             | assembler, extractors     | Value capped at 255                                                             |
 | `clipped`                         | Whether an assembler is clipped or not                                          | extractors                |                                                                                 |
 | `remaining_uses`                  | Remaining uses for objects with use limits                                      | extractors                | Value capped at 255. Only emitted if `max_uses > 0`                             |
-| `inv:{resource_name}`             | Base inventory amount (amount % token_value_max)                                | agents, chests            | One feature per resource. See [Inventory Encoding](#inventory-encoding) below.  |
+| `inv:{resource_name}`             | Base inventory amount (amount % token_value_base)                               | agents, chests            | One feature per resource. See [Inventory Encoding](#inventory-encoding) below.  |
 | `inv:{resource_name}:p1`          | Power 1 component ((amount / B) % B)                                            | agents, chests            | Only emitted if amount >= B. See [Inventory Encoding](#inventory-encoding).     |
 | `inv:{resource_name}:p2`          | Power 2 component ((amount / B²) % B)                                           | agents, chests            | Only emitted if amount >= B². See [Inventory Encoding](#inventory-encoding).    |
 | `protocol_input:{resource_name}`  | Required input resource amount for current protocol                             | assembler, extractors     | One feature per resource                                                        |
@@ -124,8 +124,8 @@ depend on your game configuration (number of resources, whether protocol details
 
 ### Inventory Encoding
 
-Inventory values are encoded using a multi-token scheme with a configurable base (`ObsConfig.token_value_max`, default
-255). This allows representing large amounts while keeping individual token values bounded. The number of tokens is
+Inventory values are encoded using a multi-token scheme with a configurable base (`ObsConfig.token_value_base`, default
+256). This allows representing large amounts while keeping individual token values bounded. The number of tokens is
 dynamically computed based on the maximum inventory value (uint16_t max = 65535).
 
 - **`inv:{resource}`**: Base value = `amount % B` (always emitted if amount > 0)
@@ -133,19 +133,19 @@ dynamically computed based on the maximum inventory value (uint16_t max = 65535)
 - **`inv:{resource}:p2`**: Power 2 = `(amount / B²) % B` (only emitted if amount >= B²)
 - etc.
 
-Where B = `token_value_max` (default 255).
+Where B = `token_value_base` (default 256).
 
 The full value is reconstructed as: `base + p1 * B + p2 * B² + ...`
 
-**Examples with token_value_max=255:**
+**Examples with token_value_base=256 (default):**
 
-| Amount | `inv:food` | `inv:food:p1` | `inv:food:p2` | Reconstruction            |
-| ------ | ---------- | ------------- | ------------- | ------------------------- |
-| 42     | 42         | (not emitted) | (not emitted) | 42                        |
-| 1234   | 214        | 4             | (not emitted) | 214 + 4 \* 255 = 1234     |
-| 65535  | 0          | 2             | 1             | 0 + 2 \* 255 + 1 \* 65025 |
+| Amount | `inv:food` | `inv:food:p1` | `inv:food:p2` | Reconstruction           |
+| ------ | ---------- | ------------- | ------------- | ------------------------ |
+| 42     | 42         | (not emitted) | (not emitted) | 42                       |
+| 1234   | 210        | 4             | (not emitted) | 210 + 4 \* 256 = 1234    |
+| 65535  | 255        | 255           | (not emitted) | 255 + 255 \* 256 = 65535 |
 
-**Examples with token_value_max=100:**
+**Examples with token_value_base=100:**
 
 | Amount | `inv:food` | `inv:food:p1` | `inv:food:p2` | Reconstruction              |
 | ------ | ---------- | ------------- | ------------- | --------------------------- |

@@ -54,8 +54,8 @@ public:
 
     // Build inventory feature ID maps using multi-token encoding
     // inv:{resource} = base token (always emitted)
-    // inv:{resource}:p1 = first power token (emitted if amount >= token_value_max)
-    // inv:{resource}:p2 = second power token (emitted if amount >= token_value_max^2)
+    // inv:{resource}:p1 = first power token (emitted if amount >= token_value_base)
+    // inv:{resource}:p2 = second power token (emitted if amount >= token_value_base^2)
     // etc.
     _inventory_feature_ids.resize(resource_names.size());
     _inventory_power_feature_ids.resize(resource_names.size());
@@ -158,9 +158,9 @@ public:
   }
 
   // Encode inventory amount using multi-token encoding with configurable base.
-  // inv:{resource} = amount % token_value_max (always emitted)
-  // inv:{resource}:p1 = (amount / token_value_max) % token_value_max (only emitted if amount >= token_value_max)
-  // inv:{resource}:p2 = (amount / token_value_max^2) % token_value_max (only emitted if amount >= token_value_max^2)
+  // inv:{resource} = amount % token_value_base (always emitted)
+  // inv:{resource}:p1 = (amount / token_value_base) % token_value_base (only emitted if amount >= token_value_base)
+  // inv:{resource}:p2 = (amount / token_value_base^2) % token_value_base (only emitted if amount >= token_value_base^2)
   // etc.
   void append_inventory_tokens(std::vector<PartialObservationToken>& features,
                                InventoryItem item,
@@ -179,7 +179,7 @@ public:
     }
   }
 
-  unsigned int get_token_value_max() const {
+  unsigned int get_token_value_base() const {
     return _token_value_base;
   }
 
@@ -195,7 +195,8 @@ private:
   size_t _num_inventory_tokens;
   std::vector<ObservationType> _input_feature_ids;
   std::vector<ObservationType> _output_feature_ids;
-  std::vector<ObservationType> _inventory_feature_ids;  // Maps item index to base feature ID (amount % token_value_max)
+  std::vector<ObservationType>
+      _inventory_feature_ids;  // Maps item index to base feature ID (amount % token_value_base)
   std::vector<std::vector<ObservationType>> _inventory_power_feature_ids;  // Maps item index to power feature IDs
 };
 

@@ -209,7 +209,8 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   if (!this->obs_encoder) {
     throw std::runtime_error("Observation encoder not set for agent");
   }
-  const size_t num_tokens = this->inventory.get().size() + this->tag_ids.size() + 5;
+  const size_t num_tokens =
+      this->inventory.get().size() * this->obs_encoder->get_num_inventory_tokens() + this->tag_ids.size() + 5;
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);

@@ -388,15 +388,15 @@ class SimulationAgent:
         Returns a dictionary mapping resource names to their quantities.
 
         Inventory values are encoded using multi-token encoding:
-        - inv:{resource} contains the base value (amount % token_value_max)
-        - inv:{resource}:p1 contains power 1 ((amount / token_value_max) % token_value_max)
-        - inv:{resource}:p2 contains power 2 ((amount / token_value_max^2) % token_value_max)
+        - inv:{resource} contains the base value (amount % token_value_base)
+        - inv:{resource}:p1 contains power 1 ((amount / token_value_base) % token_value_base)
+        - inv:{resource}:p2 contains power 2 ((amount / token_value_base^2) % token_value_base)
         - etc.
-        The full value is reconstructed as: base + p1 * B + p2 * B^2 + ... where B = token_value_max
+        The full value is reconstructed as: base + p1 * B + p2 * B^2 + ... where B = token_value_base
         """
         import re
 
-        token_value_max = self._sim._config.game.obs.token_value_max
+        token_value_base = self._sim._config.game.obs.token_value_base
 
         # Collect tokens by resource name and power
         inv_values: Dict[str, Dict[int, int]] = {}  # resource_name -> {power -> value}
@@ -423,7 +423,7 @@ class SimulationAgent:
         for resource_name, power_values in inv_values.items():
             total = 0
             for power, value in power_values.items():
-                total += value * (token_value_max**power)
+                total += value * (token_value_base**power)
             inv[resource_name] = total
 
         return inv
