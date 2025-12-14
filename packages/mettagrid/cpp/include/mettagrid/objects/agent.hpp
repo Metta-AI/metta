@@ -38,8 +38,8 @@ public:
   RewardType* reward;
   GridLocation prev_location;
   unsigned int steps_without_motion;
-  // Inventory regeneration amounts (per-agent)
-  std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  // Inventory regeneration amounts (per-agent, vibe-dependent with "default" fallback at vibe ID 0)
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>> inventory_regen_amounts;
   // Damage configuration
   DamageConfig damage_config;
 
