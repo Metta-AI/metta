@@ -26,6 +26,7 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     GlobalObsConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -180,24 +181,24 @@ class Mission(Config):
                 ),
             ),
             agent=AgentConfig(
-                resource_limits={
-                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
-                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
-                    "cargo": ResourceLimitsConfig(
-                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
-                    ),
-                    "gear": ResourceLimitsConfig(
-                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
-                    ),
-                },
+                inventory=InventoryConfig(
+                    limits={
+                        "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                        "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                        "cargo": ResourceLimitsConfig(
+                            limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                        ),
+                        "gear": ResourceLimitsConfig(
+                            limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                        ),
+                    },
+                    initial={"energy": self.energy_capacity},
+                    regen_amounts={"energy": self.energy_regen_amount},
+                ),
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},
                 ),
-                initial_inventory={
-                    "energy": self.energy_capacity,
-                },
                 vibe_transfers={"charger": {"energy": 20}},
-                inventory_regen_amounts={"default": {"energy": self.energy_regen_amount}},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,

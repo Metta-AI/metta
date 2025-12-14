@@ -165,16 +165,16 @@ class _DiagnosticMissionBase(Mission):
     def _apply_inventory_seed(self, cfg: MettaGridConfig) -> None:
         if not self.inventory_seed:
             return
-        seed = dict(cfg.game.agent.initial_inventory)
+        seed = dict(cfg.game.agent.inventory.initial)
         seed.update(self.inventory_seed)
-        cfg.game.agent.initial_inventory = seed
+        cfg.game.agent.inventory.initial = seed
 
     def _apply_communal_chest(self, cfg: MettaGridConfig) -> None:
         if self.communal_chest_hearts is None:
             return
         chest = cfg.game.objects.get("communal_chest")
         if isinstance(chest, ChestConfig):
-            chest.initial_inventory = self.communal_chest_hearts
+            chest.inventory.initial = self.communal_chest_hearts
 
     def _apply_resource_chests(self, cfg: MettaGridConfig) -> None:
         if not self.resource_chest_stock:
@@ -182,7 +182,7 @@ class _DiagnosticMissionBase(Mission):
         for resource, amount in self.resource_chest_stock.items():
             chest_cfg = cfg.game.objects.get(f"chest_{resource}")
             if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = amount
+                chest_cfg.inventory.initial = amount
 
     def _apply_extractor_settings(self, cfg: MettaGridConfig) -> None:
         for resource in RESOURCE_NAMES:
@@ -249,9 +249,9 @@ class _DiagnosticMissionBase(Mission):
             if not isinstance(obj, ChestConfig):
                 continue
             # Find existing heart limit or create new one
-            heart_limit = obj.resource_limits.get("heart", ResourceLimitsConfig(limit=1, resources=["heart"]))
+            heart_limit = obj.inventory.limits.get("heart", ResourceLimitsConfig(limit=1, resources=["heart"]))
             heart_limit.limit = 1
-            obj.resource_limits["heart"] = heart_limit
+            obj.inventory.limits["heart"] = heart_limit
 
     def _ensure_minimal_heart_recipe(self, assembler: AssemblerConfig) -> None:
         minimal_inputs = {
@@ -444,7 +444,7 @@ class _UnclipBase(_DiagnosticMissionBase):
             assembler.protocols = updated_protocols
 
         agent_cfg = cfg.game.agent
-        inventory = dict(agent_cfg.initial_inventory)
+        inventory = dict(agent_cfg.inventory.initial)
         for res in resources:
             inventory.pop(res, None)
 
@@ -459,7 +459,7 @@ class _UnclipBase(_DiagnosticMissionBase):
         else:
             inventory.pop("decoder", None)
 
-        agent_cfg.initial_inventory = inventory
+        agent_cfg.inventory.initial = inventory
 
 
 class DiagnosticUnclipCraft(_UnclipBase):
@@ -495,9 +495,9 @@ class DiagnosticChargeUp(_DiagnosticMissionBase):
     def configure_env(self, cfg: MettaGridConfig) -> None:
         # Set starting energy to 30 and no regen
         agent = cfg.game.agent
-        agent.initial_inventory = dict(agent.initial_inventory)
-        agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"default": {"energy": 0}}
+        agent.inventory.initial = dict(agent.inventory.initial)
+        agent.inventory.initial["energy"] = 60
+        agent.inventory.regen_amounts = {"energy": 0}
 
 
 class DiagnosticAgile(_DiagnosticMissionBase):
@@ -540,10 +540,10 @@ class DiagnosticRadial(_DiagnosticMissionBase):
 
     def configure_env(self, cfg: MettaGridConfig) -> None:
         agent = cfg.game.agent
-        inventory = dict(agent.initial_inventory)
+        inventory = dict(agent.inventory.initial)
         inventory["energy"] = 255
-        agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"default": {"energy": 255}}
+        agent.inventory.initial = inventory
+        agent.inventory.regen_amounts = {"energy": 255}
 
 
 # ----------------------------------------------------------------------
@@ -600,9 +600,9 @@ class DiagnosticChargeUpHard(_DiagnosticMissionBase):
     def configure_env(self, cfg: MettaGridConfig) -> None:
         # Set starting energy to 30 and no regen
         agent = cfg.game.agent
-        agent.initial_inventory = dict(agent.initial_inventory)
-        agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"default": {"energy": 0}}
+        agent.inventory.initial = dict(agent.inventory.initial)
+        agent.inventory.initial["energy"] = 60
+        agent.inventory.regen_amounts = {"energy": 0}
 
 
 class DiagnosticMemoryHard(_DiagnosticMissionBase):
@@ -689,10 +689,10 @@ class DiagnosticRadialHard(_DiagnosticMissionBase):
 
     def configure_env(self, cfg: MettaGridConfig) -> None:
         agent = cfg.game.agent
-        inventory = dict(agent.initial_inventory)
+        inventory = dict(agent.inventory.initial)
         inventory["energy"] = 255
-        agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"default": {"energy": 255}}
+        agent.inventory.initial = inventory
+        agent.inventory.regen_amounts = {"energy": 255}
 
 
 DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [

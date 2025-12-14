@@ -2,7 +2,14 @@ from pydantic import Field
 
 from mettagrid.base_config import Config
 from mettagrid.config import vibes
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    GridObjectConfig,
+    InventoryConfig,
+    ProtocolConfig,
+    WallConfig,
+)
 
 resources = [
     "energy",
@@ -190,7 +197,7 @@ class CvCChestConfig(CvCStationConfig):
                 "silicon_a": {"silicon": -25},
                 "silicon_b": {"silicon": 25},
             },
-            initial_inventory=self.initial_inventory,
+            inventory=InventoryConfig(initial=self.initial_inventory),
         )
 
 
