@@ -199,12 +199,12 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
+        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device), strict=False)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
+        policy_spec = policy_spec_from_uri(policy_path, device=str(device), strict=False)
         return initialize_or_load_policy(policy_env_info, policy_spec)
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
@@ -1151,15 +1151,30 @@ def main():
     parser.add_argument("--no-plots", action="store_true", help="Skip generating plots")
     parser.add_argument(
         "--mission-set",
-        choices=["integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
-        default="all",
+        choices=["default", "integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
+        default="default",
     )
     parser.add_argument("--repeats", type=int, default=3, help="Runs per case")
     parser.add_argument("--jobs", type=int, default=0, help="Max parallel cases (0 = CPU count)")
 
     args = parser.parse_args()
 
-    if args.mission_set == "all":
+    if args.mission_set == "default":
+        missions_list = []
+        # 1. Diagnostic evals (standard only, not hard versions)
+        standard_diagnostics = [
+            mission_cls()  # type: ignore[call-arg]
+            for mission_cls in DIAGNOSTIC_EVALS
+            if not mission_cls.__name__.endswith("Hard")
+        ]
+        missions_list.extend(standard_diagnostics)
+        # 2. Integrated evals
+        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
+        # 3. open_world and open_world_with_chests from ALL_MISSIONS
+        for mission in ALL_MISSIONS:
+            if mission.name in ("open_world", "open_world_with_chests"):
+                missions_list.append(mission)
+    elif args.mission_set == "all":
         missions_list = []
         # Skip eval_missions - they are deprecated
         missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
