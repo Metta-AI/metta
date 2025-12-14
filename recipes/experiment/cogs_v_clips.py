@@ -116,26 +116,6 @@ def _resolve_eval_variants(
     return None
 
 
-def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
-    """Apply sweep-tuned defaults shared across CVC recipes."""
-    # Align with arena/basic defaults to reduce LR and PPO aggressiveness.
-    trainer_cfg.optimizer.learning_rate = 0.00092
-    trainer_cfg.optimizer.eps = 3.186531e-07
-
-    trainer_cfg.losses.ppo.clip_coef = 0.264407
-    trainer_cfg.losses.ppo.gae_lambda = 0.891477
-    trainer_cfg.losses.ppo.vf_coef = 0.897619
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.264407
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.891477
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.897619
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.891477
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.897619
-    return trainer_cfg
-
-
 def _prepare_mission(
     base_mission: Mission,
     *,
@@ -344,6 +324,24 @@ def train(
     trainer_cfg = TrainerConfig(
         losses=LossesConfig(),
     )
+    # Defaults from the best recent CvC sweep (cvc.1213_trial_0041_37f658).
+    trainer_cfg.optimizer.learning_rate = 0.01
+    trainer_cfg.optimizer.eps = 1.3297974e-08
+    trainer_cfg.optimizer.warmup_steps = 1926
+
+    trainer_cfg.losses.ppo.clip_coef = 0.2301655262708664
+    trainer_cfg.losses.ppo.gae_lambda = 0.99
+    trainer_cfg.losses.ppo.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.ppo.ent_coef = 0.030000006780028343
+    trainer_cfg.losses.ppo.gamma = 0.9700000286102295
+
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.2301655262708664
+
+    trainer_cfg.losses.ppo_critic.gae_lambda = 0.99
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.5736182332038879
+
+    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.99
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.5736182332038879
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(

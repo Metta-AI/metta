@@ -34,7 +34,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     # Trunk configuration
     # Number of Axon layers in the trunk
-    core_resnet_layers: int = 1
+    core_resnet_layers: int = 2
     # Pattern for trunk layers (e.g., "A" for Axon blocks, "L" for linear)
     core_resnet_pattern: str = "A"
     # Enable layer normalization after each trunk layer
