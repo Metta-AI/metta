@@ -18,15 +18,18 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from devops.stable.registry import ci_job, stable_job
+from devops.stable.runner import AcceptanceCriterion
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
     DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -116,20 +119,29 @@ def _resolve_eval_variants(
 
 def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
+    trainer_cfg.optimizer.learning_rate = 0.009999999776482582
+    trainer_cfg.optimizer.eps = 1.3297974277293179e-08
+    trainer_cfg.optimizer.warmup_steps = 1926
 
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo.clip_coef = 0.2301655262708664
     trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.ppo.ent_coef = 0.030000006780028343
+    trainer_cfg.losses.ppo.gamma = 0.9700000286102295
+    trainer_cfg.losses.ppo.vf_clip_coef = 0.1
 
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
+    trainer_cfg.losses.ppo_actor.clip_coef = 0.2301655262708664
+    trainer_cfg.losses.ppo_actor.ent_coef = 0.030000006780028343
 
+    trainer_cfg.losses.ppo_critic.gamma = 0.9700000286102295
     trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.ppo_critic.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.ppo_critic.vf_clip_coef = 0.1
 
+    trainer_cfg.losses.quantile_ppo_critic.gamma = 0.9700000286102295
     trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
+    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.5736182332038879
+    trainer_cfg.losses.quantile_ppo_critic.vf_clip_coef = 0.1
     return trainer_cfg
 
 
@@ -364,6 +376,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
+    tt.policy_architecture.core_resnet_layers = 2
 
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
@@ -674,19 +687,63 @@ def sweep(
     )
 
 
-__all__ = [
-    "make_eval_suite",
-    "make_training_env",
-    "make_curriculum",
-    "apply_cvc_sweep_defaults",
-    "train",
-    "train_variants",
-    "train_single_mission",
-    "train_coordination",
-    "train_sweep",
-    "evaluate_stub",
-    "sweep",
-    "evaluate",
-    "play",
-    "play_training_env",
-]
+@ci_job(timeout_s=240)
+def train_ci() -> TrainTool:
+    """Minimal CvC train for CI smoke test."""
+    env = make_training_env(num_cogs=2, mission="easy_hearts", variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    curriculum_cfg = cc.env_curriculum(env)
+    return TrainTool(
+        trainer=TrainerConfig(
+            total_timesteps=64,
+            minibatch_size=8,
+            batch_size=64,
+            bptt_horizon=8,
+            update_epochs=1,
+        ),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum_cfg,
+            forward_pass_minibatch_target_size=8,
+            vectorization="serial",
+            auto_workers=False,
+            num_workers=1,
+            async_factor=1,
+            maps_cache_size=4,
+        ),
+        evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
+        checkpointer=CheckpointerConfig(epoch_interval=1),
+        wandb=WandbConfig.Off(),
+    )
+
+
+@ci_job(timeout_s=120)
+def play_ci() -> PlayTool:
+    """CvC play test with random policy."""
+    env = make_training_env(num_cogs=2, mission="easy_hearts")
+    sim = SimulationConfig(suite="cogs_vs_clips", name="easy_hearts_ci", env=env)
+    return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
+
+
+@stable_job(
+    remote_gpus=1,
+    remote_nodes=1,
+    timeout_s=43200,
+    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=30000)],
+)
+def train_200ep() -> TrainTool:
+    """CvC 200 epochs (~105M timesteps)."""
+    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool.trainer.total_timesteps = 200 * 524288
+    return tool
+
+
+@stable_job(
+    remote_gpus=4,
+    remote_nodes=4,
+    timeout_s=172800,
+    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=80000)],
+)
+def train_2b() -> TrainTool:
+    """CvC multi GPU - 2B timesteps."""
+    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool.trainer.total_timesteps = 2_000_000_000
+    return tool

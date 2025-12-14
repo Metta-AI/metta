@@ -10,6 +10,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
@@ -57,10 +58,16 @@ class CheckpointManager:
         elif storage_decision.reason == "no_base_prefix":
             logger.info("Remote prefix unset; policies will remain local.")
 
+    @property
+    def output_uri(self) -> str:
+        if self._remote_prefix:
+            return self._remote_prefix
+        return f"file://{self.checkpoint_dir}"
+
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
-                parsed = resolve_uri(uri)
+                parsed = resolve_uri(f"{uri}:latest" if not uri.endswith(":latest") else uri)
                 info = parsed.checkpoint_info
                 if info:
                     return (parsed.canonical, info[1])
@@ -69,7 +76,7 @@ class CheckpointManager:
             return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
-        remote = try_resolve(self._remote_prefix) if self._remote_prefix else None
+        remote = try_resolve(self.output_uri) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
         if not candidates:
             return None
@@ -93,7 +100,7 @@ class CheckpointManager:
         spec_path.write_text(local_spec.model_dump_json())
 
         if self._remote_prefix:
-            remote_dir = f"{self._remote_prefix}/{filename}"
+            remote_dir = f"{self.output_uri}/{filename}"
             remote_mpt_uri = f"{remote_dir}/policy.mpt"
             write_data(remote_mpt_uri, mpt_path.read_bytes(), content_type="application/octet-stream")
             remote_spec = PolicySpec(

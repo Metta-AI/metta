@@ -14,6 +14,7 @@ from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
+from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -151,10 +152,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             resource_name_to_id[resource_name] for resource_name in agent_props.get("soul_bound_resources", [])
         ]
 
-        # Convert inventory regeneration amounts from names to IDs
+        # Convert inventory regeneration amounts from names to IDs (vibe -> resource -> amount)
+        # "default" is a special key that maps to vibe ID 0 (used as fallback for any vibe)
         inventory_regen_amounts = {}
-        for resource_name, amount in agent_props.get("inventory_regen_amounts", {}).items():
-            inventory_regen_amounts[resource_name_to_id[resource_name]] = amount
+        for vibe_name, resource_amounts in agent_props.get("inventory_regen_amounts", {}).items():
+            if vibe_name == "default":
+                vibe_id = 0  # "default" always maps to vibe ID 0
+            else:
+                vibe_id = vibe_name_to_id[vibe_name]
+            inventory_regen_amounts[vibe_id] = {
+                resource_name_to_id[resource_name]: amount for resource_name, amount in resource_amounts.items()
+            }
 
         diversity_tracked_resources = [
             resource_name_to_id[resource_name]
@@ -168,6 +176,27 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             vibe_id = vibe_name_to_id[vibe_name]
             resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
             vibe_transfers_map[vibe_id] = resource_deltas_cpp
+
+        # Build damage config if present
+        damage_config_py = agent_props.get("damage")
+        cpp_damage_config = CppDamageConfig()
+        if damage_config_py is not None:
+            # Convert threshold resource names to IDs
+            for resource_name in damage_config_py.get("threshold", {}).keys():
+                assert resource_name in resource_name_to_id, (
+                    f"Threshold resource '{resource_name}' not in resource_names"
+                )
+            cpp_damage_config.threshold = {
+                resource_name_to_id[resource_name]: threshold_value
+                for resource_name, threshold_value in damage_config_py.get("threshold", {}).items()
+            }
+            # Convert resources map (name -> minimum) to IDs
+            for resource_name in damage_config_py.get("resources", {}).keys():
+                assert resource_name in resource_name_to_id, f"Damage resource '{resource_name}' not in resource_names"
+            cpp_damage_config.resources = {
+                resource_name_to_id[resource_name]: minimum_value
+                for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
+            }
 
         # Build inventory config with support for grouped limits
         limits_list = []
@@ -201,6 +230,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
             vibe_transfers=vibe_transfers_map,
+            damage_config=cpp_damage_config,
         )
         cpp_agent_config.tag_ids = tag_ids
 
