@@ -23,7 +23,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     ProtocolConfig,
 )
-from recipes.experiment.architectures import ARCHITECTURES
+from recipes.experiment.architectures import get_architecture
 
 curriculum_args = {
     "level_0": {
@@ -406,14 +406,12 @@ def make_task_generator_cfg(
 
 def train(
     curriculum_style: str = "level_0",
-    arch_type: str = "default",
+    arch_type: str = "vit",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
-    if arch_type not in ARCHITECTURES:
-        raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
-    policy_config = ARCHITECTURES[arch_type]
+    policy_config = get_architecture(arch_type)
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),

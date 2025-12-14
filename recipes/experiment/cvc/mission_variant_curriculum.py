@@ -29,7 +29,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
-from recipes.experiment.architectures import ARCHITECTURES
+from recipes.experiment.architectures import get_architecture
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -463,7 +463,7 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-    arch_type: str = "default",
+    arch_type: str = "vit",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -528,10 +528,7 @@ def train(
         "evaluator": evaluator_cfg,
     }
 
-    if arch_type != "default":
-        if arch_type not in ARCHITECTURES:
-            raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(ARCHITECTURES.keys())})")
-        kwargs["policy_architecture"] = ARCHITECTURES[arch_type]
+    kwargs["policy_architecture"] = get_architecture(arch_type)
 
     return TrainTool(**kwargs)
 
