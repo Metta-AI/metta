@@ -169,7 +169,14 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    policy_architecture: Optional["PolicyArchitecture"] = None,
 ) -> TrainTool:
+    from metta.agent.policy import PolicyArchitecture
+
+    # Handle string input from command line (e.g., "class=...")
+    if isinstance(policy_architecture, str):
+        policy_architecture = PolicyArchitecture.from_spec(policy_architecture)
+
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     evaluator_cfg = EvaluatorConfig(
@@ -179,6 +186,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=policy_architecture,
     )
 
 
