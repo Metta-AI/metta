@@ -148,15 +148,8 @@ private:
       snapshot.emplace_back(item, amount);
     }
 
-    // Transfer resources (excluding soul-bound resources)
+    // Transfer resources
     for (const auto& [item, amount] : snapshot) {
-      // Check if this resource is soul-bound for the target
-      if (std::find(target.soul_bound_resources.begin(), target.soul_bound_resources.end(), item) !=
-          target.soul_bound_resources.end()) {
-        // Skip soul-bound resources
-        continue;
-      }
-
       InventoryDelta stolen = actor.inventory.update(item, amount);
       target.inventory.update(item, -stolen);
 

@@ -10,7 +10,7 @@ class TestAssemblerPartialUsage:
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
-        cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
+        cfg.game.agent.inventory.initial = {"iron": 100, "steel": 0}
 
         # Configure assembler with partial usage disabled
         cfg.game.objects["assembler"] = AssemblerConfig(
@@ -89,7 +89,7 @@ class TestAssemblerPartialUsage:
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["iron", "steel"]
-        cfg.game.agent.initial_inventory = {"iron": 100, "steel": 0}
+        cfg.game.agent.inventory.initial = {"iron": 100, "steel": 0}
 
         # Protocol: 20 iron -> 10 steel, 100 tick cooldown
         cfg.game.objects["assembler"] = AssemblerConfig(

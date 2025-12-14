@@ -27,9 +27,9 @@ struct SharedInventoryLimit {
         effective += static_cast<int>(it->second) * static_cast<int>(bonus);
       }
     }
-    // Clamp to valid range
+    // Clamp to valid range (0 to max InventoryQuantity which is uint16_t)
     if (effective < 0) effective = 0;
-    if (effective > 255) effective = 255;
+    if (effective > 65535) effective = 65535;
     return static_cast<InventoryQuantity>(effective);
   }
 };
