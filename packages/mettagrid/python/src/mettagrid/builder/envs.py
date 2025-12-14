@@ -11,6 +11,7 @@ from mettagrid.config.mettagrid_config import (
     AttackActionConfig,
     ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -80,10 +81,12 @@ def make_arena(
             actions=actions,
             objects=objects,
             agent=AgentConfig(
-                default_resource_limit=50,
-                resource_limits={
-                    "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
-                },
+                inventory=InventoryConfig(
+                    default_limit=50,
+                    limits={
+                        "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
+                    },
+                ),
                 rewards=AgentRewards(
                     inventory={
                         "heart": 1,
@@ -169,8 +172,10 @@ def make_assembly_lines(
                         "heart": 1,
                     },
                 ),
-                default_resource_limit=1,
-                resource_limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
+                inventory=InventoryConfig(
+                    default_limit=1,
+                    limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
+                ),
             ),
         ),
     )

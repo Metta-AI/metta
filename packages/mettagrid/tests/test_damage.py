@@ -42,7 +42,7 @@ class TestDamage:
 
         cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
         # Start with damage at threshold so it triggers immediately
-        cfg.game.agent.initial_inventory = {"battery": 3, "weapon": 3, "shield": 3, "damage": 10}
+        cfg.game.agent.inventory.initial = {"battery": 3, "weapon": 3, "shield": 3, "damage": 10}
         cfg.game.agent.damage = DamageConfig(
             threshold={"damage": 10},
             resources={"battery": 0, "weapon": 0, "shield": 0},
@@ -91,12 +91,12 @@ class TestDamage:
         )
 
         cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        cfg.game.agent.initial_inventory = {"battery": 5, "weapon": 5, "shield": 5, "damage": 0}
+        cfg.game.agent.inventory.initial = {"battery": 5, "weapon": 5, "shield": 5, "damage": 0}
         cfg.game.agent.damage = DamageConfig(
             threshold={"damage": 5},
             resources={"battery": 0, "weapon": 0, "shield": 0},
         )
-        cfg.game.agent.inventory_regen_amounts = {"default": {"damage": 1}}
+        cfg.game.agent.inventory.regen_amounts = {"default": {"damage": 1}}
         cfg.game.inventory_regen_interval = 1
         cfg.game.actions.noop.enabled = True
 
@@ -145,7 +145,7 @@ class TestDamage:
 
         cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
         # Start with battery=1 (at minimum), weapon=5 (above minimum)
-        cfg.game.agent.initial_inventory = {"battery": 1, "weapon": 5, "shield": 0, "damage": 10}
+        cfg.game.agent.inventory.initial = {"battery": 1, "weapon": 5, "shield": 0, "damage": 10}
         cfg.game.agent.damage = DamageConfig(
             threshold={"damage": 10},
             resources={"battery": 1, "weapon": 0, "shield": 0},  # battery min=1, weapon min=0
@@ -179,7 +179,7 @@ class TestDamage:
         )
 
         cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        cfg.game.agent.initial_inventory = {"battery": 2, "weapon": 2, "shield": 2, "damage": 0}
+        cfg.game.agent.inventory.initial = {"battery": 2, "weapon": 2, "shield": 2, "damage": 0}
         cfg.game.agent.damage = DamageConfig(
             threshold={"damage": 100},
             resources={"battery": 0, "weapon": 0, "shield": 0},
@@ -216,7 +216,7 @@ class TestDamage:
         )
 
         cfg.game.resource_names = ["battery", "weapon", "shield"]
-        cfg.game.agent.initial_inventory = {"battery": 2, "weapon": 2, "shield": 2}
+        cfg.game.agent.inventory.initial = {"battery": 2, "weapon": 2, "shield": 2}
         # No damage config set
         cfg.game.actions.noop.enabled = True
 
@@ -254,7 +254,7 @@ class TestDamage:
 
             cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
             # battery=10 (weight 10), weapon=3 (weight 3), shield=1 (weight 1)
-            cfg.game.agent.initial_inventory = {"battery": 10, "weapon": 3, "shield": 1, "damage": 10}
+            cfg.game.agent.inventory.initial = {"battery": 10, "weapon": 3, "shield": 1, "damage": 10}
             cfg.game.agent.damage = DamageConfig(
                 threshold={"damage": 10},
                 resources={"battery": 0, "weapon": 0, "shield": 0},
