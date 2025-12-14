@@ -23,7 +23,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     ProtocolConfig,
 )
-from recipes.experiment.architectures import architecture_names, get_architecture
+from recipes.experiment.architectures import get_architecture
 
 curriculum_args = {
     "level_0": {
