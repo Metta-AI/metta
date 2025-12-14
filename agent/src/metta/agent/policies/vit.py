@@ -1,7 +1,7 @@
 from typing import List
 
-from pydantic import ConfigDict, Field
 from cortex.stacks import build_cortex_auto_config
+from pydantic import ConfigDict, Field
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
