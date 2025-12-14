@@ -32,7 +32,7 @@ from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerC
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
-from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import ParameterSpec, SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
@@ -590,7 +590,7 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
     return StubTool()
 
 
-def get_cvc_sweep_search_space() -> dict[str, SP.ParameterSpec]:
+def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
     """Shared sweep parameters for CvC-style PPO + schedulefree runs."""
     return {
         **SP.LEARNING_RATE,
