@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate
@@ -34,6 +34,16 @@ class TeacherConfig(Config):
     @property
     def enabled(self) -> bool:
         return self.policy_uri is not None
+
+    @model_validator(mode="after")
+    def validate_proportions(self) -> "TeacherConfig":
+        total = self.teacher_led_proportion + self.student_led_proportion
+        if total > 1.0:
+            raise ValueError(
+                f"teacher_led_proportion ({self.teacher_led_proportion}) + "
+                f"student_led_proportion ({self.student_led_proportion}) must be <= 1.0"
+            )
+        return self
 
 
 def apply_teacher_phase(
