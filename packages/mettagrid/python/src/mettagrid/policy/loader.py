@@ -31,7 +31,7 @@ def initialize_or_load_policy(
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
 
     try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+        policy = policy_class(policy_env_info, policy_name=policy_spec.name, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
     except TypeError as e:
         raise TypeError(
             f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"

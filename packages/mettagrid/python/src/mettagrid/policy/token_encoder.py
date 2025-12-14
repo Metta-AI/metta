@@ -166,7 +166,9 @@ class TokenPolicy(MultiAgentPolicy):
         return self._net
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        policy_impl = TokenAgentPolicyImpl(self._net, self._device, self._num_actions)
+        policy_impl._policy_descriptor = self._policy_descriptor
+        return policy_impl
 
     def is_recurrent(self) -> bool:
         return False
