@@ -6,8 +6,6 @@ from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import Distribution as D
-from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool

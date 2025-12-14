@@ -32,8 +32,8 @@ from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerC
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
-from metta.sweep.core import ParameterSpec, SweepParameters as SP
-from metta.sweep.core import make_sweep
+from metta.sweep.core import ParameterSpec, make_sweep
+from metta.sweep.core import SweepParameters as SP
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.request_remote_eval import RequestRemoteEvalTool

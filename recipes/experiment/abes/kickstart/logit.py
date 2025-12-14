@@ -134,7 +134,7 @@ def train(
         scheduler_rules=scheduler_rules,
         scheduler_run_gates=scheduler_run_gates,
         teacher_cfg=teacher,
-        default_steps=teacher.steps or 1_000_000_000,
+        default_steps=teacher.steps if teacher.steps is not None else 1_000_000_000,
     )
     scheduler_rules.extend(
         [

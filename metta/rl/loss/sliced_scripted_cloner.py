@@ -87,9 +87,9 @@ class SlicedScriptedCloner(Loss):
 
             if self.teacher_mask.any():
                 # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
-                teacher_actions = td["teacher_actions"].to(td["actions"].dtype)
+                teacher_actions = td["teacher_actions"].to(dtype=torch.long)
                 teacher_log_probs = td["full_log_probs"].gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
-                td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+                td["actions"][self.teacher_mask] = teacher_actions.to(td["actions"].dtype)[self.teacher_mask]
                 td["act_log_prob"][self.teacher_mask] = teacher_log_probs[self.teacher_mask]
 
         td["stud_mask"] = self.stud_mask
