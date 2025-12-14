@@ -26,6 +26,7 @@
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
 #include "objects/constants.hpp"
+#include "objects/market.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/protocol.hpp"
 #include "objects/wall.hpp"
@@ -197,6 +198,16 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
         chest->set_obs_encoder(_obs_encoder.get());
+        continue;
+      }
+
+      const MarketConfig* market_config = dynamic_cast<const MarketConfig*>(object_cfg);
+      if (market_config) {
+        Market* market = new Market(r, c, *market_config, _stats.get());
+        _grid->add_object(market);
+        _stats->incr("objects." + cell);
+        market->set_grid(_grid.get());
+        market->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -1048,6 +1059,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_agent_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);
+  bind_market_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_change_vibe_action_config(m);

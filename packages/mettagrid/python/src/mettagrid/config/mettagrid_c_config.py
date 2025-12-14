@@ -8,6 +8,7 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     DemolishConfig,
     GameConfig,
+    MarketConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
@@ -25,6 +26,8 @@ from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
+from mettagrid.mettagrid_c import MarketConfig as CppMarketConfig
+from mettagrid.mettagrid_c import MarketTerminalConfig as CppMarketTerminalConfig
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -367,6 +370,58 @@ def convert_to_cpp_game_config(game_config: GameConfig):
             cpp_chest_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
+        elif isinstance(object_config, MarketConfig):
+            # Convert tag names to IDs
+            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
+
+            # Convert terminal configs: direction string -> Orientation enum value
+            direction_to_orientation = {"north": 0, "south": 1, "west": 2, "east": 3}
+            terminals_cpp = {}
+            for direction, terminal_config in object_config.terminals.items():
+                orientation_id = direction_to_orientation[direction]
+                terminals_cpp[orientation_id] = CppMarketTerminalConfig(terminal_config.sell, terminal_config.amount)
+
+            # Convert initial inventory from nested inventory config
+            initial_inventory_cpp = {}
+            for resource, amount in object_config.inventory.initial.items():
+                resource_id = resource_name_to_id[resource]
+                initial_inventory_cpp[resource_id] = amount
+
+            # Create inventory config with limits from nested inventory config
+            limits_list = []
+            for resource_limit in object_config.inventory.limits.values():
+                resource_list = resource_limit.resources
+                resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
+                if resource_ids:
+                    limits_list.append((resource_ids, resource_limit.limit))
+
+            inventory_config = CppInventoryConfig(limits_list)
+
+            # Get currency resource ID
+            currency_resource_id = resource_name_to_id.get(object_config.currency_resource, 0)
+
+            # Build vibe_to_resource mapping: for each vibe name that matches a resource name,
+            # map vibe_id -> resource_id. This allows trading vibed resources at the market.
+            vibe_to_resource_cpp = {}
+            for vibe_name, vibe_id in vibe_name_to_id.items():
+                if vibe_name in resource_name_to_id:
+                    resource_id = resource_name_to_id[vibe_name]
+                    vibe_to_resource_cpp[vibe_id] = resource_id
+
+            cpp_market_config = CppMarketConfig(
+                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
+            )
+            cpp_market_config.terminals = terminals_cpp
+            cpp_market_config.initial_inventory = initial_inventory_cpp
+            cpp_market_config.inventory_config = inventory_config
+            cpp_market_config.currency_resource_id = currency_resource_id
+            cpp_market_config.vibe_to_resource = vibe_to_resource_cpp
+            cpp_market_config.vibe_names = game_config.vibe_names
+            cpp_market_config.tag_ids = tag_ids
+            cpp_market_config.demolish = _convert_demolish_config(object_config.demolish, resource_name_to_id)
+            cpp_market_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
+            # Key by map_name so map grid (which uses map_name) resolves directly.
+            objects_cpp_params[object_config.map_name or object_type] = cpp_market_config
         else:
             raise ValueError(f"Unknown object type: {object_type}")
 

@@ -2,12 +2,11 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
+#include <unordered_set>
 
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
-
-// For std::shuffle
-#include <random>
 
 Agent::Agent(GridCoord r,
              GridCoord c,
@@ -31,17 +30,17 @@ Agent::Agent(GridCoord r,
       inventory_regen_amounts(config.inventory_regen_amounts),
       damage_config(config.damage_config),
       resource_names(resource_names),
-      vibe_transfers(config.vibe_transfers),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
-      tracked_resource_diversity(0) {
+      tracked_resource_diversity(0),
+      inventory_config(config.inventory_config) {
   for (InventoryItem item : config.diversity_tracked_resources) {
     const size_t index = static_cast<size_t>(item);
     if (index < diversity_tracked_mask.size()) {
       diversity_tracked_mask[index] = 1;
     }
   }
-  populate_initial_inventory(config.initial_inventory);
+  populate_initial_inventory(config.initial_inventory, {});
   GridObject::init(config, GridLocation(r, c));
 }
 
@@ -49,7 +48,47 @@ void Agent::init(RewardType* reward_ptr) {
   this->reward = reward_ptr;
 }
 
-void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory) {
+void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory,
+                                       const std::vector<InventoryItem>& inventory_deps) {
+  // Auto-infer dependency order from modifiers: items that modify limits should be added first.
+  // For example, if "gear" modifies the limit for "battery", and "battery" modifies the limit
+  // for "energy", we need to add gear first, then battery, then energy.
+
+  std::unordered_set<InventoryItem> added;
+
+  // First, add items from explicitly specified inventory_deps in order
+  for (const InventoryItem& item : inventory_deps) {
+    auto it = initial_inventory.find(item);
+    if (it != initial_inventory.end()) {
+      this->inventory.update(item, it->second);
+      added.insert(item);
+    }
+  }
+
+  // Build a set of all items that are used as modifiers (these should be added early)
+  std::unordered_set<InventoryItem> modifier_items;
+  for (const auto& limit_def : this->inventory_config.limit_defs) {
+    for (const auto& [modifier_item, bonus] : limit_def.modifiers) {
+      modifier_items.insert(modifier_item);
+    }
+  }
+
+  // Add modifier items first (items that expand limits for other items)
+  // Keep iterating until no more progress - handles chains like gear -> battery -> energy
+  bool progress = true;
+  while (progress) {
+    progress = false;
+    for (const auto& [item, amount] : initial_inventory) {
+      if (added.count(item)) continue;
+      if (modifier_items.count(item)) {
+        this->inventory.update(item, amount);
+        added.insert(item);
+        progress = true;
+      }
+    }
+  }
+
+  // Then add remaining items
   for (const auto& [item, amount] : initial_inventory) {
     this->inventory.update(item, amount, /*ignore_limits=*/true);
   }
@@ -90,17 +129,17 @@ void Agent::on_inventory_change(InventoryItem item, InventoryDelta delta) {
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
   const size_t index = static_cast<size_t>(item);
-  if (index >= diversity_tracked_mask.size() || diversity_tracked_mask[index] == 0) {
+  if (index >= this->diversity_tracked_mask.size() || this->diversity_tracked_mask[index] == 0) {
     return;
   }
 
-  const bool had = tracked_resource_presence[index] != 0;
+  const bool had = this->tracked_resource_presence[index] != 0;
   const bool has = amount > 0;
 
   if (had != has) {
-    tracked_resource_presence[index] = has ? 1 : 0;
-    tracked_resource_diversity += has ? 1 : static_cast<std::size_t>(-1);
-    this->stats.set("inventory.diversity", static_cast<float>(tracked_resource_diversity));
+    this->tracked_resource_presence[index] = has ? 1 : 0;
+    this->tracked_resource_diversity += has ? 1 : static_cast<std::size_t>(-1);
+    this->stats.set("inventory.diversity", static_cast<float>(this->tracked_resource_diversity));
   }
 }
 
@@ -145,32 +184,29 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
     }
   }
 
-  // Subtract threshold values from inventory first
-  for (const auto& [item, threshold_value] : damage_config.threshold) {
-    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
-  }
-
   // Find which resources from the damage map the agent has above their minimum
-  // and build weights based on quantity available for removal (after threshold subtraction)
   std::vector<InventoryItem> available_resources;
-  std::vector<int> weights;
   for (const auto& [item, minimum] : damage_config.resources) {
     InventoryQuantity amount = this->inventory.amount(item);
-    int removable = static_cast<int>(amount) - minimum;
-    if (removable > 0) {
+    if (amount > static_cast<InventoryQuantity>(minimum)) {
       available_resources.push_back(item);
-      weights.push_back(removable);
     }
   }
 
-  // If resources available, pick one weighted by quantity above minimum
+  // If no resources available to remove, just subtract thresholds
   if (!available_resources.empty()) {
-    std::discrete_distribution<size_t> dist(weights.begin(), weights.end());
-    size_t selected_idx = dist(rng);
-    InventoryItem item_to_remove = available_resources[selected_idx];
+    // Shuffle available resources to ensure random selection
+    std::shuffle(available_resources.begin(), available_resources.end(), rng);
+    // Remove the first item after shuffle
+    InventoryItem item_to_remove = available_resources[0];
     this->inventory.update(item_to_remove, -1);
     this->stats.incr("damage.items_lost");
     this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));
+  }
+
+  // Subtract threshold values from inventory
+  for (const auto& [item, threshold_value] : damage_config.threshold) {
+    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
   }
 
   this->stats.incr("damage.triggered");
@@ -178,31 +214,11 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Look up transfers for the actor's vibe
-  auto vibe_it = actor.vibe_transfers.find(actor.vibe);
-  if (vibe_it == actor.vibe_transfers.end()) {
-    return false;  // No transfers configured for this vibe
-  }
-
-  // Transfer each configured resource
-  bool any_transfer_occurred = false;
-  const auto& resource_deltas = vibe_it->second;
-  for (const auto& [resource, amount] : resource_deltas) {
-    if (amount > 0) {
-      // Transfer from actor to receiver (this)
-      InventoryQuantity actor_amount = actor.inventory.amount(resource);
-      InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
-      if (share_attempted_amount > 0) {
-        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
-        actor.inventory.update(resource, -successful_share_amount);
-        if (successful_share_amount > 0) {
-          any_transfer_occurred = true;
-        }
-      }
-    }
-  }
-
-  return any_transfer_occurred;
+  // Agent-to-agent transfers are now handled by the Transfer action handler.
+  // This method returns false to indicate no default use action.
+  (void)actor;
+  (void)arg;
+  return false;
 }
 
 std::vector<PartialObservationToken> Agent::obs_features(unsigned int /*observer_agent_id*/) const {

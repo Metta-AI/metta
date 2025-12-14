@@ -500,6 +500,42 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
+class MarketTerminalConfig(Config):
+    """Configuration for a single market terminal (one per direction).
+
+    When an agent moves onto a market from a direction with a terminal configured,
+    the terminal determines whether the agent buys or sells the vibed resource.
+    """
+
+    sell: bool = Field(default=False, description="True = sell to market, False = buy from market")
+    amount: int = Field(default=1, ge=1, description="Max amount to trade per transaction")
+
+
+class MarketConfig(GridObjectConfig):
+    """Python market configuration.
+
+    Markets allow agents to buy and sell resources using hearts as currency.
+    When an agent vibes a resource and moves onto the market, they buy or sell
+    based on which terminal they enter from. Price is calculated as 100/sqrt(inventory).
+    Hearts cannot be bought or sold.
+    """
+
+    pydantic_type: Literal["market"] = "market"
+    name: str = Field(default="market")
+
+    # Terminal configs by direction (south, north, east, west)
+    terminals: dict[CardinalDirection, MarketTerminalConfig] = Field(
+        default_factory=dict,
+        description="Terminal configurations by direction. E.g., {'south': MarketTerminalConfig(sell=True, amount=10)}",
+    )
+
+    # Inventory configuration for market stock
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
+
+    # Currency resource name
+    currency_resource: str = Field(default="heart", description="Resource used as currency (cannot be traded)")
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -532,6 +568,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[WallConfig, Tag("wall")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
+            Annotated[MarketConfig, Tag("market")],
         ],
         Discriminator("pydantic_type"),
     ]
