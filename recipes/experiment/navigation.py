@@ -172,8 +172,6 @@ def train(
     policy_architecture: Optional["PolicyArchitecture"] = None,
 ) -> TrainTool:
     from metta.agent.policy import PolicyArchitecture
-    from metta.agent.policies.transformer import TransformerPolicyConfig
-    from metta.agent.policies.trxl import TRXLConfig
 
     # Handle string input from command line
     if isinstance(policy_architecture, str):
@@ -182,25 +180,30 @@ def train(
             policy_architecture = PolicyArchitecture.from_spec(policy_architecture)
         except (SyntaxError, ValueError):
             # If that fails, try to construct from class paths
-            # Format: "class=metta.agent.policies.transformer.TransformerPolicyConfig,transformer=class=metta.agent.policies.trxl.TRXLConfig"
             spec = policy_architecture.strip()
-            
+
             # Check if it's the "class=...,transformer=class=..." format
             if "transformer=class=" in spec or ",transformer=" in spec:
                 # Parse the format: "class=MainClass,transformer=class=TransformerClass"
-                parts = spec.split(",transformer=")
-                if len(parts) == 2:
-                    main_class = parts[0].replace("class=", "").strip()
-                    transformer_part = parts[1]
-                    transformer_class = transformer_part.replace("class=", "").strip()
-                    # Construct Python expression: MainClass(transformer=TransformerClass())
-                    python_spec = f"{main_class}(transformer={transformer_class}())"
-                    policy_architecture = PolicyArchitecture.from_spec(python_spec)
+                # For now, if it mentions TRXL, just use TRXLConfig directly
+                if "trxl" in spec.lower():
+                    from metta.agent.policies.trxl import TRXLConfig
+                    policy_architecture = TRXLConfig()
                 else:
-                    raise ValueError(f"Could not parse policy_architecture format: {policy_architecture}")
+                    # Try to parse the nested format
+                    parts = spec.split(",transformer=")
+                    if len(parts) == 2:
+                        transformer_part = parts[1]
+                        transformer_class = transformer_part.replace("class=", "").strip()
+                        # Construct Python expression: TransformerClass()
+                        python_spec = f"{transformer_class}()"
+                        policy_architecture = PolicyArchitecture.from_spec(python_spec)
+                    else:
+                        raise ValueError(f"Could not parse policy_architecture format: {policy_architecture}")
             elif "trxl" in spec.lower():
-                # Simple fallback: if string contains "trxl", use default TRXL config
-                policy_architecture = TransformerPolicyConfig(transformer=TRXLConfig())
+                # Simple fallback: if string contains "trxl", use TRXL config directly
+                from metta.agent.policies.trxl import TRXLConfig
+                policy_architecture = TRXLConfig()
             else:
                 # Try to parse as simple class path: "class=path.to.Class" -> "path.to.Class()"
                 if spec.startswith("class="):
