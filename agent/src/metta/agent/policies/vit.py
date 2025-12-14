@@ -30,10 +30,12 @@ class ViTDefaultConfig(PolicyArchitecture):
     latent_dim: int = Field(default=64, alias="_latent_dim")
     actor_hidden: int = Field(default=256, alias="_actor_hidden")
     core_num_heads: int = Field(default=4, alias="_core_num_heads")
+    max_tokens: int = Field(default=48, alias="_max_tokens")
+    core_num_latents: int = Field(default=12, alias="_core_num_latents")
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
-    _critic_hidden = 512
+    critic_hidden: int = Field(default=512, alias="_critic_hidden")
 
     # Trunk configuration
     # Number of Axon layers in the trunk
@@ -51,7 +53,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
         self.components = [
-            ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
+            ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=self.max_tokens),
             ObsAttrEmbedFourierConfig(
                 in_key="obs_shim_tokens",
                 out_key="obs_attr_embed",
@@ -63,7 +65,7 @@ class ViTDefaultConfig(PolicyArchitecture):
                 out_key="obs_latent_attn",
                 feat_dim=self._token_embed_dim + (4 * self._fourier_freqs) + 1,
                 latent_dim=self.latent_dim,
-                num_latents=12,
+                num_latents=self.core_num_latents,
                 num_heads=self.core_num_heads,
                 num_layers=2,
             ),
@@ -96,7 +98,7 @@ class ViTDefaultConfig(PolicyArchitecture):
                 name="critic",
                 in_features=self.latent_dim,
                 out_features=1,
-                hidden_features=[self._critic_hidden],
+                hidden_features=[self.critic_hidden],
             ),
             ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self.actor_hidden),
         ]

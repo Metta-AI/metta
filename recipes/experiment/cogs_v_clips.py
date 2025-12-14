@@ -669,6 +669,18 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
             "policy_architecture.core_num_heads",
             choices=[2, 4, 6],
         ),
+        **SP.categorical(
+            "policy_architecture._critic_hidden",
+            choices=[512, 768, 1024],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_num_latents",
+            choices=[12, 16, 20],
+        ),
+        **SP.categorical(
+            "policy_architecture._max_tokens",
+            choices=[48, 64, 80],
+        ),
         **SP.param(
             "trainer.total_timesteps",
             D.INT_UNIFORM,
