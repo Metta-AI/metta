@@ -6,10 +6,6 @@ from pathlib import Path
 from typing import Any, Optional
 
 import torch
-
-if torch.cuda.is_available():
-    # Use torch.set_float32_matmul_precision which is the recommended API
-    torch.set_float32_matmul_precision("high")
 from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
@@ -333,6 +329,9 @@ class TrainTool(Tool):
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():
             return
+
+        # Use torch.set_float32_matmul_precision which is the recommended API
+        torch.set_float32_matmul_precision("high")
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
