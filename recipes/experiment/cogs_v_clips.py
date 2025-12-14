@@ -341,10 +341,8 @@ def train(
         algorithm_config=cur_alg,
     )
 
-    trainer_cfg = apply_cvc_sweep_defaults(
-        TrainerConfig(
-            losses=LossesConfig(),
-        )
+    trainer_cfg = TrainerConfig(
+        losses=LossesConfig(),
     )
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)

@@ -52,8 +52,6 @@ def train(
     if env_cfg.game.agent.initial_vibe >= len(full_vibes):
         env_cfg.game.agent.initial_vibe = 0
 
-    apply_cvc_sweep_defaults(tt.trainer)
-
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
     tt.evaluator.simulations = [
         SimulationConfig(
