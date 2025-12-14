@@ -13,11 +13,7 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
-from recipes.experiment.cogs_v_clips import (
-    apply_cvc_sweep_defaults,
-    make_training_env,
-    train_single_mission,
-)
+from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
 
 
 def train(
@@ -106,21 +102,7 @@ def sweep(
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
-    search_space = {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.PPO_ENT_COEF,
-        **SP.ADAM_EPS,
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=1e9,
-        ),
-    }
+    search_space = get_cvc_sweep_search_space()
 
     return make_sweep(
         name=sweep_name,

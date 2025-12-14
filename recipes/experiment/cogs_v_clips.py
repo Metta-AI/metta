@@ -590,6 +590,47 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
     return StubTool()
 
 
+def get_cvc_sweep_search_space() -> dict[str, SP.ParameterSpec]:
+    """Shared sweep parameters for CvC-style PPO + schedulefree runs."""
+    return {
+        **SP.LEARNING_RATE,
+        **SP.PPO_CLIP_COEF,
+        **SP.PPO_GAE_LAMBDA,
+        **SP.PPO_VF_COEF,
+        **SP.ADAM_EPS,
+        **SP.PPO_ENT_COEF,
+        **SP.param(
+            "trainer.optimizer.warmup_steps",
+            D.INT_UNIFORM,
+            min=500,
+            max=3000,
+            search_center=1500,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.gamma",
+            D.UNIFORM,
+            min=0.97,
+            max=0.995,
+            search_center=0.985,
+        ),
+        **SP.categorical(
+            "trainer.losses.ppo.vf_clip_coef",
+            choices=[0.0, 0.1],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_resnet_layers",
+            choices=[1, 2, 3],
+        ),
+        **SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=5e8,
+            max=2e9,
+            search_center=1e9,
+        ),
+    }
+
+
 def sweep(
     sweep_name: str,
     num_cogs: int = 4,
@@ -599,21 +640,7 @@ def sweep(
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
-    search_space = {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.ADAM_EPS,
-        **SP.PPO_ENT_COEF,
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=1e9,
-        ),
-    }
+    search_space = get_cvc_sweep_search_space()
 
     return make_sweep(
         name=sweep_name,
