@@ -149,25 +149,27 @@ class PPO(Loss):
         if mb_idx == 0:
             self.advantages, self.anneal_beta = self._on_first_mb(context)
 
-        shared_mb = shared_loss_data.get("sampled_mb", None)
-        if shared_mb is not None:
-            minibatch = shared_mb
-            indices = shared_loss_data.get("indices", None)
-            if isinstance(indices, NonTensorData):
-                indices = indices.elem
-            if indices is None:
-                indices = torch.arange(minibatch.batch_size[0], device=self.device)
-            prio_weights = torch.ones(minibatch.batch_size, device=self.device)
-        else:
+        minibatch = shared_loss_data.get("sampled_mb")
+        if minibatch is None:
             minibatch, indices, prio_weights = self._sample_minibatch(
                 advantages=self.advantages,
                 prio_alpha=config.prioritized_experience_replay.prio_alpha,
                 prio_beta=self.anneal_beta,
                 mb_idx=mb_idx,
             )
+        else:
+            indices = shared_loss_data.get("indices")
+            if isinstance(indices, NonTensorData):
+                indices = indices.data
+            if indices is None:
+                indices = torch.arange(minibatch.batch_size[0], device=self.device)
+            prio_weights = shared_loss_data.get("prio_weights")
+            if prio_weights is None:
+                prio_weights = torch.ones(minibatch.batch_size, device=self.device)
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
+        shared_loss_data["prio_weights"] = prio_weights
 
         # Then forward the policy using the sampled minibatch
         policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)

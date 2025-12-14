@@ -144,8 +144,8 @@ class PPOCritic(Loss):
             )
 
         # sample from the buffer if called for
-        provided_mb = shared_loss_data.get("sampled_mb", None)
-        if self.sample_enabled and provided_mb is None:
+        minibatch = shared_loss_data.get("sampled_mb")
+        if self.sample_enabled and minibatch is None:
             minibatch, indices, prio_weights = prio_sample(
                 buffer=self.replay,
                 mb_idx=mb_idx,
@@ -161,7 +161,6 @@ class PPOCritic(Loss):
             shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
             shared_loss_data["prio_weights"] = prio_weights
         else:
-            minibatch = provided_mb if provided_mb is not None else shared_loss_data["sampled_mb"]
             indices = shared_loss_data.get("indices", None)
             if isinstance(indices, NonTensorData):
                 indices = indices.data
