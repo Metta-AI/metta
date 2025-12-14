@@ -294,7 +294,10 @@ def policy_spec_from_uri(
 
     if parsed.local_path:
         if parsed.local_path.is_file():
-            return PolicySpec.model_validate_json(parsed.local_path.read_text())
+            spec = PolicySpec.model_validate_json(parsed.local_path.read_text())
+            if device is not None and "device" in spec.init_kwargs:
+                spec.init_kwargs["device"] = device
+            return spec
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
     raise ValueError(
