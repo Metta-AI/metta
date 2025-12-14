@@ -2,6 +2,154 @@ from mettagrid.config.mettagrid_config import MettaGridConfig, ResourceLimitsCon
 from mettagrid.simulator import Action, Simulation
 
 
+class TestVibeDependentRegeneration:
+    """Test vibe-dependent inventory regeneration functionality."""
+
+    def test_vibe_dependent_regen_different_rates(self):
+        """Test that different vibes regenerate resources at different rates."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Different regen rates for different vibes
+        cfg.game.agent.inventory.regen_amounts = {
+            "default": {"energy": 2},  # Default vibe: regenerate 2 energy
+            "charger": {"energy": 10},  # Charger vibe: regenerate 10 energy
+        }
+        cfg.game.inventory_regen_interval = 1  # Every timestep
+        cfg.game.agent.inventory.initial = {"energy": 0}
+        cfg.game.actions.noop.enabled = True
+        cfg.game.actions.change_vibe.enabled = True
+        cfg.game.actions.change_vibe.number_of_vibes = 100  # Ensure we have enough vibes
+
+        sim = Simulation(cfg)
+
+        # Step 1: Default vibe - should regenerate 2 energy
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 2, f"With default vibe, energy should regenerate to 2, got {energy}"
+
+        # Step 2: Change to charger vibe
+        sim.agent(0).set_action("change_vibe_charger")
+        sim.step()
+
+        # After changing vibe, regen happens with new vibe rate
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 12, f"With charger vibe, energy should regenerate by 10 (2+10=12), got {energy}"
+
+        # Step 3: Stay on charger vibe - should continue regenerating at 10/step
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 22, f"With charger vibe, energy should be 22 (12+10), got {energy}"
+
+        # Step 4: Change back to default vibe
+        sim.agent(0).set_action("change_vibe_default")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 24, f"With default vibe, energy should be 24 (22+2), got {energy}"
+
+    def test_vibe_dependent_regen_fallback_to_default(self):
+        """Test that unconfigured vibes fall back to 'default' regen."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Only configure default vibe - other vibes should fall back to it
+        cfg.game.agent.inventory.regen_amounts = {
+            "default": {"energy": 5},
+        }
+        cfg.game.inventory_regen_interval = 1
+        cfg.game.agent.inventory.initial = {"energy": 0}
+        cfg.game.actions.noop.enabled = True
+        cfg.game.actions.change_vibe.enabled = True
+        cfg.game.actions.change_vibe.number_of_vibes = 100
+
+        sim = Simulation(cfg)
+
+        # Step 1: Default vibe - should regenerate 5 energy
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 5, f"With default vibe, energy should be 5, got {energy}"
+
+        # Step 2: Change to charger vibe (not configured - should fall back to default)
+        sim.agent(0).set_action("change_vibe_charger")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 10, f"Unconfigured charger vibe should fall back to default (5+5=10), got {energy}"
+
+        # Step 3: Change to another unconfigured vibe
+        sim.agent(0).set_action("change_vibe_carbon_a")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 15, f"Unconfigured vibe should fall back to default (10+5=15), got {energy}"
+
+    def test_vibe_dependent_regen_no_default(self):
+        """Test that vibes without config and no default get no regen."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Only configure charger vibe - no default fallback
+        cfg.game.agent.inventory.regen_amounts = {
+            "charger": {"energy": 10},
+        }
+        cfg.game.inventory_regen_interval = 1
+        cfg.game.agent.inventory.initial = {"energy": 0}
+        cfg.game.actions.noop.enabled = True
+        cfg.game.actions.change_vibe.enabled = True
+        cfg.game.actions.change_vibe.number_of_vibes = 100
+
+        sim = Simulation(cfg)
+
+        # Step 1: Default vibe (not configured, no fallback) - no regeneration
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 0, f"Unconfigured default vibe should not regenerate, got {energy}"
+
+        # Step 2: Change to charger vibe - should regenerate
+        sim.agent(0).set_action("change_vibe_charger")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 10, f"Charger vibe should regenerate 10, got {energy}"
+
+        # Step 3: Change back to default - no regeneration
+        sim.agent(0).set_action("change_vibe_default")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 10, f"Default vibe should not regenerate (still 10), got {energy}"
+
+
 class TestInventoryRegeneration:
     """Test inventory regeneration functionality."""
 
@@ -19,9 +167,9 @@ class TestInventoryRegeneration:
 
         # Add energy to resources and configure regeneration
         cfg.game.resource_names = ["energy", "heart", "battery_blue"]
-        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 5}}  # Regenerate 5 energy
+        cfg.game.agent.inventory.regen_amounts = {"default": {"energy": 5}}  # Regenerate 5 energy
         cfg.game.inventory_regen_interval = 3  # Every 3 timesteps
-        cfg.game.agent.initial_inventory = {"energy": 10}  # Start with 10 energy
+        cfg.game.agent.inventory.initial = {"energy": 10}  # Start with 10 energy
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)
@@ -110,9 +258,9 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 5}}
+        cfg.game.agent.inventory.regen_amounts = {"default": {"energy": 5}}
         cfg.game.inventory_regen_interval = 0  # Disabled
-        cfg.game.agent.initial_inventory = {"energy": 10}
+        cfg.game.agent.inventory.initial = {"energy": 10}
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)
@@ -136,10 +284,10 @@ class TestInventoryRegeneration:
         )
 
         cfg.game.resource_names = ["energy"]
-        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 10}}  # Try to add 10
+        cfg.game.agent.inventory.regen_amounts = {"default": {"energy": 10}}  # Try to add 10
         cfg.game.inventory_regen_interval = 1  # Every timestep
-        cfg.game.agent.initial_inventory = {"energy": 95}
-        cfg.game.agent.resource_limits = {
+        cfg.game.agent.inventory.initial = {"energy": 95}
+        cfg.game.agent.inventory.limits = {
             "energy": ResourceLimitsConfig(limit=100, resources=["energy"]),  # Max 100 energy
         }
         cfg.game.actions.noop.enabled = True
@@ -159,118 +307,3 @@ class TestInventoryRegeneration:
 
         energy = sim.agent(0).inventory.get("energy", 0)
         assert energy == 100, f"Energy should remain at 100, got {energy}"
-
-    def test_vibe_dependent_regeneration_default_fallback(self):
-        """Test that default vibe is used as fallback when agent's vibe isn't configured."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#"],
-                ["#", "@", "#"],
-                ["#", "#", "#"],
-            ],
-            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
-        )
-
-        cfg.game.resource_names = ["energy"]
-        # Only configure "default" - agent starts with vibe 0 which is "default"
-        cfg.game.agent.inventory_regen_amounts = {"default": {"energy": 5}}
-        cfg.game.inventory_regen_interval = 1  # Every timestep
-        cfg.game.agent.initial_inventory = {"energy": 10}
-        cfg.game.actions.noop.enabled = True
-
-        sim = Simulation(cfg)
-
-        # Take a step - should regenerate using default
-        sim.agent(0).set_action(Action(name="noop"))
-        sim.step()
-
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 15, f"Energy should regenerate to 15 using default vibe, got {energy}"
-
-    def test_vibe_dependent_regeneration_specific_vibe(self):
-        """Test that vibe-specific regen amounts are used when agent has that vibe."""
-        from mettagrid.config.mettagrid_config import ChangeVibeActionConfig
-
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#"],
-                ["#", "@", "#"],
-                ["#", "#", "#"],
-            ],
-            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
-        )
-
-        cfg.game.resource_names = ["energy"]
-        # Configure different regen for default vs charger vibe
-        cfg.game.agent.inventory_regen_amounts = {
-            "default": {"energy": 5},
-            "charger": {"energy": 20},
-        }
-        cfg.game.inventory_regen_interval = 1  # Every timestep
-        cfg.game.agent.initial_inventory = {"energy": 10}
-        cfg.game.actions.noop.enabled = True
-        cfg.game.actions.change_vibe = ChangeVibeActionConfig(enabled=True, number_of_vibes=10)
-
-        sim = Simulation(cfg)
-
-        # Take a step with default vibe - should get 5 energy
-        sim.agent(0).set_action(Action(name="noop"))
-        sim.step()
-
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 15, f"Energy should regenerate to 15 with default vibe, got {energy}"
-
-        # Change to charger vibe
-        sim.agent(0).set_action(Action(name="change_vibe_charger"))
-        sim.step()
-
-        # Now energy should have regenerated by 20 (charger rate)
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 35, f"Energy should regenerate to 35 with charger vibe, got {energy}"
-
-        # Take another step with charger vibe
-        sim.agent(0).set_action(Action(name="noop"))
-        sim.step()
-
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 55, f"Energy should regenerate to 55 with charger vibe, got {energy}"
-
-    def test_vibe_dependent_regeneration_no_regen_for_unconfigured_vibe(self):
-        """Test that no regeneration occurs when vibe isn't configured and no default exists."""
-        from mettagrid.config.mettagrid_config import ChangeVibeActionConfig
-
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#"],
-                ["#", "@", "#"],
-                ["#", "#", "#"],
-            ],
-            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
-        )
-
-        cfg.game.resource_names = ["energy"]
-        # Only configure "charger" - no default
-        cfg.game.agent.inventory_regen_amounts = {
-            "charger": {"energy": 20},
-        }
-        cfg.game.inventory_regen_interval = 1  # Every timestep
-        cfg.game.agent.initial_inventory = {"energy": 10}
-        cfg.game.actions.noop.enabled = True
-        cfg.game.actions.change_vibe = ChangeVibeActionConfig(enabled=True, number_of_vibes=10)
-
-        sim = Simulation(cfg)
-
-        # Take a step with default vibe (vibe 0) - no regeneration since default is not configured
-        sim.agent(0).set_action(Action(name="noop"))
-        sim.step()
-
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 10, f"Energy should not regenerate without default config, got {energy}"
-
-        # Change to charger vibe
-        sim.agent(0).set_action(Action(name="change_vibe_charger"))
-        sim.step()
-
-        # Now energy should have regenerated by 20 (charger rate)
-        energy = sim.agent(0).inventory.get("energy", 0)
-        assert energy == 30, f"Energy should regenerate to 30 with charger vibe, got {energy}"

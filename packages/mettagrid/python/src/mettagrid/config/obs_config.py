@@ -18,3 +18,5 @@ class ObsConfig(Config):
     height: int = Field(default=11)
     token_dim: int = Field(default=3)
     num_tokens: int = Field(default=200)
+    token_value_max: int = Field(default=255)
+    """Maximum value per inventory token (base for encoding). Default 255 for efficient byte packing."""

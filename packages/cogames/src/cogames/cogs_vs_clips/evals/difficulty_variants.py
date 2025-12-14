@@ -206,12 +206,12 @@ class DifficultyLevel(MissionVariant):
                 obj.max_uses = obj.max_uses * num_agents
 
         # Energy regen floor: if nonzero, keep at least 1
-        default_regen = env.game.agent.inventory_regen_amounts.get("default", {})
+        default_regen = env.game.agent.inventory.regen_amounts.get("default", {})
         current_regen = default_regen.get("energy", 1)
         if current_regen > 0:
-            if "default" not in env.game.agent.inventory_regen_amounts:
-                env.game.agent.inventory_regen_amounts["default"] = {}
-            env.game.agent.inventory_regen_amounts["default"]["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
+            if "default" not in env.game.agent.inventory.regen_amounts:
+                env.game.agent.inventory.regen_amounts["default"] = {}
+            env.game.agent.inventory.regen_amounts["default"]["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
 
     def _apply_clipping(self, cfg: MettaGridConfig) -> None:
         target = self.clip_target

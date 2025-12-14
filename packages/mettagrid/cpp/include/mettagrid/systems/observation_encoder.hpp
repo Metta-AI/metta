@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -15,8 +16,14 @@ class ObservationEncoder {
 public:
   explicit ObservationEncoder(bool protocol_details_obs,
                               const std::vector<std::string>& resource_names,
-                              const std::unordered_map<std::string, ObservationType>& feature_ids)
-      : protocol_details_obs(protocol_details_obs), resource_count(resource_names.size()) {
+                              const std::unordered_map<std::string, ObservationType>& feature_ids,
+                              unsigned int token_value_max = 255)
+      : protocol_details_obs(protocol_details_obs),
+        resource_count(resource_names.size()),
+        _token_value_max(token_value_max) {
+    // Compute number of tokens needed to encode max uint16_t value (65535)
+    _num_inventory_tokens = compute_num_tokens(65535, _token_value_max);
+
     // Build feature ID maps for protocol details if enabled
     if (protocol_details_obs) {
       // Build maps from resource_id -> feature_id for both input and output
@@ -46,10 +53,18 @@ public:
       }
     }
 
-    // Build inventory feature ID map
+    // Build inventory feature ID maps using multi-token encoding
+    // inv:{resource} = base token (always emitted)
+    // inv:{resource}:p1 = first power token (emitted if amount >= token_value_max)
+    // inv:{resource}:p2 = second power token (emitted if amount >= token_value_max^2)
+    // etc.
     _inventory_feature_ids.resize(resource_names.size());
+    _inventory_power_feature_ids.resize(resource_names.size());
+
     for (size_t i = 0; i < resource_names.size(); ++i) {
       const std::string& resource_name = resource_names[i];
+
+      // Base feature ID (inv:{resource})
       const std::string feature_key = "inv:" + resource_name;
       auto it = feature_ids.find(feature_key);
       if (it != feature_ids.end()) {
@@ -57,7 +72,29 @@ public:
       } else {
         throw std::runtime_error("Inventory feature 'inv:" + resource_name + "' not found in feature_ids");
       }
+
+      // Power feature IDs (inv:{resource}:p1, inv:{resource}:p2, etc.)
+      std::vector<ObservationType> power_ids;
+      for (size_t p = 1; p < _num_inventory_tokens; ++p) {
+        const std::string power_feature_key = "inv:" + resource_name + ":p" + std::to_string(p);
+        auto power_it = feature_ids.find(power_feature_key);
+        if (power_it != feature_ids.end()) {
+          power_ids.push_back(power_it->second);
+        } else {
+          throw std::runtime_error("Inventory power feature '" + power_feature_key + "' not found in feature_ids");
+        }
+      }
+      _inventory_power_feature_ids[i] = power_ids;
     }
+  }
+
+  static size_t compute_num_tokens(uint32_t max_value, unsigned int base) {
+    if (max_value == 0 || base <= 1) {
+      return 1;
+    }
+    // Need ceil(log_base(max_value + 1)) tokens
+    return static_cast<size_t>(
+        std::ceil(std::log(static_cast<double>(max_value) + 1) / std::log(static_cast<double>(base))));
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
@@ -103,13 +140,56 @@ public:
     return _inventory_feature_ids[item];
   }
 
+  ObservationType get_inventory_power_feature_id(InventoryItem item, size_t power) const {
+    if (item >= _inventory_power_feature_ids.size()) {
+      throw std::runtime_error("Invalid item index for inventory power feature lookup");
+    }
+    if (power == 0 || power > _inventory_power_feature_ids[item].size()) {
+      throw std::runtime_error("Invalid power index for inventory power feature lookup");
+    }
+    return _inventory_power_feature_ids[item][power - 1];
+  }
+
+  // Encode inventory amount using multi-token encoding with configurable base.
+  // inv:{resource} = amount % token_value_max (always emitted)
+  // inv:{resource}:p1 = (amount / token_value_max) % token_value_max (only emitted if amount >= token_value_max)
+  // inv:{resource}:p2 = (amount / token_value_max^2) % token_value_max (only emitted if amount >= token_value_max^2)
+  // etc.
+  void append_inventory_tokens(std::vector<PartialObservationToken>& features,
+                               InventoryItem item,
+                               InventoryQuantity amount) const {
+    // Base token (always emitted)
+    ObservationType base_value = static_cast<ObservationType>(amount % _token_value_max);
+    features.push_back({_inventory_feature_ids[item], base_value});
+
+    // Higher power tokens (only emitted if needed)
+    InventoryQuantity remaining = amount / _token_value_max;
+    const auto& power_ids = _inventory_power_feature_ids[item];
+    for (size_t p = 0; p < power_ids.size() && remaining > 0; ++p) {
+      ObservationType power_value = static_cast<ObservationType>(remaining % _token_value_max);
+      features.push_back({power_ids[p], power_value});
+      remaining /= _token_value_max;
+    }
+  }
+
+  unsigned int get_token_value_max() const {
+    return _token_value_max;
+  }
+
+  size_t get_num_inventory_tokens() const {
+    return _num_inventory_tokens;
+  }
+
   bool protocol_details_obs;
 
 private:
   size_t resource_count;
+  unsigned int _token_value_max;
+  size_t _num_inventory_tokens;
   std::vector<ObservationType> _input_feature_ids;
   std::vector<ObservationType> _output_feature_ids;
-  std::vector<ObservationType> _inventory_feature_ids;  // Maps item index to observation feature ID
+  std::vector<ObservationType> _inventory_feature_ids;  // Maps item index to base feature ID (amount % token_value_max)
+  std::vector<std::vector<ObservationType>> _inventory_power_feature_ids;  // Maps item index to power feature IDs
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
