@@ -9,11 +9,9 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
+from mettagrid.util.checkpoint_bundle import create_local_bundle, resolve_checkpoint_bundle, upload_bundle
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +64,15 @@ class CheckpointManager:
 
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
+            target = f"{uri}:latest" if not uri.endswith(":latest") else uri
             try:
-                parsed = resolve_uri(f"{uri}:latest" if not uri.endswith(":latest") else uri)
+                bundle = resolve_checkpoint_bundle(target)
+                parsed = resolve_uri(bundle.dir_uri)
                 info = parsed.checkpoint_info
                 if info:
-                    return (parsed.canonical, info[1])
+                    return (bundle.dir_uri, info[1])
             except (ValueError, FileNotFoundError):
-                pass
+                return None
             return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
@@ -83,40 +83,22 @@ class CheckpointManager:
         return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        checkpoint_dir = self.checkpoint_dir / filename
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        mpt_path = checkpoint_dir / "policy.mpt"
-        local_mpt_uri = save_mpt(mpt_path, architecture=architecture, state_dict=state_dict)
-
-        local_spec = PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
-            init_kwargs={"checkpoint_uri": local_mpt_uri},
+        bundle = create_local_bundle(
+            base_dir=self.checkpoint_dir,
+            run_name=self.run_name,
+            epoch=epoch,
+            architecture=architecture,
+            state_dict=state_dict,
         )
-        spec_path = checkpoint_dir / "policy_spec.json"
-        spec_path.write_text(local_spec.model_dump_json())
 
         if self._remote_prefix:
-            remote_dir = f"{self.output_uri}/{filename}"
-            remote_mpt_uri = f"{remote_dir}/policy.mpt"
-            write_data(remote_mpt_uri, mpt_path.read_bytes(), content_type="application/octet-stream")
-            remote_spec = PolicySpec(
-                class_path="mettagrid.policy.mpt_policy.MptPolicy",
-                init_kwargs={"checkpoint_uri": remote_mpt_uri},
-            )
-            write_data(
-                f"{remote_dir}/policy_spec.json",
-                remote_spec.model_dump_json().encode("utf-8"),
-                content_type="application/json",
-            )
-            logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
-            return remote_dir
+            remote_bundle = upload_bundle(bundle, self.output_uri)
+            logger.debug("Policy checkpoint saved remotely to %s", remote_bundle.dir_uri)
+            return remote_bundle.dir_uri
 
-        logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
-        return checkpoint_dir.as_uri()
+        logger.debug("Policy checkpoint saved locally to %s", bundle.dir_uri)
+        return bundle.dir_uri
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

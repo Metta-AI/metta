@@ -8,11 +8,13 @@ from pydantic import BaseModel
 
 
 def _extract_run_and_epoch(path_str: str) -> tuple[str, int] | None:
-    stem = Path(path_str).stem
-    if ":v" in stem:
-        run_name, suffix = stem.rsplit(":v", 1)
-        if run_name and suffix.isdigit():
-            return (run_name, int(suffix))
+    path = Path(path_str)
+    for part in [path, *path.parents]:
+        stem = part.stem
+        if ":v" in stem:
+            run_name, suffix = stem.rsplit(":v", 1)
+            if run_name and suffix.isdigit():
+                return (run_name, int(suffix))
     return None
 
 

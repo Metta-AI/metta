@@ -28,6 +28,7 @@ from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.util.checkpoint_bundle import submission_zip_uri_from_mpt_uri
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -152,10 +153,7 @@ class Evaluator(TrainerComponent):
         if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
             return None
 
-        if checkpoint_uri.endswith("policy.mpt"):
-            submission_path = checkpoint_uri[: -len("policy.mpt")] + "submission.zip"
-        else:
-            submission_path = checkpoint_uri.rstrip("/") + "-submission.zip"
+        submission_path = submission_zip_uri_from_mpt_uri(checkpoint_uri)
         zip_data = self._create_submission_zip(policy_spec)
         write_data(submission_path, zip_data, content_type="application/zip")
         logger.info("Uploaded submission zip to %s", submission_path)

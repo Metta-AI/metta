@@ -12,12 +12,12 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.util.file import ParsedURI
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
     policy_spec_from_uri,
 )
+from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -152,25 +152,14 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        parsed = ParsedURI.parse(self._base_teacher_uri)
-        info = parse_uri(self._base_teacher_uri).checkpoint_info
+        base_bundle = resolve_checkpoint_bundle(self._base_teacher_uri)
+        info = parse_uri(base_bundle.dir_uri).checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = info
         filename = checkpoint_filename(run_name, epoch)
-
-        if parsed.scheme == "file" and parsed.local_path:
-            path = parsed.local_path.parent / filename
-            return f"file://{path}"
-        elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
-            if "/" in parsed.key:
-                key_dir = parsed.key.rsplit("/", 1)[0]
-                new_key = f"{key_dir}/{filename}"
-            else:
-                new_key = filename
-            return f"s3://{parsed.bucket}/{new_key}"
-        else:
-            raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
+        parent_uri = base_bundle.dir_uri.rstrip("/").rsplit("/", 1)[0]
+        return f"{parent_uri}/{filename}"
 
     def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> Policy:
         """Load the teacher policy from a specific checkpoint."""

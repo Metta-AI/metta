@@ -12,7 +12,8 @@ from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import resolve_uri, policy_spec_from_uri
+from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
@@ -55,23 +56,19 @@ class Checkpointer(TrainerComponent):
         candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
-        def _spec_and_mpt(uri: str):
-            spec = policy_spec_from_uri(uri, device=str(load_device))
-            ckpt = spec.init_kwargs.get("checkpoint_uri")
-            if not ckpt:
-                raise ValueError("policy_spec.json missing checkpoint_uri for MptPolicy")
-            return spec, ckpt
-
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_uri(candidate_uri).canonical
+                normalized_uri = resolve_checkpoint_bundle(candidate_uri).dir_uri
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
                 artifact: MptArtifact | None = None
                 if self._distributed.is_master():
-                    _, mpt_uri = _spec_and_mpt(normalized_uri)
+                    spec = policy_spec_from_uri(normalized_uri, device=str(load_device))
+                    mpt_uri = spec.init_kwargs.get("checkpoint_uri")
+                    if not mpt_uri:
+                        raise ValueError("policy_spec.json missing checkpoint_uri for MptPolicy")
                     artifact = load_mpt(mpt_uri)
 
                 state_dict = self._distributed.broadcast_from_master(
@@ -99,10 +96,13 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            _, mpt_uri = _spec_and_mpt(candidate_uri)
+            spec = policy_spec_from_uri(candidate_uri, device=str(load_device))
+            mpt_uri = spec.init_kwargs.get("checkpoint_uri")
+            if not mpt_uri:
+                raise ValueError("policy_spec.json missing checkpoint_uri for MptPolicy")
             artifact = load_mpt(mpt_uri)
             policy = artifact.instantiate(policy_env_info, load_device)
-            self._latest_policy_uri = resolve_uri(candidate_uri).canonical
+            self._latest_policy_uri = resolve_checkpoint_bundle(candidate_uri).dir_uri
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 

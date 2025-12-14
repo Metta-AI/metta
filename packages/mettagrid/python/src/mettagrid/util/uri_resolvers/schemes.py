@@ -6,7 +6,6 @@ from typing import Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
-
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
@@ -15,20 +14,12 @@ from mettagrid.util.uri_resolvers.base import (
     ParsedScheme,
     S3ParsedScheme,
     SchemeResolver,
+    _extract_run_and_epoch,
 )
 
 
 class FileSchemeResolver(SchemeResolver):
-    """Resolves local filesystem URIs.
-
-    Supported formats:
-      - file:///absolute/path/to/file.mpt
-      - file://relative/path/to/file.mpt
-      - /absolute/path/to/file.mpt  (bare path, no scheme)
-      - relative/path/to/file.mpt   (bare path, no scheme)
-      - ~/path/to/file.mpt          (expands ~)
-      - /path/to/checkpoints:latest (resolves to highest epoch .mpt in dir)
-    """
+    """Resolves checkpoint directories on the local filesystem."""
 
     @property
     def scheme(self) -> str:
@@ -92,12 +83,7 @@ class FileSchemeResolver(SchemeResolver):
 
 
 class S3SchemeResolver(SchemeResolver):
-    """Resolves AWS S3 URIs.
-
-    Supported formats:
-      - s3://bucket/path/to/file.mpt
-      - s3://bucket/path/to/checkpoints:latest (resolves to highest epoch .mpt)
-    """
+    """Resolves checkpoint directories stored in S3."""
 
     @property
     def scheme(self) -> str:
@@ -274,23 +260,21 @@ def policy_spec_from_uri(
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
 
-    parsed = resolve_uri(uri)
+    if uri.endswith(".zip"):
+        return load_policy_spec_from_s3(
+            uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        )
+
+    from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
+
+    bundle = resolve_checkpoint_bundle(uri)
+    spec_uri = bundle.policy_spec_uri
+    parsed = resolve_uri(spec_uri)
 
     if parsed.scheme == "s3":
-        if parsed.canonical.endswith(".zip"):
-            return load_policy_spec_from_s3(
-                parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
-            )
-        spec_uri = parsed.canonical
-        if not spec_uri.endswith("policy_spec.json"):
-            spec_uri = spec_uri.rstrip("/") + "/policy_spec.json"
-        from mettagrid.util.file import read
-
-        spec_bytes = read(spec_uri)
-        spec = PolicySpec.model_validate_json(spec_bytes.decode())
-        if device is not None and "device" in spec.init_kwargs:
-            spec.init_kwargs["device"] = device
-        return spec
+        return load_policy_spec_from_s3(
+            spec_uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        )
 
     if parsed.local_path:
         if parsed.local_path.is_file():
@@ -300,6 +284,4 @@ def policy_spec_from_uri(
             return spec
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
-    raise ValueError(
-        "Provide a policy directory or policy_spec.json. Bare .mpt checkpoints are no longer supported."
-    )
+    raise ValueError("Provide a checkpoint directory or policy_spec.json")
