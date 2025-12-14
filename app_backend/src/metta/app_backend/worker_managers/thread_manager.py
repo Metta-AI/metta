@@ -34,8 +34,13 @@ class ThreadWorkerManager(AbstractWorkerManager):
         self._workers: dict[str, dict] = {}  # worker_name -> {thread, worker, stop_event}
         self._lock = threading.Lock()
 
-    def start_worker(self) -> str:
-        """Start a worker on a new thread."""
+    def start_worker(self, num_cpus_request: int = 3, memory_request: int = 12) -> str:
+        """Start a worker on a new thread.
+
+        Args:
+            num_cpus_request: Number of CPUs to request (ignored for thread workers, used for interface compatibility)
+            memory_request: Memory to request (ignored for thread workers, used for interface compatibility)
+        """
         worker_name = self._format_worker_name()
 
         with self._lock:

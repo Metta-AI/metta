@@ -49,6 +49,13 @@ class Tool(Config):
     @abstractmethod
     def invoke(self, args: dict[str, str]) -> int | None: ...
 
+    def output_references(self, job_name: str) -> dict:
+        """
+        To be consumed by stable release runner. Reflects information additional Tools can use on
+        to reference this Tool's output if this job is run with run=<job_name>.
+        """
+        return {}
+
 
 class ToolResult(BaseModel):
     result: Literal["success", "failure"]
