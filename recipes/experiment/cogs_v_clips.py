@@ -591,25 +591,63 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
 def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
     """Shared sweep parameters for CvC-style PPO + schedulefree runs."""
     return {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.ADAM_EPS,
-        **SP.PPO_ENT_COEF,
+        # Optimizer
+        **SP.param(
+            "trainer.optimizer.learning_rate",
+            D.LOG_NORMAL,
+            min=5e-3,
+            max=1.5e-2,
+            search_center=1e-2,
+        ),
+        **SP.param(
+            "trainer.optimizer.eps",
+            D.LOG_NORMAL,
+            min=1e-8,
+            max=2e-6,
+            search_center=1e-6,
+        ),
         **SP.param(
             "trainer.optimizer.warmup_steps",
             D.INT_UNIFORM,
-            min=500,
+            min=1500,
             max=3000,
-            search_center=1500,
+            search_center=2300,
+        ),
+        # PPO
+        **SP.param(
+            "trainer.losses.ppo.clip_coef",
+            D.UNIFORM,
+            min=0.2,
+            max=0.32,
+            search_center=0.26,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.gae_lambda",
+            D.UNIFORM,
+            min=0.97,
+            max=0.995,
+            search_center=0.99,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.vf_coef",
+            D.UNIFORM,
+            min=0.5,
+            max=1.0,
+            search_center=0.75,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.ent_coef",
+            D.LOG_NORMAL,
+            min=0.015,
+            max=0.035,
+            search_center=0.025,
         ),
         **SP.param(
             "trainer.losses.ppo.gamma",
             D.UNIFORM,
-            min=0.97,
-            max=0.995,
-            search_center=0.985,
+            min=0.968,
+            max=0.977,
+            search_center=0.973,
         ),
         **SP.categorical(
             "trainer.losses.ppo.vf_clip_coef",
@@ -617,13 +655,25 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         ),
         **SP.categorical(
             "policy_architecture.core_resnet_layers",
-            choices=[1, 2, 3],
+            choices=[1, 2, 3, 4],
+        ),
+        **SP.categorical(
+            "policy_architecture._latent_dim",
+            choices=[64, 96, 128],
+        ),
+        **SP.categorical(
+            "policy_architecture._actor_hidden",
+            choices=[256, 384, 512],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_num_heads",
+            choices=[2, 4, 6],
         ),
         **SP.param(
             "trainer.total_timesteps",
             D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
+            min=9e8,
+            max=1.1e9,
             search_center=1e9,
         ),
     }
