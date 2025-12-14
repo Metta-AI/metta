@@ -658,11 +658,11 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
             choices=[1, 2, 3, 4],
         ),
         **SP.categorical(
-            "policy_architecture._latent_dim",
+            "policy_architecture.latent_dim",
             choices=[64, 96, 128],
         ),
         **SP.categorical(
-            "policy_architecture._actor_hidden",
+            "policy_architecture.actor_hidden",
             choices=[256, 384, 512],
         ),
         **SP.categorical(
@@ -670,7 +670,7 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
             choices=[2, 4, 6],
         ),
         **SP.categorical(
-            "policy_architecture._critic_hidden",
+            "policy_architecture.critic_hidden",
             choices=[512, 768, 1024],
         ),
         **SP.categorical(
@@ -678,7 +678,7 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
             choices=[12, 16, 20],
         ),
         **SP.categorical(
-            "policy_architecture._max_tokens",
+            "policy_architecture.max_tokens",
             choices=[48, 64, 80],
         ),
         **SP.param(
