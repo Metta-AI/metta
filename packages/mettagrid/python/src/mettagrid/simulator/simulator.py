@@ -388,15 +388,39 @@ class SimulationAgent:
 
         Inventory tokens appear at the agent's center position in the observation window.
         Returns a dictionary mapping resource names to their quantities.
+
+        Inventory values are encoded using exponential notation:
+        - inv:{resource} contains the base value (amount % 100, 0-99)
+        - inv:{resource}:e2 contains the hundreds ((amount / 100) % 100, 0-99)
+        - inv:{resource}:e4 contains the ten-thousands (amount / 10000, 0-100)
+        The full value is reconstructed as: base + e2 * 100 + e4 * 10000
         """
-        inv = {}
+        inv_base: Dict[str, int] = {}
+        inv_e2: Dict[str, int] = {}
+        inv_e4: Dict[str, int] = {}
 
         for token in self.self_observation():
             # Check if this is an inventory feature
             if token.feature.name.startswith("inv:"):
-                # Extract resource name from "inv:resource_name" format
-                resource_name = token.feature.name[4:]  # Remove "inv:" prefix
-                inv[resource_name] = token.value
+                # Extract resource name from "inv:resource_name", "inv:resource_name:e2", or "inv:resource_name:e4"
+                suffix = token.feature.name[4:]  # Remove "inv:" prefix
+                if suffix.endswith(":e4"):
+                    resource_name = suffix[:-3]  # Remove ":e4" suffix
+                    inv_e4[resource_name] = token.value
+                elif suffix.endswith(":e2"):
+                    resource_name = suffix[:-3]  # Remove ":e2" suffix
+                    inv_e2[resource_name] = token.value
+                else:
+                    resource_name = suffix
+                    inv_base[resource_name] = token.value
+
+        # Reconstruct full values from base, e2, and e4
+        inv = {}
+        for resource_name in inv_base:
+            base = inv_base.get(resource_name, 0)
+            e2 = inv_e2.get(resource_name, 0)
+            e4 = inv_e4.get(resource_name, 0)
+            inv[resource_name] = base + e2 * 100 + e4 * 10000
 
         return inv
 

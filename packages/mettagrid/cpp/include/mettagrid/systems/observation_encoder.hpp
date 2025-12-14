@@ -46,16 +46,38 @@ public:
       }
     }
 
-    // Build inventory feature ID map
+    // Build inventory feature ID maps using exponential encoding (base, e2, e4)
     _inventory_feature_ids.resize(resource_names.size());
+    _inventory_e2_feature_ids.resize(resource_names.size());
+    _inventory_e4_feature_ids.resize(resource_names.size());
     for (size_t i = 0; i < resource_names.size(); ++i) {
       const std::string& resource_name = resource_names[i];
+
+      // Base feature ID (inv:{resource})
       const std::string feature_key = "inv:" + resource_name;
       auto it = feature_ids.find(feature_key);
       if (it != feature_ids.end()) {
         _inventory_feature_ids[i] = it->second;
       } else {
         throw std::runtime_error("Inventory feature 'inv:" + resource_name + "' not found in feature_ids");
+      }
+
+      // e2 feature ID (inv:{resource}:e2)
+      const std::string e2_feature_key = "inv:" + resource_name + ":e2";
+      auto e2_it = feature_ids.find(e2_feature_key);
+      if (e2_it != feature_ids.end()) {
+        _inventory_e2_feature_ids[i] = e2_it->second;
+      } else {
+        throw std::runtime_error("Inventory e2 feature 'inv:" + resource_name + ":e2' not found in feature_ids");
+      }
+
+      // e4 feature ID (inv:{resource}:e4)
+      const std::string e4_feature_key = "inv:" + resource_name + ":e4";
+      auto e4_it = feature_ids.find(e4_feature_key);
+      if (e4_it != feature_ids.end()) {
+        _inventory_e4_feature_ids[i] = e4_it->second;
+      } else {
+        throw std::runtime_error("Inventory e4 feature 'inv:" + resource_name + ":e4' not found in feature_ids");
       }
     }
   }
@@ -103,13 +125,50 @@ public:
     return _inventory_feature_ids[item];
   }
 
+  ObservationType get_inventory_e2_feature_id(InventoryItem item) const {
+    if (item >= _inventory_e2_feature_ids.size()) {
+      throw std::runtime_error("Invalid item index for inventory e2 feature lookup");
+    }
+    return _inventory_e2_feature_ids[item];
+  }
+
+  ObservationType get_inventory_e4_feature_id(InventoryItem item) const {
+    if (item >= _inventory_e4_feature_ids.size()) {
+      throw std::runtime_error("Invalid item index for inventory e4 feature lookup");
+    }
+    return _inventory_e4_feature_ids[item];
+  }
+
+  // Encode inventory amount using exponential encoding with three tokens.
+  // inv:{resource} = amount % 100 (0-99, always emitted)
+  // inv:{resource}:e2 = (amount / 100) % 100 (0-99, only emitted if amount >= 100)
+  // inv:{resource}:e4 = amount / 10000 (0-100, only emitted if amount >= 10000)
+  // This allows representing values up to 1,009,999 (100 * 10000 + 99 * 100 + 99).
+  void append_inventory_tokens(std::vector<PartialObservationToken>& features,
+                               InventoryItem item,
+                               InventoryQuantity amount) const {
+    ObservationType base = static_cast<ObservationType>(amount % 100);
+    features.push_back({_inventory_feature_ids[item], base});
+    if (amount >= 100) {
+      InventoryQuantity e2_value = static_cast<InventoryQuantity>((amount / 100) % 100);
+      features.push_back({_inventory_e2_feature_ids[item], static_cast<ObservationType>(e2_value)});
+    }
+    if (amount >= 10000) {
+      InventoryQuantity e4_value = static_cast<InventoryQuantity>(amount / 10000);
+      ObservationType e4_capped = static_cast<ObservationType>(std::min(e4_value, static_cast<InventoryQuantity>(100)));
+      features.push_back({_inventory_e4_feature_ids[item], e4_capped});
+    }
+  }
+
   bool protocol_details_obs;
 
 private:
   size_t resource_count;
   std::vector<ObservationType> _input_feature_ids;
   std::vector<ObservationType> _output_feature_ids;
-  std::vector<ObservationType> _inventory_feature_ids;  // Maps item index to observation feature ID
+  std::vector<ObservationType> _inventory_feature_ids;     // Maps item index to base feature ID (amount % 100)
+  std::vector<ObservationType> _inventory_e2_feature_ids;  // Maps item index to e2 feature ID ((amount / 100) % 100)
+  std::vector<ObservationType> _inventory_e4_feature_ids;  // Maps item index to e4 feature ID (amount / 10000)
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_

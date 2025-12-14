@@ -119,9 +119,17 @@ class IdMap:
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="remaining_uses"))
         feature_id += 1
 
-        # Inventory features (one per resource)
+        # Inventory features (three per resource using exponential encoding)
+        # inv:{resource} = amount % 100 (0-99)
+        # inv:{resource}:e2 = (amount / 100) % 100 (0-99, represents 100s)
+        # inv:{resource}:e4 = amount / 10000 (0-100, represents 10000s)
+        # This allows representing values up to 1,009,999 (100 * 10000 + 99 * 100 + 99)
         for resource_name in self._config.resource_names:
             features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"inv:{resource_name}"))
+            feature_id += 1
+            features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"inv:{resource_name}:e2"))
+            feature_id += 1
+            features.append(ObservationFeatureSpec(id=feature_id, normalization=100.0, name=f"inv:{resource_name}:e4"))
             feature_id += 1
 
         # Protocol details features (if enabled)

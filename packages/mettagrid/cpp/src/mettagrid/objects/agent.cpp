@@ -209,7 +209,8 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   if (!this->obs_encoder) {
     throw std::runtime_error("Observation encoder not set for agent");
   }
-  const size_t num_tokens = this->inventory.get().size() + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
+  // Up to 2 tokens per inventory item (low byte + optional high byte), plus core features
+  const size_t num_tokens = this->inventory.get().size() * 2 + 3 + (vibe > 0 ? 1 : 0) + this->tag_ids.size();
 
   std::vector<PartialObservationToken> features;
   features.reserve(num_tokens);
@@ -221,8 +222,7 @@ std::vector<PartialObservationToken> Agent::obs_features() const {
   for (const auto& [item, amount] : this->inventory.get()) {
     // inventory should only contain non-zero amounts
     assert(amount > 0);
-    ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
-    features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
+    this->obs_encoder->append_inventory_tokens(features, item, amount);
   }
 
   // Emit tag features

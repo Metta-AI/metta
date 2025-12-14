@@ -206,7 +206,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 for name, bonus in modifiers_dict.items()
                 if name in resource_name_to_id
             }
-            base_limit = min(resource_limit["limit"], 255)
+            base_limit = resource_limit["limit"]
             limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
             configured_resources.update(resource_limit["resources"])
 
@@ -214,9 +214,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for resource_name in resource_names:
             if resource_name not in configured_resources:
                 limit_defs.append(
-                    CppLimitDef(
-                        resources=[resource_name_to_id[resource_name]], base_limit=min(default_resource_limit, 255)
-                    )
+                    CppLimitDef(resources=[resource_name_to_id[resource_name]], base_limit=default_resource_limit)
                 )
 
         inventory_config = CppInventoryConfig()
@@ -345,9 +343,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         if name in resource_name_to_id
                     }
                     limit_defs.append(
-                        CppLimitDef(
-                            resources=resource_ids, base_limit=min(resource_limit.limit, 255), modifiers=modifier_ids
-                        )
+                        CppLimitDef(resources=resource_ids, base_limit=resource_limit.limit, modifiers=modifier_ids)
                     )
 
             inventory_config = CppInventoryConfig()

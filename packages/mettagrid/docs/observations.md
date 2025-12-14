@@ -116,6 +116,30 @@ depend on your game configuration (number of resources, whether protocol details
 | `cooldown_remaining`              | Remaining cooldown time for objects                                             | assembler, extractors     | Value capped at 255                                                             |
 | `clipped`                         | Whether an assembler is clipped or not                                          | extractors                |                                                                                 |
 | `remaining_uses`                  | Remaining uses for objects with use limits                                      | extractors                | Value capped at 255. Only emitted if `max_uses > 0`                             |
-| `inv:{resource_name}`             | Amount of resource in the object                                                | agents, chests            | One feature per resource (e.g., `inv:food`, `inv:wood`, `inv:stone`)            |
+| `inv:{resource_name}`             | Base inventory amount (amount % 100)                                            | agents, chests            | One feature per resource. See [Inventory Encoding](#inventory-encoding) below.  |
+| `inv:{resource_name}:e2`          | Hundreds component ((amount / 100) % 100)                                       | agents, chests            | Only emitted if amount >= 100. See [Inventory Encoding](#inventory-encoding).   |
+| `inv:{resource_name}:e4`          | Ten-thousands component (amount / 10000)                                        | agents, chests            | Only emitted if amount >= 10000. See [Inventory Encoding](#inventory-encoding). |
 | `protocol_input:{resource_name}`  | Required input resource amount for current protocol                             | assembler, extractors     | One feature per resource                                                        |
 | `protocol_output:{resource_name}` | Output resource amount for current protocol                                     | assembler, extractors     | One feature per resource                                                        |
+
+### Inventory Encoding
+
+Inventory values are encoded using an exponential notation scheme that allows representing large amounts (up to ~1
+million) while keeping individual token values in the 0-100 range. Each resource can emit up to three tokens:
+
+- **`inv:{resource}`**: Base value = `amount % 100` (0-99, always emitted if amount > 0)
+- **`inv:{resource}:e2`**: Hundreds = `(amount / 100) % 100` (0-99, only emitted if amount >= 100)
+- **`inv:{resource}:e4`**: Ten-thousands = `amount / 10000` (0-100, only emitted if amount >= 10000)
+
+The full value is reconstructed as: `base + e2 * 100 + e4 * 10000`
+
+**Examples:**
+
+| Amount | `inv:food` | `inv:food:e2` | `inv:food:e4` | Reconstruction             |
+| ------ | ---------- | ------------- | ------------- | -------------------------- |
+| 42     | 42         | (not emitted) | (not emitted) | 42                         |
+| 1234   | 34         | 12            | (not emitted) | 34 + 12 \* 100 = 1234      |
+| 123456 | 56         | 34            | 12            | 56 + 34 _ 100 + 12 _ 10000 |
+
+This encoding scheme can represent values up to 1,009,999 (100 _ 10000 + 99 _ 100 + 99), but the actual maximum is
+limited by the underlying `InventoryQuantity` type (uint16_t, max 65535).
