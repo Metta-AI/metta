@@ -7,6 +7,7 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AttackActionConfig,
     GameConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -38,10 +39,12 @@ def create_basic_config() -> GameConfig:
         max_steps=100,
         agent=AgentConfig(
             freeze_duration=0,
-            resource_limits={
-                "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
-                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
-            },
+            inventory=InventoryConfig(
+                limits={
+                    "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                    "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                },
+            ),
         ),
         actions=ActionsConfig(move=MoveActionConfig(), noop=NoopActionConfig()),
         objects={"wall": WallConfig()},
@@ -197,11 +200,13 @@ class TestResourceRequirements:
             obs=basic_config.obs,
             agent=AgentConfig(
                 freeze_duration=0,
-                resource_limits={
-                    "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
-                    "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
-                },
-                initial_inventory={"ore": 5, "wood": 3},
+                inventory=InventoryConfig(
+                    limits={
+                        "ore": ResourceLimitsConfig(limit=10, resources=["ore"]),
+                        "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                    },
+                    initial={"ore": 5, "wood": 3},
+                ),
             ),
             actions=ActionsConfig(
                 move=MoveActionConfig(enabled=True, consumed_resources={"ore": 1}), noop=NoopActionConfig()
