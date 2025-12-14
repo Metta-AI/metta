@@ -411,12 +411,7 @@ def train(
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
-    try:
-        policy_config = get_architecture(arch_type)
-    except Exception as exc:  # pragma: no cover - defensive guard
-        raise ValueError(
-            f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(architecture_names())})"
-        ) from exc
+    policy_config = get_architecture(arch_type)
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
