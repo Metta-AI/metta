@@ -31,7 +31,7 @@ spec:
         - r
       - key: "eks.amazonaws.com/instance-cpu"
         operator: In
-        values: ["4", "8"]
+        values: ["4", "8", "12", "16"]
       - key: eks.amazonaws.com/instance-generation
         operator: Gt
         values:

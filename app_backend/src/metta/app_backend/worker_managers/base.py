@@ -7,12 +7,12 @@ class AbstractWorkerManager(ABC):
     """Abstract base class for managing eval task workers."""
 
     @abstractmethod
-    def start_worker(self) -> str:
+    def start_worker(self, num_cpus_request: int = 3, memory_request: int = 12) -> str:
         """Start a worker
 
         Args:
-            client: The EvalTaskClient for the worker to use
-            machine_token: Authentication token for the worker
+            num_cpus_request: Number of CPUs to request (3, 7, 11, or 15)
+            memory_request: Memory to request (in GB)
 
         Returns:
             WorkerInfo object with worker details
