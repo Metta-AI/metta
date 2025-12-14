@@ -569,7 +569,7 @@ def train_sweep(
     mission: str | None = None,
 ) -> TrainTool:
     """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
-    base_variants = ["heart_chorus"]
+    base_variants = ["heart_chorus", "inventory_heart_tune"]
     if variants:
         for v in variants:
             if v not in base_variants:
