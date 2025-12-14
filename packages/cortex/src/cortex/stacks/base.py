@@ -14,7 +14,6 @@ from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.utils import configure_tf32_precision
 
 logger = logging.getLogger(__name__)
 
