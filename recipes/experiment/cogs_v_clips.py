@@ -301,8 +301,12 @@ def make_curriculum(
         compatible_available = [v.name for v in VARIANTS if v.name in available_variants and v.compat(mission_template)]
 
         # Build groups of variant combinations to merge. Preserve explicit variants when dr_variants=0.
-        if variants is not None and dr_variants == 0:
-            combination_sizes = [0] + ([len(compatible_available)] if compatible_available else [])
+        if dr_variants == 0:
+            if variants is None:
+                # Keep default single-variant buckets when no explicit variants are provided.
+                combination_sizes = range(min(1, len(compatible_available)) + 1)
+            else:
+                combination_sizes = [0] + ([len(compatible_available)] if compatible_available else [])
         else:
             combination_sizes = range(min(dr_variants, len(compatible_available)) + 1)
 
