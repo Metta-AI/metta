@@ -69,8 +69,7 @@ class CurriculumEnv(PufferEnv):
         for attempt in range(max_retries):
             try:
                 # Get a new task from curriculum
-                new_task = self._curriculum.get_task()
-                self._current_task = new_task
+                self._current_task = self._curriculum.get_task()
                 # Create the env config and build the map in try-catch
                 self._env.set_mg_config(self._current_task.get_env_cfg())
                 obs, info = self._env.reset(*args, **kwargs)
@@ -113,8 +112,7 @@ class CurriculumEnv(PufferEnv):
             max_retries = 10
             for attempt in range(max_retries):
                 try:
-                    new_task = self._curriculum.get_task()
-                    self._current_task = new_task
+                    self._current_task = self._curriculum.get_task()
                     # Create the env config and build the map in try-catch
                     self._env.set_mg_config(self._current_task.get_env_cfg())
                     break
