@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 class SlicedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=10.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
     student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter

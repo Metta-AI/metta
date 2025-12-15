@@ -45,17 +45,17 @@ def _smollm_config(
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-135M",
         "attn_implementation": "flash_attention_2",
-        "dtype": "float32",
+        "dtype": "bfloat16",
         "mem_len": int(mem_len) if mem_len is not None else 16,
         "init_from_pretrained": False,
-        "num_layers": 10,
+        "num_layers": 5,
     }
 
     trainer_updates = {
         "compile": False,
-        "batch_size": 262144,
+        "batch_size": 4_194_304,
         "minibatch_size": 8192,
-        "bptt_horizon": 16,
+        "bptt_horizon": 256,
         "optimizer": OptimizerConfig(learning_rate=lr),
     }
 
@@ -163,7 +163,7 @@ def train(
             d_hidden=576,
             num_layers=num_layers_cfg,
             pattern="Ag",
-            override_global_configs=[AGaLiTeCellConfig(n_heads=8, eta=8)],
+            override_global_configs=[AGaLiTeCellConfig(n_heads=8)],
             post_norm=True,
         )
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype_cfg)
@@ -174,24 +174,28 @@ def train(
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
     )
-    ks_end_step = 1_000_000_000
-    # PPO disabled completely
-    losses_config.ppo_critic.enabled = False
-    losses_config.ppo_actor.enabled = False
+    ks_end_step = 1_200_000_000
 
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
-    losses_config.sliced_kickstarter.teacher_led_proportion = 0.25
+    losses_config.ppo_critic.gae_lambda = 0.99
+    losses_config.ppo_critic.gamma = 0.999
+    losses_config.sliced_kickstarter.teacher_led_proportion = 0.45
+    losses_config.sliced_kickstarter.action_loss_coef = 1.0
+    losses_config.sliced_kickstarter.value_loss_coef = 0.0
 
     trainer_cfg = TrainerConfig(losses=losses_config)
     trainer_cfg = trainer_cfg.model_copy(update=trainer_updates)
 
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     training_env = training_env.model_copy(update=env_updates)
-
+    # 0-400M pure kickstarter
+    # 400-600M enable ppo, no annealling
+    # Anneal kl coeff to 0 by 1.2B steps (ks_end_steps), thats when kickstarter completely turns off and does only ppo training
     scheduler = SchedulerConfig(
         run_gates=[
+            LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=400_000_000),
             LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ks_end_step),
             LossRunGate(
                 loss_instance_name="sliced_kickstarter",
@@ -210,10 +214,20 @@ def train(
                 attr_path="teacher_led_proportion",
                 mode="progress",
                 style="linear",
-                start_value=0.35,
-                end_value=1.0,
-                start_agent_step=500_000_000,
+                start_value=0.45,
+                end_value=0.0,
+                start_agent_step=600_000_000,
                 end_agent_step=ks_end_step,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="trainer",
+                attr_path="optimizer.learning_rate",
+                mode="progress",
+                style="linear",
+                start_value=1e-4,
+                end_value=3e-5,
+                start_agent_step=400_000_000,
+                end_agent_step=600_000_000,
             ),
         ],
     )
