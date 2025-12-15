@@ -1,5 +1,5 @@
-from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policy import PolicyArchitecture
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -24,7 +24,7 @@ def train(
     return base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy_architecture or TRXLConfig(),
+        policy_architecture=policy_architecture or get_architecture("trxl"),
     )
 
 
