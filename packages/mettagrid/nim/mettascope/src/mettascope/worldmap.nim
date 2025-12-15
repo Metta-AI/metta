@@ -949,7 +949,7 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
   if zoomInfo.hasMouse:
     useSelections(zoomInfo)
 
-  # agentControls()
+  agentControls()
 
   if zoomInfo.zoom < 3:
     drawWorldMini()

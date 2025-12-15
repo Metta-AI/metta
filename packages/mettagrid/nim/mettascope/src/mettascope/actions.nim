@@ -1,6 +1,6 @@
 import
   std/[tables],
-  windy, fidget2, vmath,
+  windy, vmath,
   common, replays, pathfinding
 
 type
