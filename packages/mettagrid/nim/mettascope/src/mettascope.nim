@@ -110,12 +110,12 @@ proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: 
   glEnable(GL_SCISSOR_TEST)
   glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
   glClearColor(1.0f, 0.0f, 0.0f, 1.0f)
-  
+
   bxy.saveTransform()
   bxy.translate(contentPos)
   drawWorldMap(worldMapZoomInfo)
   bxy.restoreTransform()
-  
+
   glDisable(GL_SCISSOR_TEST)
 
 proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
@@ -146,23 +146,6 @@ proc initPanels() =
 
   rootArea.areas[1].split(Vertical)
   rootArea.areas[1].split = 0.7
-
-  # rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
-  # rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
-
-  # rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
-  # rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
-
-  # rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
-
-  proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
-    frame(frameId, contentPos, contentSize):
-      # Start content a bit inset.
-      sk.at += vec2(8, 8)
-      h1text(panel.name)
-      text("This is the content of " & panel.name)
-      for i in 0 ..< 20:
-        text(&"Scrollable line {i} for " & panel.name)
 
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
