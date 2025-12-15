@@ -36,7 +36,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
-    critic_hidden: int = Field(default=512)
+    critic_hidden: int = Field(default=768)
 
     # Trunk configuration
     # Number of Axon layers in the trunk
