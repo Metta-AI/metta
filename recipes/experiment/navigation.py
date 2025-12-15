@@ -179,7 +179,7 @@ def train(
     if isinstance(policy_architecture, str):
         try:
             policy_architecture = PolicyArchitecture.from_spec(policy_architecture)
-        except (SyntaxError, ValueError):
+        except (SyntaxError, ValueError, ModuleNotFoundError):
             spec = policy_architecture.strip()
 
             if "trxl" in spec.lower():
