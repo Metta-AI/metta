@@ -110,7 +110,12 @@ proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: 
   glEnable(GL_SCISSOR_TEST)
   glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
   glClearColor(1.0f, 0.0f, 0.0f, 1.0f)
+  
+  bxy.saveTransform()
+  bxy.translate(contentPos)
   drawWorldMap(worldMapZoomInfo)
+  bxy.restoreTransform()
+  
   glDisable(GL_SCISSOR_TEST)
 
 proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =

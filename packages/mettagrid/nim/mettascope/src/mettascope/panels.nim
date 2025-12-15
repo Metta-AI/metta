@@ -135,7 +135,7 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
   if zoomInfo.hasMouse:
     if window.scrollDelta.y != 0:
       # Apply zoom at focal point (mouse position or agent position if pinned).
-      let localMousePos = window.logicalMousePos
+      let localMousePos = window.logicalMousePos - zoomInfo.rect.xy.vec2
       let zoomSensitivity = 0.005
 
       let oldMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
