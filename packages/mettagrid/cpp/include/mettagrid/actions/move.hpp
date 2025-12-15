@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
 
+#include <cassert>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -70,24 +71,34 @@ protected:
       return false;
     }
 
-    // `Move` is actually `MoveOrUse`, so we need to check if the target location is empty and if the object is usable.
-    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
-    // objects without using them.
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
-      GridLocation object_location = {target_location.r, target_location.c};
-      GridObject* target_object = _grid->object_at(object_location);
-      if (target_object) {
-        Usable* usable_object = dynamic_cast<Usable*>(target_object);
-        if (usable_object) {
-          return usable_object->onUse(actor, arg);
-        }
-      }
-
-      return false;
+    // If location is empty, move the agent
+    if (_grid->is_empty(target_location.r, target_location.c)) {
+      return _grid->move_object(actor, target_location);
     }
 
-    // Move the agent
-    return _grid->move_object(actor, target_location);
+    // Target location is occupied - check what's there
+    GridObject* target_object = _grid->object_at(target_location);
+    assert(target_object && "is_empty returned false but no object at location");
+
+    // Swap with frozen agents (must check before usable since Agent is Usable)
+    Agent* target_agent = dynamic_cast<Agent*>(target_object);
+    if (target_agent && target_agent->frozen > 0) {
+      bool swapped = _grid->swap_objects(actor, *target_agent);
+      if (swapped) {
+        actor.stats.incr("actions.swap");
+      }
+      return swapped;
+    }
+
+    // `Move` is actually `MoveOrUse`, so check if the object is usable.
+    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
+    // objects without using them.
+    Usable* usable_object = dynamic_cast<Usable*>(target_object);
+    if (usable_object) {
+      return usable_object->onUse(actor, arg);
+    }
+
+    return false;
   }
 
   std::string variant_name(ActionArg arg) const override {

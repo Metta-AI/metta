@@ -32,7 +32,6 @@ from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
 from metta.utils.live_run_monitor import app as run_monitor_app
-from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -642,7 +641,6 @@ def cmd_gridworks(ctx: typer.Context):
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
 app.add_typer(local_app, name="local")
 app.add_typer(book_app, name="book")
-app.add_typer(softmax_system_health_app, name="softmax-system-health")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
 app.add_typer(nim_test_runner_app, name="nimtest")
