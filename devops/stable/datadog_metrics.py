@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 
-from devops.datadog.models import MetricKind, MetricSample
+from devops.datadog.models import MetricSample
 from devops.stable.runner import Job, JobStatus
 
 logger = logging.getLogger(__name__)
@@ -32,17 +31,15 @@ def _extract_workflow_name(job: Job) -> str | None:
     # Map job patterns to workflow names
     # Training jobs
     if "train" in func_name.lower():
+        # Multi-node training: any remote job with >1 node uses the multinode workflow bucket
         if job.remote_nodes and job.remote_nodes > 1:
-            # Multi-node training
-            if "learning_progress" in module_name:
-                return "multinode_learning_progress"
-            # Could add more multi-node workflows here
-        elif job.remote_gpus and job.remote_gpus >= 1:
-            # Single GPU or multi-GPU single node
+            return "multinode_learning_progress"
+        # Single GPU or multi-GPU single node
+        if job.remote_gpus and job.remote_gpus >= 1:
             if "arena" in module_name:
                 return "multigpu_arena_basic_easy_shaped"
-        elif not job.is_remote:
-            # Local training
+        # Local training
+        if not job.is_remote:
             if "arena" in module_name:
                 return "local_arena_basic_easy_shaped"
 
