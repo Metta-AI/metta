@@ -234,7 +234,7 @@ def sweep(sweep_name: str) -> SweepTool:
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
-        eval_entrypoint="evaluate_stub",
+        skip_eval=True, 
         # Typically, "evaluator/eval_{suite}/score"
         metric_key="experience/rewards",
         search_space=parameters,

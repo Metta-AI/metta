@@ -31,6 +31,7 @@ from typing import Any
 from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
+from metta.adaptive.run_phase import RunPhaseManager
 from metta.adaptive.utils import (
     create_eval_job,
     create_training_job,
@@ -58,8 +59,11 @@ class AsyncCappedSchedulerConfig(Config):
     protein_config: Any = Field(description="ProteinConfig for optimization")
     force_eval: bool = False
 
-    # New settings
+    # Eval scheduling settings
     max_concurrent_evals: int = 1
+    skip_evaluation: bool = False  # If True, don't schedule eval jobs
+
+    # Optimizer settings
     liar_strategy: str = "best"  # one of: "best", "mean", "worst"
     min_suggestion_distance: float = 0.0  # optional distance floor for external use
 
@@ -67,16 +71,23 @@ class AsyncCappedSchedulerConfig(Config):
 class AsyncCappedOptimizingScheduler:
     """Asynchronous scheduler with capped eval concurrency and CL fantasies."""
 
-    def __init__(self, config: AsyncCappedSchedulerConfig, state: SchedulerState | None = None):
+    def __init__(
+        self,
+        config: AsyncCappedSchedulerConfig,
+        phase_manager: RunPhaseManager,
+        state: SchedulerState | None = None,
+    ):
         from metta.sweep.optimizer.protein import ProteinOptimizer
 
         self.config = config
+        self.phase_manager = phase_manager
         self.optimizer = ProteinOptimizer(config.protein_config)
         self.state = state or SchedulerState()
         logger.info(
-            "[AsyncCappedOptimizingScheduler] Initialized (max_trials=%s, max_concurrent_evals=%s)",
+            "[AsyncCappedOptimizingScheduler] Initialized (max_trials=%s, max_concurrent_evals=%s, skip_evaluation=%s)",
             config.max_trials,
             config.max_concurrent_evals,
+            config.skip_evaluation,
         )
 
     # ---------- Scheduling ----------
@@ -84,57 +95,62 @@ class AsyncCappedOptimizingScheduler:
         jobs: list[JobDefinition] = []
 
         # Update state
-        self.state.refresh(runs, force_eval=self.config.force_eval)
+        self.state.refresh(runs, self.phase_manager, force_eval=self.config.force_eval)
 
-        # Eval scheduling: honor max_concurrent_evals
-        eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
-        # First, schedule any forced re-evaluations
-        if eval_capacity > 0 and self.state.runs_pending_force_eval:
-            for run_id in list(self.state.runs_pending_force_eval):
-                if eval_capacity <= 0:
-                    break
-                run = next((r for r in runs if r.run_id == run_id), None)
-                if run is None:
-                    self.state.runs_pending_force_eval.discard(run_id)
-                    continue
-                job = create_eval_job(
-                    run_id=run_id,
-                    experiment_id=self.config.experiment_id,
-                    recipe_module=self.config.recipe_module,
-                    eval_entrypoint=self.config.eval_entrypoint,
-                    stats_server_uri=self.config.stats_server_uri,
-                    eval_overrides=self.config.eval_overrides,
-                )
-                jobs.append(job)
-                self.state.mark_eval_scheduled(run_id)
-                eval_capacity -= 1
-                logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
-        # Then, schedule normal eval candidates up to remaining capacity
-        if eval_capacity > 0:
-            eval_candidates = [r for r in runs if r.status == JobStatus.TRAINING_DONE_NO_EVAL]
-            for candidate in eval_candidates:
-                if eval_capacity <= 0:
-                    break
-                job = create_eval_job(
-                    run_id=candidate.run_id,
-                    experiment_id=self.config.experiment_id,
-                    recipe_module=self.config.recipe_module,
-                    eval_entrypoint=self.config.eval_entrypoint,
-                    stats_server_uri=self.config.stats_server_uri,
-                    eval_overrides=self.config.eval_overrides,
-                )
-                jobs.append(job)
-                self.state.mark_eval_scheduled(candidate.run_id)
-                eval_capacity -= 1
-                logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
+        # Eval scheduling (unless skipped)
+        if not self.config.skip_evaluation:
+            eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
 
-        # If any runs still need evaluation, do not schedule new training
-        if (
-            any(r.status == JobStatus.TRAINING_DONE_NO_EVAL for r in runs)
-            or len(self.state.runs_pending_force_eval) > 0
-            or len(self.state.runs_in_eval) > 0
-        ):
-            return jobs
+            # First, schedule any forced re-evaluations
+            if eval_capacity > 0 and self.state.runs_pending_force_eval:
+                for run_id in list(self.state.runs_pending_force_eval):
+                    if eval_capacity <= 0:
+                        break
+                    run = next((r for r in runs if r.run_id == run_id), None)
+                    if run is None:
+                        self.state.runs_pending_force_eval.discard(run_id)
+                        continue
+                    job = create_eval_job(
+                        run_id=run_id,
+                        experiment_id=self.config.experiment_id,
+                        recipe_module=self.config.recipe_module,
+                        eval_entrypoint=self.config.eval_entrypoint,
+                        stats_server_uri=self.config.stats_server_uri,
+                        eval_overrides=self.config.eval_overrides,
+                    )
+                    jobs.append(job)
+                    self.state.mark_eval_scheduled(run_id)
+                    eval_capacity -= 1
+                    logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
+
+            # Then, schedule normal eval candidates up to remaining capacity
+            if eval_capacity > 0:
+                eval_candidates = [
+                    r for r in runs if self.phase_manager.get_phase(r) == JobStatus.TRAINING_DONE_NO_EVAL
+                ]
+                for candidate in eval_candidates:
+                    if eval_capacity <= 0:
+                        break
+                    job = create_eval_job(
+                        run_id=candidate.run_id,
+                        experiment_id=self.config.experiment_id,
+                        recipe_module=self.config.recipe_module,
+                        eval_entrypoint=self.config.eval_entrypoint,
+                        stats_server_uri=self.config.stats_server_uri,
+                        eval_overrides=self.config.eval_overrides,
+                    )
+                    jobs.append(job)
+                    self.state.mark_eval_scheduled(candidate.run_id)
+                    eval_capacity -= 1
+                    logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
+
+            # If any runs still need evaluation, do not schedule new training
+            if (
+                any(self.phase_manager.get_phase(r) == JobStatus.TRAINING_DONE_NO_EVAL for r in runs)
+                or len(self.state.runs_pending_force_eval) > 0
+                or len(self.state.runs_in_eval) > 0
+            ):
+                return jobs
 
         # Training scheduling: fill as slots free up (only when no eval backlog)
         total_created = len(runs)
@@ -200,9 +216,13 @@ class AsyncCappedOptimizingScheduler:
         return jobs
 
     def is_experiment_complete(self, runs: list[RunInfo]) -> bool:
-        finished = [r for r in runs if r.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)]
+        finished = [
+            r
+            for r in runs
+            if self.phase_manager.get_phase(r) in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE)
+        ]
         if len(finished) >= self.config.max_trials:
-            completed = [r for r in runs if r.status == JobStatus.COMPLETED]
+            completed = [r for r in runs if self.phase_manager.get_phase(r) == JobStatus.COMPLETED]
             logger.info(
                 "[AsyncCappedOptimizingScheduler] Experiment complete! %s/%s trials finished (%s successful)",
                 len(finished),
@@ -216,7 +236,7 @@ class AsyncCappedOptimizingScheduler:
     def _collect_observations(self, runs: list[RunInfo]) -> list[dict[str, Any]]:
         obs: list[dict[str, Any]] = []
         for run in runs:
-            if run.status != JobStatus.COMPLETED:
+            if self.phase_manager.get_phase(run) != JobStatus.COMPLETED:
                 continue
             summary = run.summary if isinstance(run.summary, dict) else {}
             if not summary:
@@ -271,7 +291,7 @@ class AsyncCappedOptimizingScheduler:
         # Build set of pending run_ids
         pending_ids: set[str] = set()
         for r in runs:
-            if r.status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
+            if self.phase_manager.get_phase(r) not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
                 pending_ids.add(r.run_id)
 
         fantasies: list[dict[str, Any]] = []

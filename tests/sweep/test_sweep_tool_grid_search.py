@@ -37,13 +37,14 @@ def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
     captured: dict[str, Any] = {}
 
     class DummyController:
-        def __init__(self, experiment_id, scheduler, dispatcher, store, config):
+        def __init__(self, experiment_id, scheduler, dispatcher, store, config, phase_manager):
             captured["scheduler"] = scheduler
             captured["dispatcher"] = dispatcher
             captured["store"] = store
             captured["config"] = config
+            captured["phase_manager"] = phase_manager
 
-        def run(self, on_eval_completed=None):  # noqa: ARG002
+        def run(self, on_trial_completed=None, on_job_dispatch=None):  # noqa: ARG002
             # Do nothing; we only care that construction succeeded
             return 0
 
