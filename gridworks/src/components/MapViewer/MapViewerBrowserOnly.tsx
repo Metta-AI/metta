@@ -107,7 +107,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       .scale(scale);
   }, [zoom, pan, scale, dpr]);
 
-  const drawGrid = useCallback(async () => {
+  const drawGrid = useCallback(() => {
     if (!drawer || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
@@ -120,7 +120,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
     context.setTransform(transform);
 
     try {
-      await drawer.drawGrid(context, grid);
+      drawer.drawGrid(context, grid);
       drawExtra?.(context);
 
       // Draw hover overlay on top of the grid
