@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
-import logging
 import typer
 
 from devops.datadog.datadog_client import DatadogMetricsClient
@@ -133,6 +133,7 @@ def main(
                 print("Datadog Metrics (DRY RUN - not submitted)")
                 print("=" * 60)
                 import json
+
                 for metric in metrics:
                     print(json.dumps(metric.to_dict(), indent=2, default=str))
                 print(f"\nTotal: {len(metrics)} metrics")
