@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -24,6 +23,7 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     ProtocolConfig,
 )
+from recipes.experiment.architectures import get_architecture
 
 curriculum_args = {
     "level_0": {
@@ -406,11 +406,12 @@ def make_task_generator_cfg(
 
 def train(
     curriculum_style: str = "level_0",
+    arch_type: str = "vit",
 ) -> TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
-    policy_config = ViTDefaultConfig()
+    policy_config = get_architecture(arch_type)
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
