@@ -33,6 +33,7 @@ class AcceptanceCriterion(BaseModel):
     metric: str
     threshold: float | tuple[float, float]
     operator: Operator = ">="
+    metric_name: str | None = None  # Optional Datadog metric name for this criterion
 
 
 class Job(BaseModel):

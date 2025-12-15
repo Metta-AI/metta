@@ -5,66 +5,36 @@ from __future__ import annotations
 import logging
 
 from devops.datadog.models import MetricSample
-from devops.stable.runner import Job, JobStatus
+from devops.stable.runner import AcceptanceCriterion, Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_workflow_name(job: Job) -> str | None:
-    """Extract workflow name from job name.
+def _extract_recipe_path(job: Job) -> str | None:
+    """Extract recipe path from job command.
 
-    Job names are like: "{prefix}-recipes.prod.arena_basic_easy_shaped.train_100m"
-    We need to map to workflow names like: "multigpu_arena_basic_easy_shaped"
+    Job commands are like:
+    - Local: ["uv", "run", "./tools/run.py", "recipes.prod.arena_basic_easy_shaped.train_100m", ...]
+    - Remote: ["uv", "run", "./devops/skypilot/launch.py", "recipes.prod.arena_basic_easy_shaped.train_100m", ...]
+
+    Returns the recipe path (e.g., "recipes.prod.arena_basic_easy_shaped.train_100m") or None if not found.
     """
-    # Extract the module and function name
-    parts = job.name.split(".")
-    if len(parts) < 3:
+    if not job.cmd or len(job.cmd) < 4:
         return None
 
-    # Get the module name (e.g., "arena_basic_easy_shaped")
-    module_name = parts[-2] if len(parts) >= 3 else None
-    func_name = parts[-1] if parts else None
-
-    if not module_name or not func_name:
-        return None
-
-    # Map job patterns to workflow names
-    # Training jobs
-    if "train" in func_name.lower():
-        # Multi-node training: any remote job with >1 node uses the multinode workflow bucket
-        if job.remote_nodes and job.remote_nodes > 1:
-            return "multinode_learning_progress"
-        # Single GPU or multi-GPU single node
-        if job.remote_gpus and job.remote_gpus >= 1:
-            if "arena" in module_name:
-                return "multigpu_arena_basic_easy_shaped"
-        # Local training
-        if not job.is_remote:
-            if "arena" in module_name:
-                return "local_arena_basic_easy_shaped"
-
-    # Eval jobs
-    if "eval" in func_name.lower() or "evaluate" in func_name.lower():
-        if job.is_remote:
-            return "remote_eval"
-        else:
-            return "local_eval"  # Note: schema shows "remote_eval" but we may need local too
-
+    # The recipe path is always the 4th element (index 3) in the command
+    recipe_path = job.cmd[3]
+    if recipe_path.startswith("recipes."):
+        return recipe_path
     return None
-
-
-def _is_training_job(job: Job) -> bool:
-    """Check if job is a training job."""
-    return "train" in job.name.lower()
-
-
-def _is_eval_job(job: Job) -> bool:
-    """Check if job is an eval job."""
-    return "eval" in job.name.lower() or "evaluate" in job.name.lower()
 
 
 def job_to_metrics(job: Job) -> list[MetricSample]:
     """Convert a Job result to Datadog MetricSamples.
+
+    Emits:
+    - One "runs_success" metric per job (1.0 if succeeded and acceptance passed, 0.0 otherwise)
+    - One metric per acceptance criterion (using criterion.metric_name if provided, or deriving from criterion.metric)
 
     Args:
         job: Completed job from the runner.
@@ -73,14 +43,14 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
         List of MetricSamples ready to submit to Datadog.
     """
     samples: list[MetricSample] = []
-    workflow_name = _extract_workflow_name(job)
+    recipe_path = _extract_recipe_path(job)
 
-    if not workflow_name:
-        logger.debug("Skipping job %s: could not determine workflow name", job.name)
+    if not recipe_path:
+        logger.debug("Skipping job %s: could not extract recipe path from command", job.name)
         return samples
 
     base_tags = {
-        "workflow_name": workflow_name,
+        "workflow_name": recipe_path,
         "job_name": job.name,
     }
 
@@ -94,148 +64,77 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
     else:
         base_tags["execution_type"] = "local"
 
-    # Training metrics
-    if _is_training_job(job):
-        # Success metric
-        success_value = 1.0 if job.status == JobStatus.SUCCEEDED and job.acceptance_passed is not False else 0.0
-        if workflow_name == "multigpu_arena_basic_easy_shaped":
-            samples.append(
-                MetricSample(
-                    name="metta.infra.cron.training.multigpu.runs_success",
-                    value=success_value,
-                    tags=base_tags,
-                )
-            )
-        elif workflow_name == "multinode_learning_progress":
-            samples.append(
-                MetricSample(
-                    name="metta.infra.cron.training.multinode.runs_success",
-                    value=success_value,
-                    tags=base_tags,
-                )
-            )
-        elif workflow_name == "local_arena_basic_easy_shaped":
-            # Local arena uses different metrics
-            if job.status == JobStatus.SUCCEEDED:
-                # Check if it's a checkpoint job or continuation
-                if "checkpoint" in job.name.lower() or "first" in job.name.lower():
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.local_arena.first_checkpoint",
-                            value=1.0 if job.acceptance_passed is not False else 0.0,
-                            tags=base_tags,
-                        )
-                    )
-                elif "continue" in job.name.lower():
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.local_arena.continues",
-                            value=1.0 if job.acceptance_passed is not False else 0.0,
-                            tags=base_tags,
-                        )
-                    )
+    # Emit one "runs_success" metric per job
+    success_value = 1.0 if job.status == JobStatus.SUCCEEDED and job.acceptance_passed is not False else 0.0
+    samples.append(
+        MetricSample(
+            name=f"metta.infra.cron.stable.{recipe_path.replace('.', '_')}.runs_success",
+            value=success_value,
+            tags=base_tags,
+        )
+    )
 
-        # Extract metrics from job.metrics (from WandB)
-        if job.metrics and job.status == JobStatus.SUCCEEDED:
-            # Hearts metric
-            hearts = job.metrics.get("env_agent/heart.gained") or job.metrics.get("overview/hearts")
-            if hearts is not None:
-                if workflow_name == "multigpu_arena_basic_easy_shaped":
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.multigpu.hearts",
-                            value=float(hearts),
-                            tags=base_tags,
-                        )
-                    )
-                elif workflow_name == "multinode_learning_progress":
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.multinode.hearts",
-                            value=float(hearts),
-                            tags=base_tags,
-                        )
-                    )
+    # Emit one metric per acceptance criterion
+    if job.acceptance and job.status == JobStatus.SUCCEEDED and job.metrics:
+        for criterion in job.acceptance:
+            # Use metric_name if provided, otherwise derive from criterion.metric
+            metric_name = criterion.metric_name
+            if not metric_name:
+                # Derive metric name from criterion.metric (e.g., "overview/sps" -> "overview_sps")
+                metric_name = criterion.metric.replace("/", "_").replace(".", "_")
 
-            # SPS metric
-            sps = job.metrics.get("overview/sps")
-            if sps is not None:
-                if workflow_name == "multigpu_arena_basic_easy_shaped":
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.multigpu.sps",
-                            value=float(sps),
-                            tags=base_tags,
-                        )
-                    )
-                elif workflow_name == "multinode_learning_progress":
-                    # Multi-node uses "shaped" metric
-                    shaped = job.metrics.get("overview/shaped_sps") or sps
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.training.multinode.shaped",
-                            value=float(shaped),
-                            tags=base_tags,
-                        )
-                    )
-
-    # Eval metrics
-    elif _is_eval_job(job):
-        success_value = 1.0 if job.status == JobStatus.SUCCEEDED and job.acceptance_passed is not False else 0.0
-
-        if workflow_name == "remote_eval":
-            samples.append(
-                MetricSample(
-                    name="metta.infra.cron.eval.remote.success",
-                    value=success_value,
-                    tags=base_tags,
-                )
-            )
-
-            # Duration in minutes
-            if job.duration_s is not None:
+            # Get the actual value from job.metrics
+            actual_value = job.metrics.get(criterion.metric)
+            if actual_value is not None:
+                # Determine if this criterion passed
+                criterion_passed = _evaluate_criterion(criterion, actual_value)
                 samples.append(
                     MetricSample(
-                        name="metta.infra.cron.eval.remote.duration_minutes",
-                        value=job.duration_s / 60.0,
-                        tags=base_tags,
+                        name=f"metta.infra.cron.stable.{recipe_path.replace('.', '_')}.{metric_name}",
+                        value=float(actual_value),
+                        tags={
+                            **base_tags,
+                            "criterion_passed": str(criterion_passed).lower(),
+                            "criterion_threshold": str(criterion.threshold),
+                            "criterion_operator": criterion.operator,
+                        },
                     )
                 )
-
-            # Heart delta pct
-            if job.metrics:
-                heart_delta_pct = job.metrics.get("heart_delta_pct") or job.metrics.get("overview/heart_delta_pct")
-                if heart_delta_pct is not None:
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.eval.remote.heart_delta_pct",
-                            value=float(heart_delta_pct),
-                            tags=base_tags,
-                        )
-                    )
-        else:
-            # Local eval
-            samples.append(
-                MetricSample(
-                    name="metta.infra.cron.eval.local.success",
-                    value=success_value,
-                    tags=base_tags,
-                )
-            )
-
-            # Heart delta pct
-            if job.metrics:
-                heart_delta_pct = job.metrics.get("heart_delta_pct") or job.metrics.get("overview/heart_delta_pct")
-                if heart_delta_pct is not None:
-                    samples.append(
-                        MetricSample(
-                            name="metta.infra.cron.eval.local.heart_delta_pct",
-                            value=float(heart_delta_pct),
-                            tags=base_tags,
-                        )
-                    )
 
     return samples
+
+
+def _evaluate_criterion(criterion: AcceptanceCriterion, actual_value: float) -> bool:
+    """Evaluate if an acceptance criterion passes.
+
+    Args:
+        criterion: The acceptance criterion to evaluate.
+        actual_value: The actual metric value from the job.
+
+    Returns:
+        True if the criterion passes, False otherwise.
+    """
+    if criterion.operator == "in":
+        assert isinstance(criterion.threshold, tuple)
+        low, high = criterion.threshold
+        return low <= actual_value <= high
+
+    assert isinstance(criterion.threshold, (int, float))
+    threshold = float(criterion.threshold)
+    match criterion.operator:
+        case ">=":
+            return actual_value >= threshold
+        case ">":
+            return actual_value > threshold
+        case "<=":
+            return actual_value <= threshold
+        case "<":
+            return actual_value < threshold
+        case "==":
+            return actual_value == threshold
+        case _:
+            logger.warning("Unknown operator %s in criterion", criterion.operator)
+            return False
 
 
 def jobs_to_metrics(jobs: dict[str, Job]) -> list[MetricSample]:
