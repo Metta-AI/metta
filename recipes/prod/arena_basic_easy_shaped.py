@@ -18,6 +18,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.common.wandb.context import WandbConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -101,22 +103,40 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig()
+    training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
+    teacher = teacher or TeacherConfig()  # Disabled by default unless policy_uri is provided.
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    return TrainTool(
+    # Enable optional teacher phases (e.g., sliced_cloner) when provided.
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[HyperUpdateRule] = []
+    apply_teacher_phase(
+        trainer_cfg=trainer_cfg,
+        training_env_cfg=training_env_cfg,
+        scheduler_rules=scheduler_rules,
+        scheduler_run_gates=scheduler_run_gates,
+        teacher_cfg=teacher,
+        default_steps=teacher.steps or 1_000_000_000,
+    )
+
+    tt = TrainTool(
         trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        training_env=training_env_cfg,
         evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
+    if scheduler_run_gates or scheduler_rules:
+        tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+    return tt
 
 
 def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
