@@ -87,7 +87,11 @@ def select_backend(
 
 
 def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled."""
+    """Ensure TF32 fast paths are enabled using the recommended API."""
+    if not torch.cuda.is_available():
+        return
+
+    # Use torch.set_float32_matmul_precision which is the recommended API
     torch.set_float32_matmul_precision("high")
 
 
