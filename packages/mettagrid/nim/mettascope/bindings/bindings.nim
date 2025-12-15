@@ -1,7 +1,7 @@
 import
-  genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
-  envconfig, vibes]
+  genny, openGL, jsony, vmath, windy, silky,
+  ../src/mettascope,
+  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes]
 
 type
   ActionRequest* = object
@@ -15,27 +15,36 @@ type
 proc ctrlCHandler() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
   echo "\nNim DLL caught ctrl-c, exiting..."
-  if not window.isNil:
-    window.close()
+  # if not window.isNil:
+  #   window.close()
   quit(0)
 
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
+    echo "init"
+    echo "Initializing Mettascope..."
+    echo "Setting control CHook..."
     setControlCHook(ctrlCHandler)
+    echo "Creating RenderResponse..."
     result = RenderResponse(shouldClose: false, actions: @[])
-    #echo "Replay from python: ", replay
+    echo "Replay from python: ", replay
     echo "Data dir: ", dataDir
     playMode = Realtime
+    echo "Loading replay..."
     common.replay = loadReplayString(replay, "MettaScope")
-    startFidget(
-      figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-      windowTitle = "MettaScope",
-      entryFrame = "UI/Main",
-      windowStyle = DecoratedResizable,
-      dataDir = dataDir
+    echo "Creating window..."
+    window = newWindow(
+      "MettaScope",
+      ivec2(1200, 800),
+      #vsync = true
     )
-    updateEnvConfig()
-    updateVibePanel()
+    echo "Making context current..."
+    makeContextCurrent(window)
+    echo "Loading extensions..."
+    loadExtensions()
+    echo "Initializing Mettascope..."
+    initMettascope()
+    echo "Returning RenderResponse..."
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
@@ -60,7 +69,7 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         window.close()
         result.shouldClose = true
         return
-      tickFidget()
+      tickMettascope()
       if requestPython:
         onRequestPython()
         for action in requestActions:

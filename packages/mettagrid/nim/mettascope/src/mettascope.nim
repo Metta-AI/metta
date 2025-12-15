@@ -4,22 +4,23 @@ import
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
   footer, timeline, minimap, header]
 
-# Build the atlas.
-var builder = newAtlasBuilder(1024, 4)
-builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
-builder.addDir(rootDir / "data/ui/", rootDir / "data/")
-builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
-builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
-builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+when isMainModule:
+  # Build the atlas.
+  var builder = newAtlasBuilder(1024, 4)
+  builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
+  builder.addDir(rootDir / "data/ui/", rootDir / "data/")
+  builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
+  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
+  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
+  builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
 
-window = newWindow(
-  "MettaScope",
-  ivec2(1200, 800),
-  vsync = false
-)
-makeContextCurrent(window)
-loadExtensions()
+  window = newWindow(
+    "MettaScope",
+    ivec2(1200, 800),
+    vsync = false
+  )
+  makeContextCurrent(window)
+  loadExtensions()
 
 const
   BackgroundColor = parseHtmlColor("#000000").rgbx
@@ -125,8 +126,6 @@ proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: V
 
   glDisable(GL_SCISSOR_TEST)
 
-
-# Initialization
 proc initPanels() =
 
   rootArea = Area()
@@ -139,20 +138,35 @@ proc initPanels() =
   rootArea.areas[1].split(Vertical)
   rootArea.areas[1].split = 0.7
 
+  # rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
+  # rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
+
+  # rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
+  # rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
+
+  # rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
+
+  proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+    frame(frameId, contentPos, contentSize):
+      # Start content a bit inset.
+      sk.at += vec2(8, 8)
+      h1text(panel.name)
+      text("This is the content of " & panel.name)
+      for i in 0 ..< 20:
+        text(&"Scrollable line {i} for " & panel.name)
+
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
 
   rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
-  rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
+  rootArea.areas[0].areas[1].addPanel("Minimap", genericPanelDraw)
 
   rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
 
-initPanels()
 
-window.onFrame = proc() =
+proc onFrame() =
 
   playControls()
-
 
   sk.beginUI(window, window.size)
 
@@ -180,17 +194,21 @@ window.onFrame = proc() =
   if window.cursor.kind != sk.cursor.kind:
     window.cursor = sk.cursor
 
-proc main() =
-  ## Main entry point.
+proc initMettascope*() =
+
+  window.onFrame = onFrame
+
+  initPanels()
 
   sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
   bxy = newBoxy()
 
-  when defined(emscripten):
-    parseUrlParams()
-  else:
-    parseArgs()
-  replaySwitch(commandLineReplay)
+  if playMode == Historical:
+    when defined(emscripten):
+      parseUrlParams()
+    else:
+      parseArgs()
+    replaySwitch(commandLineReplay)
 
   ## Initialize the world map zoom info.
   worldMapZoomInfo = ZoomInfo()
@@ -202,8 +220,15 @@ proc main() =
   worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
   worldMapZoomInfo.hasMouse = false
 
+proc tickMettascope*() =
+  pollEvents()
+
+proc main() =
+  ## Main entry point.
+  initMettascope()
+
   while not window.closeRequested:
-    pollEvents()
+    tickMettascope()
 
 when isMainModule:
   main()
