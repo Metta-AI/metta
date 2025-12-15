@@ -216,7 +216,8 @@ def make_sweep(
     name: str,
     recipe: str,
     train_entrypoint: str,
-    eval_entrypoint: str,
+    eval_entrypoint: str = None,
+    skip_eval: bool | None = None,
     metric_key: str,
     search_space: Union[Dict[str, ParameterSpec], List[Dict[str, ParameterSpec]]],
     cost_key: Optional[str] = None,
@@ -245,6 +246,7 @@ def make_sweep(
             goal: Whether to maximize or minimize the metric.
             max_concurrent_evals: Maximum simultaneous evals (defaults to min(2, num_parallel_trials)).
             liar_strategy: Liar strategy for async capped scheduler.
+            skip_eval: Force skip of evaluation jobs even if an eval_entrypoint is provided.
 
         Protein config args:
             metric_key: Metric to optimize
@@ -278,7 +280,8 @@ def make_sweep(
         ),
         "liar_strategy": liar_strategy,
     }
-
+    skip_evaluation = skip_eval if skip_eval is not None else (eval_entrypoint is None)
+    effective_eval_entrypoint = None if skip_evaluation else eval_entrypoint
     return SweepTool(
         sweep_name=name,
         protein_metric=metric_key,
@@ -287,12 +290,13 @@ def make_sweep(
         search_space=search_space,
         recipe_module=recipe,
         train_entrypoint=train_entrypoint,
-        eval_entrypoint=eval_entrypoint,
+        eval_entrypoint=effective_eval_entrypoint,
         max_trials=max_trials,
         max_parallel_jobs=num_parallel_trials,
         scheduler_type=scheduler_type,
         eval_overrides=eval_overrides or {},
         cost_key=cost_key,
+        skip_evaluation=skip_evaluation,
         **scheduler_config,
     )
 
