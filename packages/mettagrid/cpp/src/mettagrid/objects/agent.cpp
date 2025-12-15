@@ -90,6 +90,7 @@ void Agent::populate_initial_inventory(const std::unordered_map<InventoryItem, I
 
   // Then add remaining items
   for (const auto& [item, amount] : initial_inventory) {
+    if (added.count(item)) continue;  // Skip items already added
     this->inventory.update(item, amount, /*ignore_limits=*/true);
   }
 }

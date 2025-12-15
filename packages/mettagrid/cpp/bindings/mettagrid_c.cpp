@@ -585,15 +585,8 @@ void MettaGrid::_step() {
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
       if (!agent->inventory_regen_amounts.empty()) {
-        // Look up regen amounts for agent's current vibe, fall back to "default" (vibe ID 0)
-        auto vibe_it = agent->inventory_regen_amounts.find(agent->vibe);
-        if (vibe_it == agent->inventory_regen_amounts.end()) {
-          vibe_it = agent->inventory_regen_amounts.find(0);  // "default" is vibe ID 0
-        }
-        if (vibe_it != agent->inventory_regen_amounts.end()) {
-          for (const auto& [item, amount] : vibe_it->second) {
-            agent->inventory.update(item, amount);
-          }
+        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
+          agent->inventory.update(item, amount);
         }
       }
     }

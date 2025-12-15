@@ -194,11 +194,11 @@ class ChangeVibeActionConfig(ActionConfig):
 
     action_handler: str = Field(default="change_vibe")
     number_of_vibes: int = Field(default=0, ge=0, le=255)
-    vibes: list[str] | None = Field(default=None)
+    vibes: list[Vibe] | None = Field(default=None)
 
     def _actions(self) -> list[Action]:
         if self.vibes is not None:
-            return [self.ChangeVibe(Vibe(name=vibe)) for vibe in self.vibes]
+            return [self.ChangeVibe(vibe) for vibe in self.vibes]
         return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
 
     def ChangeVibe(self, vibe: Vibe) -> Action:
@@ -268,6 +268,17 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
     )
+    loot: list[str] = Field(
+        default_factory=list,
+        description="Convenience field: resources to steal (merged into success.loot).",
+    )
+
+    @model_validator(mode="after")
+    def _merge_loot_into_success(self) -> "AttackActionConfig":
+        """Merge top-level loot into success.loot for convenience."""
+        if self.loot:
+            self.success.loot = list(set(self.success.loot + self.loot))
+        return self
 
     def _actions(self) -> list[Action]:
         # Attack only triggers via move, no standalone actions
@@ -304,6 +315,10 @@ class TransferActionConfig(ActionConfig):
     vibe_transfers: list[VibeTransfer] = Field(
         default_factory=list,
         description="List of vibe transfer configs specifying actor/target resource effects",
+    )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Convenience field: vibes that can trigger transfer (used with vibe_transfers)",
     )
 
     def _actions(self) -> list[Action]:
@@ -639,7 +654,9 @@ class GameConfig(Config):
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
         self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
-        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
+        # Only set vibe_names from VIBES if not already provided by user
+        if not self.vibe_names:
+            self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
 
     def id_map(self) -> "IdMap":

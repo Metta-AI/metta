@@ -388,14 +388,14 @@ def convert_to_cpp_game_config(game_config: GameConfig):
                 initial_inventory_cpp[resource_id] = amount
 
             # Create inventory config with limits from nested inventory config
-            limits_list = []
+            inventory_config = CppInventoryConfig()
+            limit_defs = []
             for resource_limit in object_config.inventory.limits.values():
                 resource_list = resource_limit.resources
                 resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
                 if resource_ids:
-                    limits_list.append((resource_ids, resource_limit.limit))
-
-            inventory_config = CppInventoryConfig(limits_list)
+                    limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=resource_limit.limit))
+            inventory_config.limit_defs = limit_defs
 
             # Get currency resource ID
             currency_resource_id = resource_name_to_id.get(object_config.currency_resource, 0)

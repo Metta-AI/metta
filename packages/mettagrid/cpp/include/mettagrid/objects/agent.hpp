@@ -12,6 +12,7 @@
 #include "objects/agent_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
+#include "objects/inventory_config.hpp"
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
@@ -41,6 +42,8 @@ public:
   std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>> inventory_regen_amounts;
   // Damage configuration
   DamageConfig damage_config;
+  // Inventory configuration (limits and modifiers)
+  InventoryConfig inventory_config;
 
   Agent(GridCoord r,
         GridCoord c,
@@ -50,7 +53,8 @@ public:
 
   void init(RewardType* reward_ptr);
 
-  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory);
+  void populate_initial_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory,
+                                  const std::vector<InventoryItem>& inventory_deps = {});
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 
