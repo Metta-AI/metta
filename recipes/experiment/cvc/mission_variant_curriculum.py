@@ -522,15 +522,12 @@ def train(
         simulations=eval_suite,
     )
 
-    kwargs = {
-        "trainer": trainer_cfg,
-        "training_env": TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        "evaluator": evaluator_cfg,
-    }
-
-    kwargs["policy_architecture"] = get_architecture(arch_type)
-
-    return TrainTool(**kwargs)
+    return TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
+    )
 
 
 def evaluate(

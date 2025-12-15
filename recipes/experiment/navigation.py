@@ -178,14 +178,11 @@ def train(
         simulations=make_navigation_eval_suite(),
     )
 
-    kwargs = {
-        "training_env": TrainingEnvironmentConfig(curriculum=resolved_curriculum),
-        "evaluator": evaluator_cfg,
-    }
-
-    kwargs["policy_architecture"] = get_architecture(arch_type)
-
-    return TrainTool(**kwargs)
+    return TrainTool(
+        training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
+        evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
+    )
 
 
 def evaluate(
