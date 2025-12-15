@@ -27,19 +27,20 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     _token_embed_dim = 8
     _fourier_freqs = 3
-    latent_dim: int = Field(default=64, alias="_latent_dim")
-    actor_hidden: int = Field(default=256, alias="_actor_hidden")
-    core_num_heads: int = Field(default=4, alias="_core_num_heads")
-    max_tokens: int = Field(default=48, alias="_max_tokens")
-    core_num_latents: int = Field(default=12, alias="_core_num_latents")
+    # Updated defaults from top CvC sweep run (cvc.1214.new_trial_0038_0e6377)
+    latent_dim: int = Field(default=96)
+    actor_hidden: int = Field(default=384)
+    core_num_heads: int = Field(default=4)
+    max_tokens: int = Field(default=64)
+    core_num_latents: int = Field(default=16)
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
-    critic_hidden: int = Field(default=512, alias="_critic_hidden")
+    critic_hidden: int = Field(default=512)
 
     # Trunk configuration
     # Number of Axon layers in the trunk
-    core_resnet_layers: int = 2
+    core_resnet_layers: int = 3
     # Pattern for trunk layers (e.g., "A" for Axon blocks, "L" for linear)
     core_resnet_pattern: str = "A"
     # Enable layer normalization after each trunk layer

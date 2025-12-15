@@ -17,11 +17,11 @@ from metta.rl.utils import prepare_policy_forward_td
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.753832, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    gamma: float = Field(default=0.972810, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.995000, ge=0, le=1.0)
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 

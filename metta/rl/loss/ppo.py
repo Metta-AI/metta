@@ -33,19 +33,19 @@ class VTraceConfig(Config):
 class PPOConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
     # Entropy term weight from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    ent_coef: float = Field(default=0.027574, ge=0)
     # GAE lambda tuned via sweep (cf. standard 0.95)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
-    # Gamma tuned for shorter effective horizon
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.995000, ge=0, le=1.0)
+    # Gamma tuned from CvC sweep winner
+    gamma: float = Field(default=0.972810, ge=0, le=1.0)
 
     # Training parameters
     # Value clipping mirrors policy clip
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    # Value term weight from sweep
-    vf_coef: float = Field(default=0.897619, ge=0)
+    # Value term weight from sweep winner
+    vf_coef: float = Field(default=0.753832, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
