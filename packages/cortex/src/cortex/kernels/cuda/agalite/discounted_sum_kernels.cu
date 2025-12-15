@@ -76,8 +76,12 @@ at::Tensor discounted_sum_forward_cuda(at::Tensor start_state,
   const int threads = 256;
   const int blocks = (N + threads - 1) / threads;
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      x.scalar_type(), "agalite_discounted_sum_forward_cuda", [&] {
+  AT_DISPATCH_FLOATING_TYPES_AND2(
+      at::ScalarType::Half,
+      at::ScalarType::BFloat16,
+      x.scalar_type(),
+      "agalite_discounted_sum_forward_cuda",
+      [&] {
         discounted_sum_forward_kernel<scalar_t><<<blocks, threads>>>(
             start_state.data_ptr<scalar_t>(),
             x.data_ptr<scalar_t>(),
@@ -104,8 +108,12 @@ std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
   const int threads = 256;
   const int blocks = (N + threads - 1) / threads;
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      grad_out.scalar_type(), "agalite_discounted_sum_backward_cuda", [&] {
+  AT_DISPATCH_FLOATING_TYPES_AND2(
+      at::ScalarType::Half,
+      at::ScalarType::BFloat16,
+      grad_out.scalar_type(),
+      "agalite_discounted_sum_backward_cuda",
+      [&] {
         discounted_sum_backward_kernel<scalar_t><<<blocks, threads>>>(
             grad_out.data_ptr<scalar_t>(),
             discounts.data_ptr<scalar_t>(),
@@ -127,4 +135,3 @@ std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
 }
 
 }  // namespace agalite_cuda_ds
-

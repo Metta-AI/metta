@@ -157,6 +157,8 @@ class CortexTD(nn.Module):
             layers.append(nn.Linear(self.d_hidden, self.out_features))
             layers.append(self._make_activation(self.config.output_nonlinearity))
         self._out: nn.Module = nn.Sequential(*layers) if layers else nn.Identity()
+        if self._storage_dtype is not None and self._storage_dtype is not torch.float32:
+            self._out = self._out.to(dtype=self._storage_dtype)
 
         self._rollout_store_leaves: List[torch.Tensor] = []
         self._row_store_leaves: List[torch.Tensor] = []
