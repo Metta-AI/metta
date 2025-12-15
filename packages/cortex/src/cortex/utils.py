@@ -87,15 +87,37 @@ def select_backend(
 
 
 def set_tf32_precision(mode: str) -> None:
-    """Set TF32 precision for matmul and cuDNN convolutions."""
-    if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = mode
-        torch.backends.cudnn.conv.fp32_precision = mode
+    """Set TF32 behavior for matmul and cuDNN convolutions.
+
+    PyTorch recommends `torch.set_float32_matmul_precision` instead of mutating
+    backend flags directly. We still set cudnn allow flags for convolutions so
+    callers that pass legacy modes continue to behave as expected.
+    """
+    if not torch.cuda.is_available():
+        return
+
+    # Map legacy modes to new API
+    mode_lower = mode.lower()
+    if mode_lower == "tf32":
+        torch.set_float32_matmul_precision("high")
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+    else:
+        # Treat any non-tf32 mode as IEEE (no TF32 fast paths)
+        torch.set_float32_matmul_precision("highest")
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
 
 
 def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled."""
-    set_tf32_precision("tf32")
+    """Ensure TF32 fast paths are enabled using the recommended API."""
+    if not torch.cuda.is_available():
+        return
+
+    # Use torch.set_float32_matmul_precision which is the recommended API
+    torch.set_float32_matmul_precision("high")
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]

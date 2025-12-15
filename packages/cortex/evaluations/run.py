@@ -10,7 +10,6 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
-from cortex.utils import set_tf32_precision
 from model import SequenceClassifier  # type: ignore[import-not-found]
 from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
 from synthetic_datasets import (  # type: ignore[import-not-found]
@@ -346,9 +345,10 @@ def _enable_determinism() -> None:
     """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
-    set_tf32_precision("ieee")
-    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
-    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("highest")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def train_one(

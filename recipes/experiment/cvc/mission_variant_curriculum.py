@@ -29,6 +29,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.architectures import get_architecture
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -462,6 +463,7 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    arch_type: str = "vit",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -524,6 +526,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
     )
 
 
