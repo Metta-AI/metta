@@ -15,12 +15,25 @@ Inventory::Inventory(const InventoryConfig& cfg,
                      const std::vector<std::string>* resource_names,
                      const std::unordered_map<std::string, ObservationType>* feature_ids)
     : _inventory(), _limits(), _owner(owner) {
+  // Handle new limit_defs format (with modifiers)
+  for (const auto& limit_def : cfg.limit_defs) {
+    SharedInventoryLimit* limit = new SharedInventoryLimit();
+    limit->amount = 0;
+    limit->base_limit = limit_def.base_limit;
+    limit->modifiers = limit_def.modifiers;
+    for (const auto& resource : limit_def.resources) {
+      this->_limits[resource] = limit;
+    }
+  }
+
+  // Handle legacy limits format (without modifiers)
   for (const auto& limit_pair : cfg.limits) {
     const auto& resources = limit_pair.first;
     const auto& limit_value = limit_pair.second;
     SharedInventoryLimit* limit = new SharedInventoryLimit();
     limit->amount = 0;
-    limit->limit = limit_value;
+    limit->base_limit = limit_value;
+    // No modifiers for legacy format
     for (const auto& resource : resources) {
       this->_limits[resource] = limit;
     }
@@ -48,9 +61,15 @@ InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_de
   SharedInventoryLimit* limit = nullptr;
   if (this->_limits.count(item) > 0) {
     limit = this->_limits.at(item);
+    // Get effective limit (base + modifiers)
+    InventoryQuantity effective = limit->effective_limit(this->_inventory);
     // The max is the total limit, minus whatever's used. But don't count this specific
     // resource.
-    max = limit->limit - (limit->amount - initial_amount);
+    int used_by_others = limit->amount - initial_amount;
+    if (used_by_others < 0) used_by_others = 0;  // Safety against underflow if something went wrong
+    int max_int = static_cast<int>(effective) - used_by_others;
+    if (max_int < 0) max_int = 0;
+    max = static_cast<InventoryQuantity>(max_int);
   }
 
   InventoryQuantity clamped_amount = static_cast<InventoryQuantity>(std::clamp<int>(new_amount, min, max));
@@ -92,10 +111,10 @@ InventoryQuantity Inventory::free_space(InventoryItem item) const {
   SharedInventoryLimit* limit = this->_limits.at(item);
 
   InventoryQuantity used = limit->amount;
-  InventoryQuantity total_limit = limit->limit;
+  InventoryQuantity effective = limit->effective_limit(this->_inventory);
 
   // Prevent underflow when used exceeds limit (can happen with dynamic modifiers)
-  return total_limit > used ? total_limit - used : 0;
+  return effective > used ? effective - used : 0;
 }
 
 // Get method implementation
