@@ -8,6 +8,8 @@ from typing import Any, Optional
 import torch
 from pydantic import Field
 
+# TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
+
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
@@ -329,8 +331,6 @@ class TrainTool(Tool):
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():
             return
-
-        torch.set_float32_matmul_precision("high")
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:

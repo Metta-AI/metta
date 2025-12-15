@@ -171,7 +171,28 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     arch_type: str = "vit",
+    policy_architecture: Optional["PolicyArchitecture"] = None,
 ) -> TrainTool:
+    from metta.agent.policy import PolicyArchitecture
+
+    # Optional richer override: allow passing a string spec for architecture
+    if isinstance(policy_architecture, str):
+        try:
+            policy_architecture = PolicyArchitecture.from_spec(policy_architecture)
+        except (SyntaxError, ValueError):
+            spec = policy_architecture.strip()
+
+            if "trxl" in spec.lower():
+                from metta.agent.policies.trxl import TRXLConfig
+
+                policy_architecture = TRXLConfig()
+            elif spec.startswith("class="):
+                class_path = spec.replace("class=", "").strip()
+                python_spec = f"{class_path}()"
+                policy_architecture = PolicyArchitecture.from_spec(python_spec)
+            else:
+                raise ValueError(f"Could not parse policy_architecture: {policy_architecture}")
+
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     evaluator_cfg = EvaluatorConfig(
@@ -181,7 +202,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
-        policy_architecture=get_architecture(arch_type),
+        policy_architecture=policy_architecture or get_architecture(arch_type),
     )
 
 
