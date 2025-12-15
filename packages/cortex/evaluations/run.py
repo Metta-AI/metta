@@ -346,8 +346,7 @@ def _enable_determinism() -> None:
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
     if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = "highest"
-        torch.backends.cudnn.conv.fp32_precision = "highest"
+        torch.set_float32_matmul_precision("highest")
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
