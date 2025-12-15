@@ -37,22 +37,21 @@ class MptArtifact:
     def instantiate(
         self,
         policy_env_info: PolicyEnvInterface,
-        device: torch.device | str = "cpu",
+        device: str = "cpu",
         *,
         strict: bool = True,
     ) -> Any:
-        if isinstance(device, str):
-            device = torch.device(device)
+        torch_device = torch.device(device)
 
         policy = self.architecture.make_policy(policy_env_info)
-        policy = policy.to(device)
+        policy = policy.to(torch_device)
 
         missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
         if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
+            policy.initialize_to_environment(policy_env_info, torch_device)
 
         return policy
 

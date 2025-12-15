@@ -92,7 +92,7 @@ class Checkpointer(TrainerComponent):
 
         if candidate_uri:
             artifact = load_mpt(candidate_uri)
-            policy = artifact.instantiate(policy_env_info, load_device)
+            policy = artifact.instantiate(policy_env_info, self._distributed.config.device)
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
