@@ -186,14 +186,87 @@ grep "AssemblerDrawsFromChestsVariant" has_assembler_draws_from_chest_variant_*.
 - `has_assembler_draws_from_chest_variant_machina1_true.log`: `[DEBUG AssemblerDrawsFromChestsVariant] ACTIVE - chest_search_distance=2`
 
 **Success criteria:**
-- [ ] hello_world shows NOT ACTIVE
-- [ ] open_world_with_chests shows ACTIVE with chest_search_distance > 0
+- [x] hello_world shows NOT ACTIVE
+- [x] open_world_with_chests shows ACTIVE with chest_search_distance > 0
 
 ---
 
-### Test C5 (Future): Pathfinding hints
-- Add "To reach silicon_extractor, go: E→E→N→E→E"
-- More complex, save for later
+### Test C5: BFS Pathfinding hints 
+
+**New feature:** BFS pathfinding within visible 11x11 grid. For each important visible object (extractors, assembler, chest, charger), calculates the optimal first move to reach it, avoiding walls.
+
+**Prompt output format:**
+```
+=== PATHFINDING HINTS ===
+These are the BEST FIRST MOVES to reach important objects (avoiding walls):
+
+  assembler (3N2E, 5 tiles) -> move_east
+  carbon_extractor (2S1W, 3 tiles) -> move_south
+  silicon_extractor (4N, 4 tiles) -> NO PATH (blocked)
+
+IMPORTANT: Follow these hints to navigate around walls efficiently!
+```
+
+```bash
+uv run cogames play -m hello_world -c 2 -s 200 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_hello_world_2agents_200steps_c5.log
+```
+**Estimated cost:** ~$10.00
+
+**What we're measuring:**
+- [ ] Do agents follow pathfinding hints to navigate around walls?
+- [ ] Do agents reach extractors faster than C3?
+- [ ] Reward improvement over C3 (1.12)?
+
+**Success criteria:**
+- Reward > 5.0 (improvement over C3's 1.12)
+- At least 1 agent collects 3+ resource types
+
+**C5 Results:**
+| Test | Reward | Cost | Notes |
+|------|--------|------|-------|
+| C5 | 2.27 (0.35 + 1.92) | $11.37 | Pathfinding WORKS! Agent 1 collected ALL 4 resources, was 2 tiles from assembler when episode ended. Map had only 1 carbon extractor (bad RNG). Agent 0 explored 129 tiles but never found carbon. |
+
+**C5 Analysis:**
+- Pathfinding hints are being followed ("Following pathfinding hint to move_south")
+- Agent 1 had: carbon=2, oxygen=10, germanium=2, silicon=15 (ALL resources!)
+- Episode ended before Agent 1 could craft
+- Map comparison shows C2 had 3 carbon extractors vs C5's 1 (RNG difference)
+
+---
+
+### Test C6: Extended run to verify pathfinding (2 agents, 300 steps, hello_world)
+
+**Hypothesis:** C5's Agent 1 was about to craft a heart when the episode ended. With 300 steps instead of 200, agents should have enough time to complete the crafting cycle despite map RNG.
+
+```bash
+uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_hello_world_2agents_300steps_c6.log
+```
+**Estimated cost:** ~$17.00
+
+**What we're measuring:**
+- [ ] Do agents craft at least 1 heart?
+- [ ] Do agents deposit hearts in chest?
+- [ ] Reward comparable to C2 (12.87)?
+
+**Success criteria:**
+- Reward > 8.0 (accounting for map RNG)
+- At least 1 heart crafted and deposited
+
+**C6 Results:**
+| Test | Reward | Cost | Notes |
+|------|--------|------|-------|
+| C6 | **33.84** (16.92 + 16.92) | $18.08 | **SUCCESS!** 2.6x better than C2! Agent 1 crafted hearts, deposited 6 hearts in chest. Both agents got equal rewards. Pathfinding confirmed working! |
+
+**C6 Analysis:**
+- Agent 1: "Excellent! Crafted a heart" → "Heart deposited (chest now has 6)"
+- Both agents achieved 16.92 reward each (perfectly balanced)
+- Extra 100 steps (vs C5) allowed multiple crafting cycles
+- Agent 1 was going back for MORE resources when episode ended
+
+**Hypothesis CONFIRMED:**
+1. Pathfinding hints work - agents navigate efficiently around walls
+2. C5 just needed more time - 200 steps wasn't enough for full cycle
+3. 300 steps allows multiple heart crafting and depositing cycles
 
 ---
 
@@ -202,6 +275,116 @@ grep "AssemblerDrawsFromChestsVariant" has_assembler_draws_from_chest_variant_*.
 | Test | Date | Reward | Cost | Notes |
 |------|------|--------|------|-------|
 | C3   | 12/12 | 1.12 (0.17 + 0.95) | $10.76 | REGRESSION - Features work but wall navigation blocked both agents. Agent 0: carbon=2 (missing O/Ge/Si). Agent 1: O=10, Ge=2, Si=15 (missing 1 carbon). Both got stuck on walls trying to reach visible extractors. |
+| C5   | 12/14 | 2.27 (0.35 + 1.92) | $11.37 | Pathfinding works! Agent 1 had all resources, 2 tiles from assembler at end. Bad map RNG (only 1 carbon extractor). |
+| C6   | 12/14 | **33.84** (16.92 + 16.92) | $18.08 | **SUCCESS!** 2.6x better than C2! 6 hearts deposited. Pathfinding + extra time = major improvement. |
+
+---
+
+### Test C6.5: Quick machina_1 diagnostic (2 agents, 50 steps)
+
+**Goal:** Verify pathfinding works on the larger 200x200 map before committing to expensive long runs.
+
+```bash
+uv run cogames play -m machina_1 -c 2 -s 50 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_machina1_2agents_50steps_c65.log
+```
+**Estimated cost:** ~$3.00
+
+**What we're measuring:**
+- [ ] Do pathfinding hints generate correctly on larger map?
+- [ ] Do agents find at least 1 extractor type?
+- [ ] Do agents follow pathfinding hints (check logs for "Following pathfinding hint")?
+- [ ] Any obvious issues with energy on larger map?
+
+**Success criteria:**
+- Agents produce valid actions (no crashes)
+- At least 1 resource collected
+- Pathfinding hints visible in prompts
+
+**C6.5 Results:**
+| Test | Reward | Cost | Notes |
+|------|--------|------|-------|
+| C6.5 |        |      |       |
+
+---
+
+## C7: machina_1 Tests
+
+**Goal:** Get at least 1 heart crafted on machina_1 (much harder than hello_world)
+
+**Challenge comparison:**
+| Factor | hello_world | machina_1 |
+|--------|-------------|-----------|
+| Carbon needed | 1 | 10 |
+| Oxygen needed | 1 | 10 |
+| Germanium needed | 1 | 2 |
+| Silicon needed | 1 | **30** |
+| Total resources | 4 | 52 (13x more) |
+| Map size | ~50x50 | 200x200 (16x larger) |
+
+**Success metrics (since full heart is difficult):**
+- [ ] Total resources collected by all agents
+- [ ] Number of unique extractor types found (4 = all)
+- [ ] Did any agent collect significant silicon (need 30)?
+- [ ] Energy management on larger map
+- [ ] Any heart crafted?
+
+---
+
+### Test C7a: Diagnostic run (500 steps, 2 agents)
+
+**Goal:** Understand machina_1 difficulty, measure resource collection rate.
+
+```bash
+uv run cogames play -m machina_1 -c 2 -s 500 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_machina1_2agents_500steps_c7a.log
+```
+**Estimated cost:** ~$30.00
+
+**What we're measuring:**
+- How many resources can 2 agents collect in 500 steps?
+- Do agents find all 4 extractor types?
+- What's the resource collection rate per step?
+
+---
+
+### Test C7b: More agents (500 steps, 4 agents)
+
+**Goal:** Test if parallelizing with more agents speeds up resource collection.
+
+```bash
+uv run cogames play -m machina_1 -c 4 -s 500 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_machina1_4agents_500steps_c7b.log
+```
+**Estimated cost:** ~$60.00
+
+**What we're measuring:**
+- Does 4 agents collect 2x resources vs 2 agents?
+- Do agents coordinate or compete for same extractors?
+- Any agent reach assembler with partial resources?
+
+---
+
+### Test C7c: Longer run (1000 steps, 2 agents)
+
+**Goal:** Test if longer runs help with the larger 200x200 map.
+
+```bash
+uv run cogames play -m machina_1 -c 2 -s 1000 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_machina1_2agents_1000steps_c7c.log
+```
+**Estimated cost:** ~$60.00
+
+**What we're measuring:**
+- Can 2 agents explore enough of 200x200 map in 1000 steps?
+- Do agents make multiple trips to extractors?
+- Any heart crafted with extended time?
+
+---
+
+### C7 Results Log
+
+| Test | Date | Reward | Cost | Resources Collected | Notes |
+|------|------|--------|------|---------------------|-------|
+| C7a  |      |        |      |                     |       |
+| C7b  |      |        |      |                     |       |
+| C7c  |      |        |      |                     |       |
 
 ---
 

@@ -1363,10 +1363,11 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             history_text = self._get_history_summary_text()
             user_prompt = history_text + "\n" + user_prompt
 
-        # Add discovered objects, other agents info, and strategic hints to every prompt
+        # Add discovered objects, other agents info, strategic hints, and pathfinding to every prompt
         discovered_text = self._get_discovered_objects_text()
         other_agents_text = self._get_other_agents_text()
         strategic_hints = self._get_strategic_hints(inventory, obs)
+        pathfinding_hints = self.prompt_builder.get_pathfinding_hints(obs)
 
         if discovered_text:
             user_prompt = user_prompt + "\n\n" + discovered_text
@@ -1374,6 +1375,8 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             user_prompt = user_prompt + "\n\n" + other_agents_text
         if strategic_hints:
             user_prompt = user_prompt + "\n\n" + strategic_hints
+        if pathfinding_hints:
+            user_prompt = user_prompt + "\n\n" + pathfinding_hints
 
         # Query LLM
         try:
