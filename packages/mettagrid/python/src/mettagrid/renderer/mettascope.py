@@ -146,33 +146,42 @@ class MettascopeRenderer(Renderer):
                     continue
 
 
-# Find the Nim bindings. Published wheels bundle the generated artifacts under
-# ``mettagrid/nim/mettascope`` (because our PEP‑517 backend copies the Nim
-# project into ``python/src`` during the build).  Editable installs, however,
-# serve the package straight from the repository checkout where the canonical
-# sources remain in ``packages/mettagrid/nim/mettascope`` and the copy step
-# never runs.  To support both layouts we try the packaged location first and,
-# if it is missing the bindings, walk upwards looking for the repository copy.
-package_root = Path(__file__).resolve().parent
+# Find the Nim bindings. Two possible locations:
+#
+# Source (editable installs): packages/mettagrid/nim/mettascope/bindings/generated
+#   - The canonical location where `nim build` outputs bindings
+#   - Used during development with editable installs
+#
+# Packaged (wheels): <site-packages>/mettagrid/nim/mettascope/bindings/generated
+#   - Created by PEP-517 backend copying nim/ into python/src/mettagrid/ during wheel build
+#   - The copy becomes part of the installed package
+#
+# We detect source layout by walking up to find a directory with both python/ and nim/
+# subdirectories (the packages/mettagrid/ structure). If not found, fall back to packaged.
+_python_package_root = Path(__file__).resolve().parent.parent
 
 
 def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
     search_paths: list[Path] = []
 
-    packaged = package_root / "nim" / "mettascope"
+    # For editable installs, find the mettagrid package root (has both python/ and nim/)
+    current = _python_package_root
+    for _ in range(8):
+        if (current / "python").is_dir() and (current / "nim").is_dir():
+            source = current / "nim" / "mettascope"
+            search_paths.append(source)
+            if (source / "bindings" / "generated").exists():
+                return source, search_paths
+        if current == current.parent:
+            break
+        current = current.parent
+
+    # Fall back to packaged location (for installed wheels)
+    packaged = _python_package_root / "nim" / "mettascope"
     search_paths.append(packaged)
     if (packaged / "bindings" / "generated").exists():
         return packaged, search_paths
 
-    current = package_root
-    for _ in range(8):
-        candidate = current / "mettagrid" / "nim" / "mettascope"
-        search_paths.append(candidate)
-        if candidate.exists():
-            return candidate, search_paths
-        if current == current.parent:
-            break
-        current = current.parent
     return None, search_paths
 
 
