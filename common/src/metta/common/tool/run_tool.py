@@ -8,9 +8,6 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 
-# Configure PyTorch globally before any other imports
-import metta.utils.torch_init  # noqa: E402, F401
-
 import argparse
 import copy
 import functools

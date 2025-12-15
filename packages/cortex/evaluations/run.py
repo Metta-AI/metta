@@ -343,9 +343,11 @@ def set_seed(seed: int) -> None:
 
 def _enable_determinism() -> None:
     """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
-    from metta.utils.torch_init import enable_determinism
-
-    enable_determinism()
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
+    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
 
 
 def train_one(

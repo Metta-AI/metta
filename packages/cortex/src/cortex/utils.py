@@ -87,18 +87,8 @@ def select_backend(
 
 
 def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled using the recommended API.
-
-    This is a convenience wrapper that ensures global TF32 config is applied.
-    The actual configuration is handled centrally via metta.utils.torch_init.
-    """
-    # Import and trigger global configuration (idempotent, safe to call multiple times)
-    try:
-        import metta.utils.torch_init  # noqa: F401
-    except ImportError:
-        # Fallback if metta.utils.torch_init is not available (e.g., in standalone cortex usage)
-        if torch.cuda.is_available():
-            torch.set_float32_matmul_precision("high")
+    """Ensure TF32 fast paths are enabled."""
+    torch.set_float32_matmul_precision("high")
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]
