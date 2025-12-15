@@ -92,6 +92,14 @@ releases:
     version: 3.12.2
     namespace: metrics-server
 
+  - name: prometheus
+    chart: oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack
+    version: 80.2.0
+    disableValidation: true
+    namespace: monitoring
+    values:
+      - ./helm.values/prometheus-values.yaml
+
   - name: datadog
     chart: datadog/datadog
     version: 3.75.0
@@ -175,14 +183,14 @@ releases:
       - datadog:
           service: pr-similarity-cache-refresh
 
-  - name: dashboard-cronjob
+  - name: metrics-collector-cronjob
     <<: *cronjob_template
     values:
-      - schedule: "0 */6 * * *" # Every 6 hours
+      - schedule: "*/15 * * * *" # Every 15 minutes
       - image:
-          tag: latest-dashboard # Workflow overrides with sha-abc123-dashboard
+          tag: latest-metrics-collector # Workflow overrides with sha-abc123-metrics-collector
       - datadog:
-          service: dashboard-collector
+          service: metrics-collector
 
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
@@ -193,14 +201,6 @@ releases:
   #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
   #     - datadog:
   #         service: pr-similarity-cache-refresh-dev
-  #         env: dev
-  #
-  # - name: dashboard-cronjob-dev
-  #   <<: *cronjob_template
-  #   values:
-  #     - schedule: "*/5 * * * *"  # Every 5 minutes for testing
-  #     - datadog:
-  #         service: dashboard-collector-dev
   #         env: dev
 # Helpful commands:
 #   Deploy cronjob definition: cd devops/charts && helmfile -l name=<release-name> apply

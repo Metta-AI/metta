@@ -159,6 +159,28 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Policy version {policy_version_id} not found")
         return policy_version
 
+    @router.get("/policies/{policy_id}")
+    @timed_http_handler
+    async def get_policy_by_id(policy_id: str, user: UserOrToken) -> PublicPolicyVersionRow:
+        """Get a single policy version by ID.
+
+        Note: Despite the parameter name 'policy_id', this endpoint expects
+        a policy_version_id (UUID). This naming matches the frontend's convention.
+
+        The frontend page at /alignmentleague/policy/[id] relies on this endpoint.
+        """
+        try:
+            policy_version_id = uuid.UUID(policy_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid UUID format: {policy_id}") from None
+
+        policy_version = await stats_repo.get_public_policy_version_by_id(policy_version_id)
+
+        if policy_version is None:
+            raise HTTPException(status_code=404, detail=f"Policy version {policy_id} not found")
+
+        return policy_version
+
     @router.put("/policies/versions/{policy_version_id_str}/tags")
     @timed_http_handler
     async def update_policy_version_tags_route(

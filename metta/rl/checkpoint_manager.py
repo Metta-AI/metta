@@ -11,7 +11,7 @@ from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, parse_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -56,19 +56,25 @@ class CheckpointManager:
         elif storage_decision.reason == "no_base_prefix":
             logger.info("Remote prefix unset; policies will remain local.")
 
+    @property
+    def output_uri(self) -> str:
+        if self._remote_prefix:
+            return self._remote_prefix
+        return f"file://{self.checkpoint_dir}"
+
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
-                resolved = resolve_uri(uri)
-                info = parse_uri(resolved).checkpoint_info
+                parsed = resolve_uri(uri)
+                info = parsed.checkpoint_info
                 if info:
-                    return (resolved, info[1])
+                    return (parsed.canonical, info[1])
             except (ValueError, FileNotFoundError):
                 pass
             return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
-        remote = try_resolve(self._remote_prefix) if self._remote_prefix else None
+        remote = try_resolve(self.output_uri) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
         if not candidates:
             return None
@@ -81,7 +87,7 @@ class CheckpointManager:
         local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
 
         if self._remote_prefix:
-            remote_uri = save_mpt(f"{self._remote_prefix}/{filename}", architecture=architecture, state_dict=state_dict)
+            remote_uri = save_mpt(f"{self.output_uri}/{filename}", architecture=architecture, state_dict=state_dict)
             logger.debug("Policy checkpoint saved remotely to %s", remote_uri)
             return remote_uri
 
