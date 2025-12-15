@@ -18,6 +18,7 @@ from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
+from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
@@ -198,23 +199,36 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
             }
 
-        # Build inventory config with support for grouped limits
-        limits_list = []
+        # Build inventory config with support for grouped limits and modifiers
+        limit_defs = []
 
         # First, handle explicitly configured limits (both individual and grouped)
         configured_resources = set()
         for resource_limit in agent_props["resource_limits"].values():
             # Convert resource names to IDs
             resource_ids = [resource_name_to_id[name] for name in resource_limit["resources"]]
-            limits_list.append((resource_ids, resource_limit["limit"]))
+            # Convert modifier names to IDs
+            modifiers_dict = resource_limit.get("modifiers", {})
+            modifier_ids = {
+                resource_name_to_id[name]: bonus
+                for name, bonus in modifiers_dict.items()
+                if name in resource_name_to_id
+            }
+            base_limit = min(resource_limit["limit"], 255)
+            limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
             configured_resources.update(resource_limit["resources"])
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
-                limits_list.append(([resource_name_to_id[resource_name]], default_resource_limit))
+                limit_defs.append(
+                    CppLimitDef(
+                        resources=[resource_name_to_id[resource_name]], base_limit=min(default_resource_limit, 255)
+                    )
+                )
 
-        inventory_config = CppInventoryConfig(limits=[(ids, min(limit, 255)) for ids, limit in limits_list])
+        inventory_config = CppInventoryConfig()
+        inventory_config.limit_defs = limit_defs
 
         cpp_agent_config = CppAgentConfig(
             type_id=0,
@@ -324,8 +338,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_id = resource_name_to_id[resource]
                 initial_inventory_cpp[resource_id] = min(amount, 255)
 
-            # Create inventory config with limits
-            limits_list = []
+            # Create inventory config with limits and modifiers
+            limit_defs = []
             for resource_limit in object_config.resource_limits.values():
                 # resources is always a list of strings
                 resource_list = resource_limit.resources
@@ -333,9 +347,20 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 # Convert resource names to IDs
                 resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
                 if resource_ids:
-                    limits_list.append((resource_ids, min(resource_limit.limit, 255)))
+                    # Convert modifier names to IDs
+                    modifier_ids = {
+                        resource_name_to_id[name]: bonus
+                        for name, bonus in resource_limit.modifiers.items()
+                        if name in resource_name_to_id
+                    }
+                    limit_defs.append(
+                        CppLimitDef(
+                            resources=resource_ids, base_limit=min(resource_limit.limit, 255), modifiers=modifier_ids
+                        )
+                    )
 
-            inventory_config = CppInventoryConfig(limits=limits_list)
+            inventory_config = CppInventoryConfig()
+            inventory_config.limit_defs = limit_defs
 
             cpp_chest_config = CppChestConfig(
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
