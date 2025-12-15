@@ -127,7 +127,11 @@ proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: V
   minimapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
   # Adjust zoom info and draw the minimap.
   minimapZoomInfo.hasMouse = false
+
+  bxy.saveTransform()
+  bxy.translate(contentPos)
   drawMinimap(minimapZoomInfo)
+  bxy.restoreTransform()
 
   glDisable(GL_SCISSOR_TEST)
 
@@ -164,7 +168,7 @@ proc initPanels() =
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
 
   rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
-  rootArea.areas[0].areas[1].addPanel("Minimap", genericPanelDraw)
+  rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
 
   rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
 
