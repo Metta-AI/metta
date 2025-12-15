@@ -5,8 +5,11 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 import concurrent.futures
+import re
+import shutil
 import subprocess
 import sys
+import time
 import webbrowser
 from enum import StrEnum
 from pathlib import Path
@@ -593,6 +596,82 @@ def cmd_pr_feed(
     except Exception as e:
         error(f"Error: {e}")
         raise typer.Exit(1) from e
+
+
+def _list_repo_dockerfiles(repo_root: Path) -> list[Path]:
+    try:
+        output = subprocess.check_output(["git", "ls-files", "*Dockerfile*"], cwd=repo_root, text=True)
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to enumerate Dockerfiles: {e}")
+        raise typer.Exit(e.returncode) from None
+    return [
+        (repo_root / line.strip()).resolve()
+        for line in output.splitlines()
+        if line.strip() and (repo_root / line.strip()).is_file()
+    ]
+
+
+def _tag_for_dockerfile(dockerfile: Path, repo_root: Path, tag_prefix: str) -> str:
+    rel = dockerfile.relative_to(repo_root)
+    base = rel.as_posix().replace("/", "-").lower()
+    base = re.sub(r"[^a-z0-9._-]", "-", base)
+    base = re.sub(r"-+", "-", base).strip("-") or "image"
+    return f"{tag_prefix}-{base}:latest"
+
+
+@app.command(
+    name="build-dockerfiles",
+    help="Build all repository Dockerfiles.\n\nUse this to test that changes do not break Dockerfile builds.",
+)
+def cmd_build_dockerfiles(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be built without building")] = False,
+):
+    tag_prefix = "metta"
+    repo_root = get_repo_root()
+    dockerfiles = _list_repo_dockerfiles(repo_root)
+    if not dockerfiles:
+        warning("No Dockerfiles found in repository.")
+        return
+
+    builds = [(df, _tag_for_dockerfile(df, repo_root, tag_prefix)) for df in sorted(dockerfiles)]
+
+    if dry_run:
+        print(f"Would build {len(builds)} Dockerfiles:")
+        for dockerfile, tag in builds:
+            print(f"  {dockerfile.relative_to(repo_root)} -> {tag}")
+        return
+
+    if shutil.which("docker") is None:
+        error("Docker is not installed or not on PATH.")
+        raise typer.Exit(1) from None
+
+    print(f"Building {len(builds)} Dockerfiles...")
+    durations: list[tuple[Path, str, float]] = []
+
+    for dockerfile, tag in builds:
+        rel_path = dockerfile.relative_to(repo_root)
+        print(f"Building {tag} from {rel_path}...")
+        start = time.perf_counter()
+        try:
+            subprocess.check_output(
+                ["docker", "build", "--network=host", "-f", str(dockerfile), "-t", tag, str(repo_root)],
+                cwd=repo_root,
+                stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as e:
+            duration = time.perf_counter() - start
+            error(f"Build failed for {rel_path} ({tag}) after {duration:.1f}s")
+            if e.output:
+                error(e.output.decode() if isinstance(e.output, bytes) else e.output)
+            raise typer.Exit(e.returncode) from None
+        duration = time.perf_counter() - start
+        durations.append((dockerfile, tag, duration))
+        success(f"Built {tag} in {duration:.1f}s")
+
+    success("All Dockerfiles built successfully.")
+    print("Build durations (slowest first):")
+    for _, tag, duration in sorted(durations, key=lambda x: x[2], reverse=True):
+        print(f"  {duration:.1f}s - {tag}")
 
 
 # Report env details command
