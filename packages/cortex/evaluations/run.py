@@ -341,13 +341,6 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def _enable_determinism() -> None:
-    """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
-    from metta.utils.torch_init import enable_determinism
-
-    enable_determinism()
-
-
 def train_one(
     *,
     stack: CortexStack,
@@ -725,8 +718,6 @@ def main() -> None:
         logging.getLogger().setLevel(level)
 
     set_seed(args.seed)
-    if args.deterministic:
-        _enable_determinism()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("device=%s seed=%d", device, args.seed)
 

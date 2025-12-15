@@ -25,9 +25,6 @@ class CortexStack(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        # TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
-        # This ensures it's set before torch.compile is called
-
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
         self._compiled_blocks: list | None = None

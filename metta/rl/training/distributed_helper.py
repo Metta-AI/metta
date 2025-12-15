@@ -52,7 +52,6 @@ class DistributedHelper:
 
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
-        # TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
         # Enable SDPA optimizations for better attention performance
         if torch.cuda.is_available():
             torch.backends.cuda.enable_flash_sdp(True)

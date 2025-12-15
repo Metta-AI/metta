@@ -76,7 +76,6 @@ ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
         # Backend perf optimization
-        # TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 

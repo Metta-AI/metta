@@ -63,7 +63,6 @@ class PolicyAutoBuilder(Policy):
         self.to(device)
         if torch.cuda.is_available():
             self._configure_sdp()
-            # TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

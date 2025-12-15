@@ -7,9 +7,6 @@ from typing import Any, Optional
 
 import torch
 from pydantic import Field
-
-# TF32 is configured globally via metta.utils.torch_init (imported early in run_tool.py)
-
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
