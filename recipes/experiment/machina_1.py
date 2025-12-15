@@ -83,6 +83,8 @@ def train(
 
     apply_cvc_sweep_defaults(tt.trainer)
     tt.policy_architecture = policy_architecture or ViTWithVibeBiasConfig()
+    if policy_architecture is None and hasattr(tt.policy_architecture, "core_resnet_layers"):
+        tt.policy_architecture.core_resnet_layers = 2
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
     tt.evaluator.simulations = [

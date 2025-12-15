@@ -44,10 +44,59 @@ class AgentRewards(Config):
 
 
 class ResourceLimitsConfig(Config):
-    """Resource limits configuration."""
+    """Resource limits configuration.
+
+    Supports dynamic limits via modifiers: the effective limit is
+    base_limit + sum(modifier_bonus * quantity_held) for each modifier item.
+
+    Example:
+        ResourceLimitsConfig(
+            resources=["battery"],
+            limit=0,  # base limit is 0
+            modifiers={"gear": 1}  # each gear adds +1 battery capacity
+        )
+    """
 
     limit: int
     resources: list[str]
+    modifiers: dict[str, int] = Field(
+        default_factory=dict,
+        description="Modifiers that increase the limit. Maps item name to bonus per item held.",
+    )
+
+
+class DamageConfig(Config):
+    """Damage configuration for agents.
+
+    When an agent's inventory items reach or exceed all threshold values, one random
+    resource from the resources map is destroyed (weighted by quantity above minimum)
+    and the threshold amounts are subtracted from inventory.
+    """
+
+    threshold: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+    )
+    resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Map of resources that can be destroyed, with minimum values. "
+        "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_distinct_keys(self) -> "DamageConfig":
+        """Ensure that threshold and resources keys don't overlap."""
+        threshold_keys = set(self.threshold.keys())
+        resources_keys = set(self.resources.keys())
+        overlapping_keys = threshold_keys.intersection(resources_keys)
+
+        if overlapping_keys:
+            raise ValueError(
+                f"Resources cannot appear in both threshold and resources maps. "
+                f"Overlapping keys: {sorted(overlapping_keys)}"
+            )
+
+        return self
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -67,8 +116,13 @@ class AgentConfig(Config):
     soul_bound_resources: list[str] = Field(
         default_factory=list, description="Resources that cannot be stolen during attacks"
     )
-    inventory_regen_amounts: dict[str, int] = Field(
-        default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
+    inventory_regen_amounts: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
+        description=(
+            "Vibe-dependent inventory regeneration. Maps vibe name to resource amounts. "
+            "Use 'default' for fallback when agent's vibe isn't specified. "
+            "Example: {'default': {'energy': 1}, 'weapon': {'energy': 2}}"
+        ),
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
@@ -78,6 +132,10 @@ class AgentConfig(Config):
         default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+    damage: Optional[DamageConfig] = Field(
+        default=None,
+        description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
+    )
 
     def get_limit_for_resource(self, resource_name: str) -> int:
         """Get the resource limit for a given resource name.
