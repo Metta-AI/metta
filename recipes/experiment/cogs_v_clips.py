@@ -321,27 +321,7 @@ def train(
         algorithm_config=cur_alg,
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
-    # Defaults from the best recent CvC sweep (cvc.1213_trial_0041_37f658).
-    trainer_cfg.optimizer.learning_rate = 0.01
-    trainer_cfg.optimizer.eps = 1.3297974e-08
-    trainer_cfg.optimizer.warmup_steps = 1926
-
-    trainer_cfg.losses.ppo.clip_coef = 0.2301655262708664
-    trainer_cfg.losses.ppo.gae_lambda = 0.99
-    trainer_cfg.losses.ppo.vf_coef = 0.5736182332038879
-    trainer_cfg.losses.ppo.ent_coef = 0.030000006780028343
-    trainer_cfg.losses.ppo.gamma = 0.9700000286102295
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.2301655262708664
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.99
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.5736182332038879
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.99
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.5736182332038879
+    trainer_cfg = TrainerConfig(losses=LossesConfig())
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
