@@ -1338,11 +1338,19 @@ ORDER BY e.created_at DESC
             if tags:
                 for idx, tag in enumerate(tags):
                     where_conditions.append(
-                        f"""EXISTS (
-                            SELECT 1 FROM policy_version_tags pvt_{idx}
-                            JOIN policy_versions pv_{idx} ON pv_{idx}.id = pvt_{idx}.policy_version_id
-                            WHERE pv_{idx}.policy_id = p.id
-                              AND pvt_{idx}.value = %s
+                        f"""(
+                            NOT EXISTS (
+                                SELECT 1
+                                FROM policy_versions pv0_{idx}
+                                WHERE pv0_{idx}.policy_id = p.id
+                            )
+                            OR EXISTS (
+                                SELECT 1
+                                FROM policy_version_tags pvt_{idx}
+                                JOIN policy_versions pv_{idx} ON pv_{idx}.id = pvt_{idx}.policy_version_id
+                                WHERE pv_{idx}.policy_id = p.id
+                                  AND pvt_{idx}.value = %s
+                            )
                         )"""
                     )
                     params.append(tag)
@@ -1513,8 +1521,6 @@ ORDER BY e.created_at DESC
                     "cells": [],
                 }
 
-            # DRY: Build base query and only vary ORDER BY clause
-            # Construct eval_name from category/name tags
             base_query = """
                 SELECT DISTINCT ON (p.name, CONCAT(cat.value, '/', name.value))
                     p.name AS policy_name,

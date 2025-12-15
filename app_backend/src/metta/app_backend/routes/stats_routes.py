@@ -426,7 +426,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     ) -> PolicyVersionsResponse | PoliciesSearchResponse:
         """Get policies or policy versions. Default returns versions; use format=policies for filtered policies."""
         # Determine mode: policies mode if format=policies OR any new filter is provided
-        use_policies_mode = format == "policies" or policy_type is not None or tags is not None or user_id is not None
+        use_policies_mode = (
+            format == "policies"
+            or policy_type is not None
+            or tags is not None
+            or user_id is not None
+            or search is not None
+        )
 
         if use_policies_mode:
             # Use search_policies() - supports all the new filters
