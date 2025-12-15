@@ -10,12 +10,14 @@ from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourierConfig
 from metta.agent.policy import PolicyArchitecture
+from pydantic import ConfigDict
 
 
 class CortexBaseConfig(PolicyArchitecture):
     """ViT-style policy with Cortex stack (xLSTM) replacing LSTM core."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
 
     _token_embed_dim = 8
     _fourier_freqs = 3
