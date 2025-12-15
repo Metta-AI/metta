@@ -2,7 +2,7 @@ import
   std/[strutils, strformat, os, parseopt, json],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap]
+  footer, timeline, minimap, header]
 
 # Build the atlas.
 var builder = newAtlasBuilder(1024, 4)
@@ -160,15 +160,7 @@ window.onFrame = proc() =
   glClear(GL_COLOR_BUFFER_BIT)
 
   # Header
-  ribbon(sk.pos, vec2(sk.size.x, 64), RibbonColor):
-    image("ui/logo")
-    h1text("Hello, World!")
-
-    sk.at = sk.pos + vec2(sk.size.x - 100, 16)
-    iconButton("ui/heart"):
-      echo "heart"
-    iconButton("ui/cloud"):
-      echo "cloud"
+  drawHeader()
 
   # Scrubber
   drawTimeline(vec2(0, sk.size.y - 64*2), vec2(sk.size.x, 66))

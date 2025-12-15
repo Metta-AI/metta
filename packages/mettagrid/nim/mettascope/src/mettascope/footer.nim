@@ -35,7 +35,6 @@ proc drawFooter*(pos, size: Vec2) =
         step = replay.maxSteps - 1
         stepFloat = step.float32
 
-
     group(vec2(sk.size.x/2 - 120, 16)):
       for i, speed in Speeds:
         if i == 0:
