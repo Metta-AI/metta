@@ -90,7 +90,9 @@ export class Drawer {
 
   static async load(): Promise<Drawer> {
     const tileSets = await loadMettaTileSets();
-    return new Drawer(tileSets);
+    const drawer = new Drawer(tileSets);
+    await drawer.generateOffscreenFloorBitmap();
+    return drawer;
   }
 
   drawTile({
@@ -217,8 +219,14 @@ export class Drawer {
     return bitmap;
   }
 
-  private async drawFloor(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
-    const tile = await this.generateOffscreenFloorBitmap();
+  private drawFloor(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+    const tile = this.cachedOffscreenFloorBitmap;
+
+    if (tile === null) {
+      // Invariant: generateOffscreenFloorBitmap must be called before drawFloor
+      throw new Error("Offscreen floor bitmap not generated before drawFloor");
+    }
+
     const step = 10;
 
     for (let x = 0; x < grid.width; x += step) {
@@ -230,7 +238,7 @@ export class Drawer {
     }
   }
 
-  async drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+  drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
     // Preserve pixelated look when zoomed in
     ctx.imageSmoothingEnabled = false;
 
@@ -242,7 +250,7 @@ export class Drawer {
     ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
 
     // Draw floor over entire visible region
-    await this.drawFloor(ctx, grid);
+    this.drawFloor(ctx, grid);
 
     // Sort objects into walls and other objects
     const objects: MettaObject[] = [];
