@@ -41,7 +41,7 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   const isMouseDown = useIsMouseDown();
 
   const enablePan = !panOnSpace || spacePressed;
-  const maxZoom = Math.max(grid.width, grid.height) * 4;
+  const maxZoom = Math.max(grid.width, grid.height) * 1.5;
 
   const { setContainer, panZoomHandlers, setZoom, setPan, pan, zoom } =
     usePanZoom({
