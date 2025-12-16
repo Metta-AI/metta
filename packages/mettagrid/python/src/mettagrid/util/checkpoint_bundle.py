@@ -54,7 +54,8 @@ def create_local_bundle(
     state_dict: Mapping[str, torch.Tensor],
 ) -> CheckpointBundle:
     """Write a checkpoint bundle to disk and return its metadata."""
-    from mettagrid.policy.mpt_artifact import save_mpt  # Local import to avoid circular dependency
+    from mettagrid.policy.mpt_artifact import save_mpt  # local import to avoid circular dependency
+
     checkpoint_dir = base_dir / checkpoint_filename(run_name, epoch)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,23 +117,12 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
 
 
 def resolve_policy_spec_uri(uri: str) -> str:
-    """
-    Resolve a URI that may point to a checkpoint directory or :latest suffix
-    into the canonical policy_spec.json URI.
-    """
+    """Resolve arbitrary checkpoint URI to policy_spec.json URI."""
     return resolve_checkpoint_bundle(uri).policy_spec_uri
 
 
 def resolve_policy_mpt_uri(uri: str) -> str:
-    """
-    Resolve a URI to the canonical policy.mpt location.
-
-    Accepts:
-      - direct .mpt file paths/URIs
-      - checkpoint directories
-      - :latest on a checkpoint directory
-    """
+    """Resolve arbitrary checkpoint URI to policy.mpt URI (or pass through .mpt)."""
     if uri.endswith(".mpt"):
         return parse_uri(uri).canonical
-
     return resolve_checkpoint_bundle(uri).policy_mpt_uri

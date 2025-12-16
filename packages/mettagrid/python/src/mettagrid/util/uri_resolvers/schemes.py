@@ -265,6 +265,19 @@ def policy_spec_from_uri(
             uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
         )
 
+    # Backwards compatibility: allow direct .mpt references.
+    if uri.endswith(".mpt"):
+        parsed_mpt = parse_uri(uri)
+        checkpoint_path = str(parsed_mpt.local_path) if parsed_mpt and parsed_mpt.local_path else uri
+        return PolicySpec(
+            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            init_kwargs={
+                "checkpoint_uri": checkpoint_path,
+                "device": device,
+                "strict": strict,
+            },
+        )
+
     from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
 
     bundle = resolve_checkpoint_bundle(uri)
