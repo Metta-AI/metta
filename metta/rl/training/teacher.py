@@ -60,7 +60,7 @@ def apply_teacher_phase(
     if not teacher_cfg.enabled:
         return
 
-    total_steps = teacher_cfg.steps if teacher_cfg.steps is not None else default_steps
+    total_steps = teacher_cfg.steps or default_steps
     losses = trainer_cfg.losses
 
     def _gate_loss(name: str, end_at_step: int | None = total_steps) -> None:
@@ -121,8 +121,7 @@ def apply_teacher_phase(
         # If teacher + student consume the whole batch, skip PPO entirely.
         total_led = teacher_cfg.teacher_led_proportion + teacher_cfg.student_led_proportion
         disable_ppo = total_led >= 1.0
-        keep_cloner_after_teacher = teacher_cfg.student_led_proportion > 0.0
-        gate_end_step = None if keep_cloner_after_teacher else total_steps
+        gate_end_step = None if teacher_cfg.student_led_proportion > 0.0 else total_steps
 
         losses.ppo_critic.sample_enabled = True
         losses.ppo_critic.train_forward_enabled = True
@@ -174,8 +173,7 @@ def apply_teacher_phase(
         losses.ppo_critic.train_forward_enabled = False
         losses.ppo_critic.deferred_training_start_step = total_steps
 
-        keep_kick_after_teacher = teacher_cfg.student_led_proportion > 0.0
-        gate_end_step = None if keep_kick_after_teacher else total_steps
+        gate_end_step = None if teacher_cfg.student_led_proportion > 0.0 else total_steps
 
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
