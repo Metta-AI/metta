@@ -77,10 +77,14 @@ def upload_bundle(bundle: CheckpointBundle, remote_prefix: str) -> CheckpointBun
         raise ValueError("upload_bundle requires a local bundle with a local_dir")
 
     remote_dir = _join_uri(remote_prefix, bundle.local_dir.name)
-    write_data(_join_uri(remote_dir, "policy.mpt"), (bundle.local_dir / "policy.mpt").read_bytes())
+    remote_mpt_uri = _join_uri(remote_dir, "policy.mpt")
+    write_data(remote_mpt_uri, (bundle.local_dir / "policy.mpt").read_bytes())
+
+    local_spec = PolicySpec.model_validate_json((bundle.local_dir / "policy_spec.json").read_text())
+    local_spec.init_kwargs["checkpoint_uri"] = remote_mpt_uri
     write_data(
         _join_uri(remote_dir, "policy_spec.json"),
-        (bundle.local_dir / "policy_spec.json").read_bytes(),
+        local_spec.model_dump_json().encode("utf-8"),
         content_type="application/json",
     )
     return CheckpointBundle(dir_uri=remote_dir)
