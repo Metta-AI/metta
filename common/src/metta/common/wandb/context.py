@@ -3,8 +3,6 @@ import os
 import socket
 from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import Field
-
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
@@ -23,7 +21,7 @@ class WandbConfig(Config):
     run_id: str | None = None  # Used for both WandB id and display name
     data_dir: str | None = None
     job_type: str | None = None
-    tags: list[str] = Field(default_factory=list)
+    tags: list[str] = []
     notes: str = ""
 
     @staticmethod
@@ -79,6 +77,7 @@ class WandbContext:
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
+        self._generated_ipc_file_path: str | None = None  # To store path if generated
 
     def __enter__(self) -> WandbRun | None:
         if not self.wandb_config.enabled:
@@ -137,13 +136,23 @@ class WandbContext:
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
+            # Save config and set up file syncing only if wandb init succeeded and data_dir is set
             if self.wandb_config.data_dir:
-                for pattern in ("*.log", "*.yaml", "*.json"):
-                    wandb.save(
-                        os.path.join(self.wandb_config.data_dir, pattern),
-                        base_path=self.wandb_config.data_dir,
-                        policy="live",
-                    )
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.log"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.yaml"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
+                wandb.save(
+                    os.path.join(self.wandb_config.data_dir, "*.json"),
+                    base_path=self.wandb_config.data_dir,
+                    policy="live",
+                )
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
         except (TimeoutError, CommError) as e:
