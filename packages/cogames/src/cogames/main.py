@@ -521,20 +521,11 @@ def make_policy(
             console.print(f"[yellow]Warning: {dest_path} already exists. Overwriting...[/yellow]")
 
         shutil.copy2(template_path, dest_path)
-
-        # Comment out short_names in templates to avoid registry conflicts with the original
-        content = dest_path.read_text()
-        content = content.replace(
-            'short_names = ["scripted_starter"]',
-            '# short_names = ["scripted_starter"]  # Uncomment to register a shorthand',
-        )
-        dest_path.write_text(content)
-
         console.print(f"[green]{policy_type} policy template copied to: {dest_path}[/green]")
 
         if trainable:
             console.print(
-                f"[dim]Train with: cogames train -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]"
+                f"[dim]Train with: cogames tutorial train -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]"
             )
         else:
             console.print(f"[dim]Play with: cogames play -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]")

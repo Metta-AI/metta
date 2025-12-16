@@ -2,7 +2,7 @@
 Trainable Policy Template for the CoGames environment.
 
 This template provides a minimal trainable neural network policy that can be used with
-`cogames train`. It demonstrates the key interfaces required for training:
+`cogames tutorial train`. It demonstrates the key interfaces required for training:
 
 - MultiAgentPolicy: The main policy class that manages multiple agents
 - AgentPolicy: Per-agent decision-making interface
@@ -14,7 +14,7 @@ clarity and without the pufferlib dependency.
 
 To use this template:
 1. Modify MyNetwork to implement your desired architecture
-2. Run: cogames train -m easy_hearts -p class=my_trainable_policy.MyTrainablePolicy
+2. Run: cogamestutorial  train -m easy_hearts -p class=my_trainable_policy.MyTrainablePolicy
 """
 
 from __future__ import annotations
