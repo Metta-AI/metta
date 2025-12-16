@@ -171,7 +171,7 @@ proc onFrame() =
   drawHeader()
 
   # Scrubber
-  drawTimeline(vec2(0, sk.size.y - 64*2), vec2(sk.size.x, 66))
+  drawTimeline(vec2(0, sk.size.y - 64 - 22), vec2(sk.size.x, 32))
 
   # Footer
   drawFooter(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64))
