@@ -102,7 +102,6 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
     teacher_uri: str = "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt",
-    total_timesteps: int = 10_000_000_000,
     kickstart_steps: int = 1_000_000_000,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
@@ -121,7 +120,7 @@ def train(
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
 
-    trainer_cfg = TrainerConfig(losses=losses_config, total_timesteps=total_timesteps)
+    trainer_cfg = TrainerConfig(losses=losses_config)
 
     scheduler = SchedulerConfig(
         run_gates=[
