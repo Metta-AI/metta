@@ -80,7 +80,7 @@
 
           # Check for AMD GPU (ROCm support) by looking for /dev/kfd
           if [ -e "/dev/kfd" ]; then
-            echo "# AMD GPU detected, configuring PyTorch 2.9.1 for ROCm 6.4"
+            echo "# AMD GPU detected, configuring PyTorch for ROCm 6.4"
             export FORCE_CUDA=0
 
             # Create and activate virtual environment with uv
@@ -92,7 +92,7 @@
               echo "# ROCm PyTorch already installed, skipping reinstall"
             else
               echo "# Installing ROCm PyTorch..."
-              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.1+rocm6.4 pytorch-triton-rocm==3.5.1
+              pip install --force-reinstall --extra-index-url https://download.pytorch.org/whl/rocm6.4 torch==2.9.0+rocm6.4 pytorch-triton-rocm==3.5.0
             fi
           else
             echo "# No AMD GPU detected, using default PyTorch installation"
