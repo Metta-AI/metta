@@ -1346,6 +1346,7 @@ ORDER BY e.created_at DESC
                         p.created_at,
                         p.user_id,
                         COALESCE(p.attributes, '{}'::jsonb) AS attributes,
+                        COUNT(pv.id) > 0 AS has_versions,
                         COALESCE(
                             jsonb_object_agg(pvt.key, pvt.value) FILTER (WHERE pvt.key IS NOT NULL),
                             '{}'::jsonb
@@ -1360,7 +1361,7 @@ ORDER BY e.created_at DESC
                 rows = await cur.fetchall()
                 policies = []
                 for row in rows:
-                    policy_type = "training_run" if row["attributes"].get("type") == "training_run" else "policy"
+                    policy_type = "policy" if row["has_versions"] else "training_run"
                     policies.append(
                         {
                             "id": row["id"],

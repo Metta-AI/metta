@@ -518,7 +518,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                     PolicyListItem(
                         id=str(entry.id),
                         name=entry.name,
-                        type="training_run" if entry.attributes.get("type") == "training_run" else "policy",
+                        type="policy" if entry.version_count > 0 else "training_run",
                         created_at=entry.created_at,
                         user_id=entry.user_id,
                         attributes=entry.attributes,
