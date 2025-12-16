@@ -487,12 +487,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 =======
 >>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     action_params["enabled"] = attack_cfg.enabled
-<<<<<<< HEAD
     # Convert vibes from names to IDs (validate all vibe names exist)
     for vibe in attack_cfg.vibes:
         if vibe not in vibe_name_to_id:
             raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes]
+<<<<<<< HEAD
 <<<<<<< HEAD
     # Convert vibe_bonus from names to IDs
     for vibe in attack_cfg.vibe_bonus:
@@ -509,6 +509,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     }
 >>>>>>> 9249d8778a (Fix C++ benchmark compilation: add armor/weapon_resources params)
 >>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
+=======
+    # Convert vibe_bonus from names to IDs
+    for vibe in attack_cfg.vibe_bonus:
+        if vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibe_bonus")
+    action_params["vibe_bonus"] = {vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items()}
+>>>>>>> e24ab9b87d (Add test for swapping positions with frozen agents)
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process change_vibe - always add to map

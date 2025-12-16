@@ -138,10 +138,13 @@ protected:
 
   bool _handle_target(Agent& actor, Agent& target) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     bool was_already_frozen = target.frozen > 0;
 
 >>>>>>> 40773fe448 (Fix vibe bonus test and defense_resources bug)
+=======
+>>>>>>> e24ab9b87d (Add test for swapping positions with frozen agents)
     // Check if target can defend (requires defense_resources to be configured)
     // armor/weapon resources only modify the defense cost, they don't enable defense by themselves
     if (!_defense_resources.empty()) {
@@ -161,6 +164,7 @@ protected:
 =======
     }
 
+<<<<<<< HEAD
     if (!was_already_frozen) {
       _apply_outcome(actor, target);
       _log_successful_attack(actor, target);
@@ -171,6 +175,8 @@ protected:
 >>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     }
 
+=======
+>>>>>>> e24ab9b87d (Add test for swapping positions with frozen agents)
     _apply_outcome(actor, target);
     _log_successful_attack(actor, target);
     return true;
