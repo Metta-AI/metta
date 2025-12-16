@@ -19,7 +19,7 @@ from mettagrid.config.obs_config import ObsConfig
 from mettagrid.config.vibes import VIBES, Vibe
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.simulator import Action
 
 # ===== Python Configuration Models =====

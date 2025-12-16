@@ -16,7 +16,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from recipes.experiment.architectures import get_architecture
