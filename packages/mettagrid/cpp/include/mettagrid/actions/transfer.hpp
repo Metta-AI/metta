@@ -70,6 +70,12 @@ public:
 
   // Expose to Move class - transfer decides if target is valid
   bool try_transfer(Agent& actor, GridObject* target_object) {
+    // Check if actor has the required resources
+    for (const auto& [item, amount] : _required_resources) {
+      if (actor.inventory.amount(item) < amount) {
+        return false;
+      }
+    }
     if (!_enabled) return false;  // Transfer action is disabled
     if (!target_object) return false;
 
