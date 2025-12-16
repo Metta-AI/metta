@@ -5,6 +5,9 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
+from __future__ import annotations
+
+import itertools
 import logging
 from typing import Optional, Sequence
 
@@ -122,6 +125,34 @@ def _prepare_mission(
     return mission
 
 
+def _add_buckets_to_tasks(
+    mission_tasks,
+    *,
+    dr_rewards: bool = False,
+    dr_misc: bool = False,
+) -> None:
+    """Add buckets to mission tasks based on dr_rewards and dr_misc flags."""
+    mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
+
+    if dr_rewards:
+        mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
+        resources = ["carbon", "oxygen", "germanium", "silicon"]
+        for resource in resources:
+            mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
+        equipment = ["scrambler", "modulator", "decoder", "resonator"]
+        for item in equipment:
+            mission_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0.0, 0.1, 1.0, 10.0])
+
+    if dr_misc:
+        mission_tasks.add_bucket("game.agent.inventory_regen_amounts.energy", [0, 1, 2])
+        mission_tasks.add_bucket("game.actions.move.consumed_resources.energy", [1, 2, 3])
+        mission_tasks.add_bucket("game.agent.resource_limits.cargo.limit", [25, 50, 100])
+        mission_tasks.add_bucket("game.agent.resource_limits.energy.limit", [50, 75, 100])
+        mission_tasks.add_bucket("game.clipper.clip_period", [0, 25, 50])
+        mission_tasks.add_bucket("game.inventory_regen_interval", [0, 1, 2])
+
+
 def make_eval_suite(
     num_cogs: int = 4,
     difficulty: str | None = "standard",
@@ -216,48 +247,59 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    dr_variants: int = 0,
+    dr_rewards: bool = False,
+    dr_misc: bool = False,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if missions is None:
         missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
-    # Determine which variant sets to use for bucketing
-    # None => baseline mission; [name] => single variant; [v1, v2] => combined variants
-    if variants is None:
-        variant_sets: list[list[str] | None] = [None] + [[v.name] for v in VARIANTS]
-    else:
-        variant_sets = [list(variants)]
-
-    all_mission_tasks = []
+    all_num_variants_task_sets = []
     for mission_name in missions:
         mission_template = _resolve_mission_template(mission_name)
 
-        # Create tasks for each variant set
-        for variant_set in variant_sets:
-            if variant_set is not None and not all(
-                any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
-            ):
-                continue
+        # All candidate variants (use provided list when given, otherwise all)
+        available_variants = list(variants) if variants is not None else [v.name for v in VARIANTS]
 
-            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_set or None)
-            mission_env.game.global_obs.goal_obs = True
-            mission_tasks = cc.bucketed(mission_env)
+        # Filter to compatible variants for this mission
+        compatible_available = [v.name for v in VARIANTS if v.name in available_variants and v.compat(mission_template)]
 
-            # Add buckets
-            mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
-            mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
+        # Build groups of variant combinations to merge. Preserve explicit variants when dr_variants=0.
+        if dr_variants == 0:
+            if variants is None:
+                # Keep default single-variant buckets when no explicit variants are provided.
+                combination_sizes = range(min(1, len(compatible_available)) + 1)
+            else:
+                combination_sizes = [0] + ([len(compatible_available)] if compatible_available else [])
+        else:
+            combination_sizes = range(min(dr_variants, len(compatible_available)) + 1)
 
-            # Resource types for reward bucketing
-            resources = ["carbon", "oxygen", "germanium", "silicon"]
+        variant_combination_groups = [
+            list(itertools.combinations(compatible_available, size)) for size in combination_sizes
+        ]
 
-            # Add buckets for resource collection rewards
-            for resource in resources:
-                mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
+        for variant_combinations in variant_combination_groups:
+            num_variants_tasks = []
+            for variant_combination in variant_combinations:
+                # Baseline when no variants selected; otherwise use the chosen combination
+                variant_list = None if len(variant_combination) == 0 else list(variant_combination)
+                mission_env = make_training_env(
+                    num_cogs=num_cogs,
+                    mission=mission_name,
+                    variants=variant_list,
+                )
+                mission_env.game.global_obs.goal_obs = True
+                mission_tasks = cc.bucketed(mission_env)
+                _add_buckets_to_tasks(mission_tasks, dr_rewards=dr_rewards, dr_misc=dr_misc)
+                num_variants_tasks.append(mission_tasks)
 
-            all_mission_tasks.append(mission_tasks)
+            # Merge all task sets for this group (previously per num_variants)
+            merged_num_variants_tasks = cc.merge(num_variants_tasks)
+            all_num_variants_task_sets.append(merged_num_variants_tasks)
 
-    merged_tasks = cc.merge(all_mission_tasks)
+    # Merge all task sets from different num_variants values
+    merged_tasks = cc.merge(all_num_variants_task_sets)
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -297,7 +339,10 @@ def train(
     max_evals: Optional[int] = None,
     teacher: TeacherConfig | None = None,
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 30,
+    dr_variants: int = 0,
+    dr_rewards: bool = False,
+    dr_misc: bool = False,
+    maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -311,6 +356,9 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         algorithm_config=cur_alg,
+        dr_variants=dr_variants,
+        dr_rewards=dr_rewards,
+        dr_misc=dr_misc,
     )
 
     trainer_cfg = TrainerConfig(losses=LossesConfig())
