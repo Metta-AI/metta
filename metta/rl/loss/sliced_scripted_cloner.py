@@ -81,10 +81,6 @@ class SlicedScriptedCloner(Loss):
 
             self.policy.forward(td)
 
-            # Ensure rewards exist for downstream losses even if PPO is gated off.
-            if "rewards" not in td.keys():
-                td["rewards"] = torch.zeros_like(td["dones"], dtype=torch.float32)
-
             if self.teacher_mask.any():
                 # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
                 teacher_actions = td["teacher_actions"].to(dtype=torch.long)
