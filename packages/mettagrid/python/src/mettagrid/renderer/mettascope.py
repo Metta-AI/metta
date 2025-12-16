@@ -162,13 +162,13 @@ def _resolve_nim_root() -> Optional[Path]:
     # Source location (repo checkout): packages/mettagrid/nim/mettascope
     # This will not exist when installed in packaged form
     source = _python_package_root.parent.parent.parent / "nim" / "mettascope"
-    if (source / "bindings" / "generated").exists():
-        return source
 
     # Packaged location (installed wheel): <site-packages>/mettagrid/nim/mettascope
     packaged = _python_package_root / "nim" / "mettascope"
-    if (packaged / "bindings" / "generated").exists():
-        return source
+
+    for root in [source, packaged]:
+        if (root / "bindings" / "generated").exists():
+            return root
 
     return None
 
