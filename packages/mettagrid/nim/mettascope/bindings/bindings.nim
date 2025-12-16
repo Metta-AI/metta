@@ -15,36 +15,25 @@ type
 proc ctrlCHandler() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
   echo "\nNim DLL caught ctrl-c, exiting..."
-  # if not window.isNil:
-  #   window.close()
+  if not window.isNil:
+    window.close()
   quit(0)
 
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
-    echo "init"
     echo "Initializing Mettascope..."
-    echo "Setting control CHook..."
     setControlCHook(ctrlCHandler)
-    echo "Creating RenderResponse..."
     result = RenderResponse(shouldClose: false, actions: @[])
-    echo "Replay from python: ", replay
-    echo "Data dir: ", dataDir
     playMode = Realtime
-    echo "Loading replay..."
     common.replay = loadReplayString(replay, "MettaScope")
-    echo "Creating window..."
     window = newWindow(
       "MettaScope",
       ivec2(1200, 800),
       #vsync = true
     )
-    echo "Making context current..."
     makeContextCurrent(window)
-    echo "Loading extensions..."
     loadExtensions()
-    echo "Initializing Mettascope..."
     initMettascope()
-    echo "Returning RenderResponse..."
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
