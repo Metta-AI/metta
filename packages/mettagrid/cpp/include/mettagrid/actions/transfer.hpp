@@ -35,10 +35,9 @@ struct TransferActionConfig : public ActionConfig {
   bool enabled;
 
   TransferActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
-                       const std::unordered_map<InventoryItem, InventoryQuantity>& consumed_resources = {},
                        const std::unordered_map<ObservationType, VibeTransferEffect>& vibe_transfers = {},
                        bool enabled = true)
-      : ActionConfig(required_resources, consumed_resources), vibe_transfers(vibe_transfers), enabled(enabled) {}
+      : ActionConfig(required_resources, {}), vibe_transfers(vibe_transfers), enabled(enabled) {}
 };
 
 class Transfer : public ActionHandler {
@@ -182,11 +181,9 @@ inline void bind_vibe_transfer_effect(py::module& m) {
 inline void bind_transfer_action_config(py::module& m) {
   py::class_<TransferActionConfig, ActionConfig, std::shared_ptr<TransferActionConfig>>(m, "TransferActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, VibeTransferEffect>&,
                     bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
-           py::arg("consumed_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("vibe_transfers") = std::unordered_map<ObservationType, VibeTransferEffect>(),
            py::arg("enabled") = true)
       .def_readwrite("vibe_transfers", &TransferActionConfig::vibe_transfers)

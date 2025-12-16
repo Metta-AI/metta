@@ -40,7 +40,6 @@ Agent::Agent(GridCoord r,
       diversity_tracked_mask[index] = 1;
     }
   }
-
   populate_initial_inventory(config.initial_inventory);
   GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
 }
