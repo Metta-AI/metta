@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from datetime import datetime
@@ -9,9 +10,13 @@ from typing import Annotated
 
 import typer
 
+from devops.datadog.datadog_client import DatadogMetricsClient
 from devops.stable.asana_bugs import check_blockers
+from devops.stable.datadog_metrics import jobs_to_metrics
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
 from devops.stable.runner import Job, Runner
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(add_completion=False, invoke_without_command=True)
 
@@ -86,6 +91,7 @@ def _print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
 @app.callback()
 def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Print metrics instead of submitting to Datadog")] = False,
 ):
     has_blockers = False
     if suite != Suite.CI:
@@ -117,6 +123,35 @@ def main(
         print(f"  - {j.name} ({remote})")
 
     runner.run_all()
+
+    # Emit Datadog metrics for completed jobs
+    try:
+        metrics = jobs_to_metrics(runner.jobs)
+        if metrics:
+            if dry_run:
+                print("\n" + "=" * 60)
+                print("Datadog Metrics (DRY RUN - not submitted)")
+                print("=" * 60)
+                import json
+
+                for metric in metrics:
+                    print(json.dumps(metric.to_dict(), indent=2, default=str))
+                print(f"\nTotal: {len(metrics)} metrics")
+            else:
+                logger.info("Emitting %d Datadog metrics from job results", len(metrics))
+                client = DatadogMetricsClient()
+                client.submit(metrics)
+                logger.info("Successfully emitted Datadog metrics")
+        else:
+            if dry_run:
+                print("\nNo Datadog metrics to emit")
+            else:
+                logger.debug("No Datadog metrics to emit")
+    except Exception as e:
+        # Don't fail the workflow if Datadog emission fails
+        logger.error("Failed to emit Datadog metrics: %s", e, exc_info=True)
+        if dry_run:
+            print(f"\nError generating metrics: {e}")
 
     failed = [j for j in runner.jobs.values() if _failed(j)]
     _print_failed_logs(runner)
