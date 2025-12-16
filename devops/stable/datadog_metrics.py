@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from devops.datadog.models import MetricSample
-from devops.stable.runner import AcceptanceCriterion, Job, JobStatus
+from devops.stable.runner import Job, JobStatus
 
 logger = logging.getLogger(__name__)
 
