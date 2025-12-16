@@ -14,7 +14,6 @@ from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
 from cortex.types import MaybeState, ResetMask, Tensor
-from cortex.utils import configure_tf32_precision
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +24,6 @@ class CortexStack(nn.Module):
     def __init__(self, cfg: CortexStackConfig) -> None:
         super().__init__()
         self.cfg = cfg
-
-        # Ensure TF32 is configured BEFORE torch.compile is called to avoid API mismatch errors
-        if torch.cuda.is_available():
-            configure_tf32_precision()
 
         self.blocks = nn.ModuleList(self._build_blocks(cfg))
         self.norm = nn.LayerNorm(cfg.d_hidden) if cfg.post_norm else nn.Identity()
