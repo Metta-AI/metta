@@ -61,9 +61,8 @@ class PolicyAutoBuilder(Policy):
         device: torch.device,
     ):
         self.to(device)
-        if device.type == "cuda":
+        if torch.cuda.is_available():
             self._configure_sdp()
-            torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
