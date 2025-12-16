@@ -17,11 +17,11 @@ from metta.rl.utils import prepare_policy_forward_td
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.753832, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
+    gamma: float = Field(default=0.972810, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.995000, ge=0, le=1.0)
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
@@ -102,7 +102,12 @@ class PPOCritic(Loss):
             return
 
         with torch.no_grad():
-            self.policy.forward(td)
+            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+            # reuse them to avoid overwriting while still computing values/logprobs.
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -139,7 +144,8 @@ class PPOCritic(Loss):
             )
 
         # sample from the buffer if called for
-        if self.sample_enabled:
+        minibatch = shared_loss_data.get("sampled_mb")
+        if self.sample_enabled and minibatch is None:
             minibatch, indices, prio_weights = prio_sample(
                 buffer=self.replay,
                 mb_idx=mb_idx,
@@ -155,13 +161,13 @@ class PPOCritic(Loss):
             shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
             shared_loss_data["prio_weights"] = prio_weights
         else:
-            minibatch = shared_loss_data["sampled_mb"]
-            indices = shared_loss_data["indices"]
+            indices = shared_loss_data.get("indices", None)
             if isinstance(indices, NonTensorData):
                 indices = indices.data
+            if indices is None:
+                indices = torch.arange(minibatch.batch_size[0], device=self.device)
 
             if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
                 shared_loss_data["prio_weights"] = torch.ones(
                     (minibatch.shape[0], minibatch.shape[1]),
                     device=self.device,
