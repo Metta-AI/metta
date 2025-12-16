@@ -192,36 +192,6 @@ proc updateVisibilityMap*(visibilityMap: TileMap) =
   visibilityMap.rebuildVisibilityMap()
   visibilityMap.updateGPU()
 
-proc buildAtlas*() =
-  ## Build the atlas.
-  bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
-  bxy.addImage("selection", readImage(dataDir & "/selection.png"))
-  bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
-  bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
-  bxy.addImage("agents/frozen", readImage(dataDir & "/agents/frozen.png"))
-  bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
-  bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
-  bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
-  bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
-
-  bxy.addImage("minimap/agent", readImage(dataDir & "/minimap/agent.png"))
-  bxy.addImage("minimap/assembler", readImage(dataDir & "/minimap/assembler.png"))
-  bxy.addImage("minimap/carbon_extractor", readImage(dataDir & "/minimap/carbon_extractor.png"))
-  bxy.addImage("minimap/charger", readImage(dataDir & "/minimap/charger.png"))
-  bxy.addImage("minimap/germanium_extractor", readImage(dataDir & "/minimap/germanium_extractor.png"))
-  bxy.addImage("minimap/silicon_extractor", readImage(dataDir & "/minimap/silicon_extractor.png"))
-  bxy.addImage("minimap/oxygen_extractor", readImage(dataDir & "/minimap/oxygen_extractor.png"))
-  bxy.addImage("minimap/chest", readImage(dataDir & "/minimap/chest.png"))
-
-  proc addDir(rootDir: string, dir: string) =
-    for path in walkDirRec(rootDir / dir):
-      if path.endsWith(".png") and "fidget" notin path:
-        let name = path.replace(rootDir & "/", "").replace(".png", "")
-        bxy.addImage(name, readImage(path))
-
-  addDir(dataDir, "resources")
-  addDir(dataDir, "vibe")
-
 proc getProjectionView*(): Mat4 =
   ## Get the projection and view matrix.
   let m = bxy.getTransform()
@@ -338,7 +308,6 @@ proc drawObjects*() =
     case typeName
     of "wall":
       discard
-      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = TS)
     of "agent":
       let agent = thing
       var agentImage = case agent.orientation.at:
@@ -427,56 +396,46 @@ proc drawTrajectory*() =
 
           let isAgent = selection.typeName == "agent"
           if step >= i:
-            # Past trajectory is black.
-            tint = color(0, 0, 0, a)
-            if isAgent:
-              image = "agents/footprints"
-            else:
-              image = "agents/past_arrow"
+            image = "agents/footprints"
           else:
-            # Future trajectory is white.
-            tint = color(1, 1, 1, a)
-            if isAgent:
-              image = "agents/path"
-            else:
-              image = "agents/future_arrow"
+            image = "agents/path"
 
-          let
-            dx = cx1 - cx0
-            dy = cy1 - cy0
-          var
-            rotation: float32 = 0
-            diagScale: float32 = 1
+          # let
+          #   dx = cx1 - cx0
+          #   dy = cy1 - cy0
+          # var
+          #   rotation: float32 = 0
+          #   diagScale: float32 = 1
 
-          if dx > 0 and dy == 0:
-            rotation = 0
-          elif dx < 0 and dy == 0:
-            rotation = Pi
-          elif dx == 0 and dy > 0:
-            rotation = -Pi / 2
-          elif dx == 0 and dy < 0:
-            rotation = Pi / 2
-          elif dx > 0 and dy > 0:
-            rotation = -Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx > 0 and dy < 0:
-            rotation = Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx < 0 and dy > 0:
-            rotation = -3 * Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx < 0 and dy < 0:
-            rotation = 3 * Pi / 4
-            diagScale = sqrt(2.0f)
+          # if dx > 0 and dy == 0:
+          #   rotation = 0
+          # elif dx < 0 and dy == 0:
+          #   rotation = Pi
+          # elif dx == 0 and dy > 0:
+          #   rotation = -Pi / 2
+          # elif dx == 0 and dy < 0:
+          #   rotation = Pi / 2
+          # elif dx > 0 and dy > 0:
+          #   rotation = -Pi / 4
+          #   diagScale = sqrt(2.0f)
+          # elif dx > 0 and dy < 0:
+          #   rotation = Pi / 4
+          #   diagScale = sqrt(2.0f)
+          # elif dx < 0 and dy > 0:
+          #   rotation = -3 * Pi / 4
+          #   diagScale = sqrt(2.0f)
+          # elif dx < 0 and dy < 0:
+          #   rotation = 3 * Pi / 4
+          #   diagScale = sqrt(2.0f)
 
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
-          # bxy.drawImage(
-          #   image,
-          #   vec2(cx0.float32, cy0.float32),
-          #   angle = rotation,
-          #   scale = (1.0f / 200.0f) * diagScale,
-          #   tint = tint
-          # )
+          px.drawSprite(
+            image,
+            ivec2(cx0.int32, cy0.int32) * TILE_SIZE,
+            # angle = rotation,
+            # scale = (1.0f / 200.0f) * diagScale,
+            # tint = tint
+          )
 
 proc drawActions*() =
   ## Draw the actions of the selected agent.
@@ -487,23 +446,24 @@ proc drawActions*() =
       if (replay.drawnAgentActionMask and (1'u64 shl actionId)) != 0 and
           obj.actionSuccess.at and
           actionId >= 0 and actionId < replay.actionImages.len:
-        bxy.drawImage(
-          if actionId != replay.attackActionId:
-            replay.actionImages[actionId]
-          else:
-            let attackParam = obj.actionParameter.at
-            if attackParam >= 1 and attackParam <= 9:
-              replay.actionAttackImages[attackParam - 1]
-            else:
-              continue,
-          obj.location.at.xy.vec2,
-          angle = case obj.orientation.at:
-          of 0: PI / 2 # North
-          of 1: -PI / 2 # South
-          of 2: PI # West
-          of 3: 0 # East
-          else: 0, # East
-        scale = 1/200)
+        # bxy.drawImage(
+        #   if actionId != replay.attackActionId:
+        #     replay.actionImages[actionId]
+        #   else:
+        #     let attackParam = obj.actionParameter.at
+        #     if attackParam >= 1 and attackParam <= 9:
+        #       replay.actionAttackImages[attackParam - 1]
+        #     else:
+        #       continue,
+        #   obj.location.at.xy.vec2,
+        #   angle = case obj.orientation.at:
+        #   of 0: PI / 2 # North
+        #   of 1: -PI / 2 # South
+        #   of 2: PI # West
+        #   of 3: 0 # East
+        #   else: 0, # East
+        # scale = 1/200)
+        discard
     elif obj.productionProgress.at > 0:
       # bxy.drawImage(
       #   "actions/converting",
@@ -517,11 +477,9 @@ proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
   for agent in replay.agents:
     if agent.isFrozen.at:
-      bxy.drawImage(
+      px.drawSprite(
         "agents/frozen",
-        agent.location.at.xy.vec2,
-        angle = 0,
-        scale = TS
+        agent.location.at.xy.ivec2 * TILE_SIZE,
       )
 
 proc drawGrid*() =
@@ -571,12 +529,10 @@ proc drawPlannedPath*() =
         rotation = Pi / 2
 
       let alpha = 0.6
-      bxy.drawImage(
+      px.drawSprite(
         "agents/path",
-        pos0.vec2,
-        angle = rotation,
-        scale = 1/200,
-        tint = color(1, 1, 1, alpha)
+        pos0.ivec2 * TILE_SIZE,
+        #tint = color(1, 1, 1, alpha)
       )
       currentPos = action.pos
 
@@ -586,12 +542,10 @@ proc drawPlannedPath*() =
       if objectives.len > 0:
         let objective = objectives[^1]
         if objective.kind in {Move, Bump}:
-          bxy.drawImage(
-            "selection",
-            objective.pos.vec2,
-            angle = 0,
-            scale = 1.0 / 200.0,
-            tint = color(1, 1, 1, 0.5)
+          px.drawSprite(
+            "objects/selection",
+            objective.pos.ivec2 * TILE_SIZE,
+            #tint = color(1, 1, 1, 0.5)
           )
 
       # Draw approach arrows for bump objectives.
@@ -608,23 +562,15 @@ proc drawPlannedPath*() =
             rotation = 0
           elif objective.approachDir.y < 0:
             rotation = Pi
-          bxy.drawImage(
-            "actions/arrow",
-            approachPos.vec2 + offset,
-            angle = rotation,
-            scale = 1/200,
-            tint = color(1, 1, 1, 0.7)
+          px.drawSprite(
+            "agents/arrow",
+            approachPos.ivec2 * TILE_SIZE + offset.ivec2,
+            #tint = color(1, 1, 1, 0.7)
           )
 
 proc drawSelection*() =
   # Draw selection.
   if selection != nil:
-    # bxy.drawImage(
-    #   "selection",
-    #   selection.location.at.xy.vec2,
-    #   angle = 0,
-    #   scale = 1/200
-    # )
     px.drawSprite(
       "objects/selection",
       selection.location.at.xy.ivec2 * TILE_SIZE,
@@ -694,48 +640,48 @@ proc drawThoughtBubbles*() =
       let r = 1.0f / 3.0f
       let tX = targetX.float32 - sin(angle) * r
       let tY = targetY.float32 - cos(angle) * r
-      bxy.drawImage(
-        "actions/arrow",
-        vec2(tX, tY),
-        angle = angle + PI,
-        scale = 1/200
+      px.drawSprite(
+        "agents/arrow",
+        ivec2(tX.int32, tY.int32) * TILE_SIZE,
+        # angle = angle + PI,
+        # scale = 1/200
       )
     let pos = loc.vec2 + vec2(0.5, -0.5)
-    # We have a key action, so draw the thought bubble.
-    # Draw the key action icon with gained or lost resources.
-    bxy.drawImage(
-      if step == keyStep: "actions/thoughts_lightning" else: "actions/thoughts",
-      pos,
-      angle = 0,
-      scale = 1/200
-    )
-    # Draw the action icon.
-    bxy.drawImage(
-      if keyAction < replay.actionIconImages.len:
-        replay.actionIconImages[keyAction] else: "actions/icons/unknown",
-      pos,
-      angle = 0,
-      scale = 1/200/4
-    )
+    # # We have a key action, so draw the thought bubble.
+    # # Draw the key action icon with gained or lost resources.
+    # px.drawSprite(
+    #   if step == keyStep: "agents/thoughts_lightning" else: "agents/thoughts",
+    #   pos.ivec2 * TILE_SIZE,
+    #   # angle = 0,
+    #   # scale = 1/200
+    # )
+    # # Draw the action icon.
+    # px.drawSprite(
+    #   if keyAction < replay.actionIconImages.len:
+    #     replay.actionIconImages[keyAction] else: "actions/icons/unknown",
+    #   pos.ivec2 * TILE_SIZE,
+    #   # angle = 0,
+    #   # scale = 1/200/4
+    # )
 
-    # Draw the resources lost on the left and gained on the right.
-    var gainX = pos.x + 32/200
-    var lossX = pos.x - 32/200
-    let gainMap = selection.gainMap.at(keyStep)
-    for item in gainMap:
-      var drawX = 0.0f
-      if item.count > 0:
-        drawX = gainX
-        gainX += 8/200
-      else:
-        drawX = lossX
-        lossX -= 8/200
-      bxy.drawImage(
-        replay.itemImages[item.itemId],
-        vec2(drawX, pos.y),
-        angle = 0,
-        scale = 1/200/8
-      )
+    # # Draw the resources lost on the left and gained on the right.
+    # var gainX = pos.x + 32/200
+    # var lossX = pos.x - 32/200
+    # let gainMap = selection.gainMap.at(keyStep)
+    # for item in gainMap:
+    #   var drawX = 0.0f
+    #   if item.count > 0:
+    #     drawX = gainX
+    #     gainX += 8/200
+    #   else:
+    #     drawX = lossX
+    #     lossX -= 8/200
+    #   px.drawSprite(
+    #     "resources/" & replay.itemNames[item.itemId],
+    #     ivec2(drawX.int32, pos.y.int32) * TILE_SIZE,
+    #     # angle = 0,
+    #     # scale = 1/200/8
+    #   )
 
 proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
@@ -805,7 +751,7 @@ proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
 proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
-  #drawTrajectory()
+  drawTrajectory()
   drawObjects()
 
   bxy.enterRawOpenGLMode()
