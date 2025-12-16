@@ -101,6 +101,9 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher_uri: str = "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt",
+    total_timesteps: int = 10_000_000_000,
+    kickstart_steps: int = 1_000_000_000,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -112,15 +115,13 @@ def train(
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
 
-    losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
-    )
-    ks_end_step = 1_000_000_000
+    losses_config.sliced_kickstarter.teacher_uri = teacher_uri
+    ks_end_step = kickstart_steps
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
 
-    trainer_cfg = TrainerConfig(losses=losses_config)
+    trainer_cfg = TrainerConfig(losses=losses_config, total_timesteps=total_timesteps)
 
     scheduler = SchedulerConfig(
         run_gates=[
@@ -144,6 +145,16 @@ def train(
                 style="linear",
                 start_value=0.2,
                 end_value=0.0,
+                start_agent_step=0,
+                end_agent_step=ks_end_step,
+            ),
+            HyperUpdateRule(
+                loss_instance_name="sliced_kickstarter",
+                attr_path="learning_rate",
+                mode="progress",
+                style="linear",
+                start_value=0.001,
+                end_value=0.00001,
                 start_agent_step=0,
                 end_agent_step=ks_end_step,
             ),

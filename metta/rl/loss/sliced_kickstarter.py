@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 import torch.nn.functional as F
@@ -11,7 +11,9 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
+from metta.rl.training.optimizer import create_optimizer, is_schedulefree_optimizer
 from metta.rl.utils import prepare_policy_forward_td
+from mettagrid.base_config import Config
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_policy import MptPolicy
@@ -20,6 +22,25 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
+
+
+class OptimizerConfig(Config):
+    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
+    # Learning rate: tuned for ScheduleFree AdamW (scaled down ~20% from the legacy Adam default)
+    learning_rate: float = Field(default=0.00092, gt=0, le=1.0)
+    # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
+    beta1: float = Field(default=0.9, ge=0, le=1.0)
+    # Beta2: Standard Adam default from Kingma & Ba (2014)
+    beta2: float = Field(default=0.999, ge=0, le=1.0)
+    # Epsilon: Type 2 default chosen arbitrarily
+    eps: float = Field(default=3.186531e-07, gt=0)
+    # Weight decay: modest L2 regularization for AdamW-style optimizers
+    weight_decay: float = Field(default=0.01, ge=0)
+    # ScheduleFree-specific parameters
+    momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
+    warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
+    # grad nom
+    max_grad_norm = 0.5
 
 
 class SlicedKickstarterConfig(LossConfig):
@@ -32,6 +53,13 @@ class SlicedKickstarterConfig(LossConfig):
     # remainder of the sum below is left for the PPO loss to use
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+
+    # this is tentatively a hack that will override the optimizer's learning rate as training progresses
+    # just need to make a small update to Scheduler to clean this up.
+    learning_rate: float = Field(default=0.00092, gt=0, le=1.0)
+
+    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+    optimizer.learning_rate = learning_rate
 
     def create(
         self,
@@ -95,6 +123,9 @@ class SlicedKickstarter(Loss):
         if isinstance(self.teacher_policy, MptPolicy):
             self.teacher_policy = self.teacher_policy._policy
 
+        self.optimizer = create_optimizer(self.cfg.optimizer, self._policy)
+        self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
+
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
         act_space = self.env.single_action_space
@@ -114,6 +145,9 @@ class SlicedKickstarter(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
+            if self._is_schedulefree:
+                self.optimizer.eval()
+
             teacher_td = td.clone()
             self.teacher_policy.forward(teacher_td)
             teacher_actions = teacher_td["actions"]
@@ -252,6 +286,9 @@ class SlicedKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        if self._is_schedulefree:
+            self.optimizer.train()
+        self.optimizer.zero_grad()
         minibatch, indices = sequential_sample(self.replay, mb_idx)
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
@@ -301,6 +338,12 @@ class SlicedKickstarter(Loss):
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = self.cfg.learning_rate
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.cfg.optimizer.max_grad_norm)
+        self.optimizer.step()
+
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
@@ -308,7 +351,7 @@ class SlicedKickstarter(Loss):
         self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
         self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
-        return loss, shared_loss_data, False
+        return self._zero_tensor, shared_loss_data, False  # we don't want to pass loss to the other optimizer
 
     def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
         self._update_slices()
