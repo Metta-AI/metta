@@ -206,6 +206,7 @@ class Mission(Config):
                     # Reward only the agent that deposits a heart.
                     stats={"chest.heart.deposited_by_agent": 1.0},
                 ),
+                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
