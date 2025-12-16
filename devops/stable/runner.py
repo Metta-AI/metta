@@ -55,6 +55,7 @@ class Job(BaseModel):
     skypilot_job_id: str | None = None
     metrics: dict[str, float] = Field(default_factory=dict)
     acceptance_passed: bool | None = None
+    criterion_results: dict[str, bool] = Field(default_factory=dict)
     error: str | None = None
 
     @property
@@ -105,33 +106,32 @@ class _AcceptanceEvaluator:
         for c in job.acceptance:
             actual = job.metrics.get(c.metric)
             if actual is None:
+                job.criterion_results[c.metric] = False
                 return False
 
+            passed = False
             if c.operator == "in":
                 assert isinstance(c.threshold, tuple)
                 low, high = c.threshold
-                if not (low <= actual <= high):
-                    return False
-                continue
+                passed = low <= actual <= high
+            else:
+                assert isinstance(c.threshold, (int, float))
+                threshold = float(c.threshold)
+                match c.operator:
+                    case ">=":
+                        passed = actual >= threshold
+                    case ">":
+                        passed = actual > threshold
+                    case "<=":
+                        passed = actual <= threshold
+                    case "<":
+                        passed = actual < threshold
+                    case "==":
+                        passed = actual == threshold
 
-            assert isinstance(c.threshold, (int, float))
-            threshold = float(c.threshold)
-            match c.operator:
-                case ">=":
-                    if actual < threshold:
-                        return False
-                case ">":
-                    if actual <= threshold:
-                        return False
-                case "<=":
-                    if actual > threshold:
-                        return False
-                case "<":
-                    if actual >= threshold:
-                        return False
-                case "==":
-                    if actual != threshold:
-                        return False
+            job.criterion_results[c.metric] = passed
+            if not passed:
+                return False
         return True
 
 

@@ -86,8 +86,8 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
             # Get the actual value from job.metrics
             actual_value = job.metrics.get(criterion.metric)
             if actual_value is not None:
-                # Determine if this criterion passed
-                criterion_passed = _evaluate_criterion(criterion, actual_value)
+                # Use the evaluation result from the runner (don't recompute)
+                criterion_passed = job.criterion_results.get(criterion.metric, False)
                 samples.append(
                     MetricSample(
                         name=f"metta.infra.cron.stable.{recipe_path.replace('.', '_')}.{metric_name}",
@@ -102,39 +102,6 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
                 )
 
     return samples
-
-
-def _evaluate_criterion(criterion: AcceptanceCriterion, actual_value: float) -> bool:
-    """Evaluate if an acceptance criterion passes.
-
-    Args:
-        criterion: The acceptance criterion to evaluate.
-        actual_value: The actual metric value from the job.
-
-    Returns:
-        True if the criterion passes, False otherwise.
-    """
-    if criterion.operator == "in":
-        assert isinstance(criterion.threshold, tuple)
-        low, high = criterion.threshold
-        return low <= actual_value <= high
-
-    assert isinstance(criterion.threshold, (int, float))
-    threshold = float(criterion.threshold)
-    match criterion.operator:
-        case ">=":
-            return actual_value >= threshold
-        case ">":
-            return actual_value > threshold
-        case "<=":
-            return actual_value <= threshold
-        case "<":
-            return actual_value < threshold
-        case "==":
-            return actual_value == threshold
-        case _:
-            logger.warning("Unknown operator %s in criterion", criterion.operator)
-            return False
 
 
 def jobs_to_metrics(jobs: dict[str, Job]) -> list[MetricSample]:
