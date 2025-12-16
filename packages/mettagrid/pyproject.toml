@@ -58,11 +58,11 @@ cache-keys = [
   { file = "cpp/BUILD.bazel" },
   { file = "MODULE.bazel" },
   { file = "cpp/**/*.{cpp,hpp}" },
-  { file = "nim/mettascope/src/**/*.{nim,nims}" },
-  { file = "nim/mettascope/bindings/bindings.nim" },
-  { file = "nim/mettascope/nimby.lock" },
+  { file = "python/src/mettagrid/nim/mettascope/src/**/*.{nim,nims}" },
+  { file = "python/src/mettagrid/nim/mettascope/bindings/bindings.nim" },
+  { file = "python/src/mettagrid/nim/mettascope/nimby.lock" },
   { file = "bazel_build.py" },
-  { file = "nim/mettascope/mettascope.nimble" },
+  { file = "python/src/mettagrid/nim/mettascope/mettascope.nimble" },
 ]
 
 [tool.setuptools.packages.find]

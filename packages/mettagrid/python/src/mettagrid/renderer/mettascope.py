@@ -146,30 +146,15 @@ class MettascopeRenderer(Renderer):
                     continue
 
 
-# Find the Nim bindings. Two possible locations:
-#
-# Source: packages/mettagrid/nim/mettascope/bindings/generated
-#   - The canonical location where `nim build` outputs bindings
-#   - Present when running from a repo checkout
-#
-# Packaged: <site-packages>/mettagrid/nim/mettascope/bindings/generated
-#   - Created by PEP-517 backend copying nim/ into python/src/mettagrid/ during wheel build
-#   - The copy becomes part of the installed package
+# Nim bindings location: mettagrid/nim/mettascope/bindings/generated
+# This is the same path for both editable installs and installed wheels.
 _python_package_root = Path(__file__).resolve().parent.parent
+_nim_root = _python_package_root / "nim" / "mettascope"
 
 
 def _resolve_nim_root() -> Optional[Path]:
-    # Source location (repo checkout): packages/mettagrid/nim/mettascope
-    # This will not exist when installed in packaged form
-    source = _python_package_root.parent.parent.parent / "nim" / "mettascope"
-    if (source / "bindings" / "generated").exists():
-        return source
-
-    # Packaged location (installed wheel): <site-packages>/mettagrid/nim/mettascope
-    packaged = _python_package_root / "nim" / "mettascope"
-    if (packaged / "bindings" / "generated").exists():
-        return source
-
+    if (_nim_root / "bindings" / "generated").exists():
+        return _nim_root
     return None
 
 

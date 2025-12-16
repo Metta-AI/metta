@@ -26,9 +26,8 @@ from setuptools.build_meta import (
 from setuptools.dist import Distribution
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-METTASCOPE_DIR = PROJECT_ROOT / "nim" / "mettascope"
 PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
-METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
+METTASCOPE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
 def cmd(cmd: str) -> None:
@@ -174,30 +173,11 @@ def _nim_artifacts_up_to_date() -> bool:
     return oldest_output_mtime >= latest_source_mtime
 
 
-def _sync_mettascope_package_data() -> None:
-    """Ensure Nim artifacts are vendored inside the Python package."""
-
-    destination_root = METTASCOPE_PACKAGE_DIR
-    destination_root.parent.mkdir(parents=True, exist_ok=True)
-
-    if destination_root.exists():
-        shutil.rmtree(destination_root)
-
-    shutil.copytree(
-        METTASCOPE_DIR,
-        destination_root,
-        dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "nimbledeps", "dist", "build"),
-    )
-
-
-def _run_mettascope_build(skip_sync: bool = False) -> None:
+def _run_mettascope_build() -> None:
     """Build Nim artifacts when cache misses."""
 
     if _nim_artifacts_up_to_date():
         print("Skipping Nim build; artifacts up to date.")
-        if not skip_sync:
-            _sync_mettascope_package_data()
         return
 
     for x in ["nim", "nimby"]:
@@ -210,8 +190,6 @@ def _run_mettascope_build(skip_sync: bool = False) -> None:
     cmd("nim c bindings/bindings.nim")
 
     print("Successfully built mettascope")
-    if not skip_sync:
-        _sync_mettascope_package_data()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
@@ -231,7 +209,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     """Build an editable install, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
-    _run_mettascope_build(skip_sync=True)  # Editable installs use source directly
+    _run_mettascope_build()
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
 
