@@ -112,7 +112,7 @@ def calculate_statistics(times: List[float], num_steps: int, num_agents: int) ->
     }
 
 
-def test_performance(env, iterations: int, rounds: int, warmup: int) -> dict:
+def run_performance(env, iterations: int, rounds: int, warmup: int) -> dict:
     num_agents = env.num_agents
     num_actions = env.single_action_space.n
 
@@ -177,7 +177,7 @@ def main():
     print(f"Creating environment: {args.agents} agents on {args.map_size}x{args.map_size} map")
     env = create_env(num_agents=args.agents, map_size=args.map_size, seed=args.seed)
 
-    stats = test_performance(env, iterations=args.iterations, rounds=args.rounds, warmup=args.warmup)
+    stats = run_performance(env, iterations=args.iterations, rounds=args.rounds, warmup=args.warmup)
 
     # Return non-zero exit code if performance is unstable
     if stats["cv"] > 0.20:
