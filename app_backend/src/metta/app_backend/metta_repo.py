@@ -718,6 +718,9 @@ class MettaRepo:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
                         pv.policy_id,
                         pv.created_at,
                         p.created_at AS policy_created_at,
