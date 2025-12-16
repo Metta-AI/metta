@@ -7,18 +7,29 @@ import aioboto3
 import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
+from psycopg.rows import dict_row
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
-    PolicyRow,
     PolicyVersionWithName,
     PublicPolicyVersionRow,
 )
 from metta.app_backend.route_logger import timed_http_handler, timed_route
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
+
+
+def _parse_uuids(id_strings: list[str]) -> list[uuid.UUID]:
+    """Parse UUID strings to UUIDs, skipping invalid ones."""
+    uuids: list[uuid.UUID] = []
+    for id_str in id_strings:
+        try:
+            uuids.append(uuid.UUID(id_str))
+        except ValueError:
+            continue
+    return uuids
 
 
 # Request/Response Models
@@ -99,16 +110,6 @@ class EpisodeQueryResponse(BaseModel):
     episodes: list[EpisodeWithTags]
 
 
-class PoliciesResponse(BaseModel):
-    entries: list[PolicyRow]
-    total_count: int
-
-
-class PolicyVersionsResponse(BaseModel):
-    entries: list[PublicPolicyVersionRow]
-    total_count: int
-
-
 class PolicyListItem(BaseModel):
     id: str
     name: str
@@ -117,6 +118,15 @@ class PolicyListItem(BaseModel):
     user_id: str
     attributes: dict[str, Any] = Field(default_factory=dict)
     tags: dict[str, str] = Field(default_factory=dict)
+
+
+class PoliciesResponse(BaseModel):
+    policies: list[PolicyListItem]
+
+
+class PolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+    total_count: int
 
 
 class PoliciesSearchResponse(BaseModel):
@@ -133,10 +143,11 @@ class ScorecardOptionsResponse(BaseModel):
 
 
 class ScorecardRequest(BaseModel):
+    policy_version_ids: list[str] = Field(default_factory=list)
     policy_ids: list[str] = Field(default_factory=list)
-    evaluation_identifiers: list[str]
-    metric: str
     policy_version_selector: Literal["best", "latest"] = "best"
+    episode_tags: dict[str, str]
+    metric: str
 
 
 class ScorecardCell(BaseModel):
@@ -152,6 +163,25 @@ class ScorecardData(BaseModel):
 
 class ScorecardResponse(BaseModel):
     data: ScorecardData
+
+
+class EvalsRequest(BaseModel):
+    training_run_ids: list[str] = Field(default_factory=list)
+    run_free_policy_ids: list[str] = Field(default_factory=list)
+
+
+class EvalsResponse(BaseModel):
+    evaluation_identifiers: list[str]
+
+
+class MetricsRequest(BaseModel):
+    training_run_ids: list[str] = Field(default_factory=list)
+    run_free_policy_ids: list[str] = Field(default_factory=list)
+    evaluation_identifiers: list[str] = Field(default_factory=list)
+
+
+class MetricsResponse(BaseModel):
+    metrics: list[str]
 
 
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
@@ -203,6 +233,19 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         policy_version = await stats_repo.get_policy_version_with_name(policy_version_id)
         if policy_version is None:
             raise HTTPException(status_code=404, detail=f"Policy version {policy_version_id} not found")
+        return policy_version
+
+    @router.get("/policies/{policy_id}")
+    @timed_http_handler
+    async def get_policy_by_id(policy_id: str, user: UserOrToken) -> PublicPolicyVersionRow:
+        """Get a single policy version by ID."""
+        try:
+            policy_version_id = uuid.UUID(policy_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid UUID format: {policy_id}") from None
+        policy_version = await stats_repo.get_public_policy_version_by_id(policy_version_id)
+        if policy_version is None:
+            raise HTTPException(status_code=404, detail=f"Policy version {policy_id} not found")
         return policy_version
 
     @router.put("/policies/versions/{policy_version_id_str}/tags")
@@ -391,23 +434,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
         return BulkEpisodeUploadResponse(episodes_created=episodes_created, duckdb_s3_uri=s3_uri)
 
-    @router.get("/policies")
-    @timed_http_handler
-    async def get_policies(
-        # Parameters for versions mode (default, backward compatible)
-        name_exact: Optional[str] = None,
-        name_fuzzy: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> PoliciesResponse:
-        entries, total_count = await stats_repo.get_policies(
-            name_exact=name_exact,
-            name_fuzzy=name_fuzzy,
-            limit=limit,
-            offset=offset,
-        )
-        return PoliciesResponse(entries=entries, total_count=total_count)
-
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
@@ -417,53 +443,21 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         policy_version_ids: Optional[list[str]] = Query(default=None),
         limit: int = 50,
         offset: int = 0,
-        # Parameters for policies mode
-        format: Literal["versions", "policies"] = "versions",
-        search: Optional[str] = None,
-        policy_type: Optional[str] = None,
-        tags: Optional[list[str]] = Query(default=None),
-        user_id: Optional[str] = None,
-    ) -> PolicyVersionsResponse | PoliciesSearchResponse:
-        """Get policies or policy versions. Default returns versions; use format=policies for filtered policies."""
-        # Determine mode: policies mode if format=policies OR any new filter is provided
-        use_policies_mode = (
-            format == "policies"
-            or policy_type is not None
-            or tags is not None
-            or user_id is not None
-            or search is not None
-        )
-
-        if use_policies_mode:
-            # Use search_policies() - supports all the new filters
-            search_term = search or name_fuzzy  # search takes precedence over name_fuzzy
-            try:
-                policies_data = await stats_repo.search_policies(
-                    search=search_term,
-                    policy_type=policy_type,
-                    tags=tags,
-                    user_id=user_id,
-                    limit=limit,
-                    offset=offset,
-                )
-                policies = [PolicyListItem(**p.model_dump()) for p in policies_data]
-                return PoliciesSearchResponse(policies=policies)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
-        else:
-            pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
-            try:
-                entries, total_count = await stats_repo.get_policy_versions(
-                    name_exact=name_exact,
-                    name_fuzzy=name_fuzzy,
-                    version=version,
-                    policy_version_ids=pv_uuids,
-                    limit=limit,
-                    offset=offset,
-                )
-                return PolicyVersionsResponse(entries=entries, total_count=total_count)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
+    ) -> PolicyVersionsResponse:
+        """Get policy versions."""
+        pv_uuids = _parse_uuids(policy_version_ids) if policy_version_ids else None
+        try:
+            entries, total_count = await stats_repo.get_policy_versions(
+                name_exact=name_exact,
+                name_fuzzy=name_fuzzy,
+                version=version,
+                policy_version_ids=pv_uuids,
+                limit=limit,
+                offset=offset,
+            )
+            return PolicyVersionsResponse(entries=entries, total_count=total_count)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get policy versions: {str(e)}") from e
 
     @router.get("/policies/{policy_id}/versions")
     @timed_http_handler
@@ -497,30 +491,147 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         )
         return EpisodeQueryResponse(episodes=episodes)
 
-    @router.post("/scorecard/options", response_model=ScorecardOptionsResponse)
-    @timed_route("get_scorecard_options")
-    async def get_scorecard_options(request: ScorecardOptionsRequest, user: UserOrToken) -> ScorecardOptionsResponse:
-        """Get available evals and metrics for given policies."""
+    @router.get("/policies", response_model=PoliciesResponse)
+    @timed_route("get_policies")
+    async def get_policies(
+        user: UserOrToken,
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        search: Optional[str] = None,
+        policy_type: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        user_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        """Get policies with optional filtering."""
         try:
-            options = await stats_repo.get_scorecard_options(
-                policy_ids=request.policy_ids,
-            )
-            return ScorecardOptionsResponse(
-                evaluation_identifiers=options["evaluation_identifiers"],
-                metrics=options["metrics"],
-            )
+            # Backward compatibility: if name_exact or name_fuzzy are used, use old get_policies method
+            if name_exact is not None or name_fuzzy is not None:
+                entries, total_count = await stats_repo.get_policies(
+                    name_exact=name_exact,
+                    name_fuzzy=name_fuzzy,
+                    limit=limit,
+                    offset=offset,
+                )
+                policies = [
+                    PolicyListItem(
+                        id=str(entry.id),
+                        name=entry.name,
+                        type="training_run" if entry.attributes.get("type") == "training_run" else "policy",
+                        created_at=entry.created_at,
+                        user_id=entry.user_id,
+                        attributes=entry.attributes,
+                        tags={},
+                    )
+                    for entry in entries
+                ]
+                return PoliciesResponse(policies=policies)
+
+            # New search functionality
+            if search is not None or policy_type is not None or tags is not None or user_id is not None:
+                policies_data = await stats_repo.search_policies(
+                    search=search,
+                    policy_type=policy_type,
+                    tags=tags,
+                    user_id=user_id,
+                    limit=limit,
+                    offset=offset,
+                )
+                policies = [PolicyListItem(**p.model_dump()) for p in policies_data]
+            else:
+                policies_data = await stats_repo.get_all_policies()
+                policies = [PolicyListItem(**p) for p in policies_data]
+                if limit < len(policies) or offset > 0:
+                    policies = policies[offset : offset + limit]
+
+            return PoliciesResponse(policies=policies)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get scorecard options: {str(e)}") from e
+            raise HTTPException(status_code=500, detail=f"Failed to get policies: {str(e)}") from e
+
+    @router.post("/evals", response_model=EvalsResponse)
+    @timed_route("get_eval_names")
+    async def get_eval_names(request: EvalsRequest, user: UserOrToken) -> EvalsResponse:
+        """Get evaluation names for policies."""
+        try:
+            policy_ids = request.training_run_ids + request.run_free_policy_ids
+            if not policy_ids:
+                return EvalsResponse(evaluation_identifiers=[])
+
+            eval_names = await stats_repo.get_eval_names(policy_ids=policy_ids)
+            return EvalsResponse(evaluation_identifiers=eval_names)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get eval names: {str(e)}") from e
+
+    @router.post("/metrics", response_model=MetricsResponse)
+    @timed_route("get_available_metrics")
+    async def get_available_metrics(request: MetricsRequest, user: UserOrToken) -> MetricsResponse:
+        """Get available metrics for policies."""
+        try:
+            policy_ids = request.training_run_ids + request.run_free_policy_ids
+            if not policy_ids:
+                return MetricsResponse(metrics=[])
+
+            options = await stats_repo.get_scorecard_options(policy_ids=policy_ids)
+            return MetricsResponse(metrics=options["metrics"])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get available metrics: {str(e)}") from e
 
     @router.post("/scorecard", response_model=ScorecardResponse)
     @timed_route("generate_scorecard")
     async def generate_scorecard(request: ScorecardRequest, user: UserOrToken) -> ScorecardResponse:
+        """Generate scorecard for policy versions."""
         try:
+            if request.policy_ids and not request.policy_version_ids:
+                policy_uuids = _parse_uuids(request.policy_ids)
+                if not policy_uuids:
+                    return ScorecardResponse(
+                        data=ScorecardData(
+                            policy_names=[],
+                            evaluation_identifiers=[],
+                            cells=[],
+                        )
+                    )
+
+                async with stats_repo.connect() as con:
+                    async with con.cursor(row_factory=dict_row) as cur:
+                        if request.policy_version_selector == "best":
+                            await cur.execute(
+                                """
+                                SELECT DISTINCT ON (pv.policy_id) pv.id
+                                FROM policy_versions pv
+                                WHERE pv.policy_id = ANY(%s)
+                                ORDER BY pv.policy_id, pv.version DESC
+                                """,
+                                (policy_uuids,),
+                            )
+                        else:
+                            await cur.execute(
+                                """
+                                SELECT DISTINCT ON (pv.policy_id) pv.id
+                                FROM policy_versions pv
+                                WHERE pv.policy_id = ANY(%s)
+                                ORDER BY pv.policy_id, pv.created_at DESC
+                                """,
+                                (policy_uuids,),
+                            )
+                        rows = await cur.fetchall()
+                        request.policy_version_ids = [str(row["id"]) for row in rows]
+
+            policy_version_uuids = _parse_uuids(request.policy_version_ids)
+            if not policy_version_uuids:
+                return ScorecardResponse(
+                    data=ScorecardData(
+                        policy_names=[],
+                        evaluation_identifiers=[],
+                        cells=[],
+                    )
+                )
+
             data_dict = await stats_repo.generate_scorecard(
-                policy_ids=request.policy_ids,
-                evaluation_identifiers=request.evaluation_identifiers,
+                policy_version_ids=policy_version_uuids,
+                episode_tags=request.episode_tags,
                 metric=request.metric,
-                policy_selector=request.policy_version_selector,
             )
             cells = [[ScorecardCell(**cell) for cell in row] for row in data_dict["cells"]]
             data = ScorecardData(
@@ -531,5 +642,20 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             return ScorecardResponse(data=data)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to generate scorecard: {str(e)}") from e
+
+    @router.post("/scorecard/options", response_model=ScorecardOptionsResponse)
+    @timed_route("get_scorecard_options")
+    async def get_scorecard_options(request: ScorecardOptionsRequest, user: UserOrToken) -> ScorecardOptionsResponse:
+        """Get scorecard options for policies."""
+        try:
+            options = await stats_repo.get_scorecard_options(
+                policy_ids=request.policy_ids,
+            )
+            return ScorecardOptionsResponse(
+                evaluation_identifiers=options["evaluation_identifiers"],
+                metrics=options["metrics"],
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get scorecard options: {str(e)}") from e
 
     return router
