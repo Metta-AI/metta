@@ -96,14 +96,12 @@ def set_tf32_precision(mode: str) -> None:
     if not torch.cuda.is_available():
         return
 
-    # Map legacy modes to new API
     mode_lower = mode.lower()
     if mode_lower == "tf32":
         torch.set_float32_matmul_precision("high")
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
     else:
-        # Treat any non-tf32 mode as IEEE (no TF32 fast paths)
         torch.set_float32_matmul_precision("highest")
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
