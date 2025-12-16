@@ -128,7 +128,7 @@ def _prepare_mission(
 def _add_buckets_to_tasks(
     mission_tasks,
     *,
-    dr_rewards: bool = False,
+    dr_rewards: bool = True,
     dr_misc: bool = False,
 ) -> None:
     """Add buckets to mission tasks based on dr_rewards and dr_misc flags."""
@@ -248,7 +248,7 @@ def make_curriculum(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
     dr_variants: int = 0,
-    dr_rewards: bool = False,
+    dr_rewards: bool = True,
     dr_misc: bool = False,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
@@ -341,7 +341,7 @@ def train(
     teacher: TeacherConfig | None = None,
     use_lp: bool = True,
     dr_variants: int = 0,
-    dr_rewards: bool = False,
+    dr_rewards: bool = True,
     dr_misc: bool = False,
     maps_cache_size: Optional[int] = 50,
 ) -> TrainTool:

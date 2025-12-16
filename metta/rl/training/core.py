@@ -237,6 +237,11 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.zero_loss_tracker()
 
+        default_max_grad_norm = next(
+            (loss_obj.cfg.max_grad_norm for loss_obj in self.losses.values() if hasattr(loss_obj.cfg, "max_grad_norm")),
+            max_grad_norm,
+        )
+
         epochs_trained = 0
 
         for _ in range(update_epochs):
@@ -245,7 +250,7 @@ class CoreTrainingLoop:
                 if mb_idx % self.accumulate_minibatches == 0:
                     self.optimizer.zero_grad()
 
-                total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+                total_loss = 0.0
                 stop_update_epoch_mb = False
                 shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
@@ -264,14 +269,7 @@ class CoreTrainingLoop:
 
                 # Optimizer step with gradient accumulation
                 if (mb_idx + 1) % self.accumulate_minibatches == 0:
-                    # Get max_grad_norm from first loss that has it
-                    actual_max_grad_norm = max_grad_norm
-                    for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.cfg.max_grad_norm
-                            break
-
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), default_max_grad_norm)
                     self.optimizer.step()
 
                     if self.device.type == "cuda":
