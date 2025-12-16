@@ -5,10 +5,8 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
-from __future__ import annotations
-
 import logging
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -18,20 +16,24 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
+from devops.stable.registry import ci_job, stable_job
+from devops.stable.runner import AcceptanceCriterion
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
     DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
+from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
+from metta.sweep.core import ParameterSpec, make_sweep
 from metta.sweep.core import SweepParameters as SP
-from metta.sweep.core import make_sweep
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.request_remote_eval import RequestRemoteEvalTool
@@ -112,25 +114,6 @@ def _resolve_eval_variants(
     if train_variants is not None:
         return list(train_variants)
     return None
-
-
-def apply_cvc_sweep_defaults(trainer_cfg: TrainerConfig) -> TrainerConfig:
-    """Apply sweep-tuned defaults shared across CVC recipes."""
-    trainer_cfg.optimizer.learning_rate = 0.00737503357231617
-    trainer_cfg.optimizer.eps = 5.0833278919526e-07
-
-    trainer_cfg.losses.ppo.clip_coef = 0.22017136216163635
-    trainer_cfg.losses.ppo.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.ppo_actor.clip_coef = 0.22017136216163635
-
-    trainer_cfg.losses.ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.ppo_critic.vf_coef = 0.49657103419303894
-
-    trainer_cfg.losses.quantile_ppo_critic.gae_lambda = 0.9900000095367432
-    trainer_cfg.losses.quantile_ppo_critic.vf_coef = 0.49657103419303894
-    return trainer_cfg
 
 
 def _prepare_mission(
@@ -320,12 +303,9 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     max_evals: Optional[int] = None,
-    bc_policy_uri: Optional[str] = None,
-    bc_teacher_lead_prob: float = 1.0,
-    bc_steps: Optional[int] = None,
-    bc_mode: Literal["sliced_cloner", "supervisor"] = "sliced_cloner",
+    teacher: TeacherConfig | None = None,
     use_lp: bool = True,
-    maps_cache_size: Optional[int] = 50,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -341,11 +321,7 @@ def train(
         algorithm_config=cur_alg,
     )
 
-    trainer_cfg = apply_cvc_sweep_defaults(
-        TrainerConfig(
-            losses=LossesConfig(),
-        )
-    )
+    trainer_cfg = TrainerConfig(losses=LossesConfig())
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_suite = make_eval_suite(
@@ -357,6 +333,7 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
+        epoch_interval=600,
     )
 
     tt = TrainTool(
@@ -371,66 +348,14 @@ def train(
     scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[HyperUpdateRule] = []
 
-    if bc_policy_uri is not None:
-        tt.training_env.supervisor_policy_uri = bc_policy_uri
-        losses = tt.trainer.losses
-        bc_total_steps = bc_steps if bc_steps is not None else (1_000_000_000 if bc_policy_uri is not None else 0)
-        scheduler_run_gates = [
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=bc_total_steps),
-        ]
-
-        if bc_mode == "sliced_cloner":
-            losses.ppo_critic.sample_enabled = False
-            losses.ppo_critic.train_forward_enabled = False
-            losses.sliced_scripted_cloner.enabled = True
-            anneal_start = 0
-            loss_instance_name = "sliced_scripted_cloner"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="sliced_scripted_cloner",
-                    attr_path="teacher_led_proportion",
-                    mode="progress",
-                    style="linear",
-                    start_value=0.2,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                )
-            ]
-        else:
-            losses.supervisor.enabled = True
-            losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
-            anneal_start = int(bc_total_steps * 0.5)
-            loss_instance_name = "supervisor"
-            bc_rules = [
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=1.0,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="teacher_lead_prob",
-                    mode="progress",
-                    style="linear",
-                    start_value=bc_teacher_lead_prob,
-                    end_value=0.0,
-                    start_agent_step=anneal_start,
-                    end_agent_step=bc_total_steps,
-                ),
-            ]
-
-        bc_run_gates = [
-            LossRunGate(loss_instance_name=loss_instance_name, phase=phase, end_at_step=bc_total_steps)
-            for phase in ("rollout", "train")
-        ]
-        scheduler_run_gates += bc_run_gates
-        scheduler_rules += bc_rules
+    if teacher and teacher.enabled:
+        apply_teacher_phase(
+            trainer_cfg=tt.trainer,
+            training_env_cfg=tt.training_env,
+            scheduler_rules=scheduler_rules,
+            scheduler_run_gates=scheduler_run_gates,
+            teacher_cfg=teacher,
+        )
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
@@ -444,6 +369,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
@@ -487,6 +413,7 @@ def train_variants(
         curriculum=curriculum,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
 
 
@@ -496,6 +423,8 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    teacher: TeacherConfig | None = None,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
@@ -512,6 +441,8 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
+        maps_cache_size=maps_cache_size,
     )
 
 
@@ -616,7 +547,7 @@ def train_sweep(
     mission: str | None = None,
 ) -> TrainTool:
     """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
-    base_variants = ["heart_chorus"]
+    base_variants = ["heart_chorus", "inventory_heart_tune"]
     if variants:
         for v in variants:
             if v not in base_variants:
@@ -637,6 +568,109 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
     return StubTool()
 
 
+def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
+    """Shared sweep parameters for CvC-style PPO + schedulefree runs."""
+    return {
+        # Optimizer
+        **SP.param(
+            "trainer.optimizer.learning_rate",
+            D.LOG_NORMAL,
+            min=5e-3,
+            max=1.5e-2,
+            search_center=1e-2,
+        ),
+        **SP.param(
+            "trainer.optimizer.eps",
+            D.LOG_NORMAL,
+            min=1e-8,
+            max=2e-6,
+            search_center=1e-6,
+        ),
+        **SP.param(
+            "trainer.optimizer.warmup_steps",
+            D.INT_UNIFORM,
+            min=1500,
+            max=3000,
+            search_center=2300,
+        ),
+        # PPO
+        **SP.param(
+            "trainer.losses.ppo.clip_coef",
+            D.UNIFORM,
+            min=0.2,
+            max=0.32,
+            search_center=0.26,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.gae_lambda",
+            D.UNIFORM,
+            min=0.97,
+            max=0.995,
+            search_center=0.99,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.vf_coef",
+            D.UNIFORM,
+            min=0.5,
+            max=1.0,
+            search_center=0.75,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.ent_coef",
+            D.LOG_NORMAL,
+            min=0.015,
+            max=0.035,
+            search_center=0.025,
+        ),
+        **SP.param(
+            "trainer.losses.ppo.gamma",
+            D.UNIFORM,
+            min=0.968,
+            max=0.977,
+            search_center=0.973,
+        ),
+        **SP.categorical(
+            "trainer.losses.ppo.vf_clip_coef",
+            choices=[0.0, 0.1],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_resnet_layers",
+            choices=[1, 2, 3, 4],
+        ),
+        **SP.categorical(
+            "policy_architecture.latent_dim",
+            choices=[64, 96, 128],
+        ),
+        **SP.categorical(
+            "policy_architecture.actor_hidden",
+            choices=[256, 384, 512],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_num_heads",
+            choices=[2, 4, 6],
+        ),
+        **SP.categorical(
+            "policy_architecture.critic_hidden",
+            choices=[512, 768, 1024],
+        ),
+        **SP.categorical(
+            "policy_architecture.core_num_latents",
+            choices=[12, 16, 20],
+        ),
+        **SP.categorical(
+            "policy_architecture.max_tokens",
+            choices=[48, 64, 80],
+        ),
+        **SP.param(
+            "trainer.total_timesteps",
+            D.INT_UNIFORM,
+            min=9e8,
+            max=1.1e9,
+            search_center=1e9,
+        ),
+    }
+
+
 def sweep(
     sweep_name: str,
     num_cogs: int = 4,
@@ -646,27 +680,14 @@ def sweep(
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
-    search_space = {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.ADAM_EPS,
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=1e9,
-        ),
-    }
+    search_space = get_cvc_sweep_search_space()
 
     return make_sweep(
         name=sweep_name,
         recipe="recipes.experiment.cogs_v_clips",
         train_entrypoint="train_sweep",
         eval_entrypoint="evaluate_stub",
-        metric_key="env_agent/heart.gained",
+        metric_key="env_game/assembler.heart.created",
         search_space=search_space,
         cost_key="metric/total_time",
         max_trials=max_trials,
@@ -674,19 +695,63 @@ def sweep(
     )
 
 
-__all__ = [
-    "make_eval_suite",
-    "make_training_env",
-    "make_curriculum",
-    "apply_cvc_sweep_defaults",
-    "train",
-    "train_variants",
-    "train_single_mission",
-    "train_coordination",
-    "train_sweep",
-    "evaluate_stub",
-    "sweep",
-    "evaluate",
-    "play",
-    "play_training_env",
-]
+@ci_job(timeout_s=240)
+def train_ci() -> TrainTool:
+    """Minimal CvC train for CI smoke test."""
+    env = make_training_env(num_cogs=2, mission="easy_hearts", variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    curriculum_cfg = cc.env_curriculum(env)
+    return TrainTool(
+        trainer=TrainerConfig(
+            total_timesteps=64,
+            minibatch_size=8,
+            batch_size=64,
+            bptt_horizon=8,
+            update_epochs=1,
+        ),
+        training_env=TrainingEnvironmentConfig(
+            curriculum=curriculum_cfg,
+            forward_pass_minibatch_target_size=8,
+            vectorization="serial",
+            auto_workers=False,
+            num_workers=1,
+            async_factor=1,
+            maps_cache_size=4,
+        ),
+        evaluator=EvaluatorConfig(epoch_interval=0, evaluate_local=False, evaluate_remote=False),
+        checkpointer=CheckpointerConfig(epoch_interval=1),
+        wandb=WandbConfig.Off(),
+    )
+
+
+@ci_job(timeout_s=120)
+def play_ci() -> PlayTool:
+    """CvC play test with random policy."""
+    env = make_training_env(num_cogs=2, mission="easy_hearts")
+    sim = SimulationConfig(suite="cogs_vs_clips", name="easy_hearts_ci", env=env)
+    return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
+
+
+@stable_job(
+    remote_gpus=1,
+    remote_nodes=1,
+    timeout_s=43200,
+    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=30000)],
+)
+def train_200ep() -> TrainTool:
+    """CvC 200 epochs (~105M timesteps)."""
+    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool.trainer.total_timesteps = 200 * 524288
+    return tool
+
+
+@stable_job(
+    remote_gpus=4,
+    remote_nodes=4,
+    timeout_s=172800,
+    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=80000)],
+)
+def train_2b() -> TrainTool:
+    """CvC multi GPU - 2B timesteps."""
+    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool.trainer.total_timesteps = 2_000_000_000
+    return tool
