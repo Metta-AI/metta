@@ -330,9 +330,6 @@ class TrainTool(Tool):
         if not torch.cuda.is_available():
             return
 
-        # Use torch.set_float32_matmul_precision which is the recommended API
-        torch.set_float32_matmul_precision("high")
-
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:
             try:
