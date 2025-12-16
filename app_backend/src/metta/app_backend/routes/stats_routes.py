@@ -6,8 +6,8 @@ from typing import Annotated, Any, Literal, Optional
 import aioboto3
 import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
-from pydantic import BaseModel, Field
 from psycopg.rows import dict_row
+from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.metta_repo import (
