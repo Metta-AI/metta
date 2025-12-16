@@ -7,6 +7,8 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
+    AttackOutcome,
+    ChangeVibeActionConfig,
     GameConfig,
     InventoryConfig,
     MettaGridConfig,
@@ -17,9 +19,18 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.simulator import Simulation
-from mettagrid.test_support.actions import attack, get_agent_position, move
+from mettagrid.test_support.actions import get_agent_position, move
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 from mettagrid.test_support.orientation import Orientation
+
+
+def get_agent_frozen_status(sim: Simulation, agent_id: int) -> bool:
+    """Check if an agent is frozen."""
+    grid_objects = sim.grid_objects()
+    for obj in grid_objects.values():
+        if obj.get("agent_id") == agent_id:
+            return obj.get("is_frozen", False)
+    return False
 
 
 @pytest.fixture
@@ -40,7 +51,12 @@ def base_config():
                     "west",
                 ]
             ),
-            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
+            change_vibe=ChangeVibeActionConfig(number_of_vibes=10),
+            attack=AttackActionConfig(
+                enabled=False,  # Attack triggers via move, not standalone action
+                vibes=["charger"],  # Attack triggers when agent has charger vibe
+                success=AttackOutcome(freeze=10),
+            ),
         ),
         objects={
             "wall": WallConfig(),
@@ -135,26 +151,35 @@ def test_swap_with_frozen_agent(make_sim, adjacent_agents_map):
     assert pos_agent0_before == (1, 1), f"Agent 0 should be at (1, 1), got {pos_agent0_before}"
     assert pos_agent1_before == (1, 2), f"Agent 1 should be at (1, 2), got {pos_agent1_before}"
 
-    # Agent 0 attacks Agent 1 to freeze them
-    attack_result = attack(sim, target_arg=0, agent_idx=0)
-    print(f"Attack result: {attack_result}")
-    assert attack_result["success"], f"Attack should succeed: {attack_result}"
+    # Verify neither agent is frozen initially
+    assert not get_agent_frozen_status(sim, 0), "Agent 0 should not start frozen"
+    assert not get_agent_frozen_status(sim, 1), "Agent 1 should not start frozen"
 
-    # Verify agent 1 is frozen
-    grid_objects = sim.grid_objects()
-    agent1_obj = None
-    for _obj_id, obj in grid_objects.items():
-        if obj["type_name"] == "agent":
-            pos = (obj["r"], obj["c"])
-            if pos == pos_agent1_before:
-                agent1_obj = obj
-                break
+    # Agent 0 changes vibe to charger (to enable attack on move)
+    sim.agent(0).set_action("change_vibe_charger")
+    sim.agent(1).set_action("noop")
+    sim.step()
 
-    assert agent1_obj is not None, "Should find agent 1"
-    assert agent1_obj.get("is_frozen", False), f"Agent 1 should be frozen: {agent1_obj}"
-    print(f"Agent 1 frozen status: {agent1_obj.get('is_frozen')}")
+    # Agent 0 moves east into Agent 1 - should trigger attack due to weapon vibe
+    sim.agent(0).set_action("move_east")
+    sim.agent(1).set_action("noop")
+    sim.step()
 
-    # Now agent 0 tries to move east onto frozen agent 1
+    # Verify agent 1 is frozen from the attack
+    assert get_agent_frozen_status(sim, 1), "Agent 1 should be frozen after attack"
+    print("Agent 1 frozen status: True")
+
+    # Verify positions didn't change on first move (attack happened but no swap yet)
+    pos_agent0_mid = get_agent_position(sim, 0)
+    pos_agent1_mid = get_agent_position(sim, 1)
+    print(f"After attack - Agent 0: {pos_agent0_mid}, Agent 1: {pos_agent1_mid}")
+
+    # Agent 0 changes vibe back to default so next move doesn't trigger attack
+    sim.agent(0).set_action("change_vibe_default")
+    sim.agent(1).set_action("noop")
+    sim.step()
+
+    # Now agent 0 tries to move east onto frozen agent 1 - should swap
     move_result = move(sim, Orientation.EAST, agent_idx=0)
     print(f"Move result: {move_result}")
 
