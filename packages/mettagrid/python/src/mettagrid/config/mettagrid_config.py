@@ -389,6 +389,16 @@ class ProtocolConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
+    sigmoid: int = Field(
+        default=0,
+        ge=0,
+        description="Number of discounted uses. Cost scales linearly from 0 (free) to 1 (full price) over these uses.",
+    )
+    inflation: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Compound rate for exponential cost. Cost = base * (1+inflation)^(n - sigmoid).",
+    )
 
 
 class AssemblerConfig(GridObjectConfig):

@@ -131,6 +131,9 @@ class Protocol:
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
+    sigmoid: int
+    inflation: float
+    activation_count: int
 
 class InventoryConfig:
     def __init__(

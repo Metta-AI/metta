@@ -294,6 +294,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res
                 cpp_protocol.cooldown = protocol_config.cooldown
+                cpp_protocol.sigmoid = protocol_config.sigmoid
+                cpp_protocol.inflation = protocol_config.inflation
                 protocols.append(cpp_protocol)
 
             # Convert tag names to IDs
@@ -539,6 +541,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 output_res[key] = val
             cpp_protocol.output_resources = output_res
             cpp_protocol.cooldown = protocol_config.cooldown
+            cpp_protocol.sigmoid = protocol_config.sigmoid
+            cpp_protocol.inflation = protocol_config.inflation
             clipper_protocols.append(cpp_protocol)
         clipper_config = CppClipperConfig()
         clipper_config.unclipping_protocols = clipper_protocols
