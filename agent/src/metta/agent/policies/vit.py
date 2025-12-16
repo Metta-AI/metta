@@ -1,7 +1,6 @@
 from typing import List
 
 from cortex.stacks import build_cortex_auto_config
-from pydantic import ConfigDict, Field
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -23,24 +22,19 @@ class ViTDefaultConfig(PolicyArchitecture):
     """
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-    model_config = ConfigDict(populate_by_name=True)
 
     _token_embed_dim = 8
     _fourier_freqs = 3
-    # Updated defaults from top CvC sweep run (cvc.1214.new_trial_0038_0e6377)
-    latent_dim: int = Field(default=96)
-    actor_hidden: int = Field(default=384)
-    core_num_heads: int = Field(default=4)
-    max_tokens: int = Field(default=128)
-    core_num_latents: int = Field(default=16)
+    _latent_dim = 64
+    _actor_hidden = 256
 
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
-    critic_hidden: int = Field(default=768)
+    _critic_hidden = 512
 
     # Trunk configuration
     # Number of Axon layers in the trunk
-    core_resnet_layers: int = 3
+    core_resnet_layers: int = 1
     # Pattern for trunk layers (e.g., "A" for Axon blocks, "L" for linear)
     core_resnet_pattern: str = "A"
     # Enable layer normalization after each trunk layer
@@ -60,7 +54,7 @@ class ViTDefaultConfig(PolicyArchitecture):
             return super().make_policy(policy_env_info)
 
         self.components = [
-            ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=self.max_tokens),
+            ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=48),
             ObsAttrEmbedFourierConfig(
                 in_key="obs_shim_tokens",
                 out_key="obs_attr_embed",
@@ -71,19 +65,19 @@ class ViTDefaultConfig(PolicyArchitecture):
                 in_key="obs_attr_embed",
                 out_key="obs_latent_attn",
                 feat_dim=self._token_embed_dim + (4 * self._fourier_freqs) + 1,
-                latent_dim=self.latent_dim,
-                num_latents=self.core_num_latents,
-                num_heads=self.core_num_heads,
+                latent_dim=self._latent_dim,
+                num_latents=12,
+                num_heads=4,
                 num_layers=2,
             ),
             CortexTDConfig(
                 in_key="obs_latent_attn",
                 out_key="core",
-                d_hidden=self.latent_dim,
-                out_features=self.latent_dim,
+                d_hidden=self._latent_dim,
+                out_features=self._latent_dim,
                 key_prefix="vit_cortex_state",
                 stack_cfg=build_cortex_auto_config(
-                    d_hidden=self.latent_dim,
+                    d_hidden=self._latent_dim,
                     num_layers=self.core_resnet_layers,
                     pattern=self.core_resnet_pattern,
                     post_norm=self.core_use_layer_norm,
@@ -95,19 +89,19 @@ class ViTDefaultConfig(PolicyArchitecture):
                 in_key="core",
                 out_key="actor_hidden",
                 name="actor_mlp",
-                in_features=self.latent_dim,
-                hidden_features=[self.actor_hidden],
-                out_features=self.actor_hidden,
+                in_features=self._latent_dim,
+                hidden_features=[self._actor_hidden],
+                out_features=self._actor_hidden,
             ),
             MLPConfig(
                 in_key="core",
                 out_key="values",
                 name="critic",
-                in_features=self.latent_dim,
+                in_features=self._latent_dim,
                 out_features=1,
-                hidden_features=[self.critic_hidden],
+                hidden_features=[self._critic_hidden],
             ),
-            ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self.actor_hidden),
+            ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self._actor_hidden),
         ]
 
         return super().make_policy(policy_env_info)
