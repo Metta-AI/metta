@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 import torch
 from pydantic import Field
+
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context

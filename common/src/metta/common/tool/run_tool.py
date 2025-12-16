@@ -9,8 +9,6 @@ from metta.common.util.log_config import suppress_noisy_logs
 suppress_noisy_logs()
 
 # Configure PyTorch globally before any other imports
-import metta.utils.torch_init
-
 import argparse
 import copy
 import functools
@@ -28,6 +26,7 @@ from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
 
+import metta.utils.torch_init  # noqa: F401
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.schema import get_pydantic_field_info
