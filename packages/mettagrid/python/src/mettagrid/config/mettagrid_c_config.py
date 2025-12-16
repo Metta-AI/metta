@@ -164,13 +164,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
-        # Convert diversity_tracked_resources to IDs
-        diversity_tracked_resources = [
-            resource_name_to_id[resource_name]
-            for resource_name in agent_props.get("diversity_tracked_resources", [])
-            if resource_name in resource_name_to_id
-        ]
-
         # Build damage config if present
         damage_config_py = agent_props.get("damage")
         cpp_damage_config = CppDamageConfig()
@@ -315,6 +308,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert vibe_transfers: vibe -> resource -> delta
             vibe_transfers_map = {}
             for vibe_name, resource_deltas in object_config.vibe_transfers.items():
+                if vibe_name not in vibe_name_to_id:
+                    raise ValueError(f"Unknown vibe name '{vibe_name}' in chest '{object_type}' vibe_transfers")
                 vibe_id = vibe_name_to_id[vibe_name]
                 resource_deltas_cpp = {
                     resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()
@@ -471,7 +466,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
     actions_cpp_params["transfer"] = CppTransferActionConfig(
         required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
-        consumed_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.consumed_resources.items()},
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
     )

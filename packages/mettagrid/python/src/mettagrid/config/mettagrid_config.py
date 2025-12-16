@@ -134,15 +134,8 @@ class AgentConfig(Config):
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
-    soul_bound_resources: list[str] = Field(
-        default_factory=list, description="Resources that cannot be stolen during attacks"
-    )
     inventory_regen_amounts: dict[str, int] = Field(
         default_factory=dict, description="Resources to regenerate and their amounts per regeneration interval"
-    )
-    diversity_tracked_resources: list[str] = Field(
-        default_factory=list,
-        description="Resource names that contribute to inventory diversity metrics",
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
