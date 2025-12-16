@@ -6,7 +6,6 @@ import torch
 import torch.jit
 
 
-@torch.jit.script
 def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """Time-major discounted sum without inplace ops."""
     T = x.shape[0]
@@ -19,6 +18,9 @@ def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: t
         current = discounts[t] * current + x[t]
         outputs.append(current)
     return torch.stack(outputs, dim=0)
+
+
+_jit_discounted_sum = torch.compile(_jit_discounted_sum)
 
 
 def discounted_sum_pytorch(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:

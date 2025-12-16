@@ -53,9 +53,6 @@ class DistributedHelper:
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
         if torch.cuda.is_available():
-            # Use torch.set_float32_matmul_precision which is the recommended API
-            torch.set_float32_matmul_precision("high")
-            # Enable SDPA optimizations for better attention performance
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             torch.backends.cuda.enable_math_sdp(True)

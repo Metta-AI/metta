@@ -109,11 +109,13 @@ def set_tf32_precision(mode: str) -> None:
 
 def configure_tf32_precision() -> None:
     """Ensure TF32 fast paths are enabled using the recommended API."""
-    if not torch.cuda.is_available():
-        return
+    try:
+        from metta.utils.torch_init import configure_torch_globally
 
-    # Use torch.set_float32_matmul_precision which is the recommended API
-    torch.set_float32_matmul_precision("high")
+        configure_torch_globally()
+    except ImportError:
+        if torch.cuda.is_available():
+            torch.set_float32_matmul_precision("high")
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]
