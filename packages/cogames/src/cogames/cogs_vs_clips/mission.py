@@ -204,7 +204,6 @@ class Mission(Config):
                 rewards=AgentRewards(
                     stats={"chest.heart.amount": 1 / num_cogs},
                 ),
-                diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             clipper=ClipperConfig(
