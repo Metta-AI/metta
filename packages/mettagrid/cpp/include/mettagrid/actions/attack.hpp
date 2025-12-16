@@ -96,6 +96,9 @@ public:
     Agent* target = dynamic_cast<Agent*>(target_object);
     if (!target) return false;  // Can only attack agents
 
+    // Don't attack already frozen agents - let move handler swap instead
+    if (target->frozen > 0) return false;
+
     // Check if actor has required resources for attack
     for (const auto& [item, amount] : _consumed_resources) {
       if (actor.inventory.amount(item) < amount) {
@@ -134,8 +137,6 @@ protected:
   }
 
   bool _handle_target(Agent& actor, Agent& target) {
-    bool was_already_frozen = target.frozen > 0;
-
     // Check if target can defend (requires defense_resources to be configured)
     // armor/weapon resources only modify the defense cost, they don't enable defense by themselves
     if (!_defense_resources.empty()) {
@@ -153,14 +154,8 @@ protected:
       target.frozen = _success.freeze;
     }
 
-    if (!was_already_frozen) {
-      _apply_outcome(actor, target);
-      _log_successful_attack(actor, target);
-    } else {
-      // Track wasted attacks on already-frozen targets
-      const std::string& actor_group = actor.group_name;
-      actor.stats.incr(_action_prefix(actor_group) + "wasted_on_frozen");
-    }
+    _apply_outcome(actor, target);
+    _log_successful_attack(actor, target);
     return true;
   }
 
