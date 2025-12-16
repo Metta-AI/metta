@@ -24,7 +24,7 @@ HarvestMission = Mission(
     name="harvest",
     description="Collect resources, assemble hearts, and deposit them in the chest. Make sure to stay charged!",
     site=TRAINING_FACILITY,
-    variants=[ExtractorHeartTuneVariant(hearts=10), PackRatVariant(), LonelyHeartVariant()],
+    variants=[ExtractorHeartTuneVariant(hearts=10), PackRatVariant()],
 )
 
 VibeCheckMission = Mission(
@@ -32,7 +32,7 @@ VibeCheckMission = Mission(
     description="Modulate the group vibe to assemble HEARTs.",
     site=TRAINING_FACILITY,
     num_cogs=4,
-    variants=[VibeCheckMin2Variant(), ExtractorHeartTuneVariant(hearts=10)],
+    variants=[ExtractorHeartTuneVariant(hearts=10)],
 )
 
 
@@ -44,7 +44,6 @@ RepairMission = Mission(
     variants=[
         InventoryHeartTuneVariant(hearts=1),
         ExtractorHeartTuneVariant(hearts=10),
-        LonelyHeartVariant(),
         ClipPeriodOnVariant(),
         ClipHubStationsVariant(),
     ],
