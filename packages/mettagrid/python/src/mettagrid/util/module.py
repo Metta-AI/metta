@@ -1,7 +1,8 @@
 import importlib
+from types import ModuleType
 
 
-def load_symbol(full_name: str, strict: bool = True):
+def load_symbol(full_name: str, strict: bool = True) -> ModuleType | None:
     """Load a symbol from a full name, for example: 'mettagrid.base_config.Config' -> Config.
 
     Handles nested attributes like 'mettagrid.map_builder.ascii.AsciiMapBuilder.Config'.

@@ -7,6 +7,7 @@ import importlib
 import os
 import pkgutil
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -29,11 +30,14 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
     kwargs = policy_spec.init_kwargs or {}
     if device_override is not None:
         kwargs["device"] = device_override
 
+    for path in reversed(policy_spec.python_path):
+        if path not in sys.path:
+            sys.path.insert(0, path)
+    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
     try:
         policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
     except TypeError as e:

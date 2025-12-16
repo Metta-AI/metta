@@ -320,6 +320,8 @@ class PolicySpec(BaseModel):
 
     init_kwargs: dict[str, Any] = Field(default_factory=dict)
 
+    python_path: list[str] = Field(default=[], description="Optional PYTHONPATH entries to add when loading the policy")
+
     @property
     def name(self) -> str:
         parts = [
