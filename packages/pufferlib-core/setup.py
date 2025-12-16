@@ -39,7 +39,7 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
 # Check if CUDA compiler is available
-if shutil.which("nvcc"):
+if shutil.which("nvcc") and torch.cuda.is_available():
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
