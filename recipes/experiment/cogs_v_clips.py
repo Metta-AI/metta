@@ -271,7 +271,8 @@ def make_curriculum(
                 # Keep default single-variant buckets when no explicit variants are provided.
                 combination_sizes = range(min(1, len(compatible_available)) + 1)
             else:
-                combination_sizes = [0] + ([len(compatible_available)] if compatible_available else [])
+                # Only use the full combination of provided variants (no baseline).
+                combination_sizes = [len(compatible_available)] if compatible_available else []
         else:
             combination_sizes = range(min(dr_variants, len(compatible_available)) + 1)
 
