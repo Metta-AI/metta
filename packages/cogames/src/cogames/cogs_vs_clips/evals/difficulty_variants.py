@@ -227,12 +227,9 @@ class DifficultyLevel(MissionVariant):
             charger.efficiency = max(CHARGER_EFFICIENCY_FLOOR, charger.efficiency)
 
         # Energy regen floor: if nonzero, keep at least 1
-        default_regen = env.game.agent.inventory_regen_amounts.get("default", {})
-        current_regen = default_regen.get("energy", 1)
+        current_regen = env.game.agent.inventory.regen_amounts.get("energy", 0)
         if current_regen > 0:
-            if "default" not in env.game.agent.inventory_regen_amounts:
-                env.game.agent.inventory_regen_amounts["default"] = {}
-            env.game.agent.inventory_regen_amounts["default"]["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
+            env.game.agent.inventory.regen_amounts["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
 
     def _apply_clipping(self, cfg: MettaGridConfig) -> None:
         target = self.clip_target
