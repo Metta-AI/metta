@@ -16,7 +16,7 @@ from mettagrid.config.mettagrid_config import (
     ProtocolConfig,
     WallConfig,
 )
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.simulator import BoundingBox, Simulation
 
 
