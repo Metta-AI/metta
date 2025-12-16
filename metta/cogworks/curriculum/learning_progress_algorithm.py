@@ -594,8 +594,6 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             self._counter = state.get("counter", {})
             self._per_task_fast = state.get("per_task_fast", {})
             self._per_task_slow = state.get("per_task_slow", {})
-            self._score_cache = dict(state.get("score_cache", {}))
-            self._cache_valid_tasks = set(state.get("cache_valid_tasks", []))
 
             # If essential pieces are missing (legacy checkpoint), rebuild LP state from scratch
             if not self._per_task_fast or not self._per_task_slow or not self._outcomes:
@@ -603,8 +601,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 self._counter = {}
                 self._per_task_fast = {}
                 self._per_task_slow = {}
-                self._score_cache = {}
-                self._cache_valid_tasks = set()
+
+            # Always recompute scores after loading to avoid stale cached values
+            self._score_cache = {}
+            self._cache_valid_tasks = set()
 
         # Invalidate stats cache after restoring state
         self._stats_cache_valid = False
