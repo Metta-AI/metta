@@ -76,11 +76,15 @@ class CheckpointManager:
             return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
+        if local:
+            # Prefer local checkpoints to avoid picking up stale remote artifacts from other runs.
+            return local[0]
+
         remote = try_resolve(self.output_uri) if self._remote_prefix else None
-        candidates = [c for c in [local, remote] if c]
-        if not candidates:
-            return None
-        return max(candidates, key=lambda x: x[1])[0]
+        if remote:
+            return remote[0]
+
+        return None
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
