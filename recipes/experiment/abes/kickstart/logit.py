@@ -18,6 +18,7 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -101,37 +102,42 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
     losses_config = LossesConfig()
-    losses_config.logit_kickstarter.enabled = True
-    losses_config.logit_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
-    )
-    # losses_config.ppo_critic.sample_enabled = False
-    # losses_config.ppo_critic.train_forward_enabled = False
     trainer_cfg = TrainerConfig(losses=losses_config)
+    teacher = teacher or TeacherConfig(
+        policy_uri="s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt",
+        mode="logit_kickstarter",
+        steps=1_000_000_000,
+        teacher_led_proportion=1.0,
+    )
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    scheduler = SchedulerConfig(
-        run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
-            LossRunGate(
-                loss_instance_name="logit_kickstarter",
-                phase="rollout",
-                end_at_step=1_000_000_000,
-            ),
-            LossRunGate(
-                loss_instance_name="logit_kickstarter",
-                phase="train",
-                end_at_step=1_000_000_000,
-            ),
-        ],
-        rules=[
+    tt = TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
+    )
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[HyperUpdateRule] = []
+    apply_teacher_phase(
+        trainer_cfg=tt.trainer,
+        training_env_cfg=tt.training_env,
+        scheduler_rules=scheduler_rules,
+        scheduler_run_gates=scheduler_run_gates,
+        teacher_cfg=teacher,
+        default_steps=teacher.steps if teacher.steps is not None else 1_000_000_000,
+    )
+    scheduler_rules.extend(
+        [
             HyperUpdateRule(
                 loss_instance_name="logit_kickstarter",
                 attr_path="action_loss_coef",
@@ -152,17 +158,10 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-        ],
+        ]
     )
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
-        scheduler=scheduler,
-    )
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+    return tt
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
