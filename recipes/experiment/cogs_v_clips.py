@@ -327,7 +327,7 @@ def train(
     dr_variants: int = 0,
     dr_rewards: bool = True,
     dr_misc: bool = False,
-    maps_cache_size: Optional[int] = 50,
+    maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
