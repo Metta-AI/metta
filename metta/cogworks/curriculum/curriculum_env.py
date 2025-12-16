@@ -64,7 +64,6 @@ class CurriculumEnv(PufferEnv):
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
-
         # Try to get a valid task and build the map
         max_retries = 10
         for attempt in range(max_retries):
@@ -78,7 +77,6 @@ class CurriculumEnv(PufferEnv):
             except Exception:
                 # If config is invalid or map building fails, request a new task
                 if attempt == max_retries - 1:
-                    # If we've exhausted retries, raise the exception
                     raise
                 # Otherwise, try again with a new task
                 continue
@@ -132,7 +130,14 @@ class CurriculumEnv(PufferEnv):
 
         # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
-        self._add_curriculum_stats_to_info(infos)
+        if isinstance(infos, dict):
+            self._add_curriculum_stats_to_info(infos)
+        elif isinstance(infos, list):
+            # If infos is a list, add stats to the first dict (typically all dicts are the same)
+            for info in infos:
+                if isinstance(info, dict):
+                    self._add_curriculum_stats_to_info(info)
+                    break
 
         return obs, rewards, terminals, truncations, infos
 

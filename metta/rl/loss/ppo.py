@@ -33,19 +33,19 @@ class VTraceConfig(Config):
 class PPOConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
     # Entropy term weight from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    ent_coef: float = Field(default=0.027574, ge=0)
     # GAE lambda tuned via sweep (cf. standard 0.95)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
-    # Gamma tuned for shorter effective horizon
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.995000, ge=0, le=1.0)
+    # Gamma tuned from CvC sweep winner
+    gamma: float = Field(default=0.972810, ge=0, le=1.0)
 
     # Training parameters
     # Value clipping mirrors policy clip
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    # Value term weight from sweep
-    vf_coef: float = Field(default=0.897619, ge=0)
+    # Value term weight from sweep winner
+    vf_coef: float = Field(default=0.753832, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -149,16 +149,27 @@ class PPO(Loss):
         if mb_idx == 0:
             self.advantages, self.anneal_beta = self._on_first_mb(context)
 
-        # Then sample from the buffer (this happens at every minibatch)
-        minibatch, indices, prio_weights = self._sample_minibatch(
-            advantages=self.advantages,
-            prio_alpha=config.prioritized_experience_replay.prio_alpha,
-            prio_beta=self.anneal_beta,
-            mb_idx=mb_idx,
-        )
+        minibatch = shared_loss_data.get("sampled_mb")
+        if minibatch is None:
+            minibatch, indices, prio_weights = self._sample_minibatch(
+                advantages=self.advantages,
+                prio_alpha=config.prioritized_experience_replay.prio_alpha,
+                prio_beta=self.anneal_beta,
+                mb_idx=mb_idx,
+            )
+        else:
+            indices = shared_loss_data.get("indices")
+            if isinstance(indices, NonTensorData):
+                indices = indices.data
+            if indices is None:
+                indices = torch.arange(minibatch.batch_size[0], device=self.device)
+            prio_weights = shared_loss_data.get("prio_weights")
+            if prio_weights is None:
+                prio_weights = torch.ones(minibatch.batch_size, device=self.device)
 
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
+        shared_loss_data["prio_weights"] = prio_weights
 
         # Then forward the policy using the sampled minibatch
         policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)

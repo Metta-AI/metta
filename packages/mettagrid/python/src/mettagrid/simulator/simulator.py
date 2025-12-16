@@ -282,15 +282,16 @@ class Simulator:
         self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
     ) -> Simulation:
         assert self._current_simulation is None, "A simulation is already running"
+
+        # Initialize invariants on first simulation
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
 
+        # Check if invariants have changed
         config_invariants = self._compute_config_invariants(config)
         if self._config_invariants != config_invariants:
-            logger.error("Config invariants have changed")
-            logger.error(f"Old invariants: {self._config_invariants}")
-            logger.error(f"New invariants: {config_invariants}")
-            raise ValueError("Config invariants have changed")
+            # Allow updates between episodes for curriculum training
+            self._config_invariants = config_invariants
 
         self._current_simulation = Simulation(
             config=config,
