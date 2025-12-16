@@ -1,67 +1,17 @@
-"""Machina v1 open-world recipe with vibe bias and sweep helpers."""
+"""Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from __future__ import annotations
-
-import math
 from typing import Optional, Sequence
 
-import torch
-import torch.nn as nn
-from tensordict import TensorDict
-
-from metta.agent.components.component_config import ComponentConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
+from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import Distribution as D
-from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from recipes.experiment.cogs_v_clips import (
-    apply_cvc_sweep_defaults,
-    make_training_env,
-    train_single_mission,
-)
-
-
-class VibeLogitBiasConfig(ComponentConfig):
-    in_key: str = "logits"
-    name: str = "vibe_logit_bias"
-
-    def make_component(self, env: PolicyEnvInterface | None = None):
-        if env is None:
-            raise ValueError("VibeLogitBiasConfig requires PolicyEnvInterface")
-        return VibeLogitBias(self, env)
-
-
-class VibeLogitBias(nn.Module):
-    """Add a constant bias so all vibe actions share one action's probability mass."""
-
-    def __init__(self, config: VibeLogitBiasConfig, env: PolicyEnvInterface):
-        super().__init__()
-        self.in_key = config.in_key
-
-        vibe_indices = [i for i, name in enumerate(env.action_names) if name.startswith("change_vibe_")]
-        bias = torch.zeros(len(env.action_names), dtype=torch.float32)
-        if vibe_indices:
-            bias_value = -math.log(len(vibe_indices))
-            bias[vibe_indices] = bias_value
-        self.register_buffer("bias", bias)
-
-    def forward(self, td: TensorDict) -> TensorDict:
-        logits = td[self.in_key]
-        if logits.shape[-1] == self.bias.shape[0]:
-            td[self.in_key] = logits + self.bias.to(logits.device, logits.dtype)
-        return td
-
-
-class ViTWithVibeBiasConfig(ViTDefaultConfig):
-    """ViT default policy with vibe logits down-weighted at init."""
-
-    components: list[ComponentConfig] = ViTDefaultConfig().components + [VibeLogitBiasConfig()]
+from mettagrid.config import vibes
+from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
 
 
 def train(
@@ -70,6 +20,7 @@ def train(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
 
@@ -79,12 +30,21 @@ def train(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        teacher=teacher,
     )
+    tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
-    apply_cvc_sweep_defaults(tt.trainer)
-    tt.policy_architecture = policy_architecture or ViTWithVibeBiasConfig()
-    if policy_architecture is None and hasattr(tt.policy_architecture, "core_resnet_layers"):
-        tt.policy_architecture.core_resnet_layers = 2
+    tt.training_env.maps_cache_size = 30
+
+    # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
+    full_vibes = [v.name for v in vibes.VIBES]
+    env_cfg = tt.training_env.curriculum.task_generator.env
+    env_cfg.game.vibe_names = full_vibes
+    change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
+    if change_vibe is not None:
+        change_vibe.number_of_vibes = len(full_vibes)
+    if env_cfg.game.agent.initial_vibe >= len(full_vibes):
+        env_cfg.game.agent.initial_vibe = 0
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
     tt.evaluator.simulations = [
@@ -94,8 +54,8 @@ def train(
             env=eval_env,
         )
     ]
-    # Slow down evals for long runs
-    tt.evaluator.epoch_interval = 3000
+    # Run evals periodically during long runs
+    tt.evaluator.epoch_interval = 600
     return tt
 
 
@@ -105,10 +65,11 @@ def train_sweep(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     policy_architecture: PolicyArchitecture | None = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
-    base_variants = ["heart_chorus"]
+    base_variants = ["heart_chorus", "inventory_heart_tune"]
     if variants:
         for v in variants:
             if v not in base_variants:
@@ -120,6 +81,7 @@ def train_sweep(
         eval_variants=eval_variants or base_variants,
         eval_difficulty=eval_difficulty,
         policy_architecture=policy_architecture,
+        teacher=teacher,
     )
 
 
@@ -138,27 +100,14 @@ def sweep(
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
-    search_space = {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.ADAM_EPS,
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=1e9,
-        ),
-    }
+    search_space = get_cvc_sweep_search_space()
 
     return make_sweep(
         name=sweep_name,
         recipe="recipes.experiment.machina_1",
         train_entrypoint="train_sweep",
         eval_entrypoint="evaluate_stub",
-        metric_key="env_agent/heart.gained",
+        metric_key="env_game/assembler.heart.created",
         search_space=search_space,
         cost_key="metric/total_time",
         max_trials=max_trials,

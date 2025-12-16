@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import torch
+import torch.jit
 
 
 def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
