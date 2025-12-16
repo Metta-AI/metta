@@ -75,7 +75,6 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     return log_probs, entropy, action_log_probs
 
 
-# Compile for performance (replaces deprecated @torch.jit.script)
 sample_actions = torch.compile(sample_actions)
 evaluate_actions = torch.compile(evaluate_actions)
 

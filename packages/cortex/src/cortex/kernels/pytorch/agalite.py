@@ -19,7 +19,6 @@ def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: t
     return torch.stack(outputs, dim=0)
 
 
-# Compile for performance (replaces deprecated @torch.jit.script)
 _jit_discounted_sum = torch.compile(_jit_discounted_sum)
 
 
