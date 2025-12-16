@@ -12,7 +12,6 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
@@ -28,10 +27,11 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
+from metta.tools.eval import EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+from recipes.experiment.cogs_v_clips import make_eval_suite
 
 logger = logging.getLogger(__name__)
 
@@ -120,63 +120,6 @@ def _prepare_mission(
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
     return mission
-
-
-def make_eval_suite(
-    num_cogs: int = 4,
-    difficulty: str | None = "standard",
-    subset: Optional[Sequence[str]] = None,
-    variants: Optional[Sequence[str]] = None,
-    max_evals: Optional[int] = None,
-) -> list[SimulationConfig]:
-    """Create a suite of evaluation simulations from CoGames missions.
-
-    Args:
-        num_cogs: Number of agents per mission (1, 2, 4, or 8)
-        difficulty: Difficulty variant to apply (e.g., "standard", "hard", "story_mode")
-        subset: Optional list of mission names to include (defaults to all)
-        variants: Additional mission variants to apply (lonely_heart, heart_chorus, ...)
-
-    Returns:
-        A list of SimulationConfig objects ready for evaluation.
-    """
-    if subset:
-        missions = [m for m in EVAL_MISSIONS if m.name in subset]
-    else:
-        missions = EVAL_MISSIONS
-
-    variant_names = _normalize_variant_names(
-        initial=[difficulty] if difficulty else None,
-        variants=variants,
-    )
-
-    simulations: list[SimulationConfig] = []
-    for mission_template in missions:
-        if num_cogs == 1 and mission_template.name in {
-            "go_together",
-            "single_use_swarm",
-        }:
-            continue
-
-        mission = _prepare_mission(
-            mission_template,
-            num_cogs=num_cogs,
-            variant_names=variant_names,
-        )
-
-        env_cfg = mission.make_env()
-        sim = SimulationConfig(
-            suite="cogs_vs_clips",
-            name=f"{mission_template.name}_{num_cogs}cogs",
-            env=env_cfg,
-        )
-        simulations.append(sim)
-
-    if max_evals is not None:
-        logger.info(f"Limiting evaluations to {max_evals} (got {len(simulations)})")
-        simulations = simulations[:max_evals]
-
-    return simulations
 
 
 def make_training_env(
@@ -460,9 +403,9 @@ def evaluate(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> EvaluateTool:
+) -> EvalWithResultTool:
     """Evaluate policies on CoGs vs Clips missions."""
-    return EvaluateTool(
+    return EvalWithResultTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -470,6 +413,7 @@ def evaluate(
             variants=variants,
         ),
         policy_uris=policy_uris,
+        result_file_path="/dev/null",
     )
 
 
