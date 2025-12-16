@@ -69,7 +69,7 @@ We'll train a simple starter policy. `easy_hearts` uses three variants to simpli
 cogames play -m easy_hearts -p class=baseline
 
 # Try the scripted policy on a set of eval missions
-cogames eval -set integrated_evals -p class=baseline
+cogames run -S integrated_evals -p class=baseline
 
 # Train with an LSTM policy on easy_hearts
 cogames train -m easy_hearts -p class=lstm
@@ -110,7 +110,7 @@ cogames leaderboard
 
 # Develop a Policy
 
-## Play, Train, and Eval
+## Play, Train, and Run
 
 Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
 
@@ -118,7 +118,7 @@ To specify a `MISSION`, you can:
 
 - Use a mission name from the registry given by `cogames missions`, e.g. `training_facility_1`.
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
-- Alternatively, specify a set of missions with `-set` or `-S`.
+- Alternatively, specify a set of missions with `-S` or `--mission-set`.
 
 To specify a `POLICY`, use comma-separated key/value pairs:
 
@@ -244,11 +244,11 @@ for step in range(10000):
         obs, info = env.reset()
 ```
 
-### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
+### `cogames run -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
 Evaluate one or more policies on one or more missions.
 
-We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among:
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-S` or `--mission-set` among:
 `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
 You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
@@ -257,13 +257,13 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 
 ```bash
 # Evaluate a single trained policy checkpoint
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt
+cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt
 
 # Evaluate a single trained policy across a mission set with multiple agents
-cogames eval -set integrated_evals -p class=stateless,data=train_dir/model.pt
+cogames run -S integrated_evals -p class=stateless,data=train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
+cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -273,7 +273,7 @@ cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=
 - `--steps N`: Max steps per episode
 - `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
 
-When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
+When multiple policies are provided, `cogames run` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
