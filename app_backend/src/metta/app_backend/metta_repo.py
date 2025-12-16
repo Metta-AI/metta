@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
+from metta.app_backend.config import settings
 from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
@@ -203,8 +204,9 @@ class MettaRepo:
         self.db_uri = db_uri
         self._pool: AsyncConnectionPool | None = None
         # Run migrations synchronously during initialization
-        with Connection.connect(self.db_uri) as con:
-            run_migrations(con, MIGRATIONS)
+        if settings.RUN_MIGRATIONS:
+            with Connection.connect(self.db_uri) as con:
+                run_migrations(con, MIGRATIONS)
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
@@ -714,7 +716,9 @@ class MettaRepo:
                 return await cur.fetchone()
 
     async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
+
         """Get a single policy version with public fields by ID."""
+
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
                 await cur.execute(

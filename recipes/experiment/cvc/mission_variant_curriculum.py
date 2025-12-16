@@ -29,6 +29,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.architectures import get_architecture
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -211,7 +212,7 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
 
 def _enforce_training_vibes(env: MettaGridConfig) -> None:
     """Enforce the training set of vibes and action space consistency."""
-    training_vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+    training_vibe_names = [v.name for v in vibes.VIBES]
     env.game.vibe_names = training_vibe_names
 
     if env.game.actions:
@@ -462,6 +463,7 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    arch_type: str = "vit",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -524,6 +526,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
     )
 
 
@@ -575,7 +578,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
     # Select the appropriate vibe set
     if num_vibes == 16:
-        vibe_names = [v.name for v in vibes.TRAINING_VIBES]
+        vibe_names = [v.name for v in vibes.VIBES]
     elif num_vibes == 13:
         vibe_names = [v.name for v in vibes.VIBES[:13]]
     elif num_vibes <= len(vibes.VIBES):

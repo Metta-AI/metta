@@ -121,9 +121,11 @@ def check_blockers() -> Optional[bool]:
         return None  # Asana not configured
 
     try:
-        # Initialize Asana client
+        # Initialize Asana client with timeout
         config = asana_sdk.Configuration()
         config.access_token = token
+        # Set reasonable timeouts (connect, read) in seconds
+        config.connection_pool_kw = {"timeout": 30}
         client = asana_sdk.ApiClient(config)
 
         # Get user info to verify auth

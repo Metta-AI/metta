@@ -11,8 +11,6 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
 from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
-from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -21,7 +19,7 @@ if TYPE_CHECKING:
 class SlicedScriptedClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
-    # remainder of the sum below is left for the PPO loss to use
+    # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
@@ -42,15 +40,7 @@ class SlicedScriptedCloner(Loss):
     on specific slices of the experience, similar to SlicedKickstarter but with Ground Truth actions.
     """
 
-    __slots__ = (
-        "rollout_batch_size",
-        "extended_policy_env_info",
-        "student_feature_id",
-        "teacher_feature_id",
-        "stud_mask",
-        "teacher_mask",
-        "ppo_mask",
-    )
+    __slots__ = ("rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
     def __init__(
         self,
@@ -63,27 +53,25 @@ class SlicedScriptedCloner(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
-        base_policy_env_info = getattr(self.env, "policy_env_info", None)
-        if base_policy_env_info is None:
-            raise RuntimeError("Environment metadata is required")
-
-        # Extend the policy_env_info with an extra observation feature so the obs shim
-        # can reserve a dedicated attribute index for the injected tokens.
-        self.extended_policy_env_info = self._build_extended_policy_env_info(base_policy_env_info)
-
-        # Re-initialize the student policy to use the extended observation features.
-        if hasattr(self.policy, "initialize_to_environment"):
-            self.policy.initialize_to_environment(self.extended_policy_env_info, self.device)
-
     def get_experience_spec(self) -> Composite:
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
+        actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
+        rewards = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        dones = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        truncateds = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        act_log_prob = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
             teacher_actions=teacher_actions,
+            actions=actions,
+            act_log_prob=act_log_prob,
             stud_mask=boolean,
             teacher_mask=boolean,
             ppo_mask=boolean,
+            rewards=rewards,
+            dones=dones,
+            truncateds=truncateds,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -91,11 +79,14 @@ class SlicedScriptedCloner(Loss):
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
 
-            # Inject synthetic observation tokens for student-led and teacher-led
-            # slices so the student policy can see which regime produced each step.
-            self._inject_extra_obs_token(td)
-
             self.policy.forward(td)
+
+            if self.teacher_mask.any():
+                # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
+                teacher_actions = td["teacher_actions"].to(dtype=torch.long)
+                teacher_log_probs = td["full_log_probs"].gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
+                td["actions"][self.teacher_mask] = teacher_actions.to(td["actions"].dtype)[self.teacher_mask]
+                td["act_log_prob"][self.teacher_mask] = teacher_log_probs[self.teacher_mask]
 
         td["stud_mask"] = self.stud_mask
         td["teacher_mask"] = self.teacher_mask
@@ -110,93 +101,6 @@ class SlicedScriptedCloner(Loss):
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
 
-    def _build_extended_policy_env_info(self, policy_env_info: PolicyEnvInterface) -> PolicyEnvInterface:
-        """Create a PolicyEnvInterface that includes extra features for KS tokens.
-
-        The extra features use previously unused attribute indices so that
-        ObsShimTokens can reserve clean slots for the injected observations.
-        """
-        existing_ids = {feat.id for feat in policy_env_info.obs_features}
-
-        # Find two free ids in the uint8 range [0, 255].
-        free_ids: list[int] = []
-        for candidate in range(256):
-            if candidate not in existing_ids:
-                free_ids.append(candidate)
-            if len(free_ids) >= 2:
-                break
-
-        if len(free_ids) < 2:
-            raise ValueError("Not enough free observation feature IDs for SlicedScriptedCloner extra tokens.")
-
-        self.student_feature_id, self.teacher_feature_id = free_ids[0], free_ids[1]
-
-        student_feature = ObservationFeatureSpec(
-            id=self.student_feature_id,
-            name="student_led",
-            normalization=1.0,
-        )
-        teacher_feature = ObservationFeatureSpec(
-            id=self.teacher_feature_id,
-            name="teacher_led",
-            normalization=1.0,
-        )
-
-        extended_features = list(policy_env_info.obs_features) + [student_feature, teacher_feature]
-        # Use model_copy to avoid mutating the original PolicyEnvInterface.
-        return policy_env_info.model_copy(update={"obs_features": extended_features})
-
-    def _inject_extra_obs_token(self, td: TensorDict) -> None:
-        """Inject synthetic observation tokens at the start of selected sequences."""
-        if "env_obs" not in td.keys():
-            return
-
-        env_obs = td["env_obs"]
-
-        # Expect token observations of shape [B, M, 3] with uint8 dtype.
-        if env_obs.dim() != 3 or env_obs.size(-1) != 3:
-            return
-
-        batch_size, num_tokens, token_dim = env_obs.shape
-        if num_tokens == 0:
-            return
-
-        # Ensure masks are available and match the current batch size.
-        if not hasattr(self, "stud_mask") or not hasattr(self, "teacher_mask"):
-            return
-        if self.stud_mask.shape[0] != batch_size or self.teacher_mask.shape[0] != batch_size:
-            return
-
-        active_mask = self.stud_mask | self.teacher_mask
-        if not torch.any(active_mask):
-            return
-
-        device = env_obs.device
-        dtype = env_obs.dtype
-
-        # Determine attribute IDs for active rows.
-        attr_ids = torch.zeros(batch_size, device=device, dtype=dtype)
-        attr_ids[self.stud_mask] = torch.as_tensor(self.student_feature_id, device=device, dtype=dtype)
-        attr_ids[self.teacher_mask] = torch.as_tensor(self.teacher_feature_id, device=device, dtype=dtype)
-
-        active_indices = torch.nonzero(active_mask, as_tuple=True)[0]
-        if active_indices.numel() == 0:
-            return
-
-        # Prepare new env_obs with injections for active rows only.
-        new_env_obs = env_obs.clone()
-
-        trimmed_env_obs = env_obs[active_indices, :-1, :]
-        extra_token = torch.zeros((active_indices.numel(), 1, token_dim), device=device, dtype=dtype)
-        extra_token[..., 0] = 0  # coord byte
-        extra_token[..., 1] = attr_ids[active_indices].view(-1, 1).to(dtype=dtype)
-        extra_token[..., 2] = 1  # raw attribute value
-
-        injected = torch.cat((extra_token, trimmed_env_obs), dim=1)
-        new_env_obs[active_indices] = injected
-
-        td["env_obs"] = new_env_obs
-
     def run_train(
         self,
         shared_loss_data: TensorDict,
@@ -209,12 +113,10 @@ class SlicedScriptedCloner(Loss):
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
-        shared_loss_data["sampled_mb"] = minibatch
-        # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
         shared_loss_data = shared_loss_data[train_ppo_mask]
-        # slice - minus teacher led minus student led
+        shared_loss_data["sampled_mb"] = minibatch[train_ppo_mask]
         shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
-        # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
+        # Only pass the remainder slice to PPO losses.
 
         # sliced cloner MUST run first since it decides what to pass to PPO
         student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
@@ -222,7 +124,7 @@ class SlicedScriptedCloner(Loss):
         self.policy.reset_memory()
         student_td = self.policy.forward(student_td, action=flat_actions)
         student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
+        shared_loss_data["policy_td"] = student_td[train_ppo_mask]
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
@@ -257,7 +159,6 @@ class SlicedScriptedCloner(Loss):
         super().on_train_phase_end(context)
 
     def _create_slices(self, B: int) -> None:
-        assert self.cfg.student_led_proportion + self.cfg.teacher_led_proportion <= 1.0, "Proportions must sum <= 1.0"
         self.rollout_batch_size = B
 
         rand_assignments = torch.rand(B, device=self.device)
