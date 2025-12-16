@@ -31,7 +31,6 @@ proc drawFooter*(pos, size: Vec2) =
       clickableIcon("ui/stepForward", false):
         step += 1
         if step > replay.maxSteps - 1:
-          echo "Requesting Python"
           requestPython = true
         step = clamp(step, 0, replay.maxSteps - 1)
         stepFloat = step.float32
