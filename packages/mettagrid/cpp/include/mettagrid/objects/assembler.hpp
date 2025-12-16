@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -278,6 +280,12 @@ public:
   // Chest search distance - if > 0, assembler can use inventories from chests within this distance
   unsigned int chest_search_distance;
 
+  // Per-agent cooldown duration - number of timesteps before an agent can use this assembler again
+  unsigned int agent_cooldown;
+
+  // Per-agent cooldown tracking - maps agent_id to timestep when cooldown ends
+  std::vector<unsigned int> agent_cooldown_ends;
+
   Assembler(GridCoord r, GridCoord c, const AssemblerConfig& cfg, StatsTracker* stats)
       : protocols(build_protocol_map(cfg.protocols)),
         unclip_protocols(),
@@ -294,6 +302,7 @@ public:
         obs_encoder(nullptr),
         allow_partial_usage(cfg.allow_partial_usage),
         chest_search_distance(cfg.chest_search_distance),
+        agent_cooldown(cfg.agent_cooldown),
         clipper_ptr(nullptr) {
     GridObject::init(cfg, GridLocation(r, c));
   }
@@ -312,6 +321,39 @@ public:
   // Set observation encoder for protocol feature ID lookup
   void set_obs_encoder(const class ObservationEncoder* encoder) {
     this->obs_encoder = encoder;
+  }
+
+  // Initialize the per-agent tracking array (call after knowing num_agents)
+  void init_agent_tracking(unsigned int num_agents) {
+    if (agent_cooldown > 0) {
+      agent_cooldown_ends.resize(num_agents, 0);
+    }
+  }
+
+  // Check if a specific agent is on cooldown
+  bool is_agent_on_cooldown(unsigned int agent_id) const {
+    if (agent_cooldown == 0 || agent_id >= agent_cooldown_ends.size()) {
+      return false;
+    }
+    return current_timestep_ptr && agent_cooldown_ends[agent_id] > *current_timestep_ptr;
+  }
+
+  // Get remaining cooldown for a specific agent
+  unsigned int get_agent_cooldown_remaining(unsigned int agent_id) const {
+    if (agent_cooldown == 0 || agent_id >= agent_cooldown_ends.size() || !current_timestep_ptr) {
+      return 0;
+    }
+    if (agent_cooldown_ends[agent_id] <= *current_timestep_ptr) {
+      return 0;
+    }
+    return agent_cooldown_ends[agent_id] - *current_timestep_ptr;
+  }
+
+  // Set cooldown for a specific agent
+  void set_agent_cooldown(unsigned int agent_id) {
+    if (agent_cooldown > 0 && agent_id < agent_cooldown_ends.size() && current_timestep_ptr) {
+      agent_cooldown_ends[agent_id] = *current_timestep_ptr + agent_cooldown;
+    }
   }
 
   // Get the remaining cooldown duration in ticks (0 when ready for use)
@@ -461,6 +503,11 @@ public:
       return false;
     }
 
+    // Check per-agent cooldown
+    if (is_agent_on_cooldown(actor.agent_id)) {
+      return false;
+    }
+
     // Check if on cooldown and whether partial usage is allowed
     unsigned int remaining = cooldown_remaining();
     if (remaining > 0 && !allow_partial_usage) {
@@ -516,21 +563,33 @@ public:
     cooldown_duration = static_cast<unsigned int>(protocol_to_use.cooldown);
     cooldown_end_timestep = *current_timestep_ptr + cooldown_duration;
 
+    // Set per-agent cooldown
+    set_agent_cooldown(actor.agent_id);
+
     // If we were clipped and successfully used an unclip protocol, become unclipped. Also, don't count this as a use.
     if (is_clipped) {
       become_unclipped();
     } else {
       uses_count++;
     }
+
     return true;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);
     if (remaining > 0) {
       features.push_back({ObservationFeature::CooldownRemaining, static_cast<ObservationType>(remaining)});
+    }
+
+    // Add per-agent cooldown remaining if the observer is a valid agent
+    if (observer_agent_id != UINT_MAX && agent_cooldown > 0) {
+      unsigned int agent_remaining = std::min(get_agent_cooldown_remaining(observer_agent_id), 255u);
+      if (agent_remaining > 0) {
+        features.push_back({ObservationFeature::AgentCooldownRemaining, static_cast<ObservationType>(agent_remaining)});
+      }
     }
 
     // Add clipped status to observations if clipped

@@ -160,6 +160,7 @@ class AssemblerConfig(GridObjectConfig):
     clip_immune: bool
     start_clipped: bool
     chest_search_distance: int
+    agent_cooldown: int
     initial_vibe: int
 
 class ChestConfig(GridObjectConfig):
