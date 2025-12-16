@@ -10,7 +10,11 @@ const
 proc drawFooter*(pos, size: Vec2) =
   ribbon(pos, size, FooterColor):
 
-    group(vec2(16, 16)):
+    let pos = sk.pos
+    let size = sk.size
+
+    sk.at = pos + vec2(16, 16)
+    group(vec2(0, 0), LeftToRight):
       clickableIcon("ui/rewindToStart", step == 0):
         step = 0
         stepFloat = step.float32
@@ -35,7 +39,8 @@ proc drawFooter*(pos, size: Vec2) =
         step = replay.maxSteps - 1
         stepFloat = step.float32
 
-    group(vec2(sk.size.x/2 - 120, 16)):
+    sk.at = pos + vec2(size.x/2 - 120, 16)
+    group(vec2(0, 0), LeftToRight):
       for i, speed in Speeds:
         if i == 0:
           clickableIcon("ui/turtle", playSpeed >= speed):
@@ -47,7 +52,8 @@ proc drawFooter*(pos, size: Vec2) =
           clickableIcon("ui/speed", playSpeed >= speed):
             playSpeed = speed
 
-    group(vec2(sk.size.x - 240, 16)):
+    sk.at = pos + vec2(size.x - 240, 16)
+    group(vec2(0, 0), LeftToRight):
       clickableIcon("ui/tack", settings.lockFocus):
         settings.lockFocus = not settings.lockFocus
       clickableIcon("ui/heart", settings.showResources):

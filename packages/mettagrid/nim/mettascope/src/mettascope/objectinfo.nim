@@ -59,6 +59,10 @@ proc formatItem(itemAmount: ItemAmount): string =
   let name = getItemName(itemAmount)
   name & " x" & $itemAmount.count
 
+proc showItem(itemAmount: ItemAmount) =
+  icon("resources/" & replay.config.game.resourceNames[itemAmount.itemId])
+  text("x" & $itemAmount.count)
+
 proc getHeartCount(outputs: seq[ItemAmount]): int =
   ## Returns total hearts produced by this protocol.
   let heartId = replay.itemNames.find("heart")
@@ -93,15 +97,6 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
 
     let cur = selection
 
-    # Basic identity
-    h1text(cur.typeName)
-    text(&"Object ID: {cur.id}")
-    text(&"Group ID: {cur.groupId}")
-    let pos = cur.location.at
-    text(&"Position: ({pos.x}, {pos.y})")
-    let orient = cur.orientation.at
-    text(&"Orientation: {orient}")
-
     button("Open Config"):
       if cur.isNil:
         return
@@ -123,11 +118,12 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
               objConfig.pretty
       openTempTextFile(cur.typeName & "_config.json", cfgText)
 
-    sk.advance(vec2(0, theme.spacing.float32))
+    # Basic identity
+    h1text(cur.typeName)
+    text(&"  Object ID: {cur.id}")
 
-    # Agent-specific info
     if cur.isAgent:
-      text("Agent")
+      # Agent-specific info.
       let reward = cur.totalReward.at
       text(&"  Agent ID: {cur.agentId}")
       text(&"  Total reward: {formatFloat(reward, ffDecimal, 2)}")
@@ -135,6 +131,8 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
       if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
         let vibeName = getVibeName(vibeId)
         text("  Vibe: " & vibeName)
+    else:
+      # Assembler-specific info.
       let cooldown = cur.cooldownRemaining.at
       if cooldown > 0:
         text(&"  Cooldown remaining: {cooldown}")
@@ -152,9 +150,8 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
       if cur.allowPartialUsage:
         text("  Allows partial usage")
 
-      sk.advance(vec2(0, theme.spacing.float32))
+    sk.advance(vec2(0, theme.spacing.float32))
 
-    # Inventory
     let currentInventory = cur.inventory.at
     text("Inventory")
     if currentInventory.len == 0:
@@ -184,7 +181,8 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
             let effectiveLimit = computeEffectiveLimit(group, currentInventory, replay.itemNames)
             text(&"  {group.name}: {usedAmount}/{effectiveLimit}")
             for itemAmount in groupItems:
-              text("    " & formatItem(itemAmount))
+              if itemAmount.itemId != replay.itemNames.find("energy"):
+                text("    " & formatItem(itemAmount))
 
         var ungroupedItems: seq[ItemAmount] = @[]
         for itemAmount in currentInventory:
@@ -210,32 +208,36 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
       sortedProtocols.sort(protocolCmp)
 
       for protocol in sortedProtocols:
-        if protocol.vibes.len > 0:
-          var vibeLine = "  Vibes: "
-          for i, vibe in protocol.vibes:
-            let vibeName = getVibeName(vibe)
-            vibeLine.add(vibeName)
-            if i < protocol.vibes.len - 1:
-              vibeLine.add(", ")
-          text(vibeLine)
+        let protocol = protocol
+        group(vec2(4, 4), LeftToRight):
+          if protocol.vibes.len > 0:
+            #var vibeLine = "  Vibes: "
+            # Group the vibes by type.
+            var vibeGroups: Table[string, int]
+            for vibe in protocol.vibes:
+              let vibeName = getVibeName(vibe)
+              if vibeName notin vibeGroups:
+                vibeGroups[vibeName] = 1
+              else:
+                vibeGroups[vibeName] = vibeGroups[vibeName] + 1
+            for vibeName, numVibes in vibeGroups:
+              icon("vibe/" & vibeName)
+              text("x" & $numVibes)
 
-        if protocol.inputs.len > 0:
-          var inputsLine = "  Inputs: "
-          for i, resource in protocol.inputs:
-            inputsLine.add(formatItem(resource))
-            if i < protocol.inputs.len - 1:
-              inputsLine.add(", ")
-          text(inputsLine)
+            icon("ui/add")
 
-        if protocol.outputs.len > 0:
-          var outputsLine = "  Outputs: "
-          for i, resource in protocol.outputs:
-            outputsLine.add(formatItem(resource))
-            if i < protocol.outputs.len - 1:
-              outputsLine.add(", ")
-          text(outputsLine)
+          if protocol.inputs.len > 0:
+            for i, resource in protocol.inputs:
+              icon("resources/" & replay.config.game.resourceNames[resource.itemId])
+              text("x" & $resource.count)
 
-        sk.advance(vec2(0, theme.spacing.float32))
+            icon("ui/right-arrow")
+
+          if protocol.outputs.len > 0:
+            for i, resource in protocol.outputs:
+              icon("resources/" & replay.config.game.resourceNames[resource.itemId])
+              text("x" & $resource.count)
+
 
 proc selectObject*(obj: Entity) =
   selection = obj
