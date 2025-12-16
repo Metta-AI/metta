@@ -125,7 +125,8 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
 
   if zoomInfo.dragging:
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
-      zoomInfo.vel = window.logicalMouseDelta
+
+      zoomInfo.vel = window.mouseDelta.vec2
       settings.lockFocus = false
     else:
       zoomInfo.vel *= 0.9
@@ -135,7 +136,7 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
   if zoomInfo.hasMouse:
     if window.scrollDelta.y != 0:
       # Apply zoom at focal point (mouse position or agent position if pinned).
-      let localMousePos = window.logicalMousePos - zoomInfo.rect.xy.vec2
+      let localMousePos = window.mousePos.vec2 - zoomInfo.rect.xy.vec2
       let zoomSensitivity = 0.005
 
       let oldMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
@@ -166,8 +167,8 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
 
   clampMapPan(zoomInfo)
 
-  bxy.translate(zoomInfo.pos * window.contentScale)
-  let zoomScale = zoomInfo.zoom * zoomInfo.zoom * window.contentScale
+  bxy.translate(zoomInfo.pos)
+  let zoomScale = zoomInfo.zoom * zoomInfo.zoom
   bxy.scale(vec2(zoomScale, zoomScale))
 
 proc endPanAndZoom*(zoomInfo: ZoomInfo) =

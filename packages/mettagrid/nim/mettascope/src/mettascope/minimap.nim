@@ -38,8 +38,8 @@ proc drawMinimap*(zoomInfo: ZoomInfo) =
     posX = rectW / 2.0f - cx * zoomScale
     posY = rectH / 2.0f - cy * zoomScale
 
-  bxy.translate(vec2(posX, posY) * window.contentScale)
-  bxy.scale(vec2(zoomScale, zoomScale) * window.contentScale)
+  bxy.translate(vec2(posX, posY))
+  bxy.scale(vec2(zoomScale, zoomScale))
 
   drawWorldMini()
 
