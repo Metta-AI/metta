@@ -17,7 +17,6 @@ from cogames.cogs_vs_clips.variants import (
     ResourceBottleneckVariant,
     SingleResourceUniformVariant,
     SingleUseSwarmVariant,
-    VibeCheckMin2Variant,
 )
 from mettagrid.mapgen.mapgen import MapGen
 

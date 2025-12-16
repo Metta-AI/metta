@@ -14,7 +14,6 @@ from cogames.cogs_vs_clips.variants import (
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     PackRatVariant,
-    VibeCheckMin2Variant,
 )
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
