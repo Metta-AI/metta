@@ -52,11 +52,6 @@ DEFAULT_CURRICULUM_MISSIONS: list[str] = [
     "hello_world.distant_resources",
     "hello_world.quadrant_buildings",
     "hello_world.single_use_swarm",
-    "hello_world.vibe_check",
-    # Training facility curriculum
-    "training_facility.harvest",
-    "training_facility.vibe_check",
-    "training_facility.repair",
     # Additional fixed/procedural maps
     "hello_world.hello_world_unclip",
     "hello_world.open_world",

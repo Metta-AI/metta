@@ -117,6 +117,7 @@ VibeCheck = Mission(
     variants=[
         EmptyBaseVariant(),
         HeartChorusVariant(),
+        VibeCheckMin2Variant(),
     ],
 )
 
