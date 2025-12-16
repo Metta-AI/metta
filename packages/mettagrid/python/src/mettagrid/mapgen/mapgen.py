@@ -40,34 +40,6 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
     instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
 
-    # Legacy fields, to be removed soon.
-    instance_map: AnyMapBuilderConfig | None = Field(default=None, deprecated="Use `instance` instead")
-    root: AnySceneConfig | None = Field(default=None, deprecated="Use `instance` instead")
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_legacy_instance_fields(cls, data):
-        # Temporary validation for legacy fields, to avoid merge collisions with other PRs.
-        if isinstance(data, cls) or not isinstance(data, dict):
-            return data
-
-        if data.get("instance") is not None:
-            if data.get("instance_map") is not None or data.get("root") is not None:
-                raise ValueError("instance, instance_map, and root cannot be set at the same time")
-            return data
-
-        if data.get("instance_map") is not None:
-            data["instance"] = data["instance_map"]
-            del data["instance_map"]
-
-        if data.get("root") is not None:
-            if data.get("instance") is not None:
-                raise ValueError("instance_map and root cannot be set at the same time")
-            data["instance"] = data["root"]
-            del data["root"]
-
-        return data
-
     @field_validator("instance", mode="wrap")
     @classmethod
     def _validate_instance(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> SceneConfig | MapBuilderConfig:
