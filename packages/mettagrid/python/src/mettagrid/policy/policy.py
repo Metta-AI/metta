@@ -1,6 +1,9 @@
 """Base policy classes and interfaces."""
 
 import ctypes
+import os
+import subprocess
+import sys
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
@@ -330,3 +333,79 @@ class PolicySpec(BaseModel):
         if self.data_path:
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
+
+
+class PipedPolicyWrapper(MultiAgentPolicy):
+    def __init__(self, policy_spec: PolicySpec, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+        super().__init__(policy_env_info, **kwargs)
+        self._policy_env_info = policy_env_info
+        self._policy_spec = policy_spec
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return _PipedPolicyWrapper(self._policy_env_info, agent_id, self._policy_spec)
+
+
+class _PipedPolicyWrapper(AgentPolicy):
+    """
+    Launches a subprocess to run a single agent of the given policy.
+
+    Communicates with the subprocess via stdin/stdout using a line-based protocol, described in ./run_one_agent.py.
+    """
+
+    # TODO(rhys): formalize the protocol
+    # TODO(rhys): allow communicating with the subprocess via the network
+
+    def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int, policy_spec: PolicySpec):
+        super().__init__(policy_env_info=policy_env_info)
+        self._agent_id = agent_id
+        self._step = 0
+        self._process = None
+        self._policy_spec = policy_spec
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        # Each instance of this class is used only once, for a single subprocess. The call to reset
+        # is effectively "init". It comes before the first step, once the simulation is ready to go.
+        # That's our cue to create the subprocess.
+        if self._process is not None:
+            # TODO(rhys): we'll want to hear about the end of the simulation so we know when to kill
+            self._process.kill()  # This is still a single-use wrapper, don't reset
+        else:
+            worker = os.path.join(os.path.dirname(__file__), "run_one_agent.py")
+            self._process = subprocess.Popen(
+                [sys.executable, worker],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+
+            assert self._process.stdin is not None
+            assert self._process.stdout is not None
+
+            # Protocol described in ./run_one_agent.py
+            self._process.stdin.write("{0:02x}\n".format(self._agent_id))
+            self._process.stdin.write("{0}\n".format(self._policy_spec.model_dump_json()))
+            self._process.stdin.write("{0}\n".format(self.policy_env_info.model_dump_json()))
+            self._process.stdin.write("READY\n")
+            self._process.stdin.flush()
+            ready = self._process.stdout.readline().strip()
+            if ready != "READY":
+                self._process.kill()
+                raise RuntimeError("Failed to start agent subprocess")
+        return super().reset(simulation)
+
+    def step(self, obs: AgentObservation) -> Action:
+        if self._process is None:
+            return Action(name="noop")
+
+        assert self._process.stdin is not None
+        assert self._process.stdout is not None
+
+        # Protocol described in ./run_one_agent.py
+        parts = ["{0:02x} {1:08x}".format(self._agent_id, self._step)]
+        for o in obs.tokens:
+            parts.append("{0:02x}{1:02x}{2:02x}".format(o.raw_token[0], o.raw_token[1], o.raw_token[2]))
+        self._process.stdin.write(" ".join(parts) + "\n")
+        self._process.stdin.flush()
+        action = self._process.stdout.readline().strip()
+        self._step += 1
+        return Action(name=action)
