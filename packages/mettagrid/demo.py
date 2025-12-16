@@ -5,7 +5,7 @@ Demo showing how to create an MettaGridConfig and build a game map using the map
 """
 
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 def main():

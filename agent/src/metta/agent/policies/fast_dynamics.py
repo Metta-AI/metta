@@ -39,8 +39,6 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
 class FastDynamicsConfig(PolicyArchitecture):
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
     _latent_dim = 64
     _token_embed_dim = 8
     _fourier_freqs = 3

@@ -19,7 +19,7 @@ from mettagrid.config.mettagrid_config import (
     ResourceLimitsConfig,
     WallConfig,
 )
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 class TestProgrammaticEnvironments:

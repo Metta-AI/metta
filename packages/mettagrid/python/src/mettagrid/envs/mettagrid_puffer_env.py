@@ -140,6 +140,8 @@ class MettaGridPufferEnv(PufferEnv):
             )
 
             self._compute_supervisor_actions()
+        else:
+            self._env_supervisor = None
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -184,6 +186,11 @@ class MettaGridPufferEnv(PufferEnv):
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
         self._env_supervisor.step_batch(raw_observations, teacher_actions)
+
+    def disable_supervisor(self) -> None:
+        """Disable supervisor policy to avoid extra forward passes after teacher phase."""
+        self._supervisor_policy_spec = None
+        self._env_supervisor = None
 
     @property
     def observations(self) -> np.ndarray:
