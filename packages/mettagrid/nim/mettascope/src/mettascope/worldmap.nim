@@ -733,8 +733,6 @@ proc drawWorldMini*() =
 
   bxy.restoreTransform()
 
-
-
 proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
   ## Center the map on the given entity.
   if entity.isNil:

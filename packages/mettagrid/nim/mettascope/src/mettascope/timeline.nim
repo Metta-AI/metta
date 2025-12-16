@@ -11,6 +11,7 @@ var
   # Drag state.
   scrubberActive = false
   minimapActive = false
+  lastFrameTime: float64 = epochTime()
 
 
 
@@ -55,7 +56,10 @@ proc playControls*() =
     play = true
 
   if play:
-    stepFloat += playSpeed
+    let now = epochTime()
+    let deltaTime = now - lastFrameTime
+    lastFrameTime = now
+    stepFloat += playSpeed * deltaTime
     case playMode:
     of Historical:
       if stepFloat >= replay.maxSteps.float32:

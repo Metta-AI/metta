@@ -5,7 +5,7 @@ import
 
 const
   FooterColor = parseHtmlColor("#273646").rgbx
-  Speeds = [0.01, 0.05, 0.1, 0.5, 1, 5]
+  Speeds = [1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
 
 proc drawFooter*(pos, size: Vec2) =
   ribbon(pos, size, FooterColor):

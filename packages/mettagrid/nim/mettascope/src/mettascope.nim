@@ -106,6 +106,8 @@ proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSi
 
 proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draw the world map.
+  sk.draw9Patch("panel.body.empty.9patch", 3, contentPos, contentSize)
+
   worldMapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
   worldMapZoomInfo.hasMouse = mouseInsideClip(rect(contentPos, contentSize))
 
@@ -122,6 +124,8 @@ proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: 
 
 proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draw the minimap.
+  sk.draw9Patch("panel.body.empty.9patch", 3, contentPos, contentSize)
+
   glEnable(GL_SCISSOR_TEST)
   glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
 
