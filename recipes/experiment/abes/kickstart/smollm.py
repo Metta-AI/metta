@@ -45,7 +45,7 @@ def _smollm_config(
     policy_config = {
         "model_name": model_name or "HuggingFaceTB/SmolLM-135M",
         "attn_implementation": "flash_attention_2",
-        "dtype": "bfloat16",
+        "dtype": "float32",
         "mem_len": int(mem_len) if mem_len is not None else 16,
         "init_from_pretrained": False,
         "num_layers": 5,
@@ -174,12 +174,12 @@ def train(
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
     )
-    ks_end_step = 1_200_000_000
-
+    ks_end_step = 1_000_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
-    losses_config.ppo_critic.gae_lambda = 0.99
+
+    losses_config.ppo_critic.gae_lambda = 0.95
     losses_config.ppo_critic.gamma = 0.999
     losses_config.sliced_kickstarter.teacher_led_proportion = 0.45
     losses_config.sliced_kickstarter.action_loss_coef = 1.0
@@ -190,12 +190,9 @@ def train(
 
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     training_env = training_env.model_copy(update=env_updates)
-    # 0-400M pure kickstarter
-    # 400-600M enable ppo, no annealling
-    # Anneal kl coeff to 0 by 1.2B steps (ks_end_steps), thats when kickstarter completely turns off and does only ppo training
+
     scheduler = SchedulerConfig(
         run_gates=[
-            LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=400_000_000),
             LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ks_end_step),
             LossRunGate(
                 loss_instance_name="sliced_kickstarter",
@@ -216,18 +213,8 @@ def train(
                 style="linear",
                 start_value=0.45,
                 end_value=0.0,
-                start_agent_step=600_000_000,
+                start_agent_step=500_000_000,
                 end_agent_step=ks_end_step,
-            ),
-            HyperUpdateRule(
-                loss_instance_name="trainer",
-                attr_path="optimizer.learning_rate",
-                mode="progress",
-                style="linear",
-                start_value=1e-4,
-                end_value=3e-5,
-                start_agent_step=400_000_000,
-                end_agent_step=600_000_000,
             ),
         ],
     )
