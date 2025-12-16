@@ -38,14 +38,16 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 # Get torch library path for rpath
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
-# Check if CUDA compiler is available
-if shutil.which("nvcc"):
+# Check if CUDA compiler is usable; fall back to CPU build when no runtime/driver.
+cuda_available = torch.cuda.is_available() and shutil.which("nvcc") is not None
+
+if cuda_available:
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
 else:
     extension_class = CppExtension
-    print("Building with CPU-only support")
+    print("Building with CPU-only support (CUDA runtime or driver not available)")
 
 # Add rpath for torch libraries
 extra_link_args = []
