@@ -52,8 +52,8 @@ uv pip install cogames
 
 ## Step 2: Game tutorial
 
-Play an easy mission in Cogs vs. Clips using `cogames tutorial`. Follow the instructions given in the terminal, while
-you use the GUI to accomplish your first training mission.
+Play an easy mission in Cogs vs. Clips using `cogames tutorial play`. Follow the instructions given in the terminal,
+while you use the GUI to accomplish your first training mission.
 
 ## Step 3: Train a simple policy
 
@@ -72,7 +72,7 @@ cogames play -m easy_hearts -p class=baseline
 cogames run -S integrated_evals -p class=baseline
 
 # Train with an LSTM policy on easy_hearts
-cogames train -m easy_hearts -p class=lstm
+cogames tutorial train -m easy_hearts -p class=lstm
 ```
 
 ## Step 4: Learn about missions
@@ -146,7 +146,7 @@ other agents moving around! Just provide a different policy, like `random`.
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train -m [MISSION] -p [POLICY]`
+### `cogames tutorial train -m [MISSION] -p [POLICY]`
 
 Train a policy on a mission.
 
@@ -159,21 +159,21 @@ find in `mettagrid/policy/policy.py`.
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
 ```
-cogames train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
 environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p class=stateless
+cogames tutorial train -m training_facility_1 -m training_facility_2 -p class=stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
 
-- `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
-- `cogames train -m '*:shaped'` will specify all "shaped" missions across all maps
-- `cogames train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
+- `cogames tutorial train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
+- `cogames tutorial train -m '*:shaped'` will specify all "shaped" missions across all maps
+- `cogames tutorial train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
 
 **Options:**
 
@@ -211,7 +211,7 @@ class MyPolicy(MultiAgentPolicy):
 ```
 
 To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
+`cogames tutorial train -m training_facility_1 -p class=path.to.MyPolicy`.
 
 #### Environment API
 
