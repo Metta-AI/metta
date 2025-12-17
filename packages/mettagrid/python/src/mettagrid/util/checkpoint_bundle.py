@@ -8,7 +8,7 @@ import torch
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, parse_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 
 def _join_uri(base: str, child: str) -> str:
@@ -19,10 +19,6 @@ def bundle_dir_from_mpt_uri(mpt_uri: str) -> str:
     if mpt_uri.endswith("policy.mpt"):
         return mpt_uri[: -len("policy.mpt")].rstrip("/")
     return mpt_uri.rsplit("/", 1)[0].rstrip("/")
-
-
-def submission_zip_uri_from_mpt_uri(mpt_uri: str) -> str:
-    return _join_uri(bundle_dir_from_mpt_uri(mpt_uri), "submission.zip")
 
 
 @dataclass(frozen=True)
@@ -99,10 +95,14 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
 
     if parsed.local_path:
         if parsed.local_path.is_file():
-            if parsed.local_path.name != "policy_spec.json":
-                raise ValueError("Checkpoint URI must point to a checkpoint directory or policy_spec.json")
-            local_dir = parsed.local_path.parent
-            dir_uri = local_dir.as_uri()
+            if parsed.local_path.name == "policy_spec.json":
+                local_dir = parsed.local_path.parent
+                dir_uri = local_dir.as_uri()
+            elif parsed.local_path.name == "policy.mpt":
+                local_dir = parsed.local_path.parent
+                dir_uri = local_dir.as_uri()
+            else:
+                raise ValueError("Checkpoint URI must point to a checkpoint directory, policy_spec.json, or policy.mpt")
         else:
             spec_path = parsed.local_path / "policy_spec.json"
             if not spec_path.exists():
@@ -112,6 +112,8 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
     else:
         if dir_uri.endswith("policy_spec.json"):
             dir_uri = dir_uri[: -len("policy_spec.json")].rstrip("/")
+        elif dir_uri.endswith("policy.mpt"):
+            dir_uri = bundle_dir_from_mpt_uri(dir_uri)
 
     return CheckpointBundle(dir_uri=dir_uri, local_dir=local_dir)
 
@@ -119,10 +121,3 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
 def resolve_policy_spec_uri(uri: str) -> str:
     """Resolve arbitrary checkpoint URI to policy_spec.json URI."""
     return resolve_checkpoint_bundle(uri).policy_spec_uri
-
-
-def resolve_policy_mpt_uri(uri: str) -> str:
-    """Resolve arbitrary checkpoint URI to policy.mpt URI (or pass through .mpt)."""
-    if uri.endswith(".mpt"):
-        return parse_uri(uri).canonical
-    return resolve_checkpoint_bundle(uri).policy_mpt_uri

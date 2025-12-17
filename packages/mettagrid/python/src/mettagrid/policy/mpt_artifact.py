@@ -11,7 +11,7 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.checkpoint_bundle import resolve_policy_mpt_uri
+from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
 from mettagrid.util.file import ParsedURI, local_copy, write_file
 from mettagrid.util.module import load_symbol
 
@@ -59,9 +59,13 @@ class MptArtifact:
 def load_mpt(uri: str) -> MptArtifact:
     """Load an .mpt checkpoint from a URI.
 
-    Supports file://, s3://, metta://, local paths, and :latest suffix.
+    Supports direct .mpt paths/URIs and checkpoint bundles (dirs or :latest).
     """
-    mpt_uri = resolve_policy_mpt_uri(uri)
+    if uri.endswith(".mpt"):
+        mpt_uri = ParsedURI.parse(uri).canonical
+    else:
+        mpt_uri = resolve_checkpoint_bundle(uri).policy_mpt_uri
+
     with local_copy(mpt_uri) as local_path:
         return _load_local_mpt_file(local_path)
 

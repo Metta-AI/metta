@@ -196,7 +196,6 @@ _SCHEME_RESOLVERS: list[str] = [
     "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
     "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
 ]
@@ -263,19 +262,6 @@ def policy_spec_from_uri(
     if uri.endswith(".zip"):
         return load_policy_spec_from_s3(
             uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
-        )
-
-    # Backwards compatibility: allow direct .mpt references.
-    if uri.endswith(".mpt"):
-        parsed_mpt = parse_uri(uri)
-        checkpoint_path = str(parsed_mpt.local_path) if parsed_mpt and parsed_mpt.local_path else uri
-        return PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
-            init_kwargs={
-                "checkpoint_uri": checkpoint_path,
-                "device": device,
-                "strict": strict,
-            },
         )
 
     from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
