@@ -30,6 +30,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 import cogames.policy.scripted_agent.starter_agent as starter_agent
+import cogames.policy.trainable_policy_template as trainable_policy_template
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
@@ -486,28 +487,48 @@ def make_mission(
         raise typer.Exit(1) from exc
 
 
-@tutorial_app.command("make-policy", help="Create a new starter policy")
+@tutorial_app.command("make-policy", help="Create a new policy from a template")
 def make_policy(
     output: Path = typer.Option("my_policy.py", "--output", "-o", help="Output file path"),  # noqa: B008
+    trainable: bool = typer.Option(False, "--trainable", "-t", help="Create a trainable (neural network) policy"),
+    scripted: bool = typer.Option(False, "--scripted", "-s", help="Create a scripted (rule-based) policy"),
 ) -> None:
-    """Create a new starter policy in the current directory."""
+    """Create a new policy from a template. Requires either --trainable or --scripted."""
+    if trainable == scripted:
+        console.print("[red]Error: Specify exactly one of --trainable or --scripted[/red]")
+        console.print("[dim]Examples:[/dim]")
+        console.print("[dim]  cogames make-policy --trainable -o my_nn_policy.py[/dim]")
+        console.print("[dim]  cogames make-policy --scripted -o my_scripted_policy.py[/dim]")
+        raise typer.Exit(1)
+
     try:
-        # Get the path to the starter_policy.py file
-        starter_policy_path = Path(starter_agent.__file__)
-        if not starter_policy_path.exists():
-            console.print("[red]Error: Starter policy file not found[/red]")
+        if trainable:
+            template_path = Path(trainable_policy_template.__file__)
+            policy_class = "MyTrainablePolicy"
+            policy_type = "Trainable"
+        else:
+            template_path = Path(starter_agent.__file__)
+            policy_class = "StarterPolicy"
+            policy_type = "Scripted"
+
+        if not template_path.exists():
+            console.print(f"[red]Error: {policy_type} policy template not found[/red]")
             raise typer.Exit(1)
 
-        # Copy to current working directory
         dest_path = Path.cwd() / output
 
-        # Check if destination already exists
         if dest_path.exists():
             console.print(f"[yellow]Warning: {dest_path} already exists. Overwriting...[/yellow]")
 
-        shutil.copy2(starter_policy_path, dest_path)
-        console.print(f"[green]Starter policy copied to: {dest_path}[/green]")
-        console.print(f"[dim]You can now modify {dest_path} to create your own policy.[/dim]")
+        shutil.copy2(template_path, dest_path)
+        console.print(f"[green]{policy_type} policy template copied to: {dest_path}[/green]")
+
+        if trainable:
+            console.print(
+                f"[dim]Train with: cogames tutorial train -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]"
+            )
+        else:
+            console.print(f"[dim]Play with: cogames play -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]")
 
     except Exception as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
