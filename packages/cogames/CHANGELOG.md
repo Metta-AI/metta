@@ -10,7 +10,9 @@
   - `cogames train` -> `cogames tutorial train`. This command offers a thin wrapper around
     [pufferlib](https://github.com/PufferAI/PufferLib/tree/3.0) train
   - `cogames make-policy` -> `cogames tutorial make-policy`. This command creates an example python implementation of a
-    scripted policy for you to modify.
+    scripted policy for you to modify
+  - Introduced `--scripted` and `--trainable` modes for `cogames make-policy`. Each creates an example policy
+    implementation from a template in different style: scripted or neural-net based.
   - `cogames tutorial` -> `cogames tutorial play`. This is an interactive tutorial that walks you through the basic
     mechanics of the game.
 
