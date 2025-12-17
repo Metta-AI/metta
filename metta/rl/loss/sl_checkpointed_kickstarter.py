@@ -165,7 +165,7 @@ class SLCheckpointedKickstarter(Loss):
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
-    def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> Policy:
+    def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
         """Load the teacher policy from a specific checkpoint."""
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
         policy_env_info = getattr(self.env, "policy_env_info", None)
@@ -178,5 +178,3 @@ class SLCheckpointedKickstarter(Loss):
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
-
-        return self.teacher_policy
