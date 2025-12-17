@@ -13,11 +13,12 @@ nimsimd 1.3.2 https://github.com/guzba/nimsimd 3f6b2668ffb0867d0bf786a658b817763
 opengl 1.2.9 https://github.com/nim-lang/opengl 8e2e098f82dc5eefd874488c37b5830233cd18f4
 pixie 5.1.0 https://github.com/treeform/pixie 5eda4949a3c8bea318cfac8e42060a8f90f3f35d
 puppy 2.1.2 https://github.com/treeform/puppy 700044e8baa1d33b58847f4f6c13224d6a964867
-shady 0.1.4 https://github.com/treeform/shady fa75f793cd4e5da288d4c133bb09b62c032fecc2
+shady 0.1.4 https://github.com/treeform/shady 9f322cfd0c3cfc1840eabe2504ff31411f6cd857
+silky 0.0.1 http://github.com/treeform/silky 237c5e7ca3c7bf85757a66819f2124de30ed54d3
 urlly 1.1.1 https://github.com/treeform/urlly 99784779f05649df25fd9c33003d8ef6de027345
 vmath 2.0.1 https://github.com/treeform/vmath ddfcd738578c47ed3330b917f5efecf5a15128b2
 webby 0.2.1 https://github.com/treeform/webby/ 55a2c03abbd32abf4775712c1959d975dc982549
-windy 0.4.4 https://github.com/treeform/windy 09ba899266a28217796d3a476731ab5966fb6ef9
+windy 0.4.4 https://github.com/treeform/windy 89b13ee0b4245d5fc96ca0622d7cebc1f56fe6eb
 ws 0.5.0 https://github.com/treeform/ws cbb8f763b436669392d10baec2a45778395395cc
 zippy 0.10.16 https://github.com/guzba/zippy a99f6a7d8a8e3e0213b3cad0daf0ea974bf58e3f
 supersnappy 2.1.3 https://github.com/guzba/supersnappy ff8fe2bffefc1f4edc15deb20d921f600babb8c4
