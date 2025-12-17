@@ -36,8 +36,8 @@ class PPOConfig(LossConfig):
     clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
     # Entropy term weight from sweep
     ent_coef: float = Field(default=0.027574, ge=0)
-    # GAE lambda tuned via sweep (cf. standard 0.95)
-    gae_lambda: float = Field(default=0.995000, ge=0, le=1.0)
+    # GAE lambda (standard 0.95)
+    gae_lambda: float = Field(default=0.95, ge=0, le=1.0)
     # Gamma tuned from CvC sweep winner
     gamma: float = Field(default=0.972810, ge=0, le=1.0)
 
