@@ -51,7 +51,8 @@ public:
   ~Inventory();
 
   // Update the inventory for a specific item
-  InventoryDelta update(InventoryItem item, InventoryDelta attempted_delta);
+  // If ignore_limits is true, the update will bypass limit checks (used for initial inventory)
+  InventoryDelta update(InventoryItem item, InventoryDelta attempted_delta, bool ignore_limits = false);
 
   // Get the amount of a specific item
   InventoryQuantity amount(InventoryItem item) const;

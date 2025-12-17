@@ -6,7 +6,6 @@ import torch.nn as nn
 
 import pufferlib.pytorch
 from mettagrid.config.mettagrid_config import ActionsConfig
-from mettagrid.mettagrid_c import dtype_actions
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action as MettaGridAction
@@ -51,22 +50,50 @@ class StatelessPolicyNet(torch.nn.Module):
 class StatelessAgentPolicyImpl(AgentPolicy):
     """Per-agent policy that uses the shared feedforward network."""
 
-    def __init__(self, net: StatelessPolicyNet, device: torch.device, num_actions: int):
+    def __init__(
+        self,
+        net: StatelessPolicyNet,
+        device: torch.device,
+        num_actions: int,
+        obs_shape: tuple[int, ...],
+        action_names: list[str],
+    ):
         self._net = net
         self._device = device
         self._num_actions = num_actions
+        self._obs_shape = obs_shape
+        self._action_names = action_names
+
+    def _obs_to_array(self, obs: MettaGridObservation) -> np.ndarray:
+        """Convert AgentObservation tokens to numpy array.
+
+        Mirrors the conversion logic in NimMultiAgentPolicy.step_single.
+        """
+        num_tokens, token_dim = self._obs_shape
+        obs_array = np.full((num_tokens, token_dim), fill_value=255, dtype=np.uint8)
+        for idx, token in enumerate(obs.tokens):
+            if idx >= num_tokens:
+                break
+            token_values = token.raw_token
+            obs_array[idx, : len(token_values)] = token_values
+        return obs_array
 
     def step(self, obs: MettaGridObservation) -> MettaGridAction:
         """Get action for this agent."""
-        # Convert single observation to batch of 1 for network forward pass
-        obs_tensor = torch.tensor(obs, device=self._device).unsqueeze(0).float()
+        # Handle both numpy arrays (from PufferLib) and AgentObservation (from Rollout)
+        if isinstance(obs, np.ndarray):
+            obs_array = obs
+        else:
+            obs_array = self._obs_to_array(obs)
+
+        obs_tensor = torch.tensor(obs_array, device=self._device).unsqueeze(0).float()
 
         with torch.no_grad():
             self._net.eval()
             logits, _ = self._net.forward_eval(obs_tensor)
             dist = torch.distributions.Categorical(logits=logits)
-            sampled_action = dist.sample().cpu().item()
-            return dtype_actions.type(sampled_action)
+            action_idx = int(dist.sample().cpu().item())
+            return MettaGridAction(name=self._action_names[action_idx])
 
 
 class StatelessPolicy(MultiAgentPolicy):
@@ -77,8 +104,8 @@ class StatelessPolicy(MultiAgentPolicy):
     def __init__(self, policy_env_info: PolicyEnvInterface, device: torch.device | str | None = None):
         super().__init__(policy_env_info)
         actions_cfg = policy_env_info.actions
-        obs_shape = policy_env_info.observation_space.shape
-        self._net = StatelessPolicyNet(actions_cfg, obs_shape)
+        self._obs_shape = policy_env_info.observation_space.shape
+        self._net = StatelessPolicyNet(actions_cfg, self._obs_shape)
         if device is not None:
             self._net = self._net.to(torch.device(device))
         self.num_actions = len(actions_cfg.actions())
@@ -90,7 +117,13 @@ class StatelessPolicy(MultiAgentPolicy):
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         """Create a Policy instance for a specific agent."""
         current_device = next(self._net.parameters()).device
-        return StatelessAgentPolicyImpl(self._net, current_device, self.num_actions)
+        return StatelessAgentPolicyImpl(
+            self._net,
+            current_device,
+            self.num_actions,
+            self._obs_shape,
+            self._policy_env_info.action_names,
+        )
 
     def is_recurrent(self) -> bool:
         return False

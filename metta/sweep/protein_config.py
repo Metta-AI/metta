@@ -9,7 +9,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import Field
 
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
+from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig
 from mettagrid.base_config import Config
 
 
