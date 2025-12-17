@@ -102,11 +102,18 @@ app = typer.Typer(
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
 
+tutorial_app = typer.Typer(
+    help="Tutorial commands to help you get started with CoGames",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
 if register_tribal_cli is not None:
     register_tribal_cli(app)
 
 
-@app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
+@tutorial_app.command(name="play", help="Interactive tutorial - learn to play Cogs vs Clips")
 def tutorial_cmd(
     ctx: typer.Context,
 ) -> None:
@@ -231,6 +238,9 @@ def tutorial_cmd(
         game_name="tutorial",
         render_mode="gui",
     )
+
+
+app.add_typer(tutorial_app, name="tutorial")
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
@@ -476,7 +486,7 @@ def make_mission(
         raise typer.Exit(1) from exc
 
 
-@app.command("make-policy", help="Create a new starter policy")
+@tutorial_app.command("make-policy", help="Create a new starter policy")
 def make_policy(
     output: Path = typer.Option("my_policy.py", "--output", "-o", help="Output file path"),  # noqa: B008
 ) -> None:
@@ -504,7 +514,10 @@ def make_policy(
         raise typer.Exit(1) from exc
 
 
-@app.command(name="train", help="Train a policy on a mission")
+app.command(name="make-policy", hidden=True)(make_policy)
+
+
+@tutorial_app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
@@ -619,6 +632,9 @@ def train_cmd(
         raise typer.Exit(1) from exc
 
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
+
+
+app.command(name="train", hidden=True)(train_cmd)
 
 
 @app.command(
