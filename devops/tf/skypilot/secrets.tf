@@ -7,7 +7,7 @@ data "aws_secretsmanager_secret_version" "lambda_ai_secret_version" {
 }
 
 # Deprecated - replace with lambda-credentials after skypilot-values.yaml is updated
-resource "kubernetes_secret" "lambda_ai_secret" {
+resource "kubernetes_secret_v1" "lambda_ai_secret" {
   metadata {
     name      = "lambda-ai-credentials"
     namespace = "skypilot"
@@ -16,7 +16,7 @@ resource "kubernetes_secret" "lambda_ai_secret" {
   data = jsondecode(data.aws_secretsmanager_secret_version.lambda_ai_secret_version.secret_string)
 }
 
-resource "kubernetes_secret" "lambda_credentials" {
+resource "kubernetes_secret_v1" "lambda_credentials" {
   metadata {
     name      = "lambda-credentials" # default name in skypilot chart
     namespace = "skypilot"
@@ -25,7 +25,7 @@ resource "kubernetes_secret" "lambda_credentials" {
   data = jsondecode(data.aws_secretsmanager_secret_version.lambda_ai_secret_version.secret_string)
 }
 
-resource "kubernetes_secret" "skypilot_api_server_credentials" {
+resource "kubernetes_secret_v1" "skypilot_api_server_credentials" {
   metadata {
     name      = "aws-credentials" # default name in skypilot chart
     namespace = "skypilot"
@@ -37,7 +37,7 @@ resource "kubernetes_secret" "skypilot_api_server_credentials" {
   }
 }
 
-resource "kubernetes_secret" "skypilot_db_connection" {
+resource "kubernetes_secret_v1" "skypilot_db_connection" {
   metadata {
     name      = "skypilot-db-connection-uri"
     namespace = "skypilot"
