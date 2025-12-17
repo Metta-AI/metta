@@ -31,7 +31,7 @@ import {
 
 import {
   to = aws_iam_access_key.skypilot_api_server
-  id = "skypilot-api-server"
+  id = "AKIA255LXLPB3MU6GBML"
 }
 
 import {
