@@ -303,7 +303,7 @@ uv run cogames play -m machina_1 -c 2 -s 50 -p "class=llm-anthropic,kw.model=cla
 **C6.5 Results:**
 | Test | Reward | Cost | Notes |
 |------|--------|------|-------|
-| C6.5 |        |      |       |
+| C6.5 | 0.00 | $2.46 | Pathfinding WORKS! Agent 1 found silicon extractor at step ~45, was navigating toward it when episode ended (2N3E away). Agent 0 explored 39 tiles, Agent 1 explored 46 tiles. No resources collected - extractors too far on 200x200 map for 50 steps. |
 
 ---
 
@@ -382,9 +382,69 @@ uv run cogames play -m machina_1 -c 2 -s 1000 -p "class=llm-anthropic,kw.model=c
 
 | Test | Date | Reward | Cost | Resources Collected | Notes |
 |------|------|--------|------|---------------------|-------|
-| C7a  |      |        |      |                     |       |
-| C7b  |      |        |      |                     |       |
-| C7c  |      |        |      |                     |       |
+| C7a  | 12/15 | 0.00 | $29.68 | Silicon: 30+30, Others: 0 | FAIL - Both agents maxed silicon (30/30) but NEVER found carbon, oxygen, or germanium extractors. Agent 0: 292 tiles explored. Agent 1: 196 tiles (died at energy 1 searching for charger). Map too large - only silicon extractors discovered in 500 steps. |
+| C7b  | 12/16 | 0.00 | $63.09 | Agent had O=10, Ge=2, Si=30, C=0 | CLOSE! Found ALL 4 extractor types. One agent had 3/4 resources maxed but couldn't find carbon. 4 agents explored ~1056 tiles total (233+249+296+278). |
+| C7c  | 12/16 | 0.00 | $64.75 | Agent 1: O=10, Ge=2, Si=30, C=0 | CLOSE! Agent 1 had 3/4 resources but spent 500+ steps searching for carbon extractor and never found one. Agent 0 died repeatedly from energy. 695 tiles explored (338+357). |
+
+---
+
+## C8: Extended Run with Fresh Map RNG
+
+**Hypothesis:** C7a/b/c all failed because carbon extractors happened to spawn in unexplored quadrants (SW/S), while agents explored NE. With a fresh map seed and 2000 steps, agents have:
+1. A new random extractor layout (might place carbon in favorable locations)
+2. Double the exploration time to eventually find all 4 resource types
+
+**Key insight from code analysis:** All extractors have equal spawn weights (carbon=0.3, silicon=0.3, oxygen=0.3). Carbon wasn't actually rarer - it was just placed in areas agents didn't explore.
+
+### Test C8: 2000 steps, 4 agents, fresh map RNG
+
+```bash
+uv run cogames play -m machina_1 -c 4 -s 2000 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_machina1_4agents_2000steps_c8.log
+```
+**Estimated cost:** ~$260
+
+**What we're measuring:**
+- [ ] Does fresh map RNG place carbon in more accessible locations?
+- [ ] Do agents find all 4 extractor types?
+- [ ] Do agents collect all 4 resources (C=10, O=10, Ge=2, Si=30)?
+- [ ] Is at least 1 heart crafted?
+
+**Success criteria:**
+- At least 1 agent collects all 4 resources
+- Reward > 0 (any heart crafted)
+
+**C8 Results:**
+| Test | Reward | Cost | Notes |
+|------|--------|------|-------|
+| C8   | 0.00 | $277.74 | FAIL - Agent 0 had 3/4 resources (O=10, Ge=2, Si=30) but **NO carbon extractor was EVER visible** in any agent's 11x11 grid during entire run. 2,329 tiles explored (774+564+548+443). Brutal map RNG - carbon extractors existed but were never within visible range despite 8000 API calls. |
+
+---
+
+## C9: Local Model with Larger Context Window
+
+**Hypothesis:** Previous Qwen tests used context_window_size=20. With context_window_size=40, the agent receives full basic info more frequently, potentially improving decision-making. Also tests if hello_world success can transfer to a free local model.
+
+### Test C9: Qwen on machina_1 (4 agents, 2000 steps, context=40)
+
+```bash
+uv run cogames play -m machina_1 -c 4 -s 2000 -p "class=llm-ollama,kw.model=qwen3-coder:30b,kw.context_window_size=40,kw.summary_interval=5" --render none 2>&1 | tee qwen_machina1_4agents_2000steps_c9.log
+```
+**Estimated cost:** $0 (local) | **Expected time:** Overnight (~8-16 hours)
+
+**What we're measuring:**
+- [ ] Does larger context window improve Qwen performance on machina_1?
+- [ ] Can Qwen find all 4 extractor types with fresh map RNG?
+- [ ] Does free local model fare better than Claude on map RNG?
+- [ ] Any hearts crafted?
+
+**Success criteria:**
+- At least 1 agent collects all 4 resource types
+- Reward > 0 (any heart crafted)
+
+**C9 Results:**
+| Test | Reward | Cost | Notes |
+|------|--------|------|-------|
+| C9   | 0.00 | $0 | FAIL - Qwen collected ZERO resources despite 2,392 tiles explored (621+364+630+777). Agents got stuck in loops (N→S→N→S). Saw silicon 941 times, carbon only once. Agents went far (128S80E, 102S188W) but never stepped on extractors. Context=40 didn't help. |
 
 ---
 
