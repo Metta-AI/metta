@@ -246,7 +246,7 @@ class CoreTrainingLoop:
                 self.experience.buffer["values"],
                 self.experience.buffer["rewards"],
                 self.experience.buffer["dones"],
-                self.experience.buffer["ratio"],
+                torch.ones_like(self.replay.buffer["values"]),
                 torch.zeros_like(self.experience.buffer["values"], device=self.device),
                 self.context.config.advantage.gamma,
                 self.context.config.advantage.gae_lambda,

@@ -11,6 +11,7 @@ from mettagrid.base_config import Config
 
 TeacherMode = Literal[
     "sliced_cloner",
+    "sliced_cloner_no_ppo",
     "supervisor",
     "sliced_kickstarter",
     "kickstarter",
@@ -138,11 +139,11 @@ def apply_teacher_phase(
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
-        supervisor.teacher_lead_prob = teacher_cfg.teacher_led_proportion
+        supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("supervisor")
         _gate_critic_after_teacher()
-        _anneal("supervisor", attr_path="teacher_lead_prob", start_value=teacher_cfg.teacher_led_proportion)
+        _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
                 HyperUpdateRule(
@@ -181,11 +182,11 @@ def apply_teacher_phase(
         ks = losses.kickstarter
         ks.enabled = True
         ks.teacher_uri = teacher_cfg.policy_uri
-        ks.teacher_lead_prob = teacher_cfg.teacher_led_proportion
+        ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("kickstarter")
         _gate_critic_after_teacher()
-        _anneal("kickstarter", attr_path="teacher_lead_prob", start_value=teacher_cfg.teacher_led_proportion)
+        _anneal("kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)

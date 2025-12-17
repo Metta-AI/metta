@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, List
 
 import torch
@@ -6,7 +8,6 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.common.util.collections import duplicates
-from metta.rl.trainer_config import SamplingConfig
 from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 
@@ -297,7 +298,7 @@ class Experience:
         policy_experience_spec: Composite,
         losses: Dict[str, Any],
         device: torch.device | str,
-        sampling_config: SamplingConfig,
+        sampling_config: Any,  # av fix
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 

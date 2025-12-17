@@ -16,7 +16,7 @@ from metta.rl.utils import add_dummy_loss_for_unused_params
 
 class ActionSupervisedConfig(LossConfig):
     action_loss_coef: float = Field(default=1, ge=0)
-    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     # Controls whether to add the imitation loss to the environment rewards.
     add_action_loss_to_rewards: bool = Field(default=False)
