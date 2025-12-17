@@ -74,10 +74,10 @@ public:
         stats_tracker(stats_tracker),
         grid(nullptr) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
-    // Set initial inventory for all configured resources
+    // Set initial inventory for all configured resources (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
-        inventory.update(resource, amount);
+        inventory.update(resource, amount, /*ignore_limits=*/true);
       }
     }
   }

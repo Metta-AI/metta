@@ -52,8 +52,8 @@ uv pip install cogames
 
 ## Step 2: Game tutorial
 
-Play an easy mission in Cogs vs. Clips using `cogames tutorial`. Follow the instructions given in the terminal, while
-you use the GUI to accomplish your first training mission.
+Play an easy mission in Cogs vs. Clips using `cogames tutorial play`. Follow the instructions given in the terminal,
+while you use the GUI to accomplish your first training mission.
 
 ## Step 3: Train a simple policy
 
@@ -69,10 +69,10 @@ We'll train a simple starter policy. `easy_hearts` uses three variants to simpli
 cogames play -m easy_hearts -p class=baseline
 
 # Try the scripted policy on a set of eval missions
-cogames eval -set integrated_evals -p class=baseline
+cogames run -S integrated_evals -p class=baseline
 
 # Train with an LSTM policy on easy_hearts
-cogames train -m easy_hearts -p class=lstm
+cogames tutorial train -m easy_hearts -p class=lstm
 ```
 
 ## Step 4: Learn about missions
@@ -110,7 +110,7 @@ cogames leaderboard
 
 # Develop a Policy
 
-## Play, Train, and Eval
+## Play, Train, and Run
 
 Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
 
@@ -118,7 +118,7 @@ To specify a `MISSION`, you can:
 
 - Use a mission name from the registry given by `cogames missions`, e.g. `training_facility_1`.
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
-- Alternatively, specify a set of missions with `-set` or `-S`.
+- Alternatively, specify a set of missions with `-S` or `--mission-set`.
 
 To specify a `POLICY`, use comma-separated key/value pairs:
 
@@ -146,7 +146,7 @@ other agents moving around! Just provide a different policy, like `random`.
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train -m [MISSION] -p [POLICY]`
+### `cogames tutorial train -m [MISSION] -p [POLICY]`
 
 Train a policy on a mission.
 
@@ -159,21 +159,21 @@ find in `mettagrid/policy/policy.py`.
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
 ```
-cogames train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
 environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p class=stateless
+cogames tutorial train -m training_facility_1 -m training_facility_2 -p class=stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
 
-- `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
-- `cogames train -m '*:shaped'` will specify all "shaped" missions across all maps
-- `cogames train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
+- `cogames tutorial train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
+- `cogames tutorial train -m '*:shaped'` will specify all "shaped" missions across all maps
+- `cogames tutorial train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
 
 **Options:**
 
@@ -211,7 +211,7 @@ class MyPolicy(MultiAgentPolicy):
 ```
 
 To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
+`cogames tutorial train -m training_facility_1 -p class=path.to.MyPolicy`.
 
 #### Environment API
 
@@ -244,11 +244,11 @@ for step in range(10000):
         obs, info = env.reset()
 ```
 
-### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
+### `cogames run -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
 Evaluate one or more policies on one or more missions.
 
-We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among:
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-S` or `--mission-set` among:
 `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
 You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
@@ -257,13 +257,13 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 
 ```bash
 # Evaluate a single trained policy checkpoint
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt
+cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt
 
 # Evaluate a single trained policy across a mission set with multiple agents
-cogames eval -set integrated_evals -p class=stateless,data=train_dir/model.pt
+cogames run -S integrated_evals -p class=stateless,data=train_dir/model.pt
 
 # Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
+cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -273,7 +273,7 @@ cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=
 - `--steps N`: Max steps per episode
 - `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
 
-When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
+When multiple policies are provided, `cogames run` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
