@@ -5,6 +5,7 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
+import itertools
 import logging
 from typing import Optional, Sequence
 
@@ -216,45 +217,71 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    dr_variants: int = 0,
+    dr_rewards: bool = True,
+    dr_misc: bool = False,
 ) -> CurriculumConfig:
     """Create a curriculum for CoGs vs Clips training."""
     if missions is None:
         missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
-    # Determine which variant sets to use for bucketing
-    # None => baseline mission; [name] => single variant; [v1, v2] => combined variants
-    if variants is None:
-        variant_sets: list[list[str] | None] = [None] + [[v.name] for v in VARIANTS]
-    else:
-        variant_sets = [list(variants)]
-
     all_mission_tasks = []
     for mission_name in missions:
         mission_template = _resolve_mission_template(mission_name)
 
-        # Create tasks for each variant set
-        for variant_set in variant_sets:
-            if variant_set is not None and not all(
-                any(v.name == name and v.compat(mission_template) for v in VARIANTS) for name in variant_set
-            ):
-                continue
+        # Determine which variant sets to use for bucketing
+        if variants is None:
+            available = [v.name for v in VARIANTS if v.compat(mission_template)]
+            if dr_variants == 0:
+                variant_sets: list[list[str] | None] = [None] + [[v] for v in available]
+            else:
+                max_k = min(dr_variants, len(available))
+                variant_sets = [
+                    list(combo) if combo else None
+                    for k in range(max_k + 1)
+                    for combo in itertools.combinations(available, k)
+                ]
+        else:
+            available = [
+                name for name in variants if any(v.name == name and v.compat(mission_template) for v in VARIANTS)
+            ]
+            if dr_variants == 0:
+                variant_sets = [available] if available else []
+            else:
+                max_k = min(dr_variants, len(available))
+                variant_sets = [
+                    list(combo) if combo else None
+                    for k in range(max_k + 1)
+                    for combo in itertools.combinations(available, k)
+                ]
 
-            mission_env = make_training_env(num_cogs=num_cogs, mission=mission_name, variants=variant_set or None)
+        for variant_set in variant_sets:
+            mission_env = make_training_env(
+                num_cogs=num_cogs,
+                mission=mission_name,
+                variants=variant_set,
+            )
             mission_env.game.global_obs.goal_obs = True
             mission_tasks = cc.bucketed(mission_env)
-
-            # Add buckets
             mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
-            mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
 
-            # Resource types for reward bucketing
-            resources = ["carbon", "oxygen", "germanium", "silicon"]
+            if dr_rewards:
+                mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+                mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
+                resources = ["carbon", "oxygen", "germanium", "silicon"]
+                for resource in resources:
+                    mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
+                equipment = ["scrambler", "modulator", "decoder", "resonator"]
+                for item in equipment:
+                    mission_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0.0, 0.1, 1.0, 10.0])
 
-            # Add buckets for resource collection rewards
-            for resource in resources:
-                mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
-
+            if dr_misc:
+                mission_tasks.add_bucket("game.agent.inventory_regen_amounts.energy", [0, 1, 2])
+                mission_tasks.add_bucket("game.actions.move.consumed_resources.energy", [1, 2, 3])
+                mission_tasks.add_bucket("game.agent.resource_limits.cargo.limit", [25, 50, 100])
+                mission_tasks.add_bucket("game.agent.resource_limits.energy.limit", [50, 75, 100])
+                mission_tasks.add_bucket("game.clipper.clip_period", [0, 25, 50])
+                mission_tasks.add_bucket("game.inventory_regen_interval", [0, 1, 2])
             all_mission_tasks.append(mission_tasks)
 
     merged_tasks = cc.merge(all_mission_tasks)
@@ -297,6 +324,9 @@ def train(
     max_evals: Optional[int] = None,
     teacher: TeacherConfig | None = None,
     use_lp: bool = True,
+    dr_variants: int = 0,
+    dr_rewards: bool = True,
+    dr_misc: bool = False,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
@@ -311,6 +341,9 @@ def train(
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
         algorithm_config=cur_alg,
+        dr_variants=dr_variants,
+        dr_rewards=dr_rewards,
+        dr_misc=dr_misc,
     )
 
     trainer_cfg = TrainerConfig(losses=LossesConfig())
