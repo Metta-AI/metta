@@ -269,6 +269,11 @@ class Experience:
 
         if self.sampling_config.method == "sequential":
             minibatch, indices = self.sample_sequential(mb_idx)
+            prio_weights = torch.ones(
+                (minibatch.shape[0], minibatch.shape[1]),
+                device=self.device,
+                dtype=torch.float32,
+            )
         else:
             assert advantages is not None, "Advantages must be provided for prioritized sampling"
             minibatch, indices, prio_weights = self.sample_prioritized(
@@ -280,7 +285,7 @@ class Experience:
                 self.sampling_config.prio_beta0,
                 advantages,
             )
-            shared_loss_mb_data["prio_weights"] = prio_weights
+        shared_loss_mb_data["prio_weights"] = prio_weights
 
         shared_loss_mb_data["sampled_mb"] = minibatch
         shared_loss_mb_data["indices"] = NonTensorData(indices)
