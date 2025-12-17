@@ -42,7 +42,6 @@ def enable_determinism() -> None:
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
     if torch.cuda.is_available():
-        # Use PyTorch 2.9+ new API - "ieee" = full FP32 precision (no TF32)
         torch.backends.cuda.matmul.fp32_precision = "ieee"
         torch.backends.cudnn.conv.fp32_precision = "ieee"
     torch.backends.cudnn.deterministic = True
