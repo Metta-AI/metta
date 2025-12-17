@@ -1,14 +1,24 @@
 data "aws_secretsmanager_secret" "lambda_ai_secret" {
-  arn = var.lambda_ai_secret_arn
+  name = "LambdaAI"
 }
 
 data "aws_secretsmanager_secret_version" "lambda_ai_secret_version" {
   secret_id = data.aws_secretsmanager_secret.lambda_ai_secret.id
 }
 
+# Deprecated - replace with lambda-credentials after skypilot-values.yaml is updated
 resource "kubernetes_secret" "lambda_ai_secret" {
   metadata {
     name      = "lambda-ai-credentials"
+    namespace = "skypilot"
+  }
+
+  data = jsondecode(data.aws_secretsmanager_secret_version.lambda_ai_secret_version.secret_string)
+}
+
+resource "kubernetes_secret" "lambda_credentials" {
+  metadata {
+    name      = "lambda-credentials" # default name in skypilot chart
     namespace = "skypilot"
   }
 
@@ -25,10 +35,6 @@ resource "kubernetes_secret" "skypilot_api_server_credentials" {
     aws_access_key_id     = aws_iam_access_key.skypilot_api_server.id
     aws_secret_access_key = aws_iam_access_key.skypilot_api_server.secret
   }
-}
-
-data "aws_secretsmanager_secret" "datadog_api_key" {
-  name = "datadog/api-key"
 }
 
 resource "kubernetes_secret" "skypilot_db_connection" {

@@ -13,9 +13,8 @@ data "aws_db_subnet_group" "db" {
   name = "main-db"
 }
 
-
 resource "aws_db_instance" "postgres" {
-  identifier     = "skypilot-pg"
+  identifier     = var.db_identifier
   engine         = "postgres"
   engine_version = var.db_postgres_version
 
