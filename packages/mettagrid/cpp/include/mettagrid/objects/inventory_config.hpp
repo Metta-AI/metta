@@ -25,15 +25,9 @@ struct LimitDef {
 };
 
 struct InventoryConfig {
-  // Legacy format for backward compatibility
-  std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>> limits;
-  // New format with modifiers
   std::vector<LimitDef> limit_defs;
 
   InventoryConfig() = default;
-
-  explicit InventoryConfig(const std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>>& limits)
-      : limits(limits) {}
 };
 
 namespace py = pybind11;
@@ -53,9 +47,6 @@ inline void bind_inventory_config(py::module& m) {
 
   py::class_<InventoryConfig>(m, "InventoryConfig")
       .def(py::init<>())
-      .def(py::init<const std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>>&>(),
-           py::arg("limits") = std::vector<std::pair<std::vector<InventoryItem>, InventoryQuantity>>())
-      .def_readwrite("limits", &InventoryConfig::limits)
       .def_readwrite("limit_defs", &InventoryConfig::limit_defs);
 }
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_CONFIG_HPP_

@@ -622,11 +622,12 @@ def train_cmd(
 
 
 @app.command(
-    name="evaluate",
+    name="run",
     help="Evaluate one or more policies on one or more missions",
 )
 @app.command("eval", hidden=True)
-def evaluate_cmd(
+@app.command("evaluate", hidden=True)
+def run_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(  # noqa: B008
         None,

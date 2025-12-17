@@ -1,4 +1,5 @@
-from metta.sweep.core import Distribution, ParameterConfig, SweepParameters
+from metta.sweep.core import SweepParameters
+from metta.sweep.parameter_config import Distribution, ParameterConfig
 
 
 def test_parameter_config_creation():
