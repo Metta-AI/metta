@@ -52,8 +52,8 @@ uv pip install cogames
 
 ## Step 2: Game tutorial
 
-Play an easy mission in Cogs vs. Clips using `cogames tutorial`. Follow the instructions given in the terminal, while
-you use the GUI to accomplish your first training mission.
+Play an easy mission in Cogs vs. Clips using `cogames tutorial play`. Follow the instructions given in the terminal,
+while you use the GUI to accomplish your first training mission.
 
 ## Step 3: Train a simple policy
 
@@ -72,7 +72,7 @@ cogames play -m easy_hearts -p class=baseline
 cogames run -S integrated_evals -p class=baseline
 
 # Train with an LSTM policy on easy_hearts
-cogames train -m easy_hearts -p class=lstm
+cogames tutorial train -m easy_hearts -p class=lstm
 ```
 
 ## Step 4: Learn about missions
@@ -110,6 +110,16 @@ cogames leaderboard
 
 # Develop a Policy
 
+A **policy** contains the decision-making logic that controls your agents. Given an observation of the game state, a
+policy outputs an action.
+
+CoGames asks that policies implement the `MultiAgentPolicy` interface. Any implementation will work, and we provide two
+templates to get you up and running:
+
+- `cogames tutorial make-policy --scripted` gives a starter template for a simple, rule-based script
+- `cogames tutorial make-policy --trainable` gives a basic neural-net based implementation that can be trained via
+  `cogames tutorial train`
+
 ## Play, Train, and Run
 
 Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
@@ -146,7 +156,7 @@ other agents moving around! Just provide a different policy, like `random`.
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train -m [MISSION] -p [POLICY]`
+### `cogames tutorial train -m [MISSION] -p [POLICY]`
 
 Train a policy on a mission.
 
@@ -159,21 +169,21 @@ find in `mettagrid/policy/policy.py`.
 You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
 
 ```
-cogames train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
 environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p class=stateless
+cogames tutorial train -m training_facility_1 -m training_facility_2 -p class=stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
 
-- `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
-- `cogames train -m '*:shaped'` will specify all "shaped" missions across all maps
-- `cogames train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
+- `cogames tutorial train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
+- `cogames tutorial train -m '*:shaped'` will specify all "shaped" missions across all maps
+- `cogames tutorial train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
 
 **Options:**
 
@@ -184,34 +194,27 @@ You can also specify multiple missions with `*` wildcards:
 
 ### Custom Policy Architectures
 
-To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, extend the canonical `cogames.policy.MultiAgentPolicy` base class.
+CoGames supports torch-based policy architectures out of the box (such as `stateless` and `lstm`). To create your own
+trainable policy, run:
 
-```python
-from cogames.policy import MultiAgentPolicy
-
-class MyPolicy(MultiAgentPolicy):
-    def __init__(self, observation_space, action_space):
-        self.network = MyNetwork(observation_space, action_space)
-
-    def get_action(self, observation, agent_id=None):
-        return self.network(observation)
-
-    def reset(self):
-        pass
-
-    def save(self, path):
-        torch.save(self.network.state_dict(), path)
-
-    @classmethod
-    def load(cls, path, env=None):
-        policy = cls(env.observation_space, env.action_space)
-        policy.network.load_state_dict(torch.load(path))
-        return policy
+```bash
+cogames tutorial make-policy --trainable -o my_policy.py
 ```
 
-To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
+This generates a complete working template. See the
+[trainable policy template](src/cogames/policy/trainable_policy_template.py) for the full implementation. The key
+components are:
+
+- **`MultiAgentPolicy`**: The main policy class that the training system interacts with
+- **`AgentPolicy`**: Per-agent decision-making (returned by `agent_policy()`)
+- **`network()`**: Returns the `nn.Module` for training (must implement `forward_eval(obs, state) -> (logits, values)`)
+- **`load_policy_data()` / `save_policy_data()`**: Checkpoint serialization
+
+To train using your policy:
+
+```bash
+cogames tutorial train -m easy_hearts -p class=my_policy.MyTrainablePolicy
+```
 
 #### Environment API
 
