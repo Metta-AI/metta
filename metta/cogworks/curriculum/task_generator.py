@@ -370,3 +370,50 @@ def _validate_open_task_generator(v: Any, handler):
 AnyTaskGeneratorConfig = SerializeAsAny[
     Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
 ]
+
+
+class SequentialTaskGenerator(TaskGenerator):
+    """Returns tasks in a fixed sequence for continual learning experiments.
+
+    This generator cycles through a predefined list of MettaGridConfig tasks
+    in order, enabling controlled sequential learning experiments where the
+    task order is deterministic and reproducible.
+    """
+
+    class Config(TaskGeneratorConfig["SequentialTaskGenerator"]):
+        """Configuration for sequential task generation."""
+
+        task_sequence: list[MettaGridConfig] = Field(description="Ordered list of tasks for continual learning")
+
+        repeat_sequence: bool = Field(default=True, description="Whether to cycle through tasks repeatedly")
+
+    def __init__(self, config: "SequentialTaskGenerator.Config"):
+        super().__init__(config)
+        self._config = config
+
+        if not self._config.task_sequence:
+            raise ValueError("task_sequence cannot be empty")
+
+    def _generate_task(self, task_id: int, rng: random.Random) -> MettaGridConfig:
+        """Return task based on position in sequence.
+
+        Args:
+            task_id: Task identifier used to select from sequence
+            rng: Random number generator (unused for sequential selection)
+
+        Returns:
+            MettaGridConfig for the selected task
+        """
+        sequence_length = len(self._config.task_sequence)
+
+        if self._config.repeat_sequence:
+            # Cycle through tasks: 0,1,2,0,1,2,...
+            index = task_id % sequence_length
+        else:
+            # Clamp to last task if beyond sequence
+            index = min(task_id, sequence_length - 1)
+
+        task_config = self._config.task_sequence[index]
+
+        # Apply overrides from parent config
+        return self._apply_overrides(task_config, self._overrides)
