@@ -51,7 +51,7 @@ var
   previousStep*: int = -1
   replay*: Replay
   play*: bool
-  playSpeed*: float32 = 1.0
+  playSpeed*: float32 = 10.0
   lastSimTime*: float64 = epochTime()
   playMode* = Historical
 
