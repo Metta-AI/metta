@@ -8,7 +8,7 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ObsConfig,
 )
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.simulator import Action, Simulation
 
 

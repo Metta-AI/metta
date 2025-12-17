@@ -14,7 +14,8 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.753832, ge=0)
+    # Value loss clipping toggle
     clip_vloss: bool = True
 
     def create(
@@ -70,7 +71,12 @@ class PPOCritic(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            self.policy.forward(td)
+            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+            # reuse them to avoid overwriting while still computing values/logprobs.
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1

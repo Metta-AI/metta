@@ -91,7 +91,7 @@ class Kickstarter(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.teacher_lead_prob:
+        if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
             td["actions"] = teacher_actions
 

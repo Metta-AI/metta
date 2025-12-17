@@ -216,6 +216,212 @@ void test_transfer_from_empty_inventory() {
   std::cout << "✓ Transfer from empty inventory test passed" << std::endl;
 }
 
+// ============================================================
+// Dynamic Inventory Limits with Modifiers Tests
+// ============================================================
+
+// Test helper: create config using new limit_defs format (no modifiers)
+InventoryConfig create_test_inventory_config_limit_defs(InventoryQuantity limit) {
+  InventoryConfig config;
+  // Set individual limits for resource types 0, 1, and 2 using new limit_defs
+  config.limit_defs.push_back(LimitDef({0}, limit));
+  config.limit_defs.push_back(LimitDef({1}, limit));
+  config.limit_defs.push_back(LimitDef({2}, limit));
+  return config;
+}
+
+void test_limit_defs_basic() {
+  std::cout << "Testing limit_defs basic functionality..." << std::endl;
+
+  // Create inventory using new limit_defs format
+  InventoryConfig config = create_test_inventory_config_limit_defs(100);
+  HasInventory inv(config);
+
+  // Add 50 units of resource 0
+  InventoryDelta added = inv.inventory.update(0, 50);
+  assert(added == 50);
+  assert(inv.inventory.amount(0) == 50);
+
+  // Try to add 60 more (should be clamped to 50 more to reach limit of 100)
+  InventoryDelta added2 = inv.inventory.update(0, 60);
+  assert(added2 == 50);
+  assert(inv.inventory.amount(0) == 100);
+
+  std::cout << "✓ limit_defs basic test passed" << std::endl;
+}
+
+void test_dynamic_limit_with_modifier() {
+  std::cout << "Testing dynamic limit with modifier..." << std::endl;
+
+  // Example: battery limit starts at 0, each gear adds +1 battery capacity
+  // Resource 0 = gear, Resource 1 = battery
+  InventoryConfig config;
+  config.limit_defs.push_back(LimitDef({0}, 10));  // gear has fixed limit of 10
+  // battery has base limit of 0, but each gear adds 5 capacity
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));
+
+  HasInventory inv(config);
+
+  // Initially, we can't add any batteries (limit is 0)
+  InventoryDelta added = inv.inventory.update(1, 10);
+  assert(added == 0);
+  assert(inv.inventory.amount(1) == 0);
+
+  // Add 2 gears - this should increase battery limit to 10 (2 * 5)
+  inv.inventory.update(0, 2);
+  assert(inv.inventory.amount(0) == 2);
+
+  // Now we should be able to add up to 10 batteries
+  InventoryDelta added2 = inv.inventory.update(1, 10);
+  assert(added2 == 10);
+  assert(inv.inventory.amount(1) == 10);
+
+  // Try to add more batteries (should fail, at limit)
+  InventoryDelta added3 = inv.inventory.update(1, 5);
+  assert(added3 == 0);
+
+  // Add 1 more gear - battery limit should increase to 15
+  inv.inventory.update(0, 1);
+  assert(inv.inventory.amount(0) == 3);
+
+  // Now we should be able to add 5 more batteries
+  InventoryDelta added4 = inv.inventory.update(1, 5);
+  assert(added4 == 5);
+  assert(inv.inventory.amount(1) == 15);
+
+  std::cout << "✓ Dynamic limit with modifier test passed" << std::endl;
+}
+
+void test_dynamic_limit_chain() {
+  std::cout << "Testing dynamic limit chain (gear -> battery -> energy)..." << std::endl;
+
+  // Example: gear has fixed limit, battery depends on gear, energy depends on battery
+  // Resource 0 = gear, Resource 1 = battery, Resource 2 = energy
+  InventoryConfig config;
+  config.limit_defs.push_back(LimitDef({0}, 5));             // gear has fixed limit of 5
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 1}}));   // each gear adds +1 battery capacity
+  config.limit_defs.push_back(LimitDef({2}, 0, {{1, 25}}));  // each battery adds +25 energy capacity
+
+  HasInventory inv(config);
+
+  // Initially can't add batteries or energy
+  assert(inv.inventory.update(1, 5) == 0);
+  assert(inv.inventory.update(2, 100) == 0);
+
+  // Add 3 gears
+  assert(inv.inventory.update(0, 3) == 3);
+
+  // Now can add up to 3 batteries
+  assert(inv.inventory.update(1, 3) == 3);
+  assert(inv.inventory.amount(1) == 3);
+
+  // Now can add up to 75 energy (3 batteries * 25)
+  assert(inv.inventory.update(2, 75) == 75);
+  assert(inv.inventory.amount(2) == 75);
+
+  // Can't add more energy (at limit)
+  assert(inv.inventory.update(2, 10) == 0);
+
+  // Add 1 more battery (total 4, but we only have 3 gear capacity)
+  // This should fail since battery limit is 3
+  assert(inv.inventory.update(1, 1) == 0);
+
+  std::cout << "✓ Dynamic limit chain test passed" << std::endl;
+}
+
+void test_free_space_with_modifiers() {
+  std::cout << "Testing free_space with modifiers..." << std::endl;
+
+  // Resource 0 = gear, Resource 1 = battery
+  InventoryConfig config;
+  config.limit_defs.push_back(LimitDef({0}, 10));           // gear limit 10
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));  // battery limit depends on gear
+
+  HasInventory inv(config);
+
+  // No gears, so battery free_space should be 0
+  assert(inv.inventory.free_space(1) == 0);
+
+  // Add 2 gears, battery free_space should be 10
+  inv.inventory.update(0, 2);
+  assert(inv.inventory.free_space(1) == 10);
+
+  // Add 3 batteries, free_space should be 7
+  inv.inventory.update(1, 3);
+  assert(inv.inventory.free_space(1) == 7);
+
+  // Add 1 more gear, free_space should be 12 (15 limit - 3 used)
+  inv.inventory.update(0, 1);
+  assert(inv.inventory.free_space(1) == 12);
+
+  std::cout << "✓ free_space with modifiers test passed" << std::endl;
+}
+
+void test_limit_reduces_when_modifier_removed() {
+  std::cout << "Testing limit reduction when modifier item is removed..." << std::endl;
+
+  // Resource 0 = gear, Resource 1 = battery
+  InventoryConfig config;
+  config.limit_defs.push_back(LimitDef({0}, 10));           // gear limit 10
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));  // battery limit depends on gear
+
+  HasInventory inv(config);
+
+  // Add 4 gears (battery limit = 20)
+  inv.inventory.update(0, 4);
+  // Add 18 batteries
+  inv.inventory.update(1, 18);
+  assert(inv.inventory.amount(1) == 18);
+
+  // Remove 2 gears (battery limit now = 10)
+  inv.inventory.update(0, -2);
+  assert(inv.inventory.amount(0) == 2);
+
+  // Batteries should still be 18 (removing gears doesn't auto-destroy batteries)
+  assert(inv.inventory.amount(1) == 18);
+
+  // But free_space should be 0 (over limit)
+  assert(inv.inventory.free_space(1) == 0);
+
+  // Trying to add batteries when over limit will clamp down to the limit
+  // 18 + 1 = 19, clamped to max of 10, so delta is -8
+  assert(inv.inventory.update(1, 1) == -8);
+  assert(inv.inventory.amount(1) == 10);
+
+  std::cout << "✓ Limit reduction when modifier removed test passed" << std::endl;
+}
+
+void test_transfer_with_modifier_limits() {
+  std::cout << "Testing transfer with modifier-based limits..." << std::endl;
+
+  // Resource 0 = gear, Resource 1 = battery
+  InventoryConfig source_config;
+  source_config.limit_defs.push_back(LimitDef({0}, 10));
+  source_config.limit_defs.push_back(LimitDef({1}, 100));  // source has fixed battery limit
+
+  InventoryConfig target_config;
+  target_config.limit_defs.push_back(LimitDef({0}, 10));
+  target_config.limit_defs.push_back(LimitDef({1}, 0, {{0, 5}}));  // target battery depends on gear
+
+  HasInventory source(source_config);
+  HasInventory target(target_config);
+
+  // Source has lots of batteries
+  source.inventory.update(1, 50);
+
+  // Target has 2 gears (battery limit = 10)
+  target.inventory.update(0, 2);
+
+  // Try to transfer 20 batteries - should only transfer 10
+  InventoryDelta transferred = HasInventory::transfer_resources(source.inventory, target.inventory, 1, 20, false);
+
+  assert(transferred == 10);
+  assert(source.inventory.amount(1) == 40);
+  assert(target.inventory.amount(1) == 10);
+
+  std::cout << "✓ Transfer with modifier limits test passed" << std::endl;
+}
+
 int main() {
   std::cout << "Running HasInventory::transfer_resources tests..." << std::endl;
   std::cout << "================================================" << std::endl;
@@ -229,6 +435,17 @@ int main() {
   test_negative_delta();
   test_transfer_to_full_inventory();
   test_transfer_from_empty_inventory();
+
+  std::cout << "================================================" << std::endl;
+  std::cout << "Running Dynamic Inventory Limits tests..." << std::endl;
+  std::cout << "================================================" << std::endl;
+
+  test_limit_defs_basic();
+  test_dynamic_limit_with_modifier();
+  test_dynamic_limit_chain();
+  test_free_space_with_modifiers();
+  test_limit_reduces_when_modifier_removed();
+  test_transfer_with_modifier_limits();
 
   std::cout << "================================================" << std::endl;
   std::cout << "All tests passed! ✓" << std::endl;

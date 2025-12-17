@@ -66,7 +66,7 @@ class ActionSupervised(Loss):
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.teacher_lead_prob:
+        if torch.rand(1) < self.cfg.teacher_led_proportion:
             # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions

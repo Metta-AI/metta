@@ -138,9 +138,10 @@ class QuantilePPOCritic(Loss):
             indices = shared_loss_data["indices"]
             if isinstance(indices, NonTensorData):
                 indices = indices.data
+            if indices is None:
+                indices = torch.arange(minibatch.batch_size[0], device=self.device)
 
             if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
                 shared_loss_data["prio_weights"] = torch.ones(
                     (minibatch.shape[0], minibatch.shape[1]),
                     device=self.device,

@@ -10,19 +10,19 @@ from mettagrid.base_config import Config
 
 class OptimizerConfig(Config):
     type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
-    # Learning rate: tuned for ScheduleFree AdamW (scaled down ~20% from the legacy Adam default)
-    learning_rate: float = Field(default=0.00092, gt=0, le=1.0)
+    # Learning rate tuned from CvC sweep winners (schedule-free AdamW)
+    learning_rate: float = Field(default=0.0087423, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
-    # Epsilon: Type 2 default chosen arbitrarily
-    eps: float = Field(default=3.186531e-07, gt=0)
+    # Epsilon: picked from top CvC sweep run
+    eps: float = Field(default=2.0e-6, gt=0)
     # Weight decay: modest L2 regularization for AdamW-style optimizers
     weight_decay: float = Field(default=0.01, ge=0)
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
-    warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
+    warmup_steps: int = Field(default=2070, ge=0)  # From best CvC sweep run
 
 
 class SamplingConfig(Config):
