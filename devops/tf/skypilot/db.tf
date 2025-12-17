@@ -8,7 +8,7 @@ data "aws_secretsmanager_secret_version" "skypilot_db_password" {
 
 import {
   to = random_password.db
-  id = data.aws_secretsmanager_secret_version.skypilot_db_password.secret_string
+  id = nonsensitive(data.aws_secretsmanager_secret_version.skypilot_db_password.secret_string)
 }
 
 resource "random_password" "db" {
