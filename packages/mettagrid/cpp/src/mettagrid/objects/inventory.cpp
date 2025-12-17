@@ -15,26 +15,12 @@ Inventory::Inventory(const InventoryConfig& cfg,
                      const std::vector<std::string>* resource_names,
                      const std::unordered_map<std::string, ObservationType>* feature_ids)
     : _inventory(), _limits(), _owner(owner) {
-  // Handle new limit_defs format (with modifiers)
   for (const auto& limit_def : cfg.limit_defs) {
     SharedInventoryLimit* limit = new SharedInventoryLimit();
     limit->amount = 0;
     limit->base_limit = limit_def.base_limit;
     limit->modifiers = limit_def.modifiers;
     for (const auto& resource : limit_def.resources) {
-      this->_limits[resource] = limit;
-    }
-  }
-
-  // Handle legacy limits format (without modifiers)
-  for (const auto& limit_pair : cfg.limits) {
-    const auto& resources = limit_pair.first;
-    const auto& limit_value = limit_pair.second;
-    SharedInventoryLimit* limit = new SharedInventoryLimit();
-    limit->amount = 0;
-    limit->base_limit = limit_value;
-    // No modifiers for legacy format
-    for (const auto& resource : resources) {
       this->_limits[resource] = limit;
     }
   }
@@ -52,14 +38,15 @@ Inventory::~Inventory() {
 }
 
 // Update method implementation
-InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_delta) {
+InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_delta, bool ignore_limits) {
   InventoryQuantity initial_amount = this->_inventory[item];
   int new_amount = static_cast<int>(initial_amount + attempted_delta);
 
   constexpr InventoryQuantity min = std::numeric_limits<InventoryQuantity>::min();
   InventoryQuantity max = std::numeric_limits<InventoryQuantity>::max();
   SharedInventoryLimit* limit = nullptr;
-  if (this->_limits.count(item) > 0) {
+
+  if (!ignore_limits && this->_limits.count(item) > 0) {
     limit = this->_limits.at(item);
     // Get effective limit (base + modifiers)
     InventoryQuantity effective = limit->effective_limit(this->_inventory);
@@ -80,8 +67,9 @@ InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_de
     this->_inventory[item] = clamped_amount;
   }
 
-  if (limit) {
-    limit->amount += clamped_amount - initial_amount;
+  // Update limit tracking even when ignoring limits (so it reflects actual inventory state)
+  if (this->_limits.count(item) > 0) {
+    this->_limits.at(item)->amount += clamped_amount - initial_amount;
   }
 
   InventoryDelta clamped_delta = clamped_amount - initial_amount;

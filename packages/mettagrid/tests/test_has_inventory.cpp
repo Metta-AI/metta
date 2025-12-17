@@ -8,9 +8,9 @@
 InventoryConfig create_test_inventory_config(InventoryQuantity limit) {
   InventoryConfig config;
   // Set individual limits for resource types 0, 1, and 2
-  config.limits.push_back({{0}, limit});  // Resource type 0
-  config.limits.push_back({{1}, limit});  // Resource type 1
-  config.limits.push_back({{2}, limit});  // Resource type 2
+  config.limit_defs.push_back(LimitDef({0}, limit));  // Resource type 0
+  config.limit_defs.push_back(LimitDef({1}, limit));  // Resource type 1
+  config.limit_defs.push_back(LimitDef({2}, limit));  // Resource type 2
   return config;
 }
 
@@ -220,21 +220,11 @@ void test_transfer_from_empty_inventory() {
 // Dynamic Inventory Limits with Modifiers Tests
 // ============================================================
 
-// Test helper: create config using new limit_defs format (no modifiers)
-InventoryConfig create_test_inventory_config_limit_defs(InventoryQuantity limit) {
-  InventoryConfig config;
-  // Set individual limits for resource types 0, 1, and 2 using new limit_defs
-  config.limit_defs.push_back(LimitDef({0}, limit));
-  config.limit_defs.push_back(LimitDef({1}, limit));
-  config.limit_defs.push_back(LimitDef({2}, limit));
-  return config;
-}
-
 void test_limit_defs_basic() {
   std::cout << "Testing limit_defs basic functionality..." << std::endl;
 
-  // Create inventory using new limit_defs format
-  InventoryConfig config = create_test_inventory_config_limit_defs(100);
+  // Create inventory using limit_defs format
+  InventoryConfig config = create_test_inventory_config(100);
   HasInventory inv(config);
 
   // Add 50 units of resource 0
