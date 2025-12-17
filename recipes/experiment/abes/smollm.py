@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -82,7 +82,8 @@ def train(
     policy_config, trainer_updates, env_updates, _num_agents = _smollm_config(model_name, mem_len)
 
     if policy_architecture is None:
-        policy_architecture = SmolLLMConfig(**policy_config)
+        policy_architecture = get_architecture("smollm")
+        policy_architecture = policy_architecture.model_copy(update=policy_config)
 
     tool = base_train(
         curriculum=curriculum,

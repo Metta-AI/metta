@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from cortex.config import CortexStackConfig
 
@@ -8,6 +8,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 from mettagrid.util.module import load_symbol
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -51,15 +52,16 @@ def train(
     stack_builder: Optional[str] = None,
     stack_cfg: Optional[dict] = None,
 ) -> TrainTool:
-    # Default to Cortex policy and apply optional stack overrides
     if policy_architecture is None:
-        policy_architecture = CortexBaseConfig()
+        policy_architecture = get_architecture("cortex")
         if stack is not None:
-            policy_architecture = _override_cortex_stack(policy_architecture, stack)
+            policy_architecture = _override_cortex_stack(cast(CortexBaseConfig, policy_architecture), stack)
         elif stack_builder is not None:
             builder = load_symbol(stack_builder)
+            if not callable(builder):
+                raise TypeError(f"Stack builder '{stack_builder}' is not callable")
             built = builder(**(stack_cfg or {}))
-            policy_architecture = _override_cortex_stack(policy_architecture, built)
+            policy_architecture = _override_cortex_stack(cast(CortexBaseConfig, policy_architecture), built)
 
     return base_train(
         curriculum=curriculum,

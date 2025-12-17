@@ -10,6 +10,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -98,7 +99,6 @@ def train(
 
     try:
         from metta.agent.components.drama import DramaWorldModelConfig
-        from metta.agent.policies.drama_policy import DramaPolicyConfig
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
@@ -107,7 +107,7 @@ def train(
             ) from exc
         raise
 
-    policy = policy_architecture or DramaPolicyConfig()
+    policy = policy_architecture or get_architecture("drama")
 
     mem_eff_supported = _supports_mem_eff_path()
     if not mem_eff_supported:

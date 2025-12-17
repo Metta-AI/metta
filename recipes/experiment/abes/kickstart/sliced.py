@@ -7,7 +7,6 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -30,6 +29,7 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+from recipes.experiment.architectures import get_architecture
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -109,7 +109,7 @@ def train(
     eval_simulations = simulations()
 
     if policy_architecture is None:
-        policy_architecture = ViTDefaultConfig()
+        policy_architecture = get_architecture("vit")
 
     losses_config = LossesConfig()
     trainer_cfg = TrainerConfig(losses=losses_config)

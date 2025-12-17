@@ -10,6 +10,7 @@ from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -101,7 +102,6 @@ def train(
 
     try:
         import metta.agent.components.mamba.config as mamba_config
-        from metta.agent.policies.mamba_sliding import MambaSlidingConfig
     except ModuleNotFoundError as exc:
         if exc.name == "mamba_ssm":
             raise RuntimeError(
@@ -114,7 +114,7 @@ def train(
         msg = f"Unsupported SSM layer '{ssm_layer}'. Only '{DEFAULT_SSM_LAYER}' is available."
         raise ValueError(msg)
 
-    policy = policy_architecture or MambaSlidingConfig()
+    policy = policy_architecture or get_architecture("mamba")
 
     mem_eff_supported = _supports_mem_eff_path()
     if not mem_eff_supported:

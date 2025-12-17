@@ -5,8 +5,10 @@ from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
+
+# Note: ViTSlidingTransConfig doesn't exist in current codebase
+# from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -106,7 +108,11 @@ def train(
     # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
+    # Note: ViTSlidingTransConfig doesn't exist in current codebase
+    # policy_config = ViTSlidingTransConfig()
+    if policy_architecture is None:
+        raise ValueError("policy_architecture must be provided (ViTSlidingTransConfig not available)")
+    policy_config = policy_architecture
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=eval_simulations)
 

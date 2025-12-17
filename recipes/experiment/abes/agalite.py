@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Callable
-
-from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import OptimizerConfig
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -23,18 +21,6 @@ from recipes.prod.arena_basic_easy_shaped import (
     train as base_train,
 )
 
-_POLICY_PRESETS: dict[str, Callable[[], PolicyArchitecture]] = {
-    "agalite": AGaLiTeConfig,
-}
-
-
-def _policy_from_name(name: str) -> PolicyArchitecture:
-    try:
-        return _POLICY_PRESETS[name]()
-    except KeyError as exc:  # pragma: no cover - defensive guard
-        available = ", ".join(sorted(_POLICY_PRESETS))
-        raise ValueError(f"Unknown policy '{name}'. Available: {available}") from exc
-
 
 def train(
     *,
@@ -44,10 +30,9 @@ def train(
     agent: str | None = None,
 ) -> TrainTool:
     if policy_architecture is None:
-        if agent is not None:
-            policy_architecture = _policy_from_name(agent)
-        else:
-            policy_architecture = AGaLiTeConfig()
+        if agent is not None and agent != "agalite":
+            raise ValueError(f"Unknown agent '{agent}'. Available: agalite")
+        policy_architecture = get_architecture("agalite")
 
     tool = base_train(
         curriculum=curriculum,

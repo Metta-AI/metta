@@ -2,7 +2,6 @@
 
 from typing import Optional, Sequence
 
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -11,6 +10,7 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
+from recipes.experiment.architectures import get_architecture
 from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
 
 
@@ -32,7 +32,7 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
     )
-    tt.policy_architecture = policy_architecture or ViTDefaultConfig()
+    tt.policy_architecture = policy_architecture or get_architecture("vit")
 
     tt.training_env.maps_cache_size = 30
 

@@ -11,7 +11,6 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER
 from cogames.cogs_vs_clips.variants import VARIANTS
-from metta.agent.policies.vit_size_2 import ViTSize2Config
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -27,6 +26,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 from recipes.experiment.cogs_v_clips import (
     _resolve_eval_variants,
     _resolve_mission_template,
@@ -205,7 +205,7 @@ def train(
         trainer=trainer_cfg,
         training_env=training_env_cfg,
         evaluator=evaluator_cfg,
-        policy_architecture=ViTSize2Config(),
+        policy_architecture=get_architecture("vit_size2"),
         scheduler=scheduler,
         checkpointer=CheckpointerConfig(epoch_interval=100),
     )

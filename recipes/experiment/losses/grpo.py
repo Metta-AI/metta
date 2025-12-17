@@ -1,11 +1,11 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
-from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
+from recipes.experiment.architectures import get_architecture
 
 # Import everything from the base arena recipe
 from recipes.experiment.arena import (
@@ -61,7 +61,7 @@ def train(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
-        policy_architecture=ViTGRPOConfig(),
+        policy_architecture=get_architecture("vit_grpo"),
     )
 
 
@@ -71,7 +71,6 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
     """
-
     # Get the base shaped training tool
     base_tool = base_train_shaped(rewards=rewards)
 
@@ -110,7 +109,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
+        policy_architecture=get_architecture("vit_grpo"),
     )
 
 
@@ -120,7 +119,6 @@ def basic_easy_shaped() -> TrainTool:
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
     """
-
     # Get the base shaped training tool
     base_tool = arena_basic_easy_shaped_train()
 
@@ -159,5 +157,5 @@ def basic_easy_shaped() -> TrainTool:
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
-        policy_architecture=ViTGRPOConfig(),
+        policy_architecture=get_architecture("vit_grpo"),
     )

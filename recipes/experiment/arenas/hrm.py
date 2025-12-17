@@ -1,8 +1,8 @@
 """Arena recipe with HRM policy architecture."""
 
-from metta.agent.policies.hrm import HRMTinyConfig
 from metta.agent.policy import PolicyArchitecture
 from recipes.experiment import arena as base
+from recipes.experiment.architectures import get_architecture
 
 mettagrid = base.mettagrid
 make_curriculum = base.make_curriculum
@@ -23,8 +23,7 @@ def train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
     )
-    # Update policy architecture
-    tool = tool.model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
+    tool = tool.model_copy(update={"policy_architecture": policy_architecture or get_architecture("hrm_tiny")})
     return tool
 
 
@@ -35,8 +34,7 @@ def train_shaped(
 ):
     """Train with HRM policy architecture using shaped rewards (defaults to HRMTinyConfig)."""
     tool = base.train_shaped(rewards=rewards, converters=converters)
-    # Update policy architecture
-    tool = tool.model_copy(update={"policy_architecture": policy_architecture or HRMTinyConfig()})
+    tool = tool.model_copy(update={"policy_architecture": policy_architecture or get_architecture("hrm_tiny")})
     return tool
 
 
