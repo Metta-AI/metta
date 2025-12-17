@@ -15,12 +15,9 @@ from rich.console import Console
 from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.config.vibes import VIBES
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.simulator.rollout import Rollout
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 SUBMISSION_TAGS = {"cogames-submitted": "true"}
@@ -118,14 +115,24 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
 def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """Validate policy works.
 
-    Loads the policy and runs a single step on a mock environment.
+    Loads the policy and runs a single episode (up to 10 steps) using the same
+    multi_episode_rollout flow as `cogames eval`.
     """
-    env = MettaGridConfig.EmptyRoom(num_agents=1)
-    env.game.actions.change_vibe.number_of_vibes = len(VIBES)
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env)
+    from cogames.cli.mission import get_mission
+    from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+
+    _, env_cfg, _ = get_mission("machina_1")
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
-    rollout = Rollout(env, [policy.agent_policy(0)])
-    rollout.step()
+
+    # Run 1 episode for up to 10 steps to validate the policy works
+    env_cfg.game.max_steps = 10
+    multi_episode_rollout(
+        env_cfg=env_cfg,
+        policies=[policy],
+        episodes=1,
+        seed=42,
+    )
 
 
 def validate_policy_in_isolation(
