@@ -63,40 +63,52 @@ def discover_and_register_policies(*packages: str) -> None:
 
 ## Recommended Package Structure
 
+**Reference:** Follow `packages/cogames/` structure (pure Python package).
+
 ```
 packages/llm_agent/
-├── pyproject.toml
+├── pyproject.toml                        # See cogames/pyproject.toml as template
 ├── README.md
-├── python/
-│   └── src/
-│       └── llm_agent/
-│           ├── __init__.py
-│           ├── policy/                   # Policy module (for discovery)
-│           │   ├── __init__.py           # Exports all policy classes
-│           │   ├── llm_policy.py         # Core LLMAgentPolicy, LLMMultiAgentPolicy
-│           │   └── prompt_builder.py     # LLMPromptBuilder class
-│           ├── prompts/                  # Markdown templates
-│           │   ├── basic_info.md
-│           │   ├── dynamic_prompt.md
-│           │   ├── exploration_history.md
-│           │   ├── full_prompt.md
-│           │   └── pathfinding_hints.md
-│           ├── providers/
-│           │   ├── __init__.py
-│           │   ├── base.py               # Abstract provider interface
-│           │   ├── openai.py             # OpenAI-specific client
-│           │   ├── anthropic.py          # Claude-specific client
-│           │   └── ollama.py             # Ollama-specific client
-│           ├── model_config.py           # Context windows, pricing, validation
-│           ├── cost_tracker.py           # Cost tracking and summaries
-│           ├── exploration_tracker.py    # Position, history, discovered objects
-│           ├── action_parser.py          # Response parsing logic
-│           └── observation_debugger.py   # Debug visualization
+├── src/
+│   └── llm_agent/
+│       ├── __init__.py
+│       ├── policy/                       # Policy module (for discovery)
+│       │   ├── __init__.py               # Exports all policy classes
+│       │   ├── llm_policy.py             # Core LLMAgentPolicy, LLMMultiAgentPolicy
+│       │   └── prompt_builder.py         # LLMPromptBuilder class
+│       ├── prompts/                      # Markdown templates
+│       │   ├── basic_info.md
+│       │   ├── dynamic_prompt.md
+│       │   ├── exploration_history.md
+│       │   ├── full_prompt.md
+│       │   └── pathfinding_hints.md
+│       ├── providers/
+│       │   ├── __init__.py
+│       │   ├── base.py                   # Abstract provider interface
+│       │   ├── openai.py                 # OpenAI-specific client
+│       │   ├── anthropic.py              # Claude-specific client
+│       │   └── ollama.py                 # Ollama-specific client
+│       ├── model_config.py               # Context windows, pricing, validation
+│       ├── cost_tracker.py               # Cost tracking and summaries
+│       ├── exploration_tracker.py        # Position, history, discovered objects
+│       ├── action_parser.py              # Response parsing logic
+│       └── observation_debugger.py       # Debug visualization
 └── tests/
     ├── __init__.py
     ├── test_prompt_builder.py
     ├── test_action_parser.py
     └── test_cost_tracker.py
+```
+
+**Key pyproject.toml settings** (from cogames):
+```toml
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["llm_agent", "llm_agent.*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 ```
 
 **Note:** The `policy/` subdirectory is required so `llm_agent.policy` can be added to the discovery list in `mettagrid/policy/loader.py`.
@@ -269,6 +281,7 @@ Update consumers in:
 ### Package Installation
 - [ ] Package can be installed independently
 - [ ] `uv pip install -e packages/llm_agent` works
+- [ ] Package added to workspace in root `pyproject.toml` (if using uv workspace)
 
 ### Functional Tests (from test_steps.md)
 
