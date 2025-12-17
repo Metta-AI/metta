@@ -25,8 +25,10 @@ def configure_torch_globally() -> None:
         return
 
     # Configure TF32 precision for CUDA (performance mode)
+    # Use PyTorch 2.9+ new API to avoid deprecation warnings
     if torch.cuda.is_available():
-        torch.set_float32_matmul_precision("high")
+        torch.backends.cuda.matmul.fp32_precision = "tf32"
+        torch.backends.cudnn.conv.fp32_precision = "tf32"
 
     _configured = True
 
@@ -34,13 +36,15 @@ def configure_torch_globally() -> None:
 def enable_determinism() -> None:
     """Enable deterministic behavior (overrides performance settings).
 
-    This sets TF32 to "highest" precision and other deterministic flags.
+    This sets TF32 to "ieee" (full FP32) precision and other deterministic flags.
     Should be called when reproducibility is more important than performance.
     """
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
     if torch.cuda.is_available():
-        torch.set_float32_matmul_precision("highest")
+        # Use PyTorch 2.9+ new API - "ieee" = full FP32 precision (no TF32)
+        torch.backends.cuda.matmul.fp32_precision = "ieee"
+        torch.backends.cudnn.conv.fp32_precision = "ieee"
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
