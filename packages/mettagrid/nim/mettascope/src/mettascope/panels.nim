@@ -1,43 +1,65 @@
 # This example shows a draggable panel UI like in a large editor like VS Code or Blender.
 
 import
-  std/[sequtils],
-  fidget2, bumpy, chroma, windy, boxy, fidget2/hybridrender,
+  std/[sequtils, strformat],
+  bumpy, chroma, windy, boxy, silky,
   common
 
+type
+  AreaLayout* = enum
+    Horizontal
+    Vertical
+
+  Area* = ref object
+    layout*: AreaLayout
+    areas*: seq[Area]
+    panels*: seq[Panel]
+    split*: float32
+    selectedPanelNum*: int
+    rect*: Rect # Calculated during draw
+
+  PanelDraw = proc(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2)
+
+  Panel* = ref object
+    name*: string
+    parentArea*: Area
+    draw*: PanelDraw
+
+  ZoomInfo* = ref object
+    ## Used to track the zoom state of a world map and others.
+    rect*: IRect
+    pos*: Vec2
+    vel*: Vec2
+    zoom*: float32 = 10
+    zoomVel*: float32
+    minZoom*: float32 = 0.5
+    maxZoom*: float32 = 50
+    scrollArea*: Rect
+    hasMouse*: bool = false
+    dragging*: bool = false
+
+  AreaScan* = enum
+    Header
+    Body
+    North
+    South
+    East
+    West
+
 const
-  AreaHeaderHeight = 28
-  AreaMargin = 6
+  AreaHeaderHeight = 32.0
+  AreaMargin = 6.0
+  BackgroundColor = parseHtmlColor("#222222").rgbx
 
 var
-  areaTemplate: Node
-  panelHeaderTemplate: Node
-  panelTemplate: Node
-  rootArea*: Area
-  dropHighlight: Node
-  dragArea: Area
-  objectInfoTemplate*: Node
-  envConfigTemplate*: Node
-  vibeTemplate*: Node
+  worldMapZoomInfo*: ZoomInfo
 
-proc updateMouse*(panel: Panel) =
-  let box = Rect(
-    x: panel.rect.x.float32,
-    y: panel.rect.y.float32,
-    w: panel.rect.w.float32,
-    h: panel.rect.h.float32
-  )
-
-  panel.hasMouse =
-    (not mouseCaptured and window.logicalMousePos.overlaps(box)) or
-    (mouseCaptured and mouseCapturedPanel == panel)
-
-proc clampMapPan*(panel: Panel) =
+proc clampMapPan*(zoomInfo: ZoomInfo) =
   ## Clamp pan so the world map remains at least partially visible.
   if replay.isNil:
     return
 
-  let zoomScale = panel.zoom * panel.zoom
+  let zoomScale = zoomInfo.zoom * zoomInfo.zoom
   if zoomScale <= 0:
     return
 
@@ -54,15 +76,15 @@ proc clampMapPan*(panel: Panel) =
 
   # View half-size in world units.
   let
-    rectW = panel.rect.w.float32
-    rectH = panel.rect.h.float32
+    rectW = zoomInfo.rect.w.float32
+    rectH = zoomInfo.rect.h.float32
     viewHalfW = rectW / (2.0f * zoomScale)
     viewHalfH = rectH / (2.0f * zoomScale)
 
   # Current view center in world units given screen-space pan.
   var
-    cx = (rectW / 2.0f - panel.pos.x) / zoomScale
-    cy = (rectH / 2.0f - panel.pos.y) / zoomScale
+    cx = (rectW / 2.0f - zoomInfo.pos.x) / zoomScale
+    cy = (rectH / 2.0f - zoomInfo.pos.y) / zoomScale
 
   # Require a minimum number of on-screen pixels of the map to remain visible.
   # Scale with panel size so small panels are not over-clamped.
@@ -85,36 +107,38 @@ proc clampMapPan*(panel: Panel) =
   cy = cy.clamp(minCenterY, maxCenterY)
 
   # Recompute screen-space pan from clamped world-space center.
-  panel.pos.x = rectW / 2.0f - cx * zoomScale
-  panel.pos.y = rectH / 2.0f - cy * zoomScale
+  zoomInfo.pos.x = rectW / 2.0f - cx * zoomScale
+  zoomInfo.pos.y = rectH / 2.0f - cy * zoomScale
 
-proc beginPanAndZoom*(panel: Panel) =
+proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
   ## Pan and zoom the map.
 
   bxy.saveTransform()
 
-  updateMouse(panel)
-
-  if panel.hasMouse:
+  if zoomInfo.hasMouse:
     if window.buttonPressed[MouseLeft]:
-      mouseCaptured = true
-      mouseCapturedPanel = panel
+      zoomInfo.dragging = true
+    if not window.buttonDown[MouseLeft] and zoomInfo.dragging:
+      zoomInfo.dragging = false
 
+  if zoomInfo.dragging:
     if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
-      panel.vel = window.logicalMouseDelta
+
+      zoomInfo.vel = window.mouseDelta.vec2
       settings.lockFocus = false
     else:
-      panel.vel *= 0.9
+      zoomInfo.vel *= 0.9
 
-    panel.pos += panel.vel
+    zoomInfo.pos += zoomInfo.vel
 
+  if zoomInfo.hasMouse:
     if window.scrollDelta.y != 0:
       # Apply zoom at focal point (mouse position or agent position if pinned).
-      let localMousePos = window.logicalMousePos - panel.rect.xy.vec2
+      let localMousePos = window.mousePos.vec2 - zoomInfo.rect.xy.vec2
       let zoomSensitivity = 0.005
 
-      let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) *
-        scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let oldMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
+        scale(vec2(zoomInfo.zoom*zoomInfo.zoom, zoomInfo.zoom*zoomInfo.zoom))
 
       # Use agent position as focal point if lockFocus is enabled and agent is selected
       let focalPoint = if settings.lockFocus and selection != nil:
@@ -129,396 +153,399 @@ proc beginPanAndZoom*(panel: Panel) =
       # Apply zoom with multiplicative scaling.
       # keeps zoom consistent when zoomed far out or zoomed far in.
       let zoomFactor = pow(1.0 - zoomSensitivity, window.scrollDelta.y)
-      panel.zoom *= zoomFactor
-      panel.zoom = clamp(panel.zoom, panel.minZoom, panel.maxZoom)
+      zoomInfo.zoom *= zoomFactor
+      zoomInfo.zoom = clamp(zoomInfo.zoom, zoomInfo.minZoom, zoomInfo.maxZoom)
 
-      let newMat = translate(vec2(panel.pos.x, panel.pos.y)) *
-        scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+      let newMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
+        scale(vec2(zoomInfo.zoom*zoomInfo.zoom, zoomInfo.zoom*zoomInfo.zoom))
       let newWorldPoint = newMat.inverse() * focalPoint
 
       # Adjust pan position to keep the same world point under the focal point.
-      panel.pos += (newWorldPoint - oldWorldPoint) * (panel.zoom*panel.zoom)
+      zoomInfo.pos += (newWorldPoint - oldWorldPoint) * (zoomInfo.zoom*zoomInfo.zoom)
 
-  clampMapPan(panel)
+  clampMapPan(zoomInfo)
 
-  bxy.translate(panel.pos * window.contentScale)
-  let zoomScale = panel.zoom * panel.zoom * window.contentScale
+  bxy.translate(zoomInfo.pos)
+  let zoomScale = zoomInfo.zoom * zoomInfo.zoom
   bxy.scale(vec2(zoomScale, zoomScale))
 
-proc endPanAndZoom*(panel: Panel) =
+proc endPanAndZoom*(zoomInfo: ZoomInfo) =
   bxy.restoreTransform()
 
-proc beginDraw*(panel: Panel) =
-  bxy.pushLayer()
-  bxy.saveTransform()
+proc snapToPixels(rect: Rect): Rect =
+  rect(rect.x.int.float32, rect.y.int.float32, rect.w.int.float32, rect.h.int.float32)
 
-  bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
+var
+  rootArea*: Area
+  dragArea: Area # For resizing splits
+  dragPanel: Panel # For moving panels
+  dropHighlight: Rect
+  showDropHighlight: bool
 
-proc endDraw*(panel: Panel) =
-
-  bxy.restoreTransform()
-
-  # Draw the mask.
-  bxy.pushLayer()
-  bxy.drawRect(
-    rect = panel.rect.rect,
-    color = color(1, 0, 0, 1.0)
-  )
-  bxy.popLayer(blendMode = MaskBlend)
-
-  bxy.popLayer()
-
-proc clear*(area: Area) =
-  ## Clears the area and all its subareas and panels.
-  for panel in area.panels:
-    if panel.node != nil:
-      panel.header.remove()
-      panel.node.remove()
-    panel.parentArea = nil
-  for subarea in area.areas:
-    subarea.clear()
-  if area.node != nil:
-    area.node.remove()
-  area.panels.setLen(0)
-  area.areas.setLen(0)
+  maybeDragStartPos: Vec2
+  maybeDragPanel: Panel
 
 proc movePanels*(area: Area, panels: seq[Panel])
 
-proc removeBlankAreas*(area: Area) =
-  ## Removes all areas that have no panels or subareas.
+proc clear*(area: Area) =
+  ## Clear the area.
+  for panel in area.panels:
+    panel.parentArea = nil
+  for subarea in area.areas:
+    subarea.clear()
+  area.panels.setLen(0)
+  area.areas.setLen(0)
 
+proc removeBlankAreas*(area: Area) =
+  ## Remove blank areas recursively.
   if area.areas.len > 0:
     assert area.areas.len == 2
     if area.areas[0].panels.len == 0 and area.areas[0].areas.len == 0:
       if area.areas[1].panels.len > 0:
         area.movePanels(area.areas[1].panels)
-        area.areas[0].node.remove()
-        area.areas[1].node.remove()
         area.areas.setLen(0)
       elif area.areas[1].areas.len > 0:
         let oldAreas = area.areas
         area.areas = area.areas[1].areas
-        for subarea in area.areas:
-          area.node.addChild(subarea.node)
         area.split = oldAreas[1].split
         area.layout = oldAreas[1].layout
-        oldAreas[0].node.remove()
-        oldAreas[1].node.remove()
       else:
-        discard # Both areas are blank, do nothing.
-
+        discard
     elif area.areas[1].panels.len == 0 and area.areas[1].areas.len == 0:
       if area.areas[0].panels.len > 0:
         area.movePanels(area.areas[0].panels)
-        area.areas[1].node.remove()
-        area.areas[0].node.remove()
         area.areas.setLen(0)
       elif area.areas[0].areas.len > 0:
         let oldAreas = area.areas
         area.areas = area.areas[0].areas
-        for subarea in area.areas:
-          area.node.addChild(subarea.node)
         area.split = oldAreas[0].split
         area.layout = oldAreas[0].layout
-        oldAreas[1].node.remove()
-        oldAreas[0].node.remove()
       else:
-        discard # Both areas are blank, do nothing.
+        discard
 
     for subarea in area.areas:
       removeBlankAreas(subarea)
 
-proc refresh*(area: Area, depth = 0) =
-  if area.areas.len > 0:
-    # Layout according to the layout.
-    let m = AreaMargin/2
-    if area.layout == Horizontal:
-      # Split horizontally (top/bottom)
-      let splitPos = area.node.size.y * area.split
-      area.areas[0].node.position = vec2(0, 0).floor()
-      area.areas[0].node.size = vec2(area.node.size.x, splitPos - m)
-      area.areas[1].node.position = vec2(0, splitPos + m).floor()
-      area.areas[1].node.size = vec2(area.node.size.x, area.node.size.y - splitPos - m).ceil()
-    else:
-      # Split vertically (left/right)
-      let splitPos = area.node.size.x * area.split
-      area.areas[0].node.position = vec2(0, 0).floor()
-      area.areas[0].node.size = vec2(splitPos - m, area.node.size.y).ceil()
-      area.areas[1].node.position = vec2(splitPos + m, 0).floor()
-      area.areas[1].node.size = vec2(area.node.size.x - splitPos - m, area.node.size.y).ceil()
-
-  for subarea in area.areas:
-    subarea.refresh(depth + 1)
-
-  if area.panels.len > 0:
-    if area.selectedPanelNum > area.panels.len - 1:
-      area.selectedPanelNum = area.panels.len - 1
-    # Set the state of the headers.
-    for i, panel in area.panels:
-      if i != area.selectedPanelNum:
-        panel.header.setVariant("State", "Default")
-        panel.node.visible = false
-      else:
-        panel.header.setVariant("State", "Selected")
-        panel.node.visible = true
-        panel.node.position = vec2(0, AreaHeaderHeight)
-        panel.node.size = area.node.size - vec2(0, AreaHeaderHeight)
-
-proc findPanelByHeader*(node: Node): Panel =
-  ## Finds the panel that contains the given header node.
-  proc visit(area: Area, node: Node): Panel =
-    for panel in area.panels:
-      if panel.header == node:
-        return panel
-    for subarea in area.areas:
-      let panel = visit(subarea, node)
-      if panel != nil:
-        return panel
-    return nil
-  return visit(rootArea, node)
-
-proc findAreaByNode*(node: Node): Area =
-  ## Finds the area that contains the given node.
-  proc visit(area: Area): Area =
-    if area.node == node:
-      return area
-    for subarea in area.areas:
-      let area = visit(subarea)
-      if area != nil:
-        return area
-  return visit(rootArea)
-
-proc addPanel*(area: Area, panelType: PanelType, name: string): Panel =
-  ## Adds a panel to the given area.
-  let panel = Panel(name: name)
-  panel.panelType = panelType
-  panel.header = panelHeaderTemplate.copy()
-  panel.header.find("title").text = name
-  panel.node = panelTemplate.copy()
+proc addPanel*(area: Area, name: string, draw: PanelDraw) =
+  ## Add a panel to the area.
+  let panel = Panel(name: name, parentArea: area, draw: draw)
   area.panels.add(panel)
-  panel.parentArea = area
-  area.node.find("Header").addChild(panel.header)
-  area.node.addChild(panel.node)
-  return panel
 
 proc movePanel*(area: Area, panel: Panel) =
-  ## Moves the panel to the given area.
-  panel.parentArea.panels.delete(panel.parentArea.panels.find(panel))
+  ## Move a panel to this area.
+  let idx = panel.parentArea.panels.find(panel)
+  if idx != -1:
+    panel.parentArea.panels.delete(idx)
   area.panels.add(panel)
   panel.parentArea = area
-  area.node.find("Header").addChild(panel.header)
-  area.node.addChild(panel.node)
+
+proc insertPanel*(area: Area, panel: Panel, index: int) =
+  ## Insert a panel into this area at a specific index.
+  let idx = panel.parentArea.panels.find(panel)
+  var finalIndex = index
+
+  # If moving within the same area, adjust index if we're moving forward
+  if panel.parentArea == area and idx != -1:
+    if idx < index:
+      finalIndex = index - 1
+
+  if idx != -1:
+    panel.parentArea.panels.delete(idx)
+
+  # Clamp index to be safe
+  finalIndex = clamp(finalIndex, 0, area.panels.len)
+
+  area.panels.insert(panel, finalIndex)
+  panel.parentArea = area
+  # Update selection to the new panel position
+  area.selectedPanelNum = finalIndex
+
+proc getTabInsertInfo(area: Area, mousePos: Vec2): (int, Rect) =
+  ## Get the insert information for a tab.
+  var x = area.rect.x + 4
+  let headerH = AreaHeaderHeight
+
+  # If no panels, insert at 0
+  if area.panels.len == 0:
+    return (0, rect(x, area.rect.y + 2, 4, headerH - 4))
+
+  var bestIndex = 0
+  var minDist = float32.high
+  var bestX = x
+
+  # Check before first tab (index 0)
+  let dist0 = abs(mousePos.x - x)
+  minDist = dist0
+  bestX = x
+  bestIndex = 0
+
+  for i, panel in area.panels:
+    let textSize = sk.getTextSize("Default", panel.name)
+    let tabW = textSize.x + 16
+
+    # The gap after this tab (index i + 1)
+    let gapX = x + tabW + 2
+    let dist = abs(mousePos.x - gapX)
+    if dist < minDist:
+      minDist = dist
+      bestIndex = i + 1
+      bestX = gapX
+
+    x += tabW + 2
+
+  return (bestIndex, rect(bestX - 2, area.rect.y + 2, 4, headerH - 4))
 
 proc movePanels*(area: Area, panels: seq[Panel]) =
-  ## Moves the panels to the given area.
-  var panelList = panels.toSeq()
+  ## Move multiple panels to this area.
+  var panelList = panels # Copy
   for panel in panelList:
     area.movePanel(panel)
 
 proc split*(area: Area, layout: AreaLayout) =
-  ## Splits the area into two subareas.
+  ## Split the area.
   let
-    area1 = Area(node: areaTemplate.copy())
-    area2 = Area(node: areaTemplate.copy())
+    area1 = Area(rect: area.rect) # inherit rect initially
+    area2 = Area(rect: area.rect)
   area.layout = layout
   area.split = 0.5
   area.areas.add(area1)
   area.areas.add(area2)
-  area.node.addChild(area1.node)
-  area.node.addChild(area2.node)
 
-type
-  AreaScan = enum
-    Header
-    Body
-    North
-    South
-    East
-    West
+proc scan*(area: Area): (Area, AreaScan, Rect) =
+  ## Scan the area to find the target under mouse.
+  let mousePos = window.mousePos.vec2
+  var
+    targetArea: Area
+    areaScan: AreaScan
+    resRect: Rect
 
-proc scan*(area: Area): (Area,AreaScan, Rect) =
-  let mousePos = window.logicalMousePos
-  var targetArea: Area
-  var areaScan: AreaScan
-  var rect: Rect
   proc visit(area: Area) =
-    let areaRect = rect(area.node.absolutePosition, area.node.size)
-    if mousePos.overlaps(areaRect):
-      if area.areas.len > 0:
-        for subarea in area.areas:
-          visit(subarea)
-      else:
-        let
-          headerRect = rect(
-            area.node.absolutePosition,
-            vec2(area.node.size.x, AreaHeaderHeight)
-          )
-          bodyRect = rect(
-            area.node.absolutePosition + vec2(0, AreaHeaderHeight),
-            vec2(area.node.size.x, area.node.size.y - AreaHeaderHeight)
-          )
-          northRect = rect(
-            area.node.absolutePosition + vec2(0, AreaHeaderHeight),
-            vec2(area.node.size.x, area.node.size.y * 0.2)
-          )
-          southRect = rect(
-            area.node.absolutePosition + vec2(0, area.node.size.y * 0.8),
-            vec2(area.node.size.x, area.node.size.y * 0.2)
-          )
-          eastRect = rect(
-            area.node.absolutePosition + vec2(area.node.size.x * 0.8, 0) + vec2(0, AreaHeaderHeight),
-            vec2(area.node.size.x * 0.2, area.node.size.y - AreaHeaderHeight)
-          )
-          westRect = rect(
-            area.node.absolutePosition + vec2(0, 0) + vec2(0, AreaHeaderHeight),
-            vec2(area.node.size.x * 0.2, area.node.size.y - AreaHeaderHeight)
-          )
-        if mousePos.overlaps(headerRect):
-          areaScan = Header
-          rect = headerRect
-        elif mousePos.overlaps(northRect):
-          areaScan = North
-          rect = northRect
-        elif mousePos.overlaps(southRect):
-          areaScan = South
-          rect = southRect
-        elif mousePos.overlaps(eastRect):
-          areaScan = East
-          rect = eastRect
-        elif mousePos.overlaps(westRect):
-          areaScan = West
-          rect = westRect
-        elif mousePos.overlaps(bodyRect):
-          areaScan = Body
-          rect = bodyRect
-        targetArea = area
+    if not mousePos.overlaps(area.rect):
+      return
+
+    if area.areas.len > 0:
+      for subarea in area.areas:
+        visit(subarea)
+    else:
+      let
+        headerRect = rect(
+          area.rect.xy,
+          vec2(area.rect.w, AreaHeaderHeight)
+        )
+        bodyRect = rect(
+          area.rect.xy + vec2(0, AreaHeaderHeight),
+          vec2(area.rect.w, area.rect.h - AreaHeaderHeight)
+        )
+        northRect = rect(
+          area.rect.xy + vec2(0, AreaHeaderHeight),
+          vec2(area.rect.w, area.rect.h * 0.2)
+        )
+        southRect = rect(
+          area.rect.xy + vec2(0, area.rect.h * 0.8),
+          vec2(area.rect.w, area.rect.h * 0.2)
+        )
+        eastRect = rect(
+          area.rect.xy + vec2(area.rect.w * 0.8, 0) + vec2(0, AreaHeaderHeight),
+          vec2(area.rect.w * 0.2, area.rect.h - AreaHeaderHeight)
+        )
+        westRect = rect(
+          area.rect.xy + vec2(0, 0) + vec2(0, AreaHeaderHeight),
+          vec2(area.rect.w * 0.2, area.rect.h - AreaHeaderHeight)
+        )
+
+      if mousePos.overlaps(headerRect):
+        areaScan = Header
+        resRect = headerRect
+      elif mousePos.overlaps(northRect):
+        areaScan = North
+        resRect = northRect
+      elif mousePos.overlaps(southRect):
+        areaScan = South
+        resRect = southRect
+      elif mousePos.overlaps(eastRect):
+        areaScan = East
+        resRect = eastRect
+      elif mousePos.overlaps(westRect):
+        areaScan = West
+        resRect = westRect
+      elif mousePos.overlaps(bodyRect):
+        areaScan = Body
+        resRect = bodyRect
+
+      targetArea = area
+
   visit(rootArea)
-  return (targetArea, areaScan, rect)
+  return (targetArea, areaScan, resRect)
 
-proc visiblePanels*(area: Area): seq[Panel] =
-  ## Returns the visible panels in the area and subareas.
-  proc visit(area: Area, panels: var seq[Panel]) =
-    if area.panels.len > 0:
-      let selectedPanel = area.panels[area.selectedPanelNum]
-      panels.add(selectedPanel)
-    for subarea in area.areas:
-      visit(subarea, panels)
-  visit(area, result)
+proc drawAreaRecursive(area: Area, r: Rect) =
+  area.rect = r.snapToPixels()
 
-find "/UI/Main":
-  onLoad:
+  if area.areas.len > 0:
+    let m = AreaMargin / 2
+    if area.layout == Horizontal:
+      # Top/Bottom
+      let splitPos = r.h * area.split
 
-    areaTemplate = find("Area").copy()
-    areaTemplate.findAll("**/Panel").remove()
-    areaTemplate.findAll("**/PanelHeader").remove()
-    panelHeaderTemplate = find("**/PanelHeader").copy()
-    panelTemplate = find("**/Panel").copy()
+      # Handle split resizing
+      let splitRect = rect(r.x, r.y + splitPos - 2, r.w, 4)
 
-    objectInfoTemplate = find("../ObjectInfo").copy()
-    vibeTemplate = find("../VibePanel").copy()
+      if dragArea == nil and window.mousePos.vec2.overlaps(splitRect):
+        sk.cursor = Cursor(kind: ResizeUpDownCursor)
+        if window.buttonPressed[MouseLeft]:
+          dragArea = area
 
-    find("Area").remove()
+      let r1 = rect(r.x, r.y, r.w, splitPos - m)
+      let r2 = rect(r.x, r.y + splitPos + m, r.w, r.h - splitPos - m)
+      drawAreaRecursive(area.areas[0], r1)
+      drawAreaRecursive(area.areas[1], r2)
 
-    rootArea = Area(node: areaTemplate.copy())
-    rootArea.node.position = vec2(0, 64)
-    rootArea.node.size = vec2(
-      thisFrame.size.x,
-      thisFrame.size.y - 64 * 5
-    )
-    thisNode.addChild(rootArea.node)
+    else:
+      # Left/Right
+      let splitPos = r.w * area.split
 
-    dropHighlight = find("/UI/DropHighlight")
-    dropHighlight.remove()
-    dropHighlight.position = vec2(100, 100)
-    dropHighlight.size = vec2(500, 500)
-    dropHighlight.visible = false
-    thisNode.addChild(dropHighlight)
+      let splitRect = rect(r.x + splitPos - 2, r.y, 4, r.h)
 
-  onResize:
-    rootArea.node.size = vec2(
-      thisFrame.size.x,
-      thisFrame.size.y - 64 * 3
-    )
-    rootArea.refresh()
+      if dragArea == nil and window.mousePos.vec2.overlaps(splitRect):
+        sk.cursor = Cursor(kind: ResizeLeftRightCursor)
+        if window.buttonPressed[MouseLeft]:
+          dragArea = area
 
-  find "**/Area":
-    onMouseMove:
-      if thisNode == hoverNodes[0]:
-        let area = findAreaByNode(thisNode)
-        if area != nil:
-          if area.layout == Horizontal:
-            thisCursor = Cursor(kind: ResizeUpDownCursor)
-          else:
-            thisCursor = Cursor(kind: ResizeLeftRightCursor)
-    onDragStart:
-      let area = findAreaByNode(thisNode)
-      if area != nil and area.areas.len > 0:
-        dragArea = area
-        dropHighlight.visible = true
-    onDrag:
-      let mousePos = window.logicalMousePos
-      if dragArea != nil:
-        if dragArea.layout == Horizontal:
-          dropHighlight.position = vec2(dragArea.node.absolutePosition.x, mousePos.y)
-          dropHighlight.size = vec2(dragArea.node.size.x, AreaMargin)
-          thisCursor = Cursor(kind: ResizeUpDownCursor)
-        else:
-          dropHighlight.position = vec2(mousePos.x, dragArea.node.absolutePosition.y)
-          dropHighlight.size = vec2(AreaMargin, dragArea.node.size.y)
-          thisCursor = Cursor(kind: ResizeLeftRightCursor)
-    onDragEnd:
-      let mousePos = window.logicalMousePos
-      if dragArea != nil:
-        if dragArea.layout == Horizontal:
-          dragArea.split = (mousePos.y - dragArea.node.absolutePosition.y) / dragArea.node.size.y
-        else:
-          dragArea.split = (mousePos.x - dragArea.node.absolutePosition.x) / dragArea.node.size.x
-        dragArea.refresh()
+      let r1 = rect(r.x, r.y, splitPos - m, r.h)
+      let r2 = rect(r.x + splitPos + m, r.y, r.w - splitPos - m, r.h)
+      drawAreaRecursive(area.areas[0], r1)
+      drawAreaRecursive(area.areas[1], r2)
+
+  elif area.panels.len > 0:
+    # Draw Panel
+    if area.selectedPanelNum > area.panels.len - 1:
+      area.selectedPanelNum = area.panels.len - 1
+
+    # Draw Header
+    let headerRect = rect(r.x, r.y, r.w, AreaHeaderHeight)
+    sk.draw9Patch("panel.header.9patch", 3, headerRect.xy, headerRect.wh)
+
+    # Draw Tabs
+    var x = r.x + 4
+    sk.pushClipRect(rect(r.x, r.y, r.w - 2, AreaHeaderHeight))
+    for i, panel in area.panels:
+      let textSize = sk.getTextSize("Default", panel.name)
+      let tabW = textSize.x + 16
+      let tabRect = rect(x, r.y + 4, tabW, AreaHeaderHeight - 4)
+
+      let isSelected = i == area.selectedPanelNum
+      let isHovered = window.mousePos.vec2.overlaps(tabRect)
+
+      # Handle Tab Clicks and Dragging
+      if isHovered:
+        if window.buttonPressed[MouseLeft]:
+          area.selectedPanelNum = i
+          # Only start dragging if the mouse moves 10 pixels.
+          maybeDragStartPos = window.mousePos.vec2
+          maybeDragPanel = panel
+        elif window.buttonDown[MouseLeft] and dragPanel == panel:
+          # Dragging started
+          discard
+
+      if window.buttonDown[MouseLeft]:
+        if maybeDragPanel != nil and (maybeDragStartPos - window.mousePos.vec2).length() > 10:
+          dragPanel = maybeDragPanel
+          maybeDragStartPos = vec2(0, 0)
+          maybeDragPanel = nil
+      else:
+        maybeDragStartPos = vec2(0, 0)
+        maybeDragPanel = nil
+
+      if isSelected:
+        sk.draw9Patch("panel.tab.selected.9patch", 3, tabRect.xy, tabRect.wh, rgbx(255, 255, 255, 255))
+      elif isHovered:
+        sk.draw9Patch("panel.tab.hover.9patch", 3, tabRect.xy, tabRect.wh, rgbx(255, 255, 255, 255))
+      else:
+        sk.draw9Patch("panel.tab.9patch", 3, tabRect.xy, tabRect.wh)
+
+      discard sk.drawText("Default", panel.name, vec2(x + 8, r.y + 4 + 2), rgbx(255, 255, 255, 255))
+
+      x += tabW + 2
+    sk.popClipRect()
+
+    # Draw Content
+    let contentRect = rect(r.x, r.y + AreaHeaderHeight, r.w, r.h - AreaHeaderHeight)
+    let activePanel = area.panels[area.selectedPanelNum]
+    let frameId = "panel:" & $cast[uint](activePanel)
+    let contentPos = vec2(contentRect.x, contentRect.y)
+    let contentSize = vec2(contentRect.w, contentRect.h)
+
+    activePanel.draw(activePanel, frameId, contentPos, contentSize)
+
+proc drawPanels*() =
+
+  # Reset cursor
+  sk.cursor = Cursor(kind: ArrowCursor)
+
+  # Update Dragging Split
+  if dragArea != nil:
+    if not window.buttonDown[MouseLeft]:
       dragArea = nil
-      dropHighlight.visible = false
+    else:
+      if dragArea.layout == Horizontal:
+        sk.cursor = Cursor(kind: ResizeUpDownCursor)
+        dragArea.split = (window.mousePos.vec2.y - dragArea.rect.y) / dragArea.rect.h
+      else:
+        sk.cursor = Cursor(kind: ResizeLeftRightCursor)
+        dragArea.split = (window.mousePos.vec2.x - dragArea.rect.x) / dragArea.rect.w
+      dragArea.split = clamp(dragArea.split, 0.1, 0.9)
 
-  find "**/PanelHeader":
-    onClick:
-      let panel = findPanelByHeader(thisNode)
-      if panel != nil:
-        panel.parentArea.selectedPanelNum = thisNode.childIndex
-        panel.parentArea.refresh()
-
-    onDragStart:
-      dropHighlight.visible = true
-
-    onDrag:
-      let (_, _, rect) = rootArea.scan()
-      dropHighlight.position = rect.xy
-      dropHighlight.size = rect.wh
-
-    onDragEnd:
-      dropHighlight.visible = false
+  # Update Dragging Panel
+  showDropHighlight = false
+  if dragPanel != nil:
+    if not window.buttonDown[MouseLeft]:
+      # Drop
       let (targetArea, areaScan, _) = rootArea.scan()
       if targetArea != nil:
-        let panel = findPanelByHeader(thisNode)
-        if panel != nil:
-          case areaScan:
-            of Header:
-              targetArea.movePanel(panel)
-            of Body:
-              targetArea.movePanel(panel)
-            of North:
-              targetArea.split(Horizontal)
-              targetArea.areas[0].movePanel(panel)
-              targetArea.areas[1].movePanels(targetArea.panels)
-            of South:
-              targetArea.split(Horizontal)
-              targetArea.areas[1].movePanel(panel)
-              targetArea.areas[0].movePanels(targetArea.panels)
-            of East:
-              targetArea.split(Vertical)
-              targetArea.areas[1].movePanel(panel)
-              targetArea.areas[0].movePanels(targetArea.panels)
-            of West:
-              targetArea.split(Vertical)
-              targetArea.areas[0].movePanel(panel)
-              targetArea.areas[1].movePanels(targetArea.panels)
+        case areaScan:
+          of Header:
+            let (idx, _) = targetArea.getTabInsertInfo(window.mousePos.vec2)
+            targetArea.insertPanel(dragPanel, idx)
+          of Body:
+            targetArea.movePanel(dragPanel)
+          of North:
+            targetArea.split(Horizontal)
+            targetArea.areas[0].movePanel(dragPanel)
+            targetArea.areas[1].movePanels(targetArea.panels)
+          of South:
+            targetArea.split(Horizontal)
+            targetArea.areas[1].movePanel(dragPanel)
+            targetArea.areas[0].movePanels(targetArea.panels)
+          of East:
+            targetArea.split(Vertical)
+            targetArea.areas[1].movePanel(dragPanel)
+            targetArea.areas[0].movePanels(targetArea.panels)
+          of West:
+            targetArea.split(Vertical)
+            targetArea.areas[0].movePanel(dragPanel)
+            targetArea.areas[1].movePanels(targetArea.panels)
 
         rootArea.removeBlankAreas()
-        rootArea.refresh()
+      dragPanel = nil
+    else:
+      # Dragging
+      let (targetArea, areaScan, rect) = rootArea.scan()
+      dropHighlight = rect
+      showDropHighlight = true
+
+      if targetArea != nil and areaScan == Header:
+         let (_, highlightRect) = targetArea.getTabInsertInfo(window.mousePos.vec2)
+         dropHighlight = highlightRect
+
+  # Draw Areas
+  drawAreaRecursive(rootArea, rect(0, 64, window.size.x.float32, window.size.y.float32 - 64 * 3))
+
+  # Draw Drop Highlight
+  if showDropHighlight and dragPanel != nil:
+    sk.drawRect(dropHighlight.xy, dropHighlight.wh, rgbx(255, 255, 0, 100))
+
+    # Draw dragging ghost
+    let label = dragPanel.name
+    let textSize = sk.getTextSize("Default", label)
+    let size = textSize + vec2(16, 8)
+    sk.draw9Patch("tooltip.9patch", 4, window.mousePos.vec2 + vec2(10, 10), size, rgbx(255, 255, 255, 200))
+    discard sk.drawText("Default", label, window.mousePos.vec2 + vec2(18, 14), rgbx(255, 255, 255, 255))

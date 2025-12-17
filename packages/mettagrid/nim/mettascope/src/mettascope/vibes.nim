@@ -3,77 +3,52 @@
 ## the world and other agents.
 
 import
-  std/[os, tables],
-  fidget2, windy,
+  std/[os, tables, strutils],
+  silky, windy,
   common, panels, replays, actions, pathfinding
 
-find "/UI/Main/**/VibePanel":
-  find "**/Button":
-    onClick:
-      let row = thisNode.parent.childIndex
-      let column = thisNode.childIndex
-      let vibeId = row * 10 + column
-      if selection.isNil or not selection.isAgent:
-        echo "no agent selected, can't send vibe action"
-        return
+proc getVibes(): seq[string] =
+  for vibe in replay.config.game.vibeNames:
+    result.add("vibe/" & vibe)
 
-      # Get the vibe name and find the corresponding action
-      let vibeName = getVibeName(vibeId)
+proc drawVibes*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  let m = 12.0f
+  frame(frameId, contentPos, contentSize):
+    sk.at = sk.pos + vec2(m, m) * 2
+    for i, vibe in getVibes():
+      if i > 0 and i mod 10 == 0:
+        sk.at.x = sk.pos.x + m * 2
+        sk.at.y += 32 + m
+      iconButton(vibe):
+        let vibeName = vibe.split("/")[1]
+        let vibeActionId = replay.actionNames.find("change_vibe_" & vibeName)
+        if vibeActionId == -1:
+          echo "vibe action not found: change_vibe_", vibeName
+          return
 
-      let vibeActionId = replay.actionNames.find("change_vibe_" & vibeName)
-      if vibeActionId == -1:
-        echo "vibe action not found: change_vibe_", vibeName
-        return
+        let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
 
-      let shiftDown = window.buttonDown[KeyLeftShift] or window.buttonDown[KeyRightShift]
-
-      if shiftDown:
-        # Queue the vibe action as an objective.
-        let objective = Objective(kind: Vibe, vibeActionId: vibeActionId, repeat: false)
-        if not agentObjectives.hasKey(selection.agentId) or agentObjectives[
-            selection.agentId].len == 0:
-          agentObjectives[selection.agentId] = @[objective]
-          # Append vibe action directly to path queue.
-          agentPaths[selection.agentId] = @[
-            PathAction(kind: Vibe, vibeActionId: vibeActionId)
-          ]
-        else:
-          agentObjectives[selection.agentId].add(objective)
-          # Push the vibe action to the end of the current path.
-          if agentPaths.hasKey(selection.agentId):
-            agentPaths[selection.agentId].add(
-              PathAction(kind: Vibe, vibeActionId: vibeActionId)
-            )
-          else:
+        if shiftDown:
+          # Queue the vibe action as an objective.
+          let objective = Objective(kind: Vibe, vibeActionId: vibeActionId, repeat: false)
+          if not agentObjectives.hasKey(selection.agentId) or agentObjectives[
+              selection.agentId].len == 0:
+            agentObjectives[selection.agentId] = @[objective]
+            # Append vibe action directly to path queue.
             agentPaths[selection.agentId] = @[
               PathAction(kind: Vibe, vibeActionId: vibeActionId)
             ]
-      else:
-        # Execute immediately.
-        sendAction(selection.agentId, replay.actionNames[vibeActionId])
-
-proc updateVibePanel*() =
-  ## Updates the vibe panel to display the current vibe frequency for the agent.
-  if replay.isNil:
-    return
-  let panel = panels.vibeTemplate.copy()
-  panel.position = vec2(0, 0)
-  let rowTemplate = panel.find("Row")
-  let buttonTemplate = rowTemplate.find("Button").copy()
-  rowTemplate.removeChildren()
-  panel.removeChildren()
-  let elementsPerRow = 10
-  var row: Node
-  for id, vibe in replay.config.game.vibeNames:
-    if id mod elementsPerRow == 0:
-      row = rowTemplate.copy()
-      panel.addChild(row)
-    let button = buttonTemplate.copy()
-    var path = "../../vibe" / vibe
-    button.find("**/Icon").fills[0].imageRef = path
-    if playMode == Historical:
-      # Gray out the vibes for historical mode.
-      button.find("**/Icon").fills[0].opacity = 0.4
-    row.addChild(button)
-  vibePanel.node.removeChildren()
-  vibePanel.node.addChild(panel)
+          else:
+            agentObjectives[selection.agentId].add(objective)
+            # Push the vibe action to the end of the current path.
+            if agentPaths.hasKey(selection.agentId):
+              agentPaths[selection.agentId].add(
+                PathAction(kind: Vibe, vibeActionId: vibeActionId)
+              )
+            else:
+              agentPaths[selection.agentId] = @[
+                PathAction(kind: Vibe, vibeActionId: vibeActionId)
+              ]
+        else:
+          # Execute immediately.
+          sendAction(selection.agentId, replay.actionNames[vibeActionId])
