@@ -178,3 +178,5 @@ class SLCheckpointedKickstarter(Loss):
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
+
+        return self.teacher_policy

@@ -19,8 +19,6 @@ class QuantilePPOCriticConfig(LossConfig):
     vf_coef: float = Field(default=0.897619, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
 
     def create(
         self,
@@ -125,8 +123,8 @@ class QuantilePPOCritic(Loss):
                 self.replay.buffer["dones"],
                 torch.ones_like(values_mean),
                 torch.zeros_like(values_mean, device=self.device),
-                self.cfg.gamma,
-                self.cfg.gae_lambda,
+                self.trainer_cfg.advantage.gamma,
+                self.trainer_cfg.advantage.gae_lambda,
                 self.device,
                 1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
                 1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace

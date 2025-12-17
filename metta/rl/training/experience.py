@@ -263,8 +263,8 @@ class Experience:
         epoch: int,
         total_timesteps: int,
         batch_size: int,
-        advantages: Tensor | None = None,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
+        advantages: Tensor,
+    ) -> TensorDict:
         shared_loss_mb_data = self.give_me_empty_md_td()
 
         if self.sampling_config.method == "sequential":
