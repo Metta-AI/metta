@@ -5,7 +5,6 @@ import
   bumpy, chroma, windy, boxy, silky,
   common
 
-# Types
 type
   AreaLayout* = enum
     Horizontal
@@ -47,7 +46,6 @@ type
     East
     West
 
-# Constants
 const
   AreaHeaderHeight = 32.0
   AreaMargin = 6.0
@@ -174,15 +172,9 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
 proc endPanAndZoom*(zoomInfo: ZoomInfo) =
   bxy.restoreTransform()
 
-
-
 proc snapToPixels(rect: Rect): Rect =
   rect(rect.x.int.float32, rect.y.int.float32, rect.w.int.float32, rect.h.int.float32)
 
-
-
-
-# Globals
 var
   rootArea*: Area
   dragArea: Area # For resizing splits
@@ -193,10 +185,8 @@ var
   maybeDragStartPos: Vec2
   maybeDragPanel: Panel
 
-# Forward declarations
 proc movePanels*(area: Area, panels: seq[Panel])
 
-# Logic
 proc clear*(area: Area) =
   ## Clear the area.
   for panel in area.panels:
@@ -387,9 +377,6 @@ proc scan*(area: Area): (Area, AreaScan, Rect) =
   visit(rootArea)
   return (targetArea, areaScan, resRect)
 
-
-
-# Drawing
 proc drawAreaRecursive(area: Area, r: Rect) =
   area.rect = r.snapToPixels()
 
