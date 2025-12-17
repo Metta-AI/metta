@@ -251,6 +251,8 @@ class CoreTrainingLoop:
                 self.context.config.advantage.gamma,
                 self.context.config.advantage.gae_lambda,
                 self.device,
+                self.context.config.advantage.vtrace_rho_clip,
+                self.context.config.advantage.vtrace_c_clip,
             )
 
             stop_update_epoch = False
@@ -268,6 +270,8 @@ class CoreTrainingLoop:
                     batch_size=context.config.batch_size,
                     advantages=advantages,
                 )
+                if mb_idx == 0:
+                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
 
                 policy_td = shared_loss_mb_data["sampled_mb"]
                 policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)

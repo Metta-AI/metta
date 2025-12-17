@@ -12,13 +12,6 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.utils import add_dummy_loss_for_unused_params
-from mettagrid.base_config import Config
-
-
-class VTraceConfig(Config):
-    # Defaults follow IMPALA (Espeholt et al., 2018)
-    rho_clip: float = Field(default=1.0, gt=0)
-    c_clip: float = Field(default=1.0, gt=0)
 
 
 class PPOActorConfig(LossConfig):
@@ -33,8 +26,6 @@ class PPOActorConfig(LossConfig):
     norm_adv: bool = True
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
-
-    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     def create(
         self,

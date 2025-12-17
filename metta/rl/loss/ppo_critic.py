@@ -8,6 +8,7 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
@@ -100,8 +101,14 @@ class PPOCritic(Loss):
 
         # compute value loss
         old_values = minibatch["values"]
-        self.advantages = shared_loss_data["advantages"]  # setting as class attribute for use in on_train_phase_end()
-        returns = self.advantages + minibatch["values"]
+        advantages_mb = shared_loss_data["advantages"]
+        if mb_idx == 0:
+            advantages_full = shared_loss_data.get("advantages_full", None)
+            if isinstance(advantages_full, NonTensorData):
+                advantages_full = advantages_full.data
+            # Keep full advantages for explained variance logging.
+            self.advantages = advantages_full if advantages_full is not None else advantages_mb
+        returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
         # Read policy forward results from core loop (populated by _forward_policy_for_loss
         policy_td = shared_loss_data.get("policy_td", None)
@@ -142,8 +149,20 @@ class PPOCritic(Loss):
     def on_train_phase_end(self, context: ComponentContext) -> None:
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
         with torch.no_grad():
+            advantages = compute_advantage(
+                self.replay.buffer["values"],
+                self.replay.buffer["rewards"],
+                self.replay.buffer["dones"],
+                torch.ones_like(self.replay.buffer["values"]),
+                torch.zeros_like(self.replay.buffer["values"], device=self.device),
+                self.trainer_cfg.advantage.gamma,
+                self.trainer_cfg.advantage.gae_lambda,
+                self.device,
+                self.trainer_cfg.advantage.vtrace_rho_clip,
+                self.trainer_cfg.advantage.vtrace_c_clip,
+            )
             y_pred = self.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
+            y_true = advantages.flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))

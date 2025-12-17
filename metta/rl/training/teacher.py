@@ -78,6 +78,10 @@ def apply_teacher_phase(
             scheduler_run_gates.append(
                 LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
             )
+            if trainer_cfg.losses.quantile_ppo_critic.enabled:
+                scheduler_run_gates.append(
+                    LossRunGate(loss_instance_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
+                )
 
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:
         if total_steps and start_value > 0.0:
@@ -193,9 +197,11 @@ def apply_teacher_phase(
         logit = losses.logit_kickstarter
         logit.enabled = True
         logit.teacher_uri = teacher_cfg.policy_uri
+        logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("logit_kickstarter")
         _gate_critic_after_teacher()
+        _anneal("logit_kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
                 HyperUpdateRule(

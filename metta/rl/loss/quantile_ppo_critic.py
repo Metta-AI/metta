@@ -12,7 +12,6 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import prepare_policy_forward_td
 
 
 class QuantilePPOCriticConfig(LossConfig):
@@ -22,13 +21,6 @@ class QuantilePPOCriticConfig(LossConfig):
     clip_vloss: bool = True
     gamma: float = Field(default=0.977, ge=0, le=1.0)
     gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
-
-    # control flow for forwarding and sampling
-    sample_enabled: bool = Field(default=True)
-    train_forward_enabled: bool = Field(default=True)
-    rollout_forward_enabled: bool = Field(default=True)
 
     def create(
         self,
@@ -96,11 +88,11 @@ class QuantilePPOCritic(Loss):
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         """Rollout step: forward policy and store experience with optional burn-in."""
-        if not self.rollout_forward_enabled:
-            return
-
         with torch.no_grad():
-            self.policy.forward(td)
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
@@ -114,19 +106,25 @@ class QuantilePPOCritic(Loss):
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
+        minibatch = shared_loss_data["sampled_mb"]
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
+        if indices is None:
+            indices = torch.arange(minibatch.batch_size[0], device=self.device)
+
         # compute advantages on the first mb
         if mb_idx == 0:
             # Calculate mean values for GAE
             values_quantiles = self.replay.buffer["values"]  # [T, B, N]
             values_mean = values_quantiles.mean(dim=-1)  # [T, B]
 
-            advantages = torch.zeros_like(values_mean, device=self.device)
             self.advantages = compute_advantage(
                 values_mean,
                 self.replay.buffer["rewards"],
                 self.replay.buffer["dones"],
                 torch.ones_like(values_mean),
-                advantages,
+                torch.zeros_like(values_mean, device=self.device),
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
                 self.device,
@@ -134,44 +132,17 @@ class QuantilePPOCritic(Loss):
                 1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
             )
 
-            minibatch = shared_loss_data["sampled_mb"]
-            indices = shared_loss_data["indices"]
-            if isinstance(indices, NonTensorData):
-                indices = indices.data
-            if indices is None:
-                indices = torch.arange(minibatch.batch_size[0], device=self.device)
-
-            if "prio_weights" not in shared_loss_data:
-                shared_loss_data["prio_weights"] = torch.ones(
-                    (minibatch.shape[0], minibatch.shape[1]),
-                    device=self.device,
-                    dtype=torch.float32,
-                )
-
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        shared_loss_data["advantages"] = self.advantages[indices]
-        # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
-        batch_size = shared_loss_data.batch_size
-        shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
-        shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
-
-        # forward the policy if called for
-        if self.train_forward_enabled:
-            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-            flat_actions = minibatch["actions"].reshape(B * TT, -1)
-            self.policy.reset_memory()
-            policy_td = self.policy.forward(policy_td, action=flat_actions)
-            policy_td = policy_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = policy_td
+        advantages = self.advantages[indices]
 
         # compute value loss
         old_values_quantiles = minibatch["values"]  # [B, N]
         old_values_mean = old_values_quantiles.mean(dim=-1)  # [B]
 
         # Target return is scalar
-        returns = shared_loss_data["advantages"] + old_values_mean
+        returns = advantages + old_values_mean
         minibatch["returns"] = returns
 
         policy_td = shared_loss_data.get("policy_td", None)
@@ -219,12 +190,7 @@ class QuantilePPOCritic(Loss):
             )
             self.replay.update(indices, update_td)
         else:
-            # Fallback if no forward (shouldn't happen with standard PPO config)
-            # Just compute loss on old values?
-            # But we are updating the network, so we need new values.
-            # If train_forward_enabled is False, we can't compute gradients for the network?
-            # In that case, we just return 0 or loss on old values (constant).
-            # Assuming we are training, we used newvalue.
+            # Fallback if no policy forward output is available.
             v_loss = self.quantile_loss(old_values_quantiles, returns.unsqueeze(-1)).mean()
 
         # Scale value loss by coefficient

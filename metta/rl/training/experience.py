@@ -290,6 +290,7 @@ class Experience:
         shared_loss_mb_data["sampled_mb"] = minibatch
         shared_loss_mb_data["indices"] = NonTensorData(indices)
         shared_loss_mb_data["advantages"] = advantages[indices]
+        shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
 
         return shared_loss_mb_data
 
