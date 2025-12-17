@@ -38,3 +38,18 @@ import {
   to = aws_s3_bucket.skypilot_jobs
   id = var.jobs_bucket
 }
+
+import {
+  to = kubernetes_secret_v1.lambda_ai_secret
+  id = "skypilot/lambda-ai-credentials"
+}
+
+import {
+  to = kubernetes_secret_v1.skypilot_api_server_credentials
+  id = "skypilot/aws-credentials"
+}
+
+import {
+  to = kubernetes_secret_v1.skypilot_db_connection
+  id = "skypilot/skypilot-db-connection-uri"
+}
