@@ -16,7 +16,7 @@ import {
 
 import {
   to = aws_iam_user_policy_attachment.skypilot_api_server_attach
-  id = "arn:aws:iam::751442549699:policy/minimal-skypilot-policy"
+  id = "skypilot-api-server/arn:aws:iam::751442549699:policy/minimal-skypilot-policy"
 }
 
 import {
@@ -26,7 +26,7 @@ import {
 
 import {
   to = aws_iam_role_policy_attachment.skypilot_v1_attach
-  id = "arn:aws:iam::751442549699:policy/minimal-skypilot-policy"
+  id = "skypilot-v1/arn:aws:iam::751442549699:policy/minimal-skypilot-policy"
 }
 
 import {
