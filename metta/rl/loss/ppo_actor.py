@@ -103,19 +103,6 @@ class PPOActor(Loss):
             self.replay.update(indices, update_td)
 
         # Re-compute advantages with new ratios (V-trace)
-        # Use gamma/lambda from critic to ensure consistency
-        gamma = shared_loss_data.get("gamma", None)
-        if gamma is not None:
-            gamma = gamma.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gamma in shared_loss_data")
-
-        gae_lambda = shared_loss_data.get("gae_lambda", None)
-        if gae_lambda is not None:
-            gae_lambda = gae_lambda.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
-
         values = minibatch["values"]
         if hasattr(self.policy, "critic_quantiles"):
             # If we are using a quantile critic in our policy
@@ -127,10 +114,10 @@ class PPOActor(Loss):
             minibatch["dones"],
             importance_sampling_ratio,
             shared_loss_data["advantages"],
-            gamma,
-            gae_lambda,
-            cfg.vtrace.rho_clip,
-            cfg.vtrace.c_clip,
+            self.trainer_cfg.advantage.gamma,
+            self.trainer_cfg.advantage.gae_lambda,
+            self.trainer_cfg.advantage.vtrace_rho_clip,
+            self.trainer_cfg.advantage.vtrace_c_clip,
             self.device,
         )
 

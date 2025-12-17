@@ -3,9 +3,10 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from metta.rl.utils import forward_policy_for_training
@@ -241,6 +242,17 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for _ in range(update_epochs):
+            advantages = compute_advantage(
+                self.experience.buffer["values"],
+                self.experience.buffer["rewards"],
+                self.experience.buffer["dones"],
+                self.experience.buffer["ratio"],
+                torch.zeros_like(self.experience.buffer["values"], device=self.device),
+                self.context.config.advantage.gamma,
+                self.context.config.advantage.gae_lambda,
+                self.device,
+            )
+
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
@@ -248,17 +260,8 @@ class CoreTrainingLoop:
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
-                shared_loss_mb_data = self.experience.give_me_empty_md_td()
 
-                # Get advantages from losses for sampling
-                advantages = None
-                for loss_obj in self.losses.values():
-                    if hasattr(loss_obj, "advantages"):
-                        advantages = loss_obj.advantages
-                        break
-
-                # Sample using Experience.sample()
-                minibatch, indices, prio_weights = self.experience.sample(
+                shared_loss_mb_data = self.experience.sample(
                     mb_idx=mb_idx,
                     epoch=context.epoch,
                     total_timesteps=context.config.total_timesteps,
@@ -266,11 +269,8 @@ class CoreTrainingLoop:
                     advantages=advantages,
                 )
 
-                shared_loss_mb_data["sampled_mb"] = minibatch
-                shared_loss_mb_data["indices"] = NonTensorData(indices)
-                shared_loss_mb_data["prio_weights"] = prio_weights
-
-                policy_td = forward_policy_for_training(self.policy, minibatch, self.policy_spec)
+                policy_td = shared_loss_mb_data["sampled_mb"]
+                policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
                 shared_loss_mb_data["policy_td"] = policy_td
 
                 for _loss_name, loss_obj in self.losses.items():

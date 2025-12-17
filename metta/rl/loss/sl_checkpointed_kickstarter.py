@@ -28,7 +28,6 @@ class SLCheckpointedKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=False)
 
     # Checkpoint reloading parameters
     checkpointed_interval: int = Field(gt=0, description="Interval at which teacher checkpoints are saved")
@@ -49,11 +48,13 @@ class SLCheckpointedKickstarterConfig(LossConfig):
 
 
 class SLCheckpointedKickstarter(Loss):
+    """This is currently only student-led. No blockers to make it teacher-led, but not needed yet.
+    It should be better at avoiding student-led curriculum hacking since we keep changing the teacher."""
+
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
         "temperature",
-        "student_forward",
         "teacher_uri",
         "_base_teacher_uri",
         "_checkpointed_interval",
@@ -73,7 +74,6 @@ class SLCheckpointedKickstarter(Loss):
     ) -> None:
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.temperature = self.cfg.temperature
-        self.student_forward = self.cfg.student_forward
         self.teacher_uri = self.cfg.teacher_uri
         self._base_teacher_uri = self.cfg.teacher_uri  # Store original URI for checkpoint reloading
         self._checkpointed_interval = self.cfg.checkpointed_interval
@@ -115,14 +115,7 @@ class SLCheckpointedKickstarter(Loss):
         teacher_td, B, TT = prepare_policy_forward_td(minibatch, self.teacher_policy_spec, clone=True)
         teacher_td = self.teacher_policy(teacher_td, action=None)
 
-        # Student forward pass
-        if self.student_forward:
-            student_td, B, TT = prepare_policy_forward_td(
-                minibatch, self.policy.get_agent_experience_spec(), clone=True
-            )
-            student_td = self.policy(student_td, action=None)
-        else:
-            student_td = shared_loss_data["policy_td"].reshape(B * TT)
+        student_td = shared_loss_data["policy_td"].reshape(B * TT)
 
         temperature = self.temperature
         teacher_logits = teacher_td["logits"].to(dtype=torch.float32)

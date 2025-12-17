@@ -1,15 +1,13 @@
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 import torch
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
 from metta.common.util.collections import duplicates
+from metta.rl.trainer_config import SamplingConfig
 from metta.rl.training.batch import calculate_prioritized_sampling_params
-
-if TYPE_CHECKING:
-    from metta.rl.trainer_config import SamplingConfig
 
 
 class Experience:
@@ -266,12 +264,12 @@ class Experience:
         batch_size: int,
         advantages: Tensor | None = None,
     ) -> tuple[TensorDict, Tensor, Tensor]:
-        """WRITE DOC STRING"""
+        shared_loss_mb_data = self.give_me_empty_md_td()
 
-        if self.sampling_config.method == "sequential" or advantages is None:
+        if self.sampling_config.method == "sequential":
             minibatch, indices = self.sample_sequential(mb_idx)
-            prio_weights = torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32)
         else:
+            assert advantages is not None, "Advantages must be provided for prioritized sampling"
             minibatch, indices, prio_weights = self.sample_prioritized(
                 mb_idx,
                 epoch,
@@ -281,8 +279,13 @@ class Experience:
                 self.sampling_config.prio_beta0,
                 advantages,
             )
+            shared_loss_mb_data["prio_weights"] = prio_weights
 
-        return minibatch, indices, prio_weights
+        shared_loss_mb_data["sampled_mb"] = minibatch
+        shared_loss_mb_data["indices"] = NonTensorData(indices)
+        shared_loss_mb_data["advantages"] = advantages[indices]
+
+        return shared_loss_mb_data
 
     @staticmethod
     def from_losses(
@@ -292,9 +295,9 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        losses: Dict[str, Any],
         device: torch.device | str,
-        sampling_config: "SamplingConfig",
+        sampling_config: SamplingConfig,
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 

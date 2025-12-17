@@ -3,15 +3,13 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_policy import MptPolicy
@@ -252,26 +250,16 @@ class SlicedKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch, indices = sequential_sample(self.replay, mb_idx)
+        minibatch = shared_loss_data["sampled_mb"]
+        student_td = shared_loss_data["policy_td"]
+
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
-        shared_loss_data["sampled_mb"] = minibatch
         # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
         shared_loss_data = shared_loss_data[train_ppo_mask]
-        # slice - minus teacher led minus student led
-        shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
-        # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
-
-        # sliced kickstarter MUST run first since it decides what to pass to PPO
-        student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        self.policy.reset_memory()
-        student_td = self.policy.forward(student_td, action=flat_actions)
-        student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]

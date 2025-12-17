@@ -28,9 +28,16 @@ class OptimizerConfig(Config):
 class SamplingConfig(Config):
     """Configuration for minibatch sampling during training."""
 
-    method: Literal["sequential", "prioritized"] = "prioritized"
+    method: Literal["sequential", "prioritized"] = "sequential"
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
+
+
+class AdvantageConfig(Config):
+    vtrace_rho_clip: float = Field(default=1.0, gt=0)
+    vtrace_c_clip: float = Field(default=1.0, gt=0)
+    gamma: float = Field(default=0.99, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.95, ge=0, le=1.0)
 
 
 class InitialPolicyConfig(Config):
@@ -58,9 +65,11 @@ class TorchProfilerConfig(Config):
 
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
+
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True

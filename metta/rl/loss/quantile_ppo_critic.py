@@ -11,7 +11,6 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import prio_sample
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.utils import prepare_policy_forward_td
 
@@ -49,9 +48,6 @@ class QuantilePPOCritic(Loss):
         "advantages",
         "burn_in_steps",
         "burn_in_steps_iter",
-        "sample_enabled",
-        "train_forward_enabled",
-        "rollout_forward_enabled",
         "num_quantiles",
         "tau_hat",
     )
@@ -67,9 +63,6 @@ class QuantilePPOCritic(Loss):
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self.sample_enabled = self.cfg.sample_enabled
-        self.train_forward_enabled = self.cfg.train_forward_enabled
-        self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
@@ -141,23 +134,6 @@ class QuantilePPOCritic(Loss):
                 self.device,
             )
 
-        # sample from the buffer if called for
-        if self.sample_enabled:
-            minibatch, indices, prio_weights = prio_sample(
-                buffer=self.replay,
-                mb_idx=mb_idx,
-                epoch=context.epoch,
-                total_timesteps=self.trainer_cfg.total_timesteps,
-                batch_size=self.trainer_cfg.batch_size,
-                prio_alpha=self.cfg.prio_alpha,
-                prio_beta0=self.cfg.prio_beta0,
-                advantages=self.advantages,
-            )
-            # mb data should have been computed with policy under torch.no_grad()
-            shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
-            shared_loss_data["prio_weights"] = prio_weights
-        else:
             minibatch = shared_loss_data["sampled_mb"]
             indices = shared_loss_data["indices"]
             if isinstance(indices, NonTensorData):
