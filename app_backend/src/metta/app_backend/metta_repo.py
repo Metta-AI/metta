@@ -716,7 +716,6 @@ class MettaRepo:
                 return await cur.fetchone()
 
     async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
-
         """Get a single policy version with public fields by ID."""
 
         async with self.connect() as con:
@@ -1378,6 +1377,7 @@ ORDER BY e.created_at DESC
                         }
                     )
                 return policies
+
     async def search_policies(
         self,
         search: Optional[str] = None,
@@ -1486,9 +1486,7 @@ ORDER BY e.created_at DESC
                 continue
         return policy_uuids
 
-    async def _get_policy_version_ids_from_policy_ids(
-        self, policy_uuids: list[uuid.UUID]
-    ) -> list[uuid.UUID]:
+    async def _get_policy_version_ids_from_policy_ids(self, policy_uuids: list[uuid.UUID]) -> list[uuid.UUID]:
         """Get policy version IDs for given policy UUIDs."""
         if not policy_uuids:
             return []
