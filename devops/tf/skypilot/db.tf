@@ -1,3 +1,16 @@
+data "aws_secretsmanager_secret" "skypilot_db_password" {
+  name = "skypilot-db-password"
+}
+
+data "aws_secretsmanager_secret_version" "skypilot_db_password" {
+  secret_id = data.aws_secretsmanager_secret.skypilot_db_password.id
+}
+
+import {
+  to = random_password.db
+  id = data.aws_secretsmanager_secret_version.skypilot_db_password.secret_string
+}
+
 resource "random_password" "db" {
   length  = 32
   special = false
