@@ -116,9 +116,9 @@ class PPOActor(Loss):
             shared_loss_data["advantages"],
             self.trainer_cfg.advantage.gamma,
             self.trainer_cfg.advantage.gae_lambda,
-            self.trainer_cfg.advantage.vtrace_rho_clip,
-            self.trainer_cfg.advantage.vtrace_c_clip,
             self.device,
+            vtrace_rho_clip=self.trainer_cfg.advantage.vtrace_rho_clip,
+            vtrace_c_clip=self.trainer_cfg.advantage.vtrace_c_clip,
         )
 
         # Normalize advantages with distributed support, then apply prioritized weights

@@ -129,9 +129,9 @@ class QuantilePPOCritic(Loss):
                 advantages,
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
                 self.device,
+                vtrace_rho_clip=1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
+                vtrace_c_clip=1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
             )
 
             minibatch = shared_loss_data["sampled_mb"]
