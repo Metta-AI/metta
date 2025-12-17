@@ -50,7 +50,6 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     step = currentStep
     stepFloat = currentStep.float32
     previousStep = currentStep
-    onStepChanged()
     requestPython = false
     result = RenderResponse(shouldClose: false, actions: @[])
     while true:
