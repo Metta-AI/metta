@@ -242,18 +242,22 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for _ in range(update_epochs):
-            advantages = compute_advantage(
-                self.experience.buffer["values"],
-                self.experience.buffer["rewards"],
-                self.experience.buffer["dones"],
-                torch.ones_like(self.experience.buffer["values"]),
-                torch.zeros_like(self.experience.buffer["values"], device=self.device),
-                self.context.config.advantage.gamma,
-                self.context.config.advantage.gae_lambda,
-                self.device,
-                self.context.config.advantage.vtrace_rho_clip,
-                self.context.config.advantage.vtrace_c_clip,
-            )
+            if "values" in self.experience.buffer.keys():
+                advantages = compute_advantage(
+                    self.experience.buffer["values"],
+                    self.experience.buffer["rewards"],
+                    self.experience.buffer["dones"],
+                    torch.ones_like(self.experience.buffer["values"]),
+                    torch.zeros_like(self.experience.buffer["values"], device=self.device),
+                    self.context.config.advantage.gamma,
+                    self.context.config.advantage.gae_lambda,
+                    self.device,
+                    self.context.config.advantage.vtrace_rho_clip,
+                    self.context.config.advantage.vtrace_c_clip,
+                )
+            else:
+                # Value-free setups still need a tensor shaped like the buffer for sampling.
+                advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):

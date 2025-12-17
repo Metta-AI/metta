@@ -51,14 +51,6 @@ def forward_policy_for_training(
     """Forward policy on sampled minibatch for training.
 
     Centralized forward pass for use in core training loop.
-
-    Args:
-        policy: Policy to forward
-        minibatch: Sampled minibatch data
-        policy_spec: Policy experience specification
-
-    Returns:
-        Policy output TensorDict reshaped to batch format
     """
     policy_td, B, TT = prepare_policy_forward_td(minibatch, policy_spec, clone=False)
 

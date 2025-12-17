@@ -23,6 +23,7 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        sampling_config: Any,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -32,6 +33,7 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.sampling_config = sampling_config
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -323,8 +325,8 @@ class Experience:
             max_minibatch_size=max_minibatch_size,
             experience_spec=Composite(merged_spec_dict),
             device=device,
+            sampling_config=sampling_config,
         )
-        experience.sampling_config = sampling_config
         for loss in losses.values():
             loss.attach_replay_buffer(experience)
         return experience

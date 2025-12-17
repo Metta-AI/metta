@@ -90,6 +90,7 @@ class PPOCritic(Loss):
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
+        # Sampling happens in the core loop; use the shared minibatch and indices.
         minibatch = shared_loss_data["sampled_mb"]
         indices = shared_loss_data["indices"]
         if isinstance(indices, NonTensorData):
@@ -98,7 +99,8 @@ class PPOCritic(Loss):
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        # compute value loss
+        # Advantages are computed in the core loop and passed through shared_loss_data.
+        # Keep the full advantages around for explained variance logging.
         old_values = minibatch["values"]
         advantages_mb = shared_loss_data["advantages"]
         if mb_idx == 0:
@@ -109,7 +111,7 @@ class PPOCritic(Loss):
             self.advantages = advantages_full if advantages_full is not None else advantages_mb
         returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
-        # Read policy forward results from core loop (populated by _forward_policy_for_loss
+        # Read policy forward results from the core loop (forward_policy_for_training).
         policy_td = shared_loss_data.get("policy_td", None)
         newvalue_reshaped = None
         if policy_td is not None:
