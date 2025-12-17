@@ -14,6 +14,12 @@ import {
 resource "random_password" "db" {
   length  = 32
   special = false
+
+  lifecycle {
+    ignore_changes = [
+      special,
+    ]
+  }
 }
 
 # Security group and DB subnet group for accessing the DB from the EKS cluster
