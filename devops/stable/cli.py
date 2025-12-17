@@ -93,6 +93,8 @@ def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Print metrics instead of submitting to Datadog")] = False,
 ):
+    datadog_client = DatadogMetricsClient()
+
     has_blockers = False
     if suite != Suite.CI:
         print("Checking for blocking bugs in Asana...")
@@ -139,8 +141,7 @@ def main(
                 print(f"\nTotal: {len(metrics)} metrics")
             else:
                 logger.info("Emitting %d Datadog metrics from job results", len(metrics))
-                client = DatadogMetricsClient()
-                client.submit(metrics)
+                datadog_client.submit(metrics)
                 logger.info("Successfully emitted Datadog metrics")
         else:
             if dry_run:
