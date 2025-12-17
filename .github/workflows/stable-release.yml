@@ -99,6 +99,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE }}
           aws-region: us-east-1
+          role-duration-seconds: 36000
 
       - name: Configure SkyPilot API server
         run: |
