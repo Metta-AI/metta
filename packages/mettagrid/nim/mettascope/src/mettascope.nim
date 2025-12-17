@@ -182,9 +182,10 @@ proc onFrame() =
 
   drawPanels()
 
-  let ms = sk.avgFrameTime * 1000
-  sk.at = sk.pos + vec2(sk.size.x - 250, 20)
-  text(&"frame time: {ms:>7.3f}ms\nquads: {sk.instanceCount}")
+  when defined(profile):
+    let ms = sk.avgFrameTime * 1000
+    sk.at = sk.pos + vec2(sk.size.x - 250, 20)
+    text(&"frame time: {ms:>7.3f}ms\nquads: {sk.instanceCount}")
 
   sk.endUi()
   window.swapBuffers()
