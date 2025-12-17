@@ -149,20 +149,8 @@ class PPOCritic(Loss):
     def on_train_phase_end(self, context: ComponentContext) -> None:
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
         with torch.no_grad():
-            advantages = compute_advantage(
-                self.replay.buffer["values"],
-                self.replay.buffer["rewards"],
-                self.replay.buffer["dones"],
-                torch.ones_like(self.replay.buffer["values"]),
-                torch.zeros_like(self.replay.buffer["values"], device=self.device),
-                self.trainer_cfg.advantage.gamma,
-                self.trainer_cfg.advantage.gae_lambda,
-                self.device,
-                self.trainer_cfg.advantage.vtrace_rho_clip,
-                self.trainer_cfg.advantage.vtrace_c_clip,
-            )
             y_pred = self.replay.buffer["values"].flatten()
-            y_true = advantages.flatten() + self.replay.buffer["values"].flatten()
+            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))

@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
