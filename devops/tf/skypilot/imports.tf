@@ -36,7 +36,5 @@ import {
 
 import {
   to = aws_s3_bucket.skypilot_jobs
-  identity = {
-    bucket = var.jobs_bucket
-  }
+  id = var.jobs_bucket
 }
