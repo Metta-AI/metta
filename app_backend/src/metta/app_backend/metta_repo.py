@@ -1338,7 +1338,7 @@ ORDER BY e.created_at DESC
             row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
         return list(rows)
 
-    async def get_all_policies(self) -> list[dict[str, Any]]:
+    async def get_all_policies(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         async with self.connect() as con:
             async with con.cursor(row_factory=dict_row) as cur:
                 await cur.execute(
@@ -1359,7 +1359,9 @@ ORDER BY e.created_at DESC
                     LEFT JOIN policy_version_tags pvt ON pvt.policy_version_id = pv.id
                     GROUP BY p.id, p.name, p.created_at, p.user_id, p.attributes
                     ORDER BY p.created_at DESC
-                    """
+                    LIMIT %s OFFSET %s
+                    """,
+                    (limit, offset),
                 )
                 rows = await cur.fetchall()
                 policies = []

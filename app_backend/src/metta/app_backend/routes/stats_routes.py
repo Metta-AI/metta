@@ -546,10 +546,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 )
                 policies = [PolicyListItem(**p.model_dump()) for p in policies_data]
             else:
-                policies_data = await stats_repo.get_all_policies()
+                policies_data = await stats_repo.get_all_policies(limit=limit, offset=offset)
                 policies = [PolicyListItem(**p) for p in policies_data]
-                if limit < len(policies) or offset > 0:
-                    policies = policies[offset : offset + limit]
 
             return PoliciesResponse(policies=policies)
         except Exception as e:
