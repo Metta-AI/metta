@@ -65,15 +65,25 @@ def test_discounted_sum_cuda_parity(shape_case) -> None:
     device = torch.device("cuda")
     dtype = torch.float32
 
-    x = torch.randn(T, B, R, D, device=device, dtype=dtype)
-    discounts = torch.sigmoid(torch.randn(T, B, R, D, device=device, dtype=dtype))
-    start = torch.randn(B, R, D, device=device, dtype=dtype)
-
-    out_ref = discounted_sum_pytorch(start, x, discounts)
-
     from cortex.kernels.cuda.agalite.discounted_sum_cuda import discounted_sum_cuda
 
-    out_cuda = discounted_sum_cuda(start, x, discounts)
+    # Run on a non-default stream with a delay to detect stream-unsafe kernel launches.
+    x = torch.empty((T, B, R, D), device=device, dtype=dtype)
+    discounts = torch.empty_like(x)
+    start = torch.empty((B, R, D), device=device, dtype=dtype)
+
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        torch.cuda._sleep(10_000_000)
+        x.normal_()
+        discounts.normal_()
+        discounts.sigmoid_()
+        start.normal_()
+        out_cuda = discounted_sum_cuda(start, x, discounts)
+
+    stream.synchronize()
+
+    out_ref = discounted_sum_pytorch(start, x, discounts)
 
     torch.testing.assert_close(out_ref, out_cuda, rtol=1e-4, atol=1e-4)
 
