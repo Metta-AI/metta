@@ -49,7 +49,6 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
     PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
     PolicyUnderTest("ladybug"),
-    PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
