@@ -108,23 +108,25 @@ class PPOActor(Loss):
             # If we are using a quantile critic in our policy
             values = values.mean(dim=-1)
 
-        adv = compute_advantage(
-            values,
-            minibatch["rewards"],
-            minibatch["dones"],
-            importance_sampling_ratio,
-            shared_loss_data["advantages"],
-            self.trainer_cfg.advantage.gamma,
-            self.trainer_cfg.advantage.gae_lambda,
-            self.trainer_cfg.advantage.vtrace_rho_clip,
-            self.trainer_cfg.advantage.vtrace_c_clip,
-            self.device,
-        )
+        adv = shared_loss_data["advantages"]
+        # V-trace below
+        if (prio_weights := shared_loss_data.get("prio_weights")) is not None:
+            adv = compute_advantage(
+                values,
+                minibatch["rewards"],
+                minibatch["dones"],
+                importance_sampling_ratio,
+                shared_loss_data["advantages"],
+                self.trainer_cfg.advantage.gamma,
+                self.trainer_cfg.advantage.gae_lambda,
+                self.device,
+                vtrace_rho_clip=self.trainer_cfg.advantage.vtrace_rho_clip,
+                vtrace_c_clip=self.trainer_cfg.advantage.vtrace_c_clip,
+            )
 
-        # Normalize advantages with distributed support, then apply prioritized weights
-        adv = normalize_advantage_distributed(adv, cfg.norm_adv)
-        prio_weights = shared_loss_data["prio_weights"]
-        adv = prio_weights * adv
+            # Normalize advantages with distributed support, then apply prioritized weights
+            adv = normalize_advantage_distributed(adv, cfg.norm_adv)
+            adv = prio_weights * adv
 
         pg_loss1 = -adv * importance_sampling_ratio
         pg_loss2 = -adv * torch.clamp(
