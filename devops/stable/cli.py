@@ -91,11 +91,13 @@ def _print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
 @app.callback()
 def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
-    submit_metrics: Annotated[bool, typer.Option("--submit-metrics", help="Submit metrics to Datadog")] = True,
+    skip_submitting_metrics: Annotated[
+        bool, typer.Option("--skip-submitting-metrics", help="Skip submitting metrics to Datadog")
+    ] = False,
 ):
     # Get Datadog client up front to fail fast in case of missing credentials
     datadog_client: DatadogMetricsClient | None = None
-    if submit_metrics:
+    if not skip_submitting_metrics:
         datadog_client = DatadogMetricsClient()
 
     has_blockers = False
@@ -132,7 +134,7 @@ def main(
     # Emit Datadog metrics for completed jobs
     metrics = jobs_to_metrics(runner.jobs)
     if metrics:
-        if submit_metrics:
+        if not skip_submitting_metrics:
             logger.info("Emitting %d Datadog metrics from job results", len(metrics))
             assert datadog_client is not None
             datadog_client.submit(metrics)

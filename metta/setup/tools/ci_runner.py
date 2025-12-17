@@ -180,7 +180,7 @@ def _run_cleanup_cancelled_runs(*, verbose: bool = False, extra_args: Sequence[s
 def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, **_kwargs) -> CheckResult:
     _print_header("Recipe CI Tests")
 
-    cmd = ["uv", "run", "./devops/stable/cli.py", "--suite=ci", "--submit-metrics=false"]
+    cmd = ["uv", "run", "./devops/stable/cli.py", "--suite=ci", "--skip-submitting-metrics"]
     if name_filter:
         cmd.extend(["--job", name_filter])
 
