@@ -31,18 +31,6 @@ var
   window*: Window
   frame*: int
 
-  # globalTimelinePanel*: Panel
-  # globalFooterPanel*: Panel
-  # globalHeaderPanel*: Panel
-
-  # worldMapPanel*: Panel
-  # minimapPanel*: Panel
-  # agentTablePanel*: Panel
-  # agentTracesPanel*: Panel
-  # objectInfoPanel*: Panel
-  # environmentInfoPanel*: Panel
-  # vibePanel*: Panel
-
   settings* = Settings()
   selection*: Entity
 

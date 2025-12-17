@@ -400,78 +400,11 @@ proc drawTrajectory*() =
           else:
             image = "agents/path"
 
-          # let
-          #   dx = cx1 - cx0
-          #   dy = cy1 - cy0
-          # var
-          #   rotation: float32 = 0
-          #   diagScale: float32 = 1
-
-          # if dx > 0 and dy == 0:
-          #   rotation = 0
-          # elif dx < 0 and dy == 0:
-          #   rotation = Pi
-          # elif dx == 0 and dy > 0:
-          #   rotation = -Pi / 2
-          # elif dx == 0 and dy < 0:
-          #   rotation = Pi / 2
-          # elif dx > 0 and dy > 0:
-          #   rotation = -Pi / 4
-          #   diagScale = sqrt(2.0f)
-          # elif dx > 0 and dy < 0:
-          #   rotation = Pi / 4
-          #   diagScale = sqrt(2.0f)
-          # elif dx < 0 and dy > 0:
-          #   rotation = -3 * Pi / 4
-          #   diagScale = sqrt(2.0f)
-          # elif dx < 0 and dy < 0:
-          #   rotation = 3 * Pi / 4
-          #   diagScale = sqrt(2.0f)
-
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
           px.drawSprite(
             image,
             ivec2(cx0.int32, cy0.int32) * TILE_SIZE,
-            # angle = rotation,
-            # scale = (1.0f / 200.0f) * diagScale,
-            # tint = tint
           )
-
-proc drawActions*() =
-  ## Draw the actions of the selected agent.
-  for obj in replay.objects:
-    # Do agent actions.
-    if obj.isAgent:
-      let actionId = obj.actionId.at
-      if (replay.drawnAgentActionMask and (1'u64 shl actionId)) != 0 and
-          obj.actionSuccess.at and
-          actionId >= 0 and actionId < replay.actionImages.len:
-        # bxy.drawImage(
-        #   if actionId != replay.attackActionId:
-        #     replay.actionImages[actionId]
-        #   else:
-        #     let attackParam = obj.actionParameter.at
-        #     if attackParam >= 1 and attackParam <= 9:
-        #       replay.actionAttackImages[attackParam - 1]
-        #     else:
-        #       continue,
-        #   obj.location.at.xy.vec2,
-        #   angle = case obj.orientation.at:
-        #   of 0: PI / 2 # North
-        #   of 1: -PI / 2 # South
-        #   of 2: PI # West
-        #   of 3: 0 # East
-        #   else: 0, # East
-        # scale = 1/200)
-        discard
-    elif obj.productionProgress.at > 0:
-      # bxy.drawImage(
-      #   "actions/converting",
-      #   obj.location.at.xy.vec2,
-      #   angle = 0,
-      #   scale = 1/200
-      # )
-      discard
 
 proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
@@ -531,8 +464,7 @@ proc drawPlannedPath*() =
       let alpha = 0.6
       px.drawSprite(
         "agents/path",
-        pos0.ivec2 * TILE_SIZE,
-        #tint = color(1, 1, 1, alpha)
+        pos0.ivec2 * TILE_SIZE
       )
       currentPos = action.pos
 
@@ -544,8 +476,7 @@ proc drawPlannedPath*() =
         if objective.kind in {Move, Bump}:
           px.drawSprite(
             "objects/selection",
-            objective.pos.ivec2 * TILE_SIZE,
-            #tint = color(1, 1, 1, 0.5)
+            objective.pos.ivec2 * TILE_SIZE
           )
 
       # Draw approach arrows for bump objectives.
@@ -564,8 +495,7 @@ proc drawPlannedPath*() =
             rotation = Pi
           px.drawSprite(
             "agents/arrow",
-            approachPos.ivec2 * TILE_SIZE + offset.ivec2,
-            #tint = color(1, 1, 1, 0.7)
+            approachPos.ivec2 * TILE_SIZE + offset.ivec2
           )
 
 proc drawSelection*() =
@@ -588,100 +518,6 @@ proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
     return (x + 1, y)
   else:
     return (x, y)
-
-proc drawThoughtBubbles*() =
-  # Draw the thought bubbles of the selected agent.
-  # The idea behind thought bubbles is to show what an agent is thinking.
-  # We don't have this directly from the policy yet, so the next best thing
-  # is to show a future "key action."
-  # It should be a good proxy for what the agent is thinking about.
-  if selection == nil or not selection.isAgent:
-    return
-
-  var keyAction = -1
-  var keyParam = -1
-  var keyStep = -1
-  var actionHasTarget = false
-  let actionStepEnd = min(step + 20, replay.maxSteps)
-  for actionStep in step ..< actionStepEnd:
-    # We need to find a key action in the future.
-    # A key action is a successful action that is not a no-op, rotate, or move.
-    # It must not be more than 20 steps in the future.
-    let actionId = selection.actionId.at(actionStep)
-    if actionId == -1:
-      continue
-    let actionParam = selection.actionParameter.at(actionStep)
-    if actionParam == -1:
-      continue
-    let actionSuccess = selection.actionSuccess.at(actionStep)
-    if not actionSuccess:
-      continue
-    let actionName = replay.actionNames[actionId]
-    if actionName == "noop" or
-    actionName == "rotate" or
-    actionName == "move" or
-    actionName == "move_cardinal" or
-    actionName == "move_8way":
-      continue
-    keyAction = actionId
-    keyParam = actionParam
-    keyStep = actionStep
-    actionHasTarget = not (actionName == "attack" or actionName == "attack_nearest")
-    break
-
-  if keyAction != -1 and keyParam != -1:
-    let loc = selection.location.at(step).xy.vec2
-    if actionHasTarget and keyStep != step:
-      # Draw an arrow on a circle around the target, pointing at it.
-      let targetLoc = selection.location.at(keyStep).xy
-      let (targetX, targetY) = applyOrientationOffset(targetLoc.x, targetLoc.y,
-          selection.orientation.at(keyStep))
-      let angle = arctan2(targetX.float32 - loc.x, targetY.float32 - loc.y)
-      let r = 1.0f / 3.0f
-      let tX = targetX.float32 - sin(angle) * r
-      let tY = targetY.float32 - cos(angle) * r
-      px.drawSprite(
-        "agents/arrow",
-        ivec2(tX.int32, tY.int32) * TILE_SIZE,
-        # angle = angle + PI,
-        # scale = 1/200
-      )
-    let pos = loc.vec2 + vec2(0.5, -0.5)
-    # # We have a key action, so draw the thought bubble.
-    # # Draw the key action icon with gained or lost resources.
-    # px.drawSprite(
-    #   if step == keyStep: "agents/thoughts_lightning" else: "agents/thoughts",
-    #   pos.ivec2 * TILE_SIZE,
-    #   # angle = 0,
-    #   # scale = 1/200
-    # )
-    # # Draw the action icon.
-    # px.drawSprite(
-    #   if keyAction < replay.actionIconImages.len:
-    #     replay.actionIconImages[keyAction] else: "actions/icons/unknown",
-    #   pos.ivec2 * TILE_SIZE,
-    #   # angle = 0,
-    #   # scale = 1/200/4
-    # )
-
-    # # Draw the resources lost on the left and gained on the right.
-    # var gainX = pos.x + 32/200
-    # var lossX = pos.x - 32/200
-    # let gainMap = selection.gainMap.at(keyStep)
-    # for item in gainMap:
-    #   var drawX = 0.0f
-    #   if item.count > 0:
-    #     drawX = gainX
-    #     gainX += 8/200
-    #   else:
-    #     drawX = lossX
-    #     lossX -= 8/200
-    #   px.drawSprite(
-    #     "resources/" & replay.itemNames[item.itemId],
-    #     ivec2(drawX.int32, pos.y.int32) * TILE_SIZE,
-    #     # angle = 0,
-    #     # scale = 1/200/8
-    #   )
 
 proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
@@ -756,7 +592,6 @@ proc drawWorldMain*() =
   px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
   bxy.exitRawOpenGLMode()
 
-  #drawActions()
   drawAgentDecorations()
   drawSelection()
   drawPlannedPath()
@@ -767,8 +602,6 @@ proc drawWorldMain*() =
     drawFogOfWar()
   if settings.showGrid:
     drawGrid()
-
-  #drawThoughtBubbles()
 
 proc fitFullMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the full map fits in the panel.
