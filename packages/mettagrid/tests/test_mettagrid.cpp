@@ -76,11 +76,11 @@ protected:
   // Helper function to create test resource_limits map
   InventoryConfig create_test_inventory_config() {
     InventoryConfig inventory_config;
-    inventory_config.limits = {
-        {{TestItems::ORE}, 50},
-        {{TestItems::LASER}, 50},
-        {{TestItems::ARMOR}, 50},
-        {{TestItems::HEART}, 50},
+    inventory_config.limit_defs = {
+        LimitDef({TestItems::ORE}, 50),
+        LimitDef({TestItems::LASER}, 50),
+        LimitDef({TestItems::ARMOR}, 50),
+        LimitDef({TestItems::HEART}, 50),
     };
     return inventory_config;
   }
@@ -430,10 +430,10 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
 TEST_F(MettaGridCppTest, SharedInventoryLimits) {
   // Create an inventory config where ORE and LASER share a combined limit
   InventoryConfig inventory_config;
-  inventory_config.limits = {
-      {{TestItems::ORE, TestItems::LASER}, 30},  // ORE and LASER share a limit of 30 total
-      {{TestItems::ARMOR}, 50},                  // ARMOR has its own separate limit
-      {{TestItems::HEART}, 50},                  // HEART has its own separate limit
+  inventory_config.limit_defs = {
+      LimitDef({TestItems::ORE, TestItems::LASER}, 30),  // ORE and LASER share a limit of 30 total
+      LimitDef({TestItems::ARMOR}, 50),                  // ARMOR has its own separate limit
+      {{TestItems::HEART}, 50},                          // HEART has its own separate limit
   };
 
   auto rewards = create_test_stats_rewards();
@@ -1352,7 +1352,7 @@ TEST_F(MettaGridCppTest, AssemblerWontProduceOutputIfAgentsCantReceive) {
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_EvenDistribution) {
   // Test that positive delta is evenly distributed among agents
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1376,7 +1376,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_EvenDistribution) {
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_UnevenDistribution) {
   // Test that when delta doesn't divide evenly, earlier agents get more
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1400,7 +1400,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_UnevenDistribution) {
 TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
   // Test that agents that hit their inventory limit drop out of distribution
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 10}};  // Low limit of 10
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 10)};  // Low limit of 10
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1430,7 +1430,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_PositiveDelta_WithLimits) {
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
   // Test that negative delta is evenly distributed among agents
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1459,7 +1459,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_EvenDistribution) {
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
   // Test behavior when some agents don't have enough to contribute their share
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1489,7 +1489,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_InsufficientResources) {
 TEST_F(MettaGridCppTest, SharedUpdate_NegativeDelta_UnevenDistribution) {
   // Test that when negative delta doesn't divide evenly, earlier agents lose more
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1527,7 +1527,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_EmptyInventoriesList) {
 TEST_F(MettaGridCppTest, SharedUpdate_SingleInventory) {
   // Test with single agent
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 100}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 100)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1546,7 +1546,7 @@ TEST_F(MettaGridCppTest, SharedUpdate_SingleInventory) {
 TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
   // Test when all agent inventories are at their limit
   InventoryConfig inv_cfg;
-  inv_cfg.limits = {{{TestItems::ORE}, 10}};
+  inv_cfg.limit_defs = {LimitDef({TestItems::ORE}, 10)};
 
   AgentConfig agent_cfg(1, "test_agent", 1, "test_group");
   agent_cfg.inventory_config = inv_cfg;
@@ -1572,13 +1572,13 @@ TEST_F(MettaGridCppTest, SharedUpdate_AllInventoriesAtLimit) {
 TEST_F(MettaGridCppTest, SharedUpdate_MixedLimits) {
   // Test with agents having different inventory limits
   InventoryConfig inv_cfg1;
-  inv_cfg1.limits = {{{TestItems::ORE}, 10}};
+  inv_cfg1.limit_defs = {LimitDef({TestItems::ORE}, 10)};
 
   InventoryConfig inv_cfg2;
-  inv_cfg2.limits = {{{TestItems::ORE}, 20}};
+  inv_cfg2.limit_defs = {LimitDef({TestItems::ORE}, 20)};
 
   InventoryConfig inv_cfg3;
-  inv_cfg3.limits = {{{TestItems::ORE}, 30}};
+  inv_cfg3.limit_defs = {LimitDef({TestItems::ORE}, 30)};
 
   AgentConfig agent_cfg1(1, "test_agent1", 1, "test_group");
   agent_cfg1.inventory_config = inv_cfg1;

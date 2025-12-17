@@ -138,12 +138,6 @@ uv run cogames play --mission evals.diagnostic_unclip_craft -p scripted_unclippi
 3. Have all recipe inputs → assemble
 4. Otherwise → gather missing resources in a fixed order (carbon, oxygen, germanium, silicon)
 
-**Usage (good README snippet)**:
-
-```bash
-uv run cogames play --mission evals.diagnostic_radial -p scripted_starter --steps 600 --cogs 1
-```
-
 **Why it exists**: Shows the simplest possible if/else controller that still completes missions, ideal for external
 readers who want a tiny, readable starting point before diving into the full Baseline/Unclipping logic.
 
