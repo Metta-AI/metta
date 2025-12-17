@@ -23,7 +23,8 @@ resource "aws_iam_openid_connect_provider" "github" {
 
 # IAM role that GitHub workflows can assume via OIDC.
 resource "aws_iam_role" "github_actions" {
-  name = "github-actions"
+  name                 = "github-actions"
+  max_session_duration = 36000
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
