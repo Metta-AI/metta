@@ -103,6 +103,28 @@ resource "aws_iam_role_policy" "github_eks_describe" {
   })
 }
 
+# Allow GitHub workflows to read Datadog secrets from Secrets Manager.
+resource "aws_iam_role_policy" "github_datadog_secrets" {
+  name = "github-actions-datadog-secrets"
+  role = aws_iam_role.github_actions.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:datadog/api-key-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:datadog/app-key-*",
+        ]
+      }
+    ]
+  })
+}
+
 resource "github_actions_variable" "aws_role" {
   repository    = var.github_repo
   variable_name = "AWS_ROLE"
