@@ -118,12 +118,6 @@ jobs:
             echo "Working tree is clean"
           fi
 
-      - name: Configure Datadog
-        uses: datadog/test-visibility-github-action@v2
-        with:
-          languages: python
-          api_key: ${{ secrets.DD_API_KEY }}
-
       - name: Run stable release process
         id: release
         run: ./devops/stable/cli.py
