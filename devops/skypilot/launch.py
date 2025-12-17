@@ -129,7 +129,7 @@ def main(
             "--max-runtime-hours",
             help="Maximum job runtime in hours before automatic termination (supports decimals, e.g. 1.5 = 90 minutes)",
         ),
-    ] = 24.0,
+    ] = 72.0,
     skip_git_check: Annotated[
         bool, typer.Option("--skip-git-check", help="Skip git state validation and GitHub API calls")
     ] = False,
