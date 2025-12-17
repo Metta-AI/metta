@@ -2,6 +2,9 @@
 
 This package provides a pluggable URI resolution system for handling different resource schemes.
 
+Checkpoint URIs may point at a checkpoint directory (containing `policy_spec.json` and `policy.mpt`),
+the `policy_spec.json` itself, or a standalone `.mpt` file.
+
 ## Usage
 
 ```python

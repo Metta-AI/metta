@@ -9,7 +9,6 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.checkpoint_bundle import create_local_bundle, resolve_checkpoint_bundle, upload_bundle
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -165,6 +164,3 @@ class CheckpointManager:
         if is_schedulefree:
             optimizer.train()
 
-
-# Here temporarily for backwards-compatibility but we will move it
-CheckpointPolicy = MptPolicy

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Literal, overload
+from typing import Iterable, Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -46,17 +46,13 @@ class FileSchemeResolver(SchemeResolver):
     def _get_latest_checkpoint_uri(self, parsed: FileParsedScheme) -> str | None:
         if not parsed.local_path.is_dir():
             return None
-        best: tuple[int, Path] | None = None
+        candidates: list[tuple[str, str]] = []
         for entry in parsed.local_path.iterdir():
             if not entry.is_dir():
                 continue
-            info = _extract_run_and_epoch(entry.name)
-            if not info:
-                continue
             if (entry / "policy_spec.json").exists():
-                if best is None or info[1] > best[0]:
-                    best = (info[1], entry)
-        return f"file://{best[1].resolve()}" if best else None
+                candidates.append((entry.name, entry.resolve().as_uri()))
+        return _select_latest_checkpoint_uri(candidates)
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -74,11 +70,16 @@ class FileSchemeResolver(SchemeResolver):
             spec_path = parsed.local_path / "policy_spec.json"
             if not spec_path.exists():
                 raise ValueError(f"Directory does not contain policy_spec.json: {parsed.local_path}")
-        elif parsed.local_path.suffix == ".json":
-            if Path(parsed.local_path).name != "policy_spec.json":
-                raise ValueError("Expected policy_spec.json")
+        elif parsed.local_path.is_file():
+            if parsed.local_path.suffix == ".mpt":
+                return parsed.canonical
+            if parsed.local_path.suffix == ".json":
+                if Path(parsed.local_path).name != "policy_spec.json":
+                    raise ValueError("Expected policy_spec.json")
+            else:
+                raise ValueError("Only .mpt files, policy_spec.json, or directories containing it are supported")
         else:
-            raise ValueError("Only policy_spec.json or directories containing it are supported")
+            raise ValueError("Only .mpt files, policy_spec.json, or directories containing it are supported")
         return parsed.canonical
 
 
@@ -112,7 +113,7 @@ class S3SchemeResolver(SchemeResolver):
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
             return None
-        best: tuple[int, str] | None = None
+        candidates: list[tuple[str, str]] = []
         for obj in response["Contents"]:
             key = obj["Key"]
             if not key.endswith("policy_spec.json"):
@@ -122,10 +123,8 @@ class S3SchemeResolver(SchemeResolver):
                 continue
             dir_path = "/".join(parts[:-1])  # full directory path to the checkpoint
             run_dir = parts[-2]
-            info = _extract_run_and_epoch(run_dir)
-            if info and (best is None or info[1] > best[0]):
-                best = (info[1], f"s3://{parsed.bucket}/{dir_path}")
-        return best[1] if best else None
+            candidates.append((run_dir, f"s3://{parsed.bucket}/{dir_path}"))
+        return _select_latest_checkpoint_uri(candidates)
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -140,6 +139,20 @@ class S3SchemeResolver(SchemeResolver):
 
         parsed = self.parse(uri)
         return parsed.canonical
+
+
+def _select_latest_checkpoint_uri(candidates: Iterable[tuple[str, str]]) -> str | None:
+    best_epoch: int | None = None
+    best_uri: str | None = None
+    for run_dir, uri in candidates:
+        info = _extract_run_and_epoch(run_dir)
+        if not info:
+            continue
+        epoch = info[1]
+        if best_epoch is None or epoch > best_epoch:
+            best_epoch = epoch
+            best_uri = uri
+    return best_uri
 
 
 class HttpSchemeResolver(SchemeResolver):
