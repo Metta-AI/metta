@@ -19,7 +19,7 @@ when isMainModule:
   window = newWindow(
     "MettaScope",
     ivec2(1200, 800),
-    vsync = false
+    vsync = true
   )
   makeContextCurrent(window)
   loadExtensions()

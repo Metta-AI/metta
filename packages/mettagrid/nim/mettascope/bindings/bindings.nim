@@ -29,7 +29,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     window = newWindow(
       "MettaScope",
       ivec2(1200, 800),
-      #vsync = true
+      vsync = true
     )
     makeContextCurrent(window)
     loadExtensions()
