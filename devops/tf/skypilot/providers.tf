@@ -2,7 +2,7 @@ provider "aws" {
   region = var.region
 }
 
-data "aws_eks_cluster_auth" "main" {
+data "aws_eks_cluster" "main" {
   name = var.cluster_name
 }
 
