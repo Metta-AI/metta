@@ -34,8 +34,6 @@ def train(
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
-    tt.training_env.maps_cache_size = 30
-
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     full_vibes = [v.name for v in vibes.VIBES]
     env_cfg = tt.training_env.curriculum.task_generator.env
