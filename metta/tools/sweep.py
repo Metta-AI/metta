@@ -17,7 +17,7 @@ from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
 from metta.common.wandb.context import WandbConfig
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig, ParameterSpec
+from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig, ParameterSpec
 from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
 from metta.tools.utils.auto_config import auto_wandb_config

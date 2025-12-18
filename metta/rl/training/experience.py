@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, List
 
 import torch
@@ -6,6 +8,7 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.common.util.collections import duplicates
+from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 
 class Experience:
@@ -20,6 +23,7 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        sampling_config: Any,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -29,6 +33,7 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.sampling_config = sampling_config
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -196,6 +201,101 @@ class Experience:
             device=self.device,
         )
 
+    def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
+        """Sample a contiguous minibatch from the buffer in sequential order."""
+        segments_per_mb = self.minibatch_segments
+        total_segments = self.segments
+        num_minibatches = max(self.num_minibatches, 1)
+
+        mb_idx_mod = int(mb_idx % num_minibatches)
+        start = mb_idx_mod * segments_per_mb
+        end = start + segments_per_mb
+
+        if end <= total_segments:
+            idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+        else:
+            overflow = end - total_segments
+            front = torch.arange(start, total_segments, dtype=torch.long, device=self.device)
+            back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+            idx = torch.cat((front, back), dim=0)
+
+        minibatch = self.buffer[idx]
+        return minibatch.clone(), idx
+
+    def sample_prioritized(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        prio_alpha: float,
+        prio_beta0: float,
+        advantages: Tensor,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """Sample minibatch using prioritized experience replay."""
+        if prio_alpha <= 0.0:
+            minibatch, idx = self.sample_sequential(mb_idx)
+            return (
+                minibatch,
+                idx,
+                torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32),
+            )
+
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=epoch,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            prio_alpha=prio_alpha,
+            prio_beta0=prio_beta0,
+        )
+
+        adv_magnitude = advantages.abs().sum(dim=1)
+        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
+        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
+        all_prio_is_weights = (self.segments * prio_probs) ** -anneal_beta
+
+        idx = torch.multinomial(prio_probs, self.minibatch_segments)
+        minibatch = self.buffer[idx].clone()
+
+        return minibatch, idx, all_prio_is_weights[idx, None]
+
+    def sample(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        advantages: Tensor,
+    ) -> TensorDict:
+        shared_loss_mb_data = self.give_me_empty_md_td()
+
+        if self.sampling_config.method == "sequential":
+            minibatch, indices = self.sample_sequential(mb_idx)
+            prio_weights = torch.ones(
+                (minibatch.shape[0], minibatch.shape[1]),
+                device=self.device,
+                dtype=torch.float32,
+            )
+        else:
+            assert advantages is not None, "Advantages must be provided for prioritized sampling"
+            minibatch, indices, prio_weights = self.sample_prioritized(
+                mb_idx,
+                epoch,
+                total_timesteps,
+                batch_size,
+                self.sampling_config.prio_alpha,
+                self.sampling_config.prio_beta0,
+                advantages,
+            )
+        shared_loss_mb_data["prio_weights"] = prio_weights
+
+        shared_loss_mb_data["sampled_mb"] = minibatch
+        # broadcasting indices lets slicing work on it too. that way losses can more easily update buffer using indices
+        shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
+        shared_loss_mb_data["advantages"] = advantages[indices]
+
+        return shared_loss_mb_data
+
     @staticmethod
     def from_losses(
         total_agents: int,
@@ -204,8 +304,9 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        losses: Dict[str, Any],
         device: torch.device | str,
+        sampling_config: Any,  # av fix
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
@@ -224,6 +325,7 @@ class Experience:
             max_minibatch_size=max_minibatch_size,
             experience_spec=Composite(merged_spec_dict),
             device=device,
+            sampling_config=sampling_config,
         )
         for loss in losses.values():
             loss.attach_replay_buffer(experience)

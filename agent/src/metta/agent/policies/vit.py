@@ -31,7 +31,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     latent_dim: int = Field(default=96)
     actor_hidden: int = Field(default=384)
     core_num_heads: int = Field(default=4)
-    max_tokens: int = Field(default=64)
+    max_tokens: int = Field(default=128)
     core_num_latents: int = Field(default=16)
 
     # Whether training passes cached pre-state to the Cortex core
@@ -53,6 +53,12 @@ class ViTDefaultConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
+        # If the architecture spec already bundled a component list (common for saved
+        # .mpt checkpoints), reuse it instead of regenerating with current defaults.
+        # This keeps restored policies aligned with the shapes they were trained with.
+        if self.components:
+            return super().make_policy(policy_env_info)
+
         self.components = [
             ObsShimTokensConfig(in_key="env_obs", out_key="obs_shim_tokens", max_tokens=self.max_tokens),
             ObsAttrEmbedFourierConfig(

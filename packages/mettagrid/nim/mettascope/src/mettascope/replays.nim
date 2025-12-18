@@ -1,5 +1,5 @@
 import std/[json, tables],
-  boxy, fidget2/[hybridrender],
+  boxy,
   zippy, vmath, jsony,
   ./validation
 
@@ -827,45 +827,6 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
   replay.moveEastActionId = replay.actionNames.find("move_east")
 
   return replay
-
-proc loadImages*(replay: Replay) =
-  ## Load the images for the replay.
-  replay.typeImages = initTable[string, string]()
-  for typeName in replay.typeNames:
-    var imagePath = "objects/" & typeName
-    if imagePath notin bxy:
-      imagePath = "objects/unknown"
-    replay.typeImages[typeName] = imagePath
-
-  replay.actionImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.actionImages[i] = "actions/" & replay.actionNames[i]
-    if replay.actionImages[i] notin bxy:
-      replay.actionImages[i] = "actions/unknown"
-
-  replay.actionAttackImages = newSeq[string](9)
-  for i in 0 ..< 9:
-    replay.actionAttackImages[i] = "actions/attack" & $(i + 1)
-
-  replay.actionIconImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.actionIconImages[i] = "actions/icons/" & replay.actionNames[i]
-    if replay.actionIconImages[i] notin bxy:
-      replay.actionIconImages[i] = "actions/icons/unknown"
-
-  replay.traceImages = newSeq[string](replay.actionNames.len)
-  for i in 0 ..< replay.actionNames.len:
-    replay.traceImages[i] = "trace/" & replay.actionNames[i]
-    if replay.traceImages[i] notin bxy:
-      replay.traceImages[i] = "trace/unknown"
-
-  replay.itemImages = newSeq[string](replay.itemNames.len)
-  for i in 0 ..< replay.itemNames.len:
-    replay.itemImages[i] = "resources/" & replay.itemNames[i]
-    if replay.itemImages[i] notin bxy:
-      replay.itemImages[i] = "vibe/" & replay.itemNames[i]
-      if replay.itemImages[i] notin bxy:
-        replay.itemImages[i] = "resources/unknown"
 
 proc loadReplay*(data: string, fileName: string): Replay =
   ## Load a replay from a string.

@@ -120,7 +120,7 @@ class StarterCogPolicyImpl(StatefulPolicyImpl[StarterCogState]):
 
 
 class StarterPolicy(MultiAgentPolicy):
-    short_names = ["scripted_starter"]
+    # short_names = ["scripted_starter"]  # Uncomment to register a shorthand
 
     def __init__(self, policy_env_info: PolicyEnvInterface, device: str = "cpu"):
         super().__init__(policy_env_info, device=device)
