@@ -52,16 +52,22 @@ def iter_python_files(root: Path) -> Iterable[Path]:
 
 def test_no_forbidden_imports() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    src_dir = repo_root / "src" / "cogames"
-    assert src_dir.is_dir(), f"Expected source directory not found: {src_dir}"
+    assert repo_root.is_dir(), f"Expected cogames root directory not found: {repo_root}"
 
     failures: list[str] = []
-    for py_file in iter_python_files(src_dir):
-        if str(py_file.relative_to(src_dir)) in EXCLUDE_FILES:
+
+    # Check all Python files in the cogames package
+    for py_file in iter_python_files(repo_root):
+        # Skip this test file itself
+        if py_file.name == "test_forbidden_imports.py":
             continue
+        # Skip explicitly excluded files
+        rel_path = str(py_file.relative_to(repo_root))
+        if rel_path in EXCLUDE_FILES:
+            continue
+
         for node in find_forbidden_imports(py_file):
-            rel = py_file.relative_to(src_dir)
-            failures.append(f"{rel}:{node.lineno}: {ast.unparse(node)}")
+            failures.append(f"{rel_path}:{node.lineno}: {ast.unparse(node)}")
 
     if failures:
         details = "\n".join(sorted(failures))
