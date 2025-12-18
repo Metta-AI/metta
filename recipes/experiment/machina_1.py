@@ -75,7 +75,7 @@ def train_sweep(
             if v not in base_variants:
                 base_variants.append(v)
 
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         variants=base_variants,
         eval_variants=eval_variants or base_variants,
@@ -83,6 +83,9 @@ def train_sweep(
         policy_architecture=policy_architecture,
         teacher=teacher,
     )
+    # Sweep-friendly default (kept consistent with the shared CvC sweep search space).
+    tt.trainer.total_timesteps = 1_000_000_000
+    return tt
 
 
 def evaluate_stub(*args, **kwargs) -> StubTool:

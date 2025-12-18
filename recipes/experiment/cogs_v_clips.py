@@ -578,7 +578,7 @@ def train_sweep(
             if v not in base_variants:
                 base_variants.append(v)
 
-    return train(
+    tool = train(
         num_cogs=num_cogs,
         base_missions=None,
         variants=base_variants,
@@ -586,6 +586,9 @@ def train_sweep(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    # Sweep-friendly default (kept consistent with the sweep search space).
+    tool.trainer.total_timesteps = 1_000_000_000
+    return tool
 
 
 def evaluate_stub(*args, **kwargs) -> StubTool:
@@ -618,6 +621,20 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
             max=3000,
             search_center=2300,
         ),
+        **SP.param(
+            "trainer.optimizer.weight_decay",
+            D.LOG_NORMAL,
+            min=1e-4,
+            max=3e-2,
+            search_center=1e-2,
+        ),
+        **SP.param(
+            "trainer.optimizer.momentum",
+            D.UNIFORM,
+            min=0.85,
+            max=0.95,
+            search_center=0.9,
+        ),
         # PPO
         **SP.param(
             "trainer.losses.ppo_actor.clip_coef",
@@ -629,9 +646,9 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         **SP.param(
             "trainer.advantage.gae_lambda",
             D.UNIFORM,
-            min=0.97,
+            min=0.9,
             max=0.995,
-            search_center=0.99,
+            search_center=0.97,
         ),
         **SP.param(
             "trainer.losses.ppo_critic.vf_coef",
@@ -650,13 +667,35 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         **SP.param(
             "trainer.advantage.gamma",
             D.UNIFORM,
-            min=0.968,
-            max=0.977,
-            search_center=0.973,
+            min=0.97,
+            max=0.995,
+            search_center=0.99,
         ),
         **SP.categorical(
             "trainer.losses.ppo_critic.vf_clip_coef",
             choices=[0.0, 0.1],
+        ),
+        **SP.categorical(
+            "trainer.update_epochs",
+            choices=[1, 2, 3],
+        ),
+        **SP.categorical(
+            "trainer.sampling.method",
+            choices=["sequential", "prioritized"],
+        ),
+        **SP.param(
+            "trainer.sampling.prio_alpha",
+            D.UNIFORM,
+            min=0.0,
+            max=0.8,
+            search_center=0.4,
+        ),
+        **SP.param(
+            "trainer.sampling.prio_beta0",
+            D.UNIFORM,
+            min=0.4,
+            max=0.8,
+            search_center=0.6,
         ),
         **SP.categorical(
             "policy_architecture.core_resnet_layers",
@@ -684,7 +723,7 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         ),
         **SP.categorical(
             "policy_architecture.max_tokens",
-            choices=[48, 64, 80],
+            choices=[48, 64, 80, 128],
         ),
         **SP.param(
             "trainer.total_timesteps",
