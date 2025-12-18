@@ -13,6 +13,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
@@ -34,6 +35,7 @@ class LossesConfig(Config):
         "contrastive",
         "grpo",
         "supervisor",
+        "sl_checkpointed_kickstarter",
         "kickstarter",
         "logit_kickstarter",
     )
@@ -54,6 +56,9 @@ class LossesConfig(Config):
     logit_kickstarter: LogitKickstarterConfig = Field(default_factory=lambda: LogitKickstarterConfig(enabled=False))
     sliced_scripted_cloner: SlicedScriptedClonerConfig = Field(
         default_factory=lambda: SlicedScriptedClonerConfig(enabled=False)
+    )
+    sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
+        default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
     )
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
