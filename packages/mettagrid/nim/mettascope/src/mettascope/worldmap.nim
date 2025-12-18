@@ -428,8 +428,10 @@ proc drawTrajectory*() =
             image = ""
 
           let isAgent = selection.typeName == "agent"
-          if step >= i:
-            image = "agents/tracks.sw"
+          if i <= step:
+            let prevOrientation = getAgentOrientation(selection, i-1).char
+            let thisOrientation = getAgentOrientation(selection, i).char
+            image = "agents/tracks." & prevOrientation & thisOrientation
           else:
             #image = "agents/path"
             break
@@ -568,7 +570,23 @@ proc drawTerrain*() =
 
   bxy.exitRawOpenGLMode()
 
+proc drawObjectPips*() =
+  ## Draw the pips for the objects on the minimap.
+  for obj in replay.objects:
+    if obj.typeName == "wall":
+      continue
+    let pipName = "minimap/" & obj.typeName
+    if pipName in px:
+      let loc = obj.location.at(step).xy
+      px.drawSprite(
+        pipName,
+        loc.ivec2 * TILE_SIZE
+      )
+    else:
+      echo "pipName not found: ", pipName
+
 proc drawWorldMini*() =
+
   const wallTypeName = "wall"
   const agentTypeName = "agent"
 
@@ -580,28 +598,9 @@ proc drawWorldMini*() =
   elif settings.showFogOfWar:
     drawFogOfWar()
 
-  # Agents
-  let scale = 3.0
-  bxy.saveTransform()
-  bxy.scale(vec2(scale, scale))
+  drawObjectPips()
 
-  for obj in replay.objects:
-    let pipName = "minimap/" & obj.typeName
-    if pipName in bxy:
-      let loc = obj.location.at(step).xy
-      let rect = rect(
-        (loc.x.float32) / scale - 0.5,
-        (loc.y.float32) / scale - 0.5,
-        1,
-        1
-      )
-      bxy.drawImage(
-        pipName,
-        rect,
-        color(1, 1, 1, 1)
-      )
-
-  bxy.restoreTransform()
+  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
 
 proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
   ## Center the map on the given entity.
@@ -624,13 +623,10 @@ proc drawWorldMain*() =
   drawObjects()
   drawSelection()
 
-  bxy.enterRawOpenGLMode()
-  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
-  bxy.exitRawOpenGLMode()
-
   drawAgentDecorations()
-
   drawPlannedPath()
+
+  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
 
   if settings.showVisualRange:
     drawVisualRanges()
