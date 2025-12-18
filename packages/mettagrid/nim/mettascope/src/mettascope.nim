@@ -1,8 +1,8 @@
 import
-  std/[strutils, strformat, os, parseopt, json],
+  std/[strutils, strformat, os, parseopt],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap, header]
+  footer, timeline, minimap, header, replayloader]
 
 when isMainModule:
   # Build the atlas.
@@ -50,10 +50,6 @@ proc parseUrlParams() =
   ## Parse URL parameters.
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
-
-proc onReplayLoaded() =
-  ## Called when a replay is loaded.
-  echo "Replay loaded: ", replay.fileName
 
 proc replaySwitch(replay: string) =
   ## Load the replay.
@@ -191,17 +187,22 @@ proc initMettascope*() =
 
   window.onFrame = onFrame
 
+  window.onFileDrop = proc(fileName: string, fileData: string) =
+    echo "File dropped: ", fileName, " (", fileData.len, " bytes)"
+    if fileName.endsWith(".json.z"):
+      try:
+        common.replay = loadReplay(fileData, fileName)
+        onReplayLoaded()
+        echo "Successfully loaded replay: ", fileName
+      except:
+        echo "Error loading replay file: ", getCurrentExceptionMsg()
+    else:
+      echo "Ignoring dropped file (not .json.z): ", fileName
+
   initPanels()
 
   sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
   bxy = newBoxy()
-
-  if playMode == Historical:
-    when defined(emscripten):
-      parseUrlParams()
-    else:
-      parseArgs()
-    replaySwitch(commandLineReplay)
 
   ## Initialize the world map zoom info.
   worldMapZoomInfo = ZoomInfo()
@@ -212,6 +213,13 @@ proc initMettascope*() =
   worldMapZoomInfo.maxZoom = 50
   worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
   worldMapZoomInfo.hasMouse = false
+
+  if playMode == Historical:
+    when defined(emscripten):
+      parseUrlParams()
+    else:
+      parseArgs()
+    replaySwitch(commandLineReplay)
 
 proc tickMettascope*() =
   pollEvents()
