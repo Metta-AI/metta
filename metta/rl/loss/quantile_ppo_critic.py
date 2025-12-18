@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -105,12 +105,7 @@ class QuantilePPOCritic(Loss):
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
-        indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
-        if indices is None:
-            indices = torch.arange(minibatch.batch_size[0], device=self.device)
-
+        indices = shared_loss_data["indices"][:, 0]
         # compute advantages on the first mb
         if mb_idx == 0:
             # Calculate mean values for GAE
@@ -133,7 +128,7 @@ class QuantilePPOCritic(Loss):
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        advantages = self.advantages[indices]
+        advantages = shared_loss_data["advantages_full"][indices]
 
         # compute value loss
         old_values_quantiles = minibatch["values"]  # [B, N]
