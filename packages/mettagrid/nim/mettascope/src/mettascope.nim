@@ -204,13 +204,6 @@ proc initMettascope*() =
   sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
   bxy = newBoxy()
 
-  if playMode == Historical:
-    when defined(emscripten):
-      parseUrlParams()
-    else:
-      parseArgs()
-    replaySwitch(commandLineReplay)
-
   ## Initialize the world map zoom info.
   worldMapZoomInfo = ZoomInfo()
   worldMapZoomInfo.rect = IRect(x: 0, y: 0, w: 500, h: 500)
@@ -220,6 +213,13 @@ proc initMettascope*() =
   worldMapZoomInfo.maxZoom = 50
   worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
   worldMapZoomInfo.hasMouse = false
+
+  if playMode == Historical:
+    when defined(emscripten):
+      parseUrlParams()
+    else:
+      parseArgs()
+    replaySwitch(commandLineReplay)
 
 proc tickMettascope*() =
   pollEvents()

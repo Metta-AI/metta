@@ -19,10 +19,7 @@ proc onReplayLoaded*() =
   agentPaths = initTable[int, seq[PathAction]]()
   agentObjectives = initTable[int, seq[Objective]]()
 
-  # Position camera on visible part of the map when loading a replay to replace the current one.
-  # this does not affect the first replay that gets loaded while worldMapZoomInfo is nil.
-  if worldMapZoomInfo != nil:
-    fitVisibleMap(worldMapZoomInfo)
+  fitVisibleMap(worldMapZoomInfo)
 
   echo "Replay loaded: ", replay.fileName
 
