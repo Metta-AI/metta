@@ -38,23 +38,9 @@ class LLMAgentPolicy(AgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg = None,
+        mg_cfg=None,
         agent_id: int = 0,
     ):
-        """Initialize LLM agent policy.
-
-        Args:
-            policy_env_info: Policy environment interface
-            provider: LLM provider ("openai", "anthropic", or "ollama")
-            model: Model name (defaults: gpt-4o-mini, claude-3-5-sonnet-20240620, or llama3.2 for ollama)
-            temperature: Sampling temperature for LLM
-            debug_mode: If True, print human-readable observation debug info (default: True)
-            context_window_size: Number of steps before resending basic info (default: 20)
-            summary_interval: Number of steps between history summaries (default: 5)
-            debug_summary_interval: Steps between LLM debug summaries written to file (0=disabled, e.g., 100)
-            mg_cfg: Optional MettaGridConfig for extracting game-specific info (chest vibes, etc.)
-            agent_id: Agent ID for this policy instance (used for debug output filtering)
-        """
         super().__init__(policy_env_info)
         self.provider = provider
         self.temperature = temperature
@@ -62,109 +48,84 @@ class LLMAgentPolicy(AgentPolicy):
         self.agent_id = agent_id
         self.last_action: str | None = None
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
-        self.debug_summary_interval = int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
+        self.debug_summary_interval = (
+            int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
+        )
 
-        # Debug summary tracking (for long runs)
+        self._init_tracking_state()
+        self._init_prompt_builder(policy_env_info, context_window_size, mg_cfg)
+        self._check_assembler_variant(mg_cfg)
+        self.debugger = ObservationDebugger(policy_env_info) if debug_mode else None
+        self._init_llm_client(model)
+
+    def _init_tracking_state(self) -> None:
+        """Initialize all tracking-related state variables."""
         self._debug_summary_step_count = 0
-        self._debug_summary_actions: list[dict[str, str]] = []  # Actions since last debug summary
+        self._debug_summary_actions: list[dict[str, str]] = []
         self._debug_summary_file: str | None = None
-
-        # Track conversation history for debugging
         self.conversation_history: list[dict] = []
-
-        # Stateful conversation messages (for multi-turn conversations with LLM)
-        # Format: [{"role": "user"/"assistant", "content": "..."}, ...]
         self._messages: list[dict[str, str]] = []
-
-        # History summaries - one summary per summary_interval (up to 100)
-        # Each summary captures what the agent thought and did in that interval
         self._history_summaries: list[str] = []
         self._max_history_summaries = 100
-
-        # Track actions within current summary interval for summarization
         self._current_window_actions: list[dict[str, str]] = []
-
-        # Step counter for summary intervals (separate from context window)
         self._summary_step_count = 0
-
-        # Exploration tracker handles position, discovery, and other agent tracking
-        self.exploration = ExplorationTracker(policy_env_info)
-
-        # Cost tracker (singleton - shared across all policy instances)
+        self.exploration = ExplorationTracker(self.policy_env_info)
         self.cost_tracker = CostTracker()
-
-        # Track exploration direction and steps in that direction
         self._current_direction: str | None = None
         self._steps_in_direction: int = 0
-        self._direction_change_threshold: int = 8  # Change direction after this many steps
+        self._direction_change_threshold: int = 8
 
-        # Initialize prompt builder
+    def _init_prompt_builder(self, policy_env_info: PolicyEnvInterface, context_window_size: int, mg_cfg) -> None:
+        """Initialize the prompt builder."""
         from llm_agent.policy.prompt_builder import LLMPromptBuilder
 
         self.prompt_builder = LLMPromptBuilder(
             policy_env_info=policy_env_info,
             context_window_size=context_window_size,
             mg_cfg=mg_cfg,
-            debug_mode=debug_mode,
-            agent_id=agent_id,
+            debug_mode=self.debug_mode,
+            agent_id=self.agent_id,
         )
         if self.debug_mode:
             logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
 
-        # Debug: Check if AssemblerDrawsFromChestsVariant is active
+    def _check_assembler_variant(self, mg_cfg) -> None:
+        """Check and log AssemblerDrawsFromChestsVariant status."""
         self._assembler_draws_from_chests = False
-        if mg_cfg is not None:
-            assembler_cfg = mg_cfg.game.objects.get("assembler")
-            if assembler_cfg is not None and hasattr(assembler_cfg, "chest_search_distance"):
-                chest_dist = assembler_cfg.chest_search_distance
-                if chest_dist > 0:
-                    self._assembler_draws_from_chests = True
-                    print(f"[DEBUG AssemblerDrawsFromChestsVariant] ACTIVE - chest_search_distance={chest_dist}")
-                else:
-                    print(f"[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - chest_search_distance={chest_dist}")
-            else:
-                print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no assembler config found")
-        else:
+        if mg_cfg is None:
             print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no mg_cfg provided")
+            return
 
-        # Initialize observation debugger if debug mode is enabled
-        if self.debug_mode:
-            self.debugger = ObservationDebugger(policy_env_info)
-        else:
-            self.debugger = None
+        assembler_cfg = mg_cfg.game.objects.get("assembler")
+        if assembler_cfg is None or not hasattr(assembler_cfg, "chest_search_distance"):
+            print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no assembler config found")
+            return
 
+        chest_dist = assembler_cfg.chest_search_distance
+        self._assembler_draws_from_chests = chest_dist > 0
+        status = "ACTIVE" if self._assembler_draws_from_chests else "NOT ACTIVE"
+        print(f"[DEBUG AssemblerDrawsFromChestsVariant] {status} - chest_search_distance={chest_dist}")
 
-        # Initialize LLM client
-        # Note: API key validation is handled by LLMMultiAgentPolicy before creating agent policies
+    def _init_llm_client(self, model: str | None) -> None:
+        """Initialize the LLM client based on provider."""
+        self.client = None
+        self.anthropic_client = None
+        self.ollama_client = None
+
         if self.provider == "openai":
             from openai import OpenAI
-
-            self.client: OpenAI | None = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            self.anthropic_client = None
-            self.ollama_client = None
-            self.model = model if model else select_openai_model()
+            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            self.model = model or select_openai_model()
         elif self.provider == "anthropic":
             from anthropic import Anthropic
-
-            self.client = None
-            self.anthropic_client: Anthropic | None = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            self.ollama_client = None
-            self.model = model if model else select_anthropic_model()
+            self.anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            self.model = model or select_anthropic_model()
         elif self.provider == "ollama":
             from openai import OpenAI
-
-            self.client = None
-            self.anthropic_client = None
-
-            # Ensure Ollama is available and model is pulled (or select if not provided)
             self.model = ensure_ollama_model(model)
-
-            self.ollama_client: OpenAI | None = OpenAI(
-                base_url="http://localhost:11434/v1",
-                api_key="ollama",  # Ollama doesn't need a real API key
-            )
+            self.ollama_client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
         else:
-            raise ValueError(f"Unknown provider: {provider}")
+            raise ValueError(f"Unknown provider: {self.provider}")
 
     def _add_to_messages(self, role: str, content: str) -> None:
         """Add a message to conversation history and prune if needed.
@@ -221,79 +182,46 @@ class LLMAgentPolicy(AgentPolicy):
             return "all" in self.debug_mode or component in self.debug_mode
         return False
 
-    def _summarize_current_window(self) -> str:
-        """Summarize the current context window's actions into a compact summary.
+    def _get_net_direction(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> str:
+        """Calculate net direction of movement between two positions."""
+        dx, dy = end_pos[0] - start_pos[0], end_pos[1] - start_pos[1]
+        parts = []
+        if dy < 0:
+            parts.append("North")
+        elif dy > 0:
+            parts.append("South")
+        if dx > 0:
+            parts.append("East")
+        elif dx < 0:
+            parts.append("West")
+        return "-".join(parts) if parts else "stationary"
 
-        Returns:
-            A compact string summarizing what the agent did in this window.
-        """
+    def _summarize_current_window(self) -> str:
+        """Summarize the current context window's actions."""
         if not self._current_window_actions:
             return ""
 
-        # Get summary info from exploration tracker
         summary_info = self.exploration.get_summary_info()
-        window_positions = summary_info["window_positions"]
+        positions = summary_info["window_positions"]
+        start_pos = positions[0] if positions else (0, 0)
+        end_pos = positions[-1] if positions else (self.exploration.global_x, self.exploration.global_y)
 
-        # Get start and end positions for this window
-        if window_positions:
-            start_pos = window_positions[0]
-            end_pos = window_positions[-1]
-        else:
-            start_pos = (0, 0)
-            end_pos = (self.exploration.global_x, self.exploration.global_y)
-
-        # Build summary with position info
+        unique_count = len(set(positions))
         window_num = len(self._history_summaries) + 1
+        net_dir = self._get_net_direction(start_pos, end_pos)
 
-        # Get unique positions visited this window (excluding duplicates)
-        unique_positions = []
-        seen = set()
-        for pos in window_positions:
-            if pos not in seen:
-                unique_positions.append(pos)
-                seen.add(pos)
-
-        # Calculate net direction of movement this window
-        dx = end_pos[0] - start_pos[0]
-        dy = end_pos[1] - start_pos[1]
-        net_direction = []
-        if dy < 0:
-            net_direction.append("North")
-        elif dy > 0:
-            net_direction.append("South")
-        if dx > 0:
-            net_direction.append("East")
-        elif dx < 0:
-            net_direction.append("West")
-        net_dir_str = "-".join(net_direction) if net_direction else "stationary"
-
-        summary = f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} (heading {net_dir_str})"
-        summary += f" | {len(unique_positions)} new spots, {summary_info['total_explored']} total"
-
-        return summary
+        return (f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} "
+                f"(heading {net_dir}) | {unique_count} new spots, {summary_info['total_explored']} total")
 
     def _add_action_to_window(self, action: str, reasoning: str = "") -> None:
-        """Track an action for the current context window summary.
-
-        Args:
-            action: The action taken
-            reasoning: The reasoning behind the action (from LLM response)
-        """
+        """Track an action for the current context window summary."""
         action_info = {"action": action, "reasoning": reasoning}
         self._current_window_actions.append(action_info)
 
-        # Also track for debug summary
         if self.debug_summary_interval > 0:
             self._debug_summary_actions.append(action_info)
 
-        # Track direction changes for exploration strategy
-        direction_map = {
-            "move_north": "north",
-            "move_south": "south",
-            "move_east": "east",
-            "move_west": "west",
-        }
-
+        direction_map = {"move_north": "north", "move_south": "south", "move_east": "east", "move_west": "west"}
         if action in direction_map:
             new_direction = direction_map[action]
             if new_direction == self._current_direction:
@@ -302,53 +230,41 @@ class LLMAgentPolicy(AgentPolicy):
                 self._current_direction = new_direction
                 self._steps_in_direction = 1
 
-        # Delegate position tracking to exploration tracker
         self.exploration.update_position(action)
 
     def _finalize_window_summary(self) -> None:
         """Create summary for current window and reset for next window."""
-        if self._current_window_actions:
-            summary = self._summarize_current_window()
-            if summary:
-                self._history_summaries.append(summary)
-                # Prune to max size
-                if len(self._history_summaries) > self._max_history_summaries:
-                    self._history_summaries = self._history_summaries[-self._max_history_summaries:]
+        if not self._current_window_actions:
+            return
 
-                # Always print history summary at window boundary
-                print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
+        summary = self._summarize_current_window()
+        if summary:
+            self._history_summaries.append(summary)
+            if len(self._history_summaries) > self._max_history_summaries:
+                self._history_summaries = self._history_summaries[-self._max_history_summaries:]
+            print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
 
-        # Reset for next window
         self._current_window_actions = []
-        # Reset exploration tracker window positions
         self.exploration.reset_window_positions()
 
     def _generate_debug_summary(self) -> None:
-        """Generate an LLM debug summary for the last N steps and write to file.
-
-        This creates a concise summary of what happened in the last debug_summary_interval
-        steps, useful for debugging long runs without reading through all actions.
-        """
+        """Generate an LLM debug summary for the last N steps and write to file."""
         if not self._debug_summary_actions:
             return
 
-        # Build a compact representation of recent actions
         action_counts: dict[str, int] = {}
         for action_info in self._debug_summary_actions:
             action = action_info.get("action", "unknown")
             action_counts[action] = action_counts.get(action, 0) + 1
-
-        # Format action summary
         action_summary = ", ".join(f"{k}:{v}" for k, v in sorted(action_counts.items()))
 
-        # Get current state summary from exploration tracker
         summary_info = self.exploration.get_summary_info()
         inventory = self._last_inventory
         inv_str = ", ".join(f"{k}={v}" for k, v in inventory.items() if v > 0 and k != "energy")
         energy = inventory.get("energy", 0)
 
-        # Create the prompt for LLM to summarize
-        summary_prompt = f"""Summarize what Agent {self.agent_id} did in the last {len(self._debug_summary_actions)} steps.
+        num_actions = len(self._debug_summary_actions)
+        summary_prompt = f"""Summarize what Agent {self.agent_id} did in the last {num_actions} steps.
 
 Actions taken: {action_summary}
 Current position: ({summary_info['global_x']}, {summary_info['global_y']}) from origin
@@ -360,59 +276,63 @@ Discovered objects: {', '.join(summary_info['discovered_objects']) if summary_in
 Write a 2-3 sentence summary of progress, challenges, and current strategy. Be concise."""
 
         try:
-            # Use the same LLM to generate summary
-            summary_text = ""
-            if self.provider == "openai" and self.client:
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=150,
-                    temperature=0.3,
-                )
-                summary_text = response.choices[0].message.content or "No summary generated"
-            elif self.provider == "anthropic" and self.anthropic_client:
-                response = self.anthropic_client.messages.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=150,
-                    temperature=0.3,
-                )
-                from anthropic.types import TextBlock
-                for block in response.content:
-                    if isinstance(block, TextBlock):
-                        summary_text = block.text
-                        break
-            elif self.provider == "ollama" and self.ollama_client:
-                response = self.ollama_client.chat.completions.create(
-                    model=self.model,
-                    messages=[{"role": "user", "content": summary_prompt}],
-                    max_tokens=150,
-                    temperature=0.3,
-                )
-                summary_text = response.choices[0].message.content or "No summary generated"
-
-            # Write to file
-            if self._debug_summary_file is None:
-                self._debug_summary_file = f"llm_debug_summary_agent{self.agent_id}.log"
-
-            interval_num = self._debug_summary_step_count // self.debug_summary_interval
-            with open(self._debug_summary_file, "a") as f:
-                f.write(f"\n{'='*60}\n")
-                f.write(f"[Agent {self.agent_id}] Steps {(interval_num-1)*self.debug_summary_interval + 1}-{interval_num*self.debug_summary_interval}\n")
-                f.write(f"{'='*60}\n")
-                f.write(f"Position: ({summary_info['global_x']}, {summary_info['global_y']}) | Explored: {summary_info['total_explored']} tiles\n")
-                f.write(f"Inventory: {inv_str if inv_str else 'empty'} | Energy: {energy}\n")
-                f.write(f"Actions: {action_summary}\n")
-                f.write(f"\nSummary: {summary_text}\n")
-
-            # Also print to console
-            print(f"\n[DEBUG SUMMARY Agent {self.agent_id}] Steps {(interval_num-1)*self.debug_summary_interval + 1}-{interval_num*self.debug_summary_interval}: {summary_text}\n")
-
+            summary_text = self._call_debug_summary_llm(summary_prompt)
+            self._write_debug_summary_to_file(summary_info, inv_str, energy, action_summary, summary_text)
         except Exception as e:
             logger.warning(f"Failed to generate debug summary: {e}")
 
-        # Reset for next interval
         self._debug_summary_actions = []
+
+    def _call_debug_summary_llm(self, prompt: str) -> str:
+        """Call LLM for debug summary generation."""
+        messages = [{"role": "user", "content": prompt}]
+
+        if self.provider == "openai" and self.client:
+            response = self.client.chat.completions.create(
+                model=self.model, messages=messages, max_tokens=150, temperature=0.3
+            )
+            return response.choices[0].message.content or "No summary generated"
+
+        if self.provider == "anthropic" and self.anthropic_client:
+            from anthropic.types import TextBlock
+            response = self.anthropic_client.messages.create(
+                model=self.model, messages=messages, max_tokens=150, temperature=0.3
+            )
+            for block in response.content:
+                if isinstance(block, TextBlock):
+                    return block.text
+            return "No summary generated"
+
+        if self.provider == "ollama" and self.ollama_client:
+            response = self.ollama_client.chat.completions.create(
+                model=self.model, messages=messages, max_tokens=150, temperature=0.3
+            )
+            return response.choices[0].message.content or "No summary generated"
+
+        return "No summary generated"
+
+    def _write_debug_summary_to_file(
+        self, summary_info: dict, inv_str: str, energy: int, action_summary: str, summary_text: str
+    ) -> None:
+        """Write debug summary to file and console."""
+        if self._debug_summary_file is None:
+            self._debug_summary_file = f"llm_debug_summary_agent{self.agent_id}.log"
+
+        interval_num = self._debug_summary_step_count // self.debug_summary_interval
+        step_start = (interval_num - 1) * self.debug_summary_interval + 1
+        step_end = interval_num * self.debug_summary_interval
+
+        with open(self._debug_summary_file, "a") as f:
+            f.write(f"\n{'='*60}\n")
+            f.write(f"[Agent {self.agent_id}] Steps {step_start}-{step_end}\n")
+            f.write(f"{'='*60}\n")
+            pos = f"({summary_info['global_x']}, {summary_info['global_y']})"
+            f.write(f"Position: {pos} | Explored: {summary_info['total_explored']} tiles\n")
+            f.write(f"Inventory: {inv_str if inv_str else 'empty'} | Energy: {energy}\n")
+            f.write(f"Actions: {action_summary}\n")
+            f.write(f"\nSummary: {summary_text}\n")
+
+        print(f"\n[DEBUG SUMMARY Agent {self.agent_id}] Steps {step_start}-{step_end}: {summary_text}\n")
 
     def _get_history_summary_text(self) -> str:
         """Get formatted history summaries to prepend to prompts.
@@ -432,9 +352,10 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         template = template_path.read_text()
 
         summary_info = self.exploration.get_summary_info()
+        current_pos = pos_to_dir(summary_info["global_x"], summary_info["global_y"], verbose=True)
         return (
             template
-            .replace("{{CURRENT_POSITION}}", pos_to_dir(summary_info["global_x"], summary_info["global_y"], verbose=True))
+            .replace("{{CURRENT_POSITION}}", current_pos)
             .replace("{{TOTAL_EXPLORED}}", str(summary_info["total_explored"]))
             .replace("{{WINDOW_SUMMARIES}}", window_summaries)
         )
@@ -588,269 +509,158 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         return "=== STRATEGIC HINTS ===\n" + "\n".join(hints)
 
-    def step(self, obs: AgentObservation) -> Action:
-        """Get action from LLM given observation.
-
-        Args:
-            obs: Agent observation
-
-        Returns:
-            Action to take
-        """
-        # Extract and track discovered objects from this observation
+    def _update_tracking(self, obs: AgentObservation) -> dict[str, int]:
+        """Update all tracking state from observation and return inventory."""
         self.exploration.extract_discovered_objects(obs)
-
-        # Extract other agents' positions and inventories
         self.exploration.extract_other_agents_info(obs, self.prompt_builder.step_count)
-
-        # Extract current inventory for strategic hints
         inventory = self._extract_inventory_from_obs(obs)
-
-        # Track resource collection before updating last inventory
         self.exploration.update_extractor_collection(inventory)
         self._last_inventory = inventory
-
-        # Increment summary step counter
         self._summary_step_count += 1
-
-        # Increment debug summary step counter
         self._debug_summary_step_count += 1
+        return inventory
 
-        # Check if we're at a summary interval boundary (every N steps)
+    def _handle_boundaries(self) -> None:
+        """Handle summary, debug, and context window boundaries."""
         at_boundary = (self._summary_step_count - 1) % self.summary_interval == 0
-        is_summary_boundary = self._summary_step_count > 1 and at_boundary
-
-        # Check if we're at a debug summary interval boundary
-        is_debug_summary_boundary = (
-            self.debug_summary_interval > 0 and
-            self._debug_summary_step_count > 0 and
-            self._debug_summary_step_count % self.debug_summary_interval == 0
-        )
-
-        # Check if we're about to start a new context window (before incrementing step counter)
-        next_step = self.prompt_builder.step_count + 1
-        is_window_boundary = next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0
-
-        # At summary boundary, finalize the current interval's summary
-        if is_summary_boundary:
+        if self._summary_step_count > 1 and at_boundary:
             self._finalize_window_summary()
 
-        # At debug summary boundary, generate LLM debug summary
-        if is_debug_summary_boundary:
+        if (self.debug_summary_interval > 0 and
+            self._debug_summary_step_count > 0 and
+            self._debug_summary_step_count % self.debug_summary_interval == 0):
             self._generate_debug_summary()
 
-        # At context window boundary, also clear conversation messages for fresh window
-        if is_window_boundary:
+        next_step = self.prompt_builder.step_count + 1
+        if next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0:
             self._messages = []
 
+    def _build_prompt(self, obs: AgentObservation, inventory: dict[str, int]) -> str:
+        """Build the full prompt with all context additions."""
         user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
 
-        # Prepend history summaries to prompts that include basic info
         if includes_basic_info and self._history_summaries:
-            history_text = self._get_history_summary_text()
-            user_prompt = history_text + "\n" + user_prompt
+            user_prompt = self._get_history_summary_text() + "\n" + user_prompt
 
-        # Add discovered objects, other agents info, strategic hints, and pathfinding to every prompt
-        discovered_text = self.exploration.get_discovered_objects_text()
-        other_agents_text = self.exploration.get_other_agents_text(self.prompt_builder.step_count)
-        strategic_hints = self._get_strategic_hints(inventory, obs)
-        pathfinding_hints = self.prompt_builder.get_pathfinding_hints(obs)
+        additions = [
+            self.exploration.get_discovered_objects_text(),
+            self.exploration.get_other_agents_text(self.prompt_builder.step_count),
+            self._get_strategic_hints(inventory, obs),
+            self.prompt_builder.get_pathfinding_hints(obs),
+        ]
+        for addition in additions:
+            if addition:
+                user_prompt = user_prompt + "\n\n" + addition
 
-        if discovered_text:
-            user_prompt = user_prompt + "\n\n" + discovered_text
-        if other_agents_text:
-            user_prompt = user_prompt + "\n\n" + other_agents_text
-        if strategic_hints:
-            user_prompt = user_prompt + "\n\n" + strategic_hints
-        if pathfinding_hints:
-            user_prompt = user_prompt + "\n\n" + pathfinding_hints
+        return user_prompt
 
-        # Query LLM
+    def _call_openai(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+        """Call OpenAI API and return (response, input_tokens, output_tokens)."""
+        is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
+            "max_tokens": None if is_gpt5_or_o1 else 150,
+            "temperature": None if is_gpt5_or_o1 else self.temperature,
+        }
+        params = {k: v for k, v in params.items() if v is not None}
+
+        response = self.client.chat.completions.create(**params)
+        raw = response.choices[0].message.content or "noop"
+        usage = response.usage
+        return raw, usage.prompt_tokens if usage else 0, usage.completion_tokens if usage else 0
+
+    def _call_ollama(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+        """Call Ollama API and return (response, input_tokens, output_tokens)."""
+        response = self.ollama_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=150,
+        )
+
+        if self.debug_mode:
+            logger.debug(f"Ollama response object: {response}")
+
+        message = response.choices[0].message
+        raw = message.content or ""
+
+        if not raw and hasattr(message, "reasoning") and message.reasoning:
+            if self.debug_mode:
+                logger.warning(f"Model used reasoning field: {message.reasoning[:100]}...")
+            raw = message.reasoning
+
+        if not raw:
+            if self.debug_mode:
+                logger.error(f"Ollama empty response! content='{message.content}'")
+            raw = "noop"
+
+        usage = response.usage
+        return raw, usage.prompt_tokens if usage else 0, usage.completion_tokens if usage else 0
+
+    def _call_anthropic(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+        """Call Anthropic API and return (response, input_tokens, output_tokens)."""
+        from anthropic.types import TextBlock
+
+        response = self.anthropic_client.messages.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=150,
+        )
+
+        raw = "noop"
+        for block in response.content:
+            if isinstance(block, TextBlock):
+                raw = block.text
+                break
+
+        usage = response.usage
+        return raw, usage.input_tokens, usage.output_tokens
+
+    def _call_llm(self, user_prompt: str) -> str:
+        """Call the LLM and return the response text."""
+        messages = self._get_messages_for_api(user_prompt)
+
+        self.conversation_history.append({
+            "step": len(self.conversation_history) + 1,
+            "prompt": user_prompt,
+            "num_messages": len(messages),
+            "response": None,
+        })
+
+        call_methods = {
+            "openai": self._call_openai,
+            "anthropic": self._call_anthropic,
+            "ollama": self._call_ollama,
+        }
+        raw_response, input_tokens, output_tokens = call_methods[self.provider](messages)
+
+        print(f"[LLM Agent {self.agent_id}] {raw_response}")
+
+        action_name = raw_response.strip()
+        self._add_to_messages("assistant", action_name)
+        self.conversation_history[-1]["response"] = action_name
+        self.cost_tracker.record_usage(input_tokens, output_tokens)
+
+        if self.debug_mode:
+            logger.debug(f"{self.provider} response: '{action_name}' | Tokens: {input_tokens} in, {output_tokens} out")
+
+        return action_name
+
+    def step(self, obs: AgentObservation) -> Action:
+        """Get action from LLM given observation."""
+        inventory = self._update_tracking(obs)
+        self._handle_boundaries()
+        user_prompt = self._build_prompt(obs, inventory)
+
         try:
-            action_name = "noop"  # Default fallback
-
-            if self.provider == "openai":
-                assert self.client is not None
-                # GPT-5 and o1 models use different parameters and don't support system messages
-                is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
-
-                # Use stateful conversation history
-                messages = self._get_messages_for_api(user_prompt)
-
-                completion_params = {
-                    "model": self.model,
-                    "messages": messages,
-                    "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
-                    "max_tokens": None if is_gpt5_or_o1 else 150,
-                    "temperature": None if is_gpt5_or_o1 else self.temperature,
-                }
-                # Remove None values
-                completion_params = {k: v for k, v in completion_params.items() if v is not None}
-
-                # Track prompt
-                self.conversation_history.append({
-                    "step": len(self.conversation_history) + 1,
-                    "prompt": user_prompt,
-                    "num_messages": len(messages),
-                    "response": None,  # Will be filled in below
-                })
-
-                response = self.client.chat.completions.create(**completion_params)
-                raw_response = response.choices[0].message.content
-                if raw_response is None:
-                    raw_response = "noop"
-
-                # Always print LLM response with agent ID
-                print(f"[LLM Agent {self.agent_id}] {raw_response}")
-
-                action_name = raw_response.strip()
-
-                # Add assistant response to stateful conversation history
-                self._add_to_messages("assistant", action_name)
-
-                # Track response for debugging
-                self.conversation_history[-1]["response"] = action_name
-
-                # Track token usage
-                usage = response.usage
-                if usage:
-                    self.cost_tracker.record_usage(usage.prompt_tokens, usage.completion_tokens)
-
-                    if self.debug_mode:
-                        logger.debug(
-                            f"OpenAI response: '{action_name}' | "
-                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out"
-                        )
-
-            elif self.provider == "ollama":
-                assert self.ollama_client is not None
-
-                # Use stateful conversation history
-                messages = self._get_messages_for_api(user_prompt)
-
-                # Track prompt
-                self.conversation_history.append({
-                    "step": len(self.conversation_history) + 1,
-                    "prompt": user_prompt,
-                    "num_messages": len(messages),
-                    "response": None,
-                })
-
-                response = self.ollama_client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=150,
-                )
-
-                if self.debug_mode:
-                    # Debug: log the raw response
-                    logger.debug(f"Ollama response object: {response}")
-                    logger.debug(f"Ollama response choices: {response.choices}")
-
-                # Some models (like gpt-oss) put output in 'reasoning' field instead of 'content'
-                message = response.choices[0].message
-                raw_response = message.content or ""
-
-                # Check reasoning field if content is empty
-                if not raw_response and hasattr(message, "reasoning") and message.reasoning:
-                    if self.debug_mode:
-                        logger.warning(f"Model used reasoning field instead of content: {message.reasoning[:100]}...")
-                    # Try to extract action from reasoning (take last line or last word)
-                    raw_response = message.reasoning
-
-                if not raw_response:
-                    if self.debug_mode:
-                        reasoning = getattr(message, "reasoning", None)
-                        logger.error(
-                            f"Ollama returned empty response! content='{message.content}', reasoning='{reasoning}'"
-                        )
-                    raw_response = "noop"
-
-                # Always print LLM response with agent ID
-                print(f"[LLM Agent {self.agent_id}] {raw_response}")
-
-                action_name = raw_response.strip()
-
-                # Add assistant response to stateful conversation history
-                self._add_to_messages("assistant", action_name)
-
-                # Track response for debugging
-                self.conversation_history[-1]["response"] = action_name
-
-                # Track token usage
-                usage = response.usage
-                if usage:
-                    self.cost_tracker.record_usage(usage.prompt_tokens, usage.completion_tokens)
-
-                    if self.debug_mode:
-                        logger.debug(
-                            f"Ollama response: '{action_name}' | "
-                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out"
-                        )
-
-            elif self.provider == "anthropic":
-                assert self.anthropic_client is not None
-
-                # Use stateful conversation history
-                messages = self._get_messages_for_api(user_prompt)
-
-                # Track prompt
-                self.conversation_history.append({
-                    "step": len(self.conversation_history) + 1,
-                    "prompt": user_prompt,
-                    "num_messages": len(messages),
-                    "response": None,
-                })
-
-                response = self.anthropic_client.messages.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=self.temperature,
-                    max_tokens=150,
-                )
-
-                # Extract text from response content blocks
-                from anthropic.types import TextBlock
-
-                raw_response = "noop"
-                for block in response.content:
-                    if isinstance(block, TextBlock):
-                        raw_response = block.text
-                        break
-
-                # Always print LLM response with agent ID
-                print(f"[LLM Agent {self.agent_id}] {raw_response}")
-
-                action_name = raw_response.strip()
-
-                # Add assistant response to stateful conversation history
-                self._add_to_messages("assistant", action_name)
-
-                # Track response for debugging
-                self.conversation_history[-1]["response"] = action_name
-
-                # Track token usage
-                usage = response.usage
-                self.cost_tracker.record_usage(usage.input_tokens, usage.output_tokens)
-
-                if self.debug_mode:
-                    logger.debug(
-                        f"Anthropic response: '{action_name}' | "
-                        f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out"
-                    )
-
-            # Parse and return action
+            action_name = self._call_llm(user_prompt)
             parsed_action, reasoning = parse_action(action_name, self.policy_env_info.actions.actions())
-
-            # Track action for history summary (with reasoning if available)
             self._add_action_to_window(parsed_action.name, reasoning)
-
-            # Track last action for debug output
             self.last_action = parsed_action.name
-
             return parsed_action
-
         except Exception as e:
             logger.error(f"LLM API error: {e}. Falling back to random action.")
             fallback_action = random.choice(self.policy_env_info.actions.actions())
@@ -936,7 +746,9 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             self.debug_mode = bool(debug_mode)
         self.context_window_size = context_window_size
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
-        self.debug_summary_interval = int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
+        self.debug_summary_interval = (
+            int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
+        )
         self.mg_cfg = mg_cfg
 
         # Check API key before model selection for paid providers

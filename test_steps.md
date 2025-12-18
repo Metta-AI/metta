@@ -501,3 +501,74 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 
 **Conclusion:** Migration successful. Lower reward (14.27 vs 33.84) is due to map RNG, not code regression. Agent 1 collected all 4 resources and crafted hearts efficiently. Agent 0 got unlucky with extractor placement.
 
+---
+
+# C11: Clean Code Refactoring Validation
+
+## Hypothesis
+After refactoring `llm_policy.py` for clean code principles (smaller functions, less comments, better naming), we need to verify that:
+1. Behavior remains identical to C10 baseline
+2. No regressions in reward, pathfinding, or token tracking
+3. Code is more maintainable and readable
+
+## Refactoring Plan
+
+### Phase 1: Extract LLM Client Logic
+**Current problem:** `__init__` has 100+ lines with provider-specific setup repeated inline.
+
+**Solution:** Extract to `_init_openai_client()`, `_init_anthropic_client()`, `_init_ollama_client()` methods.
+
+### Phase 2: Break Down `step()` Method (270 lines → multiple small functions)
+**Current problem:** `step()` is 270 lines with inline provider logic.
+
+**Extract:**
+- `_update_tracking(obs)` - exploration, inventory, step counters
+- `_check_boundaries()` - summary/window boundary logic
+- `_build_prompt(obs)` - prompt construction with all additions
+- `_query_openai(prompt)` - OpenAI-specific API call
+- `_query_anthropic(prompt)` - Anthropic-specific API call
+- `_query_ollama(prompt)` - Ollama-specific API call
+- `_process_response(raw_response)` - parse and track action
+
+### Phase 3: Remove Redundant Comments
+**Current:** Comments describe what code does (e.g., `# Extract and track discovered objects`)
+
+**Solution:** Function names should be self-documenting. Remove comments where function name is clear.
+
+### Phase 4: Simplify History Management
+**Current problem:** `_summarize_current_window()` has complex position tracking inline.
+
+**Solution:** Move direction calculation to `ExplorationTracker`.
+
+### Phase 5: Consolidate Provider API Calls
+**Current problem:** OpenAI/Anthropic/Ollama have nearly identical code patterns in `step()`.
+
+**Solution:** Create `_call_llm(prompt) -> str` that dispatches to provider-specific methods.
+
+## Test C11: Post-refactoring validation (2 agents, 300 steps, hello_world)
+
+**Replicates C10 to validate refactoring didn't break anything.**
+
+```bash
+uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee c11_post_refactor.log
+```
+**Estimated cost:** ~$18.00
+
+**What we're comparing to C10 baseline:**
+- [ ] Same prompt format and content
+- [ ] Same action parsing behavior
+- [ ] Same pathfinding hints
+- [ ] Same token tracking
+- [ ] Comparable reward (C10 was 14.27)
+
+**Success criteria:**
+- Reward > 10.0 (allow for map RNG)
+- No crashes or behavior changes
+- Code review: llm_policy.py < 800 lines (currently 1101)
+
+**C11 Results:**
+| Test | Reward | Cost | Tokens | Lines | Notes |
+|------|--------|------|--------|-------|-------|
+| C10  | 14.27  | ~$18 | 5.9M   | 1101  | Baseline |
+| C11  |        |      |        |       |       |
+

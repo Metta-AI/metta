@@ -325,11 +325,8 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 
 
 
-- [ ] llm_policy.py
-  - [ ] initiating models is still with a lot of code instead of using clean code
 
 - [ ] use cogames/scripted_agent/utils.py to enhance my code (both pathfinding and utils)
-
 - [ ] make sure no unused functions go in
 
 - [x] cost_tracker.py remove unused code
@@ -338,3 +335,5 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 - [x] validate exploration_tracker.py
 - [x] validate action_parser
 - [x] validate utils
+- [x] llm_policy.py
+  - [x] initiating models is still with a lot of code instead of using clean code
