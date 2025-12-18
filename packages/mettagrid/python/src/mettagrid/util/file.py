@@ -32,7 +32,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
     if isinstance(data, str):
         data = data.encode()
 
-    parsed = parse_uri(path)
+    parsed = parse_uri(path, allow_none=False)
 
     if isinstance(parsed, S3ParsedScheme):
         try:
