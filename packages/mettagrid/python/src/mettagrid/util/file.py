@@ -12,17 +12,7 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from mettagrid.util.uri_resolvers.base import FileParsedScheme, ParsedScheme, S3ParsedScheme
 from mettagrid.util.uri_resolvers.schemes import parse_uri
-
-
-class ParsedURI:
-    """Wrapper for backwards compatibility with ParsedScheme."""
-
-    @staticmethod
-    def parse(value: str) -> ParsedScheme:
-        return parse_uri(value)
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +24,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
 
     parsed = parse_uri(path, allow_none=False)
 
-    if isinstance(parsed, S3ParsedScheme):
+    if parsed.scheme == "s3":
         try:
             boto3.client("s3").put_object(Body=data, Bucket=parsed.bucket, Key=parsed.key, ContentType=content_type)
             logger.debug("Wrote %d B → %s", len(data), http_url(parsed.canonical))
@@ -43,7 +33,7 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'", exc_info=True)
             raise e
 
-    if isinstance(parsed, FileParsedScheme):
+    if parsed.scheme == "file":
         local_path = parsed.local_path
         local_path.parent.mkdir(parents=True, exist_ok=True)
         local_path.write_bytes(data)
@@ -55,9 +45,11 @@ def write_data(path: str, data: Union[str, bytes], *, content_type: str = "appli
 
 def exists(path: str) -> bool:
     """Return True if path points to an existing local file or S3 object."""
-    parsed = parse_uri(path)
+    parsed = parse_uri(path, allow_none=True)
+    if parsed is None:
+        return False
 
-    if isinstance(parsed, S3ParsedScheme):
+    if parsed.scheme == "s3":
         try:
             boto3.client("s3").head_object(Bucket=parsed.bucket, Key=parsed.key)
             return True
@@ -66,7 +58,7 @@ def exists(path: str) -> bool:
                 return False
             raise
 
-    if isinstance(parsed, FileParsedScheme):
+    if parsed.scheme == "file":
         return parsed.local_path.exists()
 
     if parsed.scheme == "mock":
@@ -77,9 +69,9 @@ def exists(path: str) -> bool:
 
 def read(path: str) -> bytes:
     """Read bytes from a local path or S3 object."""
-    parsed = parse_uri(path)
+    parsed = parse_uri(path, allow_none=False)
 
-    if isinstance(parsed, S3ParsedScheme):
+    if parsed.scheme == "s3":
         try:
             body = boto3.client("s3").get_object(Bucket=parsed.bucket, Key=parsed.key)["Body"].read()
             logger.debug("Read %d B from %s", len(body), parsed.canonical)
@@ -88,7 +80,7 @@ def read(path: str) -> bytes:
             logger.error("AWS credentials not found; run 'aws sso login --profile softmax'", exc_info=True)
             raise
 
-    if isinstance(parsed, FileParsedScheme):
+    if parsed.scheme == "file":
         data = parsed.local_path.read_bytes()
         logger.debug("Read %d B from %s", len(data), parsed.local_path)
         return data
@@ -98,14 +90,14 @@ def read(path: str) -> bytes:
 
 def write_file(path: str, local_file: str, *, content_type: str = "application/octet-stream") -> None:
     """Upload a file from disk to s3://, or copy locally."""
-    parsed = parse_uri(path)
+    parsed = parse_uri(path, allow_none=False)
 
-    if isinstance(parsed, S3ParsedScheme):
+    if parsed.scheme == "s3":
         boto3.client("s3").upload_file(local_file, parsed.bucket, parsed.key, ExtraArgs={"ContentType": content_type})
         logger.debug("Uploaded %s → %s (size %d B)", local_file, parsed.canonical, os.path.getsize(local_file))
         return
 
-    if isinstance(parsed, FileParsedScheme):
+    if parsed.scheme == "file":
         dst = parsed.local_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(local_file, dst)
@@ -122,9 +114,9 @@ def local_copy(path: str):
     Local paths are yielded as-is. Remote S3 URIs are downloaded to a temp file
     that is removed when the context exits.
     """
-    parsed = parse_uri(path)
+    parsed = parse_uri(path, allow_none=False)
 
-    if isinstance(parsed, S3ParsedScheme):
+    if parsed.scheme == "s3":
         data = read(parsed.canonical)
         tmp = tempfile.NamedTemporaryFile(delete=False)
         tmp.write(data)
@@ -137,7 +129,7 @@ def local_copy(path: str):
                 os.remove(tmp.name)
             except OSError:
                 pass
-    elif isinstance(parsed, FileParsedScheme):
+    elif parsed.scheme == "file":
         yield parsed.local_path
     else:
         raise ValueError(f"Unsupported URI for local_copy: {path}")
@@ -145,16 +137,10 @@ def local_copy(path: str):
 
 def http_url(path: str) -> str:
     """Convert s3:// URIs to a public browser URL."""
-    parsed = parse_uri(path)
-    if isinstance(parsed, S3ParsedScheme):
+    parsed = parse_uri(path, allow_none=False)
+    if parsed.scheme == "s3":
         return f"https://{parsed.bucket}.s3.amazonaws.com/{parsed.key}"
     return parsed.canonical
-
-
-def _require_local_path(parsed: ParsedScheme) -> Path:
-    if isinstance(parsed, FileParsedScheme):
-        return parsed.local_path
-    raise ValueError(f"URI '{parsed.canonical}' does not refer to a local file path")
 
 
 def is_public_uri(url: str | None) -> bool:
