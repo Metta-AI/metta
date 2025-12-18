@@ -67,7 +67,7 @@ def train_sweep(
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
-    base_variants = ["heart_chorus", "inventory_heart_tune"]
+    base_variants = ["heart_chorus"]
     if variants:
         for v in variants:
             if v not in base_variants:
