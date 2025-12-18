@@ -1,6 +1,6 @@
 import
   std/[times],
-  boxy, chroma, windy, fidget2/[common, hybridrender],
+  boxy, chroma, windy,
   common, panels, replays, worldmap
 
 let
