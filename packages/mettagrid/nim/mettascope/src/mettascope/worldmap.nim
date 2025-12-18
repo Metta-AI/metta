@@ -56,9 +56,6 @@ proc generateTerrainMap(): TileMap =
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
 
-  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
-
   var terrainMap = newTileMap(
     width = width,
     height = height,
@@ -184,9 +181,6 @@ proc generateVisibilityMap(): TileMap =
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
-
-  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
 
   var visibilityMap = newTileMap(
     width = width,
@@ -411,6 +405,7 @@ proc drawFogOfWar*() =
 proc drawTrajectory*() =
   ## Draw the trajectory of the selected object, with footprints or a future arrow.
   if selection != nil and selection.location.len > 1:
+    var prevDirection = S
     for i in 1 ..< replay.maxSteps:
       let
         loc0 = selection.location.at(i - 1)
@@ -421,6 +416,15 @@ proc drawTrajectory*() =
         cy1 = loc1.y.int
 
       if cx0 != cx1 or cy0 != cy1:
+        var thisDirection: Orientation =
+          if cx1 > cx0:
+            E
+          elif cx1 < cx0:
+            W
+          elif cy1 > cy0:
+            S
+          else:
+            N
         let a = 1.0f - abs(i - step).float32 / 200.0f
         if a > 0:
           var
@@ -429,9 +433,7 @@ proc drawTrajectory*() =
 
           let isAgent = selection.typeName == "agent"
           if i <= step:
-            let prevOrientation = getAgentOrientation(selection, i-1).char
-            let thisOrientation = getAgentOrientation(selection, i).char
-            image = "agents/tracks." & prevOrientation & thisOrientation
+            image = "agents/tracks." & prevDirection.char & thisDirection.char
           else:
             #image = "agents/path"
             break
@@ -441,6 +443,7 @@ proc drawTrajectory*() =
             image,
             ivec2(cx0.int32, cy0.int32) * TILE_SIZE,
           )
+        prevDirection = thisDirection
 
 proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
