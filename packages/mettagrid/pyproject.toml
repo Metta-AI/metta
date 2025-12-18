@@ -84,7 +84,7 @@ demo = "mettagrid.demo:main"
 [tool.setuptools_scm]
 tag_regex = "^mettagrid-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
 version_scheme = "no-guess-dev"
-local_scheme = "node-and-date"
+local_scheme = "no-local-version"
 root = "../.."
 fallback_version = "0.0.0"
 # Provide a specific git command to be used in order to find the correct versioning tags
