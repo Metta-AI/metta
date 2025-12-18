@@ -2,7 +2,7 @@ from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
-from mettagrid.simulator.replay_log_writer import InMemoryReplayWriter
+from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
 from mettagrid.util.file import write_data
@@ -45,7 +45,7 @@ class PureSingleEpisodeJob(BaseModel):
             if not self.replay_uri.endswith(".json.z"):
                 raise ValueError("Replay URI must end with .json.z")
 
-        if any(assignment >= len(self.policy_uris) for assignment in self.assignments):
+        if not all(0 <= assignment < len(self.policy_uris) for assignment in self.assignments):
             raise ValueError("Assignment index out of range")
 
         if len(self.assignments) != self.env.game.num_agents:
@@ -56,13 +56,26 @@ class PureSingleEpisodeJob(BaseModel):
 
 class PureSingleEpisodeResult(BaseModel):
     rewards: list[float]
-    action_timeouts: list[float]
+    action_timeouts: list[int]
     stats: EpisodeStats
     steps: int
-    max_steps: int
 
 
-def run_pure_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
+def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
+    results, replay = run_pure_single_episode(job, device)
+    if job.replay_uri is not None:
+        if replay is not None:
+            replay.write_replay(job.replay_uri)
+        else:
+            raise ValueError("No replay was generated")
+    if job.results_uri is not None:
+        write_data(job.results_uri, results.model_dump_json(), content_type="application/json")
+
+
+def run_pure_single_episode(
+    job: PureSingleEpisodeJob,
+    device: str,
+) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     policy_specs = [policy_spec_from_uri(uri) for uri in job.policy_uris]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(job.env)
@@ -86,20 +99,18 @@ def run_pure_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> N
     )
     rollout.run_until_done()
 
+    results = PureSingleEpisodeResult(
+        rewards=list(rollout._sim.episode_rewards),
+        action_timeouts=list(rollout.timeout_counts),
+        stats=rollout._sim.episode_stats,
+        steps=rollout._sim.current_step,
+    )
+    replay: EpisodeReplay | None = None
     if replay_writer is not None:
         replays = replay_writer.get_completed_replays()
         if len(replays) != 1:
             raise ValueError(f"Expected 1 replay, got {len(replays)}")
         assert job.replay_uri is not None
         replay = replays[0]
-        replay.write_replay(job.replay_uri)
 
-    if job.results_uri is not None:
-        results = PureSingleEpisodeResult(
-            rewards=list(rollout._sim.episode_rewards),
-            action_timeouts=list(rollout.timeout_counts),
-            stats=rollout._sim.episode_stats,
-            steps=rollout._sim.current_step,
-            max_steps=rollout._sim.config.game.max_steps,
-        )
-        write_data(job.results_uri, results.model_dump_json(), content_type="application/json")
+    return results, replay

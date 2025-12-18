@@ -1,13 +1,13 @@
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.common.tool import Tool
-from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, run_pure_single_episode
+from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, run_single_episode
 
 
 class PureSingleEpisodeTool(Tool):
     job: PureSingleEpisodeJob
 
     def invoke(self, args: dict[str, str]) -> int:
-        run_pure_single_episode(self.job)
+        run_single_episode(self.job)
         return 0
 
 
