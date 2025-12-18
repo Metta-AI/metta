@@ -13,6 +13,13 @@ def get_test_device():
     return device
 
 
+def test_slstm_triton_entrypoint_importable() -> None:
+    import importlib
+
+    mod = importlib.import_module("cortex.kernels.triton.slstm")
+    assert hasattr(mod, "slstm_sequence_triton")
+
+
 def test_slstm_parallel_vs_sequential_close() -> None:
     """Test that parallel and sequential processing produce similar outputs."""
     torch.manual_seed(0)

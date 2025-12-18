@@ -5,7 +5,6 @@ This recipe is automatically validated in CI and release processes.
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
-from cortex.config import AGaLiTeCellConfig
 from cortex.stacks import build_cortex_auto_config
 
 import metta.cogworks.curriculum as cc
@@ -48,19 +47,18 @@ def _smollm_config(
         "dtype": "float32",
         "mem_len": int(mem_len) if mem_len is not None else 16,
         "init_from_pretrained": False,
-        "num_layers": 5,
     }
 
     trainer_updates = {
         "compile": False,
-        "batch_size": 4_194_304,
+        "batch_size": 4_194_304 // 2,
         "minibatch_size": 8192,
         "bptt_horizon": 256,
         "optimizer": OptimizerConfig(learning_rate=lr),
     }
 
     env_updates = {
-        "forward_pass_minibatch_target_size": 16384,
+        "forward_pass_minibatch_target_size": 16384 // 2,
         "auto_workers": False,
         "num_workers": 1,
         "async_factor": 1,
@@ -157,14 +155,42 @@ def train(
         # Original SmolLLM policy architecture:
         # policy_architecture = SmolLLMConfig(**policy_config)
         # Use Cortex-based architecture instead, with AGaLiTe stack.
-        num_layers_cfg = int(policy_config.get("num_layers", 3))
         dtype_cfg = str(policy_config.get("dtype", "float32"))
         stack_cfg = build_cortex_auto_config(
-            d_hidden=576,
-            num_layers=num_layers_cfg,
-            pattern="Ag",
-            override_global_configs=[AGaLiTeCellConfig(n_heads=8)],
+            d_hidden=256,
+            num_layers=28,
+            pattern=[
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A",
+                "Ag,A,S",
+            ],
             post_norm=True,
+            compile_blocks=True,
         )
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype_cfg)
 
@@ -174,14 +200,14 @@ def train(
     losses_config.sliced_kickstarter.teacher_uri = (
         "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
     )
-    ks_end_step = 1_000_000_000
+    ks_end_step = 600_000_000
     losses_config.ppo_critic.sample_enabled = False
     losses_config.ppo_critic.train_forward_enabled = False
     losses_config.ppo_critic.deferred_training_start_step = ks_end_step
 
     losses_config.ppo_critic.gae_lambda = 0.95
     losses_config.ppo_critic.gamma = 0.999
-    losses_config.sliced_kickstarter.teacher_led_proportion = 0.45
+    losses_config.sliced_kickstarter.teacher_led_proportion = 0.2
     losses_config.sliced_kickstarter.action_loss_coef = 1.0
     losses_config.sliced_kickstarter.value_loss_coef = 0.0
 
@@ -211,9 +237,9 @@ def train(
                 attr_path="teacher_led_proportion",
                 mode="progress",
                 style="linear",
-                start_value=0.45,
+                start_value=0.2,
                 end_value=0.0,
-                start_agent_step=500_000_000,
+                start_agent_step=0,
                 end_agent_step=ks_end_step,
             ),
         ],
