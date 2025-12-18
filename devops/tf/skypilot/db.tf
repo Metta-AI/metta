@@ -1,6 +1,25 @@
+data "aws_secretsmanager_secret" "skypilot_db_password" {
+  name = "skypilot-db-password"
+}
+
+data "aws_secretsmanager_secret_version" "skypilot_db_password" {
+  secret_id = data.aws_secretsmanager_secret.skypilot_db_password.id
+}
+
+import {
+  to = random_password.db
+  id = nonsensitive(data.aws_secretsmanager_secret_version.skypilot_db_password.secret_string)
+}
+
 resource "random_password" "db" {
   length  = 32
   special = false
+
+  lifecycle {
+    ignore_changes = [
+      special,
+    ]
+  }
 }
 
 # Security group and DB subnet group for accessing the DB from the EKS cluster
@@ -13,9 +32,8 @@ data "aws_db_subnet_group" "db" {
   name = "main-db"
 }
 
-
 resource "aws_db_instance" "postgres" {
-  identifier     = "skypilot-pg"
+  identifier     = var.db_identifier
   engine         = "postgres"
   engine_version = var.db_postgres_version
 

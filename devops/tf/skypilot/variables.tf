@@ -1,9 +1,19 @@
-variable "lambda_ai_secret_arn" {
-  default = "arn:aws:secretsmanager:us-east-1:751442549699:secret:LambdaAI-qo6uuJ"
+variable "region" {
+  type    = string
+  default = "us-east-1"
+}
+
+variable "cluster_name" {
+  type    = string
+  default = "main"
 }
 
 variable "jobs_bucket" {
   default = "skypilot-jobs"
+}
+
+variable "db_identifier" {
+  default = "skypilot-pg"
 }
 
 variable "db_instance_class" {
