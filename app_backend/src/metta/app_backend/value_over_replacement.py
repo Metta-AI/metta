@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
 from typing import Mapping
-
-from pydantic import BaseModel, Field
 
 
 class RunningStats:
@@ -83,69 +80,6 @@ class RunningStats:
         self._max = max(self._max, other._max)
         self.count += other.count
         self.total_weight = combined_weight
-
-
-@dataclass
-class ScenarioAccumulator:
-    candidate_count: int
-    thinky_count: int
-    ladybug_count: int
-    scenario_kind: str
-    candidate_stats: RunningStats = field(default_factory=RunningStats)
-    replacement_stats: RunningStats = field(default_factory=RunningStats)
-
-
-class ScenarioSummary(BaseModel):
-    scenario_name: str
-    scenario_kind: str
-    candidate_count: int
-    thinky_count: int
-    ladybug_count: int
-    candidate_mean: float | None
-    candidate_std: float | None
-    candidate_samples: int
-    replacement_mean: float | None = None
-    replacement_std: float | None = None
-    replacement_samples: int = 0
-
-
-class CandidateCountSummary(BaseModel):
-    candidate_count: int
-    mean: float | None
-    variance: float | None
-    std_dev: float | None
-    min_value: float | None
-    max_value: float | None
-    samples: int  # Number of episodes
-    total_agents: int  # Total agent weight (for weighted average)
-
-
-class GraphPoint(BaseModel):
-    candidate_count: int
-    mean: float | None
-    lower: float | None
-    upper: float | None
-    std_dev: float | None
-
-
-class ValueOverReplacementSummary(BaseModel):
-    policy_version_id: str
-    scenario_summaries: list[ScenarioSummary]
-    candidate_counts: list[CandidateCountSummary]
-    replacement_summary: CandidateCountSummary | None
-    value_over_replacement: dict[str, float | None]
-    value_over_replacement_std: dict[str, float | None] = Field(default_factory=dict)
-    graph_points: list[GraphPoint]
-    # Overall VOR with global normalization (single number for policy comparison)
-    overall_vor: float | None = None
-    overall_vor_std: float | None = None
-    total_candidate_agents: int = 0
-
-
-def _variance_of_mean(summary: CandidateCountSummary | None) -> float | None:
-    if summary is None or summary.total_agents <= 0 or summary.variance is None:
-        return None
-    return summary.variance / summary.total_agents
 
 
 def compute_overall_vor_from_stats(
