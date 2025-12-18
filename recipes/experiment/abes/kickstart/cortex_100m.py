@@ -1,9 +1,7 @@
-"""Arena recipe with shaped rewards - STABLE
-This recipe is automatically validated in CI and release processes.
-"""
+"""Arena recipe with shaped rewards and a Cortex (~100M) policy."""
 
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 from cortex.stacks import build_cortex_auto_config
 
@@ -33,21 +31,10 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
 
-def _smollm_config(
-    model_name: Optional[str] = None,
-    mem_len: Optional[int] = None,
+def _trainer_and_env_overrides(
     learning_rate: Optional[float] = None,
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """SmolLLM configuration returning policy, trainer, and env updates."""
+) -> tuple[dict[str, object], dict[str, object]]:
     lr = float(learning_rate) if learning_rate is not None else 1e-4
-
-    policy_config = {
-        "model_name": model_name or "HuggingFaceTB/SmolLM-135M",
-        "attn_implementation": "flash_attention_2",
-        "dtype": "float32",
-        "mem_len": int(mem_len) if mem_len is not None else 16,
-        "init_from_pretrained": False,
-    }
 
     trainer_updates = {
         "compile": False,
@@ -64,7 +51,7 @@ def _smollm_config(
         "async_factor": 1,
     }
 
-    return policy_config, trainer_updates, env_updates
+    return trainer_updates, env_updates
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -136,26 +123,17 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    model_name: Optional[str] = None,
-    mem_len: Optional[int] = None,
     learning_rate: Optional[float] = None,
+    dtype: str = "float32",
     policy_architecture: Optional[PolicyArchitecture] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
 
-    policy_config, trainer_updates, env_updates = _smollm_config(
-        model_name=model_name,
-        mem_len=mem_len,
-        learning_rate=learning_rate,
-    )
+    trainer_updates, env_updates = _trainer_and_env_overrides(learning_rate=learning_rate)
 
     if policy_architecture is None:
-        # Original SmolLLM policy architecture:
-        # policy_architecture = SmolLLMConfig(**policy_config)
-        # Use Cortex-based architecture instead, with AGaLiTe stack.
-        dtype_cfg = str(policy_config.get("dtype", "float32"))
         stack_cfg = build_cortex_auto_config(
             d_hidden=256,
             num_layers=28,
@@ -192,7 +170,7 @@ def train(
             post_norm=True,
             compile_blocks=True,
         )
-        policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype_cfg)
+        policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
 
     losses_config = LossesConfig()
     losses_config.sliced_kickstarter.enabled = True
