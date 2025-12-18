@@ -154,3 +154,161 @@ grep "LLM API USAGE" claude_hello_world_2agents_100steps.log claude_hello_world_
 # Check for import errors
 grep -i "import\|error\|exception" *_post_migration.log
 ```
+
+---
+
+# Phase 2: Clean Code Refactoring
+
+After migration tests pass, refactor the code following clean code principles.
+
+## Current State
+
+| File | Lines | Issues |
+|------|-------|--------|
+| `llm_policy.py` | ~1900 | Too large, multiple responsibilities |
+| `prompt_builder.py` | ~900 | Acceptable size |
+| `observation_debugger.py` | ~250 | Good |
+
+## Refactoring Tasks
+
+### R1: Extract Model Configuration (`model_config.py`)
+
+Move from `llm_policy.py`:
+- [ ] `MODEL_CONTEXT_WINDOWS` dict
+- [ ] `TOKENS_PER_STEP_BASE`, `TOKENS_PER_CONVERSATION_TURN` constants
+- [ ] `get_model_context_window()` function
+- [ ] `estimate_required_context()` function
+- [ ] `validate_model_context()` function
+- [ ] OpenAI/Anthropic pricing dicts
+
+**Test after:**
+```bash
+uv run python -c "from llm_agent.model_config import MODEL_CONTEXT_WINDOWS, calculate_llm_cost; print('OK')"
+```
+
+---
+
+### R2: Extract Cost Tracker (`cost_tracker.py`)
+
+Create `CostTracker` class to replace class-level state:
+- [ ] `total_calls`, `total_input_tokens`, `total_output_tokens`, `total_cost`
+- [ ] `calculate_llm_cost()` function
+- [ ] `get_cost_summary()` method
+- [ ] `_print_cost_summary_on_exit()` function
+
+**Test after:**
+```bash
+uv run python -c "from llm_agent.cost_tracker import CostTracker; t = CostTracker(); print('OK')"
+```
+
+---
+
+### R3: Extract Provider Abstraction (`providers/`)
+
+Create provider abstraction to eliminate repeated if/elif branches:
+
+```
+providers/
+├── __init__.py
+├── base.py           # Abstract LLMProvider class
+├── openai.py         # OpenAIProvider
+├── anthropic.py      # AnthropicProvider
+└── ollama.py         # OllamaProvider
+```
+
+Each provider implements:
+- [ ] `chat(messages, temperature, max_tokens) -> (response, usage)`
+- [ ] `select_model() -> str` (interactive model selection)
+- [ ] `get_available_models() -> list[str]`
+
+**Test after:**
+```bash
+uv run python -c "from llm_agent.providers import OpenAIProvider, AnthropicProvider, OllamaProvider; print('OK')"
+```
+
+---
+
+### R4: Extract Exploration Tracker (`exploration_tracker.py`)
+
+Move from `LLMAgentPolicy`:
+- [ ] `_global_x`, `_global_y` position tracking
+- [ ] `_current_window_positions`, `_all_visited_positions`
+- [ ] `_discovered_objects` dict
+- [ ] `_extractor_stats` dict
+- [ ] `_other_agents_info` dict
+- [ ] `_extract_discovered_objects()` method
+- [ ] `_get_discovered_objects_text()` method
+
+**Test after:**
+```bash
+uv run python -c "from llm_agent.exploration_tracker import ExplorationTracker; t = ExplorationTracker(); print('OK')"
+```
+
+---
+
+### R5: Extract Action Parser (`action_parser.py`)
+
+Move from `LLMAgentPolicy`:
+- [ ] `_parse_action()` method -> `ActionParser.parse()`
+- [ ] Action validation logic
+- [ ] JSON extraction from LLM response
+
+**Test after:**
+```bash
+uv run python -c "from llm_agent.action_parser import ActionParser; print('OK')"
+```
+
+---
+
+### R6: Remove Duplicate Code
+
+Fix duplicated `pos_to_dir()` function (appears 4 times):
+- [ ] Create single `pos_to_dir()` in utils module
+- [ ] Replace all 4 occurrences with import
+
+**Verify:**
+```bash
+grep -n "def pos_to_dir" packages/llm_agent/src/llm_agent/**/*.py
+# Should return only 1 result after fix
+```
+
+---
+
+### R7: Simplify Core Policy
+
+After extractions, `LLMAgentPolicy` should only contain:
+- [ ] Provider initialization
+- [ ] `step()` method (simplified)
+- [ ] Conversation history management
+- [ ] `_add_to_messages()`, `_get_messages_for_api()`
+
+**Target:** < 500 lines
+
+---
+
+## Post-Refactoring Tests
+
+After all refactoring, re-run migration tests to verify no regressions:
+
+```bash
+# Quick smoke test
+uv run cogames play -m hello_world -c 1 -s 10 -p "class=llm-ollama,kw.model=qwen2.5:7b" --render none
+
+# Full verification
+uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,kw.context_window_size=20,kw.summary_interval=5" --render none 2>&1 | tee claude_post_refactor_verification.log
+```
+
+---
+
+## Refactoring Progress
+
+| Task | Status | Notes |
+|------|--------|-------|
+| R1: model_config.py | [ ] Pending | |
+| R2: cost_tracker.py | [ ] Pending | |
+| R3: providers/ | [ ] Pending | |
+| R4: exploration_tracker.py | [ ] Pending | |
+| R5: action_parser.py | [ ] Pending | |
+| R6: Remove duplicates | [ ] Pending | |
+| R7: Simplify policy | [ ] Pending | |
+| Post-refactor tests | [ ] Pending | |

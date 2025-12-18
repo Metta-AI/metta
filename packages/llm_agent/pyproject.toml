@@ -22,7 +22,7 @@ include = ["llm_agent", "llm_agent.*"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-llm_agent = ["py.typed", "prompts/*.md"]
+llm_agent = ["py.typed", "policy/prompts/*.md"]
 
 [tool.setuptools_scm]
 tag_regex = "^llm_agent-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
