@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -118,9 +118,6 @@ class SlicedKickstarter(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
-        indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
 
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
@@ -128,10 +125,7 @@ class SlicedKickstarter(Loss):
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
         # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
-        ppo_shared_loss_data = shared_loss_data[train_ppo_mask]
-        if indices is not None:
-            ppo_shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
-        shared_loss_data = ppo_shared_loss_data
+        shared_loss_data = shared_loss_data[train_ppo_mask]
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
