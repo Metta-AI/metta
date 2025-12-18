@@ -325,14 +325,16 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 
 
 
-- [ ] validate model_config.py -> add gpt 5.2 and test
-- [ ] validate providers.py
-- [ ] validate exploration_tracker.py
-- [ ] validate action_parser
-- [ ] validate utils
 - [ ] llm_policy.py
   - [ ] initiating models is still with a lot of code instead of using clean code
-- [ ] use cogames/scripted_agent/utils.py to enhance my code
+
+- [ ] use cogames/scripted_agent/utils.py to enhance my code (both pathfinding and utils)
+
 - [ ] make sure no unused functions go in
 
 - [x] cost_tracker.py remove unused code
+- [x] validate model_config.py -> add gpt 5.2 and test
+- [x] validate providers.py
+- [x] validate exploration_tracker.py
+- [x] validate action_parser
+- [x] validate utils
