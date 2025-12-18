@@ -8,8 +8,9 @@ import
 proc foo() =
   echo window.size.x, "x", window.size.y
 
-const TS = 1.0 / 64.0 # Tile scale.
-const TILE_SIZE = 64
+const
+  TILE_SIZE = 128
+  TS = 1.0 / TILE_SIZE.float32 # Tile scale.
 
 proc centerAt*(zoomInfo: ZoomInfo, entity: Entity)
 
@@ -61,21 +62,26 @@ proc generateTerrainMap(): TileMap =
   var terrainMap = newTileMap(
     width = width,
     height = height,
-    tileSize = 64,
-    atlasPath = dataDir & "/blob7x8.png"
+    tileSize = 128,
+    atlasPath = dataDir & "/terrain/blob7x8.png"
   )
 
   var asteroidMap: seq[bool] = newSeq[bool](width * height)
   # Fill the asteroid map with ground (true).
-  for y in 0 ..< replay.mapSize[1]:
-    for x in 0 ..< replay.mapSize[0]:
-      asteroidMap[y * width + x] = true
+  for y in 0 ..< height:
+    for x in 0 ..< width:
+      if x >= replay.mapSize[0] or y >= replay.mapSize[1]:
+        # Clear the margins.
+        asteroidMap[y * width + x] = true
+      else:
+        asteroidMap[y * width + x] = false
 
   # Walk the walls and generate a map of which tiles are present.
   for obj in replay.objects:
     if obj.typeName == "wall":
       let pos = obj.location.at(0)
-      asteroidMap[pos.y * width + pos.x] = false
+      asteroidMap[pos.y * width + pos.x] = true
+
 
   # Generate the tile edges.
   for i in 0 ..< terrainMap.indexData.len:
@@ -84,14 +90,14 @@ proc generateTerrainMap(): TileMap =
 
     proc get(map: seq[bool], x: int, y: int): int =
       if x < 0 or y < 0 or x >= width or y >= height:
-        return 0
+        return 1
       if map[y * width + x]:
         return 1
       return 0
 
     var tile: uint8 = 0
     if asteroidMap[y * width + x]:
-      tile = (49 + weightedRandomInt(@[100, 50, 25, 10, 5, 2, 1])).uint8
+      tile = 49
     else:
       let
         pattern = (
@@ -106,6 +112,11 @@ proc generateTerrainMap(): TileMap =
         )
       tile = patternToTile[pattern].uint8
     terrainMap.indexData[i] = tile
+
+    # Randomize the solid tiles:
+    for i in 0 ..< terrainMap.indexData.len:
+      if terrainMap.indexData[i] == 29 or terrainMap.indexData[i] == 18:
+        terrainMap.indexData[i] = (50 + weightedRandomInt(@[100, 50, 25, 10, 5, 2])).uint8
 
   terrainMap.setupGPU()
   return terrainMap
@@ -300,6 +311,23 @@ proc useSelections*(zoomInfo: ZoomInfo) =
           agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
 
+proc getAgentOrientation*(agent: Entity, step: int): Orientation =
+  ## Get the orientation of the agent.
+  for i in countdown(step, 0):
+    let actionId = agent.actionId.at(i)
+    if actionId >= 0 and actionId < replay.actionNames.len:
+      let actionName = replay.actionNames[actionId]
+      if actionName == "move_north":
+        return N
+      elif actionName == "move_south":
+        return S
+      elif actionName == "move_west":
+        return W
+      elif actionName == "move_east":
+        return E
+      break
+  return S
+
 proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
@@ -310,14 +338,19 @@ proc drawObjects*() =
       discard
     of "agent":
       let agent = thing
-      var agentImage = case agent.orientation.at:
-        of 0: "agents/agent.n"
-        of 1: "agents/agent.s"
-        of 2: "agents/agent.w"
-        of 3: "agents/agent.e"
-        else:
-          echo "Unknown orientation: ", agent.orientation.at
-          "agents/agent.n"
+      # Agents don't do orientation anymore.
+      # var agentImage = case agent.orientation.at:
+      #   of 0: "agents/agent.n"
+      #   of 1: "agents/agent.s"
+      #   of 2: "agents/agent.w"
+      #   of 3: "agents/agent.e"
+      #   else:
+      #     echo "Unknown orientation: ", agent.orientation.at
+      #     "agents/agent.n"
+
+      # Find last orientation action.
+      var agentImage = "agents/agent." & getAgentOrientation(agent, step).char
+
       px.drawSprite(
         agentImage,
         pos * TILE_SIZE
@@ -396,9 +429,10 @@ proc drawTrajectory*() =
 
           let isAgent = selection.typeName == "agent"
           if step >= i:
-            image = "agents/footprints"
+            image = "agents/tracks.sw"
           else:
-            image = "agents/path"
+            #image = "agents/path"
+            break
 
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
           px.drawSprite(
@@ -586,14 +620,16 @@ proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
   drawTrajectory()
+
   drawObjects()
+  drawSelection()
 
   bxy.enterRawOpenGLMode()
   px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
   bxy.exitRawOpenGLMode()
 
   drawAgentDecorations()
-  drawSelection()
+
   drawPlannedPath()
 
   if settings.showVisualRange:
@@ -602,6 +638,7 @@ proc drawWorldMain*() =
     drawFogOfWar()
   if settings.showGrid:
     drawGrid()
+
 
 proc fitFullMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the full map fits in the panel.
