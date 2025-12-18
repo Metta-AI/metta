@@ -570,5 +570,11 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 | Test | Reward | Cost | Tokens | Lines | Notes |
 |------|--------|------|--------|-------|-------|
 | C10  | 14.27  | ~$18 | 5.9M   | 1101  | Baseline |
-| C11  |        |      |        |       |       |
+| C11  | **22.87** (10.95 + 11.92) | ~$18 | 5.8M | **912** | SUCCESS! Refactoring validated. Agent 1 crafted 3+ hearts. No errors. 17% code reduction. |
+
+**Refactoring Summary:**
+- `__init__`: 104 → 25 lines (extracted 4 helper methods)
+- `step()`: 268 → 18 lines (extracted 6 helper methods)
+- Removed ~50 lines of redundant comments
+- Unified LLM calls with dispatcher pattern
 
