@@ -131,7 +131,7 @@ filterwarnings = [
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 console_output_style = "progress"
 addopts = "-n auto --import-mode=importlib --ignore-glob=**/bazel-*"
-pythonpath = [".", "packages/mettagrid/python/src"]
+pythonpath = [".", "packages/mettagrid/python/src", "packages/llm_agent/src"]
 norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
@@ -153,6 +153,7 @@ members = [
   "packages/cogames",
   "packages/cortex",
   "packages/gitta",
+  "packages/llm_agent",
   "packages/mettagrid",
   "packages/pufferlib-core",
   "softmax",
@@ -164,6 +165,7 @@ codebot = { workspace = true }
 cogames = { workspace = true }
 cortexcore = { workspace = true }
 gitta = { workspace = true }
+llm_agent = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }

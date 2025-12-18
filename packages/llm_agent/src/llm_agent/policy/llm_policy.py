@@ -9,7 +9,7 @@ import subprocess
 import sys
 from typing import Literal
 
-from mettagrid.policy.observation_debugger import ObservationDebugger
+from llm_agent.observation_debugger import ObservationDebugger
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
@@ -543,7 +543,7 @@ class LLMAgentPolicy(AgentPolicy):
         self._last_inventory: dict[str, int] = {}
 
         # Initialize prompt builder
-        from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder
+        from llm_agent.policy.prompt_builder import LLMPromptBuilder
 
         self.prompt_builder = LLMPromptBuilder(
             policy_env_info=policy_env_info,

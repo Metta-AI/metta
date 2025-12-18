@@ -8,7 +8,7 @@ from gymnasium.spaces import Box, Discrete
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
-from mettagrid.policy.llm_prompt_builder import LLMPromptBuilder, VisibleElements
+from llm_agent.policy.prompt_builder import LLMPromptBuilder, VisibleElements
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation, ObservationToken, Simulation
 
