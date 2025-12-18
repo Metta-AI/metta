@@ -1,7 +1,33 @@
-import std/[os, strutils, parseopt, json, tables],
-  boxy, windy, vmath, fidget2, fidget2/hybridrender, webby,
-  mettascope/[replays, common, panels, utils, timeline,
-  worldmap, minimap, agenttraces, footer, envconfig, vibes, notebook, replayloader]
+import
+  std/[strutils, strformat, os, parseopt, json],
+  opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
+  mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
+  footer, timeline, minimap, header]
+
+when isMainModule:
+  # Build the atlas.
+  var builder = newAtlasBuilder(1024, 4)
+  builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
+  builder.addDir(rootDir / "data/ui/", rootDir / "data/")
+  builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
+  builder.addDir(rootDir / "data/resources/", rootDir / "data/")
+  builder.addDir(rootDir / "data/agents/", rootDir / "data/")
+  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
+  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
+  builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+
+  window = newWindow(
+    "MettaScope",
+    ivec2(1200, 800),
+    vsync = true
+  )
+  makeContextCurrent(window)
+  loadExtensions()
+
+const
+  BackgroundColor = parseHtmlColor("#000000").rgbx
+  RibbonColor = parseHtmlColor("#273646").rgbx
+  m = 12f # Default margin
 
 proc parseArgs() =
   ## Parse command line arguments.
@@ -25,178 +51,177 @@ proc parseUrlParams() =
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
 
-find "/UI/Main":
+proc onReplayLoaded() =
+  ## Called when a replay is loaded.
+  echo "Replay loaded: ", replay.fileName
 
-  onLoad:
-    # We need to build the atlas before loading the replay.
-    buildAtlas()
-    
-    window.onFileDrop = proc(fileName: string, fileData: string) =
-      echo "File dropped: ", fileName, " (", fileData.len, " bytes)"
-      if fileName.endsWith(".json.z"):
-        try:
-          common.replay = loadReplay(fileData, fileName)
-          onReplayLoaded()
-          echo "Successfully loaded replay: ", fileName
-        except:
-          echo "Error loading replay file: ", getCurrentExceptionMsg()
-      else:
-        echo "Ignoring dropped file (not .json.z): ", fileName
-
-    when defined(emscripten):
-      setupPostMessageReplayHandler(cast[pointer](window))
-
-    utils.typeface = readTypeface(dataDir / "fonts" / "Inter-Regular.ttf")
-
-    rootArea.split(Vertical)
-    rootArea.split = 0.30
-
-    rootArea.areas[0].split(Horizontal)
-    rootArea.areas[0].split = 0.7
-
-    rootArea.areas[1].split(Vertical)
-    rootArea.areas[1].split = 0.6
-
-    objectInfoPanel = rootArea.areas[0].areas[0].addPanel(ObjectInfo, "Object")
-    environmentInfoPanel = rootArea.areas[0].areas[0].addPanel(EnvironmentInfo, "Environment")
-
-    worldMapPanel = rootArea.areas[1].areas[0].addPanel(WorldMap, "Map")
-    minimapPanel = rootArea.areas[0].areas[1].addPanel(Minimap, "Minimap")
-
-    #agentTracesPanel = rootArea.areas[1].areas[0].addPanel(AgentTraces, "Agent Traces")
-    # agentTablePanel = rootArea.areas[1].areas[1].addPanel(AgentTable, "Agent Table")
-
-    vibePanel = rootArea.areas[1].areas[1].addPanel(VibePanel, "Vibe Selector")
-
-    rootArea.refresh()
-
-    globalTimelinePanel = Panel(panelType: GlobalTimeline, node: find("GlobalTimeline"))
-    globalFooterPanel = Panel(panelType: GlobalFooter, node: find("GlobalFooter"))
-    globalHeaderPanel = Panel(panelType: GlobalHeader, node: find("GlobalHeader"))
-
-    worldMapPanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      worldMapPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      if not common.replay.isNil and worldMapPanel.pos == vec2(0, 0):
-        fitVisibleMap(worldMapPanel)
-      adjustPanelForResize(worldMapPanel)
-      bxy.translate(worldMapPanel.rect.xy.vec2 * window.contentScale)
-      drawWorldMap(worldMapPanel)
-      bxy.restoreTransform()
-
-    minimapPanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      minimapPanel.rect = irect(
-        thisNode.absolutePosition.x,
-        thisNode.absolutePosition.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      bxy.translate(minimapPanel.rect.xy.vec2 * window.contentScale)
-      drawMinimap(minimapPanel)
-      bxy.restoreTransform()
-
-    # agentTracesPanel.node.onRenderCallback = proc(thisNode: Node) =
-    #   bxy.saveTransform()
-    #   agentTracesPanel.rect = irect(
-    #     thisNode.absolutePosition.x,
-    #     thisNode.absolutePosition.y,
-    #     thisNode.size.x,
-    #     thisNode.size.y
-    #   )
-    #   bxy.translate(agentTracesPanel.rect.xy.vec2 * window.contentScale)
-    #   drawAgentTraces(agentTracesPanel)
-    #   bxy.restoreTransform()
-
-    globalTimelinePanel.node.onRenderCallback = proc(thisNode: Node) =
-      bxy.saveTransform()
-      globalTimelinePanel.rect = irect(
-        thisNode.position.x,
-        thisNode.position.y,
-        thisNode.size.x,
-        thisNode.size.y
-      )
-      timeline.drawTimeline(globalTimelinePanel)
-      bxy.restoreTransform()
-
-    case common.playMode
-    of Historical:
-      if commandLineReplay != "":
-        if commandLineReplay.startsWith("http"):
-          common.replay = EmptyReplay
-          echo "fetching replay from URL: ", commandLineReplay
-          let req = startHttpRequest(commandLineReplay)
-          req.onError = proc(msg: string) =
+proc replaySwitch(replay: string) =
+  ## Load the replay.
+  case common.playMode
+  of Historical:
+    if commandLineReplay != "":
+      if commandLineReplay.startsWith("http"):
+        common.replay = EmptyReplay
+        echo "fetching replay from URL: ", commandLineReplay
+        let req = startHttpRequest(commandLineReplay)
+        req.onError = proc(msg: string) =
+          # TODO: Show error to user.
+          echo "onError: " & msg
+          echo getCurrentException().getStackTrace()
+        req.onResponse = proc(response: HttpResponse) =
+          if response.code != 200:
             # TODO: Show error to user.
-            echo "onError: " & msg
-            echo getCurrentException().getStackTrace()
-          req.onResponse = proc(response: HttpResponse) =
-            if response.code != 200:
-              # TODO: Show error to user.
-              echo "Error loading replay: HTTP ", response.code, " ", response.body
-              return
-            echo "replay fetched, loading..."
-            common.replay = loadReplay(response.body, commandLineReplay)
-            onReplayLoaded()
-        else:
-          echo "Loading replay from file: ", commandLineReplay
-          common.replay = loadReplay(commandLineReplay)
+            echo "Error loading replay: HTTP ", response.code, " ", response.body
+            return
+          echo "replay fetched, loading..."
+          common.replay = loadReplay(response.body, commandLineReplay)
           onReplayLoaded()
-      elif common.replay == nil:
-        let defaultReplay = dataDir / "replays" / "pens.json.z"
-        echo "Loading replay from default file: ", defaultReplay
-        common.replay = loadReplay(defaultReplay)
+      else:
+        echo "Loading replay from file: ", commandLineReplay
+        common.replay = loadReplay(commandLineReplay)
         onReplayLoaded()
-    of Realtime:
-      echo "Realtime mode"
+    elif common.replay == nil:
+      let defaultReplay = dataDir / "replays" / "dinky7.json.z"
+      echo "Loading replay from default file: ", defaultReplay
+      common.replay = loadReplay(defaultReplay)
       onReplayLoaded()
+  of Realtime:
+    echo "Realtime mode"
+    onReplayLoaded()
 
-  onFrame:
+proc genericPanelDraw(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  frame(frameId, contentPos, contentSize):
+    # Start content a bit inset.
+    sk.at += vec2(8, 8)
+    h1text(panel.name)
+    text("This is the content of " & panel.name)
+    for i in 0 ..< 20:
+      text(&"Scrollable line {i} for " & panel.name)
 
-    playControls()
+proc drawWorldMap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  ## Draw the world map.
+  sk.draw9Patch("panel.body.empty.9patch", 3, contentPos, contentSize)
 
-    # super+w or super+q closes window on Mac.
-    when defined(macosx):
-      let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
-      if superDown and (window.buttonPressed[KeyW] or window.buttonPressed[KeyQ]):
-        window.closeRequested = true
+  worldMapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
+  worldMapZoomInfo.hasMouse = mouseInsideClip(rect(contentPos, contentSize))
 
-    if window.buttonReleased[MouseLeft]:
-      mouseCaptured = false
-      mouseCapturedPanel = nil
+  glEnable(GL_SCISSOR_TEST)
+  glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
+  glClearColor(1.0f, 0.0f, 0.0f, 1.0f)
 
-    if window.buttonPressed[KeyF8]:
-      fitFullMap(worldMapPanel)
+  bxy.saveTransform()
+  bxy.translate(contentPos)
+  drawWorldMap(worldMapZoomInfo)
+  bxy.restoreTransform()
+
+  glDisable(GL_SCISSOR_TEST)
+
+proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  ## Draw the minimap.
+  sk.draw9Patch("panel.body.empty.9patch", 3, contentPos, contentSize)
+
+  glEnable(GL_SCISSOR_TEST)
+  glScissor(contentPos.x.int32, window.size.y.int32 - contentPos.y.int32 - contentSize.y.int32, contentSize.x.int32, contentSize.y.int32)
+
+  let minimapZoomInfo = ZoomInfo()
+  minimapZoomInfo.rect = irect(contentPos.x, contentPos.y, contentSize.x, contentSize.y)
+  # Adjust zoom info and draw the minimap.
+  minimapZoomInfo.hasMouse = false
+
+  bxy.saveTransform()
+  bxy.translate(contentPos)
+  drawMinimap(minimapZoomInfo)
+  bxy.restoreTransform()
+
+  glDisable(GL_SCISSOR_TEST)
+
+proc initPanels() =
+
+  rootArea = Area()
+  rootArea.split(Vertical)
+  rootArea.split = 0.30
+
+  rootArea.areas[0].split(Horizontal)
+  rootArea.areas[0].split = 0.7
+
+  rootArea.areas[1].split(Vertical)
+  rootArea.areas[1].split = 0.7
+
+  rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
+  rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
+
+  rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
+  rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
+
+  rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
+
+
+proc onFrame() =
+
+  playControls()
+
+  sk.beginUI(window, window.size)
+
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+  glClear(GL_COLOR_BUFFER_BIT)
+
+  # Header
+  drawHeader()
+
+  # Scrubber
+  drawTimeline(vec2(0, sk.size.y - 64 - 22), vec2(sk.size.x, 32))
+
+  # Footer
+  drawFooter(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64))
+
+  drawPanels()
+
+  when defined(profile):
+    let ms = sk.avgFrameTime * 1000
+    sk.at = sk.pos + vec2(sk.size.x - 250, 20)
+    text(&"frame time: {ms:>7.3f}ms\nquads: {sk.instanceCount}")
+
+  sk.endUi()
+  window.swapBuffers()
+
+  if window.cursor.kind != sk.cursor.kind:
+    window.cursor = sk.cursor
+
+proc initMettascope*() =
+
+  window.onFrame = onFrame
+
+  initPanels()
+
+  sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  bxy = newBoxy()
+
+  if playMode == Historical:
+    when defined(emscripten):
+      parseUrlParams()
+    else:
+      parseArgs()
+    replaySwitch(commandLineReplay)
+
+  ## Initialize the world map zoom info.
+  worldMapZoomInfo = ZoomInfo()
+  worldMapZoomInfo.rect = IRect(x: 0, y: 0, w: 500, h: 500)
+  worldMapZoomInfo.pos = vec2(0, 0)
+  worldMapZoomInfo.zoom = 10
+  worldMapZoomInfo.minZoom = 0.5
+  worldMapZoomInfo.maxZoom = 50
+  worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
+  worldMapZoomInfo.hasMouse = false
+
+proc tickMettascope*() =
+  pollEvents()
+
+proc main() =
+  ## Main entry point.
+  initMettascope()
+
+  while not window.closeRequested:
+    tickMettascope()
 
 when isMainModule:
-
-  # Check if the data directory exists.
-  let dataDir = "packages/mettagrid/nim/mettascope/data"
-  if not dirExists(dataDir):
-    echo "Data directory does not exist: ", dataDir
-    echo "Please run it from the root of the project."
-    quit(1)
-
-  when defined(emscripten):
-    parseUrlParams()
-  else:
-    parseArgs()
-
-  startFidget(
-    figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-    windowTitle = "MettaScope",
-    entryFrame = "UI/Main",
-    windowStyle = DecoratedResizable,
-    dataDir = dataDir
-  )
-
-  while isRunning():
-    tickFidget()
-    when not defined(emscripten):
-      pollHttp()
-  closeFidget()
+  main()

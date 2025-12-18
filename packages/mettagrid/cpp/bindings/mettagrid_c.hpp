@@ -147,7 +147,11 @@ private:
   // Global systems
   std::unique_ptr<Clipper> _clipper;
 
+  // Pre-computed goal_obs tokens per agent (when enabled)
+  std::vector<std::vector<PartialObservationToken>> _agent_goal_obs_tokens;
+
   void init_action_handlers(const GameConfig& game_config);
+  void _compute_agent_goal_obs_tokens(size_t agent_idx);
   void add_agent(Agent* agent);
   void _init_grid(const GameConfig& game_config, const py::list& map);
   void _make_buffers(unsigned int num_agents);

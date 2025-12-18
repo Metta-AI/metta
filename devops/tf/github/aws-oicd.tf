@@ -23,7 +23,8 @@ resource "aws_iam_openid_connect_provider" "github" {
 
 # IAM role that GitHub workflows can assume via OIDC.
 resource "aws_iam_role" "github_actions" {
-  name = "github-actions"
+  name                 = "github-actions"
+  max_session_duration = 36000
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -98,6 +99,28 @@ resource "aws_iam_role_policy" "github_eks_describe" {
         Effect   = "Allow"
         Action   = "eks:DescribeCluster"
         Resource = "*"
+      }
+    ]
+  })
+}
+
+# Allow GitHub workflows to read Datadog secrets from Secrets Manager.
+resource "aws_iam_role_policy" "github_datadog_secrets" {
+  name = "github-actions-datadog-secrets"
+  role = aws_iam_role.github_actions.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:datadog/api-key-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:datadog/app-key-*",
+        ]
       }
     ]
   })

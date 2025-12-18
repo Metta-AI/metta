@@ -1,10 +1,10 @@
 import
-  boxy, chroma, fidget2/hybridrender, vmath, fidget2,
-  common, worldmap
+  boxy, chroma, vmath, windy,
+  common, worldmap, panels
 
-proc drawMinimap*(panel: Panel) =
+proc drawMinimap*(zoomInfo: ZoomInfo) =
   ## Draw the minimap with automatic fitting to panel size.
-  let box = irect(0, 0, panel.rect.w, panel.rect.h)
+  let box = irect(0, 0, zoomInfo.rect.w, zoomInfo.rect.h)
 
   bxy.drawRect(
     rect = box.rect,
@@ -17,8 +17,8 @@ proc drawMinimap*(panel: Panel) =
   bxy.saveTransform()
 
   # Calculate transform to fit entire world in minimap panel.
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+  let rectW = zoomInfo.rect.w.float32
+  let rectH = zoomInfo.rect.h.float32
   if rectW <= 0 or rectH <= 0:
     bxy.restoreTransform()
     return
@@ -38,8 +38,8 @@ proc drawMinimap*(panel: Panel) =
     posX = rectW / 2.0f - cx * zoomScale
     posY = rectH / 2.0f - cy * zoomScale
 
-  bxy.translate(vec2(posX, posY) * window.contentScale)
-  bxy.scale(vec2(zoomScale, zoomScale) * window.contentScale)
+  bxy.translate(vec2(posX, posY))
+  bxy.scale(vec2(zoomScale, zoomScale))
 
   drawWorldMini()
 

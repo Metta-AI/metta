@@ -1,7 +1,7 @@
 import ../src/mettascope/pixelator
 
 generatePixelAtlas(
-  size = 1024,
+  size = 2048,
   margin = 4,
   dirsToScan = @[
     "data/agents",
