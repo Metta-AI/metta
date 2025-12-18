@@ -30,10 +30,10 @@ class SLCheckpointedKickstarterConfig(LossConfig):
     temperature: float = Field(default=2.0, gt=0)
 
     # Checkpoint reloading parameters
-    checkpointed_interval: int = Field(gt=0, description="Interval at which teacher checkpoints are saved")
-    epochs_per_checkpoint: int = Field(gt=0, description="Number of epochs to train with each checkpoint")
-    terminating_epoch: int = Field(ge=0, description="Stop reloading checkpoints before this epoch")
-    final_checkpoint: int = Field(ge=0, description="Final checkpoint to use (can be beyond terminating)")
+    checkpointed_interval: int = Field(default=1, gt=0, description="Interval at which teacher checkpoints are saved")
+    epochs_per_checkpoint: int = Field(default=1, gt=0, description="Number of epochs to train with each checkpoint")
+    terminating_epoch: int = Field(default=0, ge=0, description="Stop reloading checkpoints before this epoch")
+    final_checkpoint: int = Field(default=0, ge=0, description="Final checkpoint to use (can be beyond terminating)")
 
     def create(
         self,
