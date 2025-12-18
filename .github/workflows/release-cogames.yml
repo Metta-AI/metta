@@ -49,9 +49,66 @@ jobs:
           name: cogames-dist
           path: dist/*
 
+  wait-for-mettagrid:
+    name: Wait for mettagrid on PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Extract mettagrid version requirement
+        id: version
+        run: |
+          # Parse packages/cogames/pyproject.toml to find mettagrid==X.Y.Z or mettagrid>=X.Y.Z
+          if grep -qE 'mettagrid[><=~!]' packages/cogames/pyproject.toml; then
+            VERSION=$(grep -E 'mettagrid' packages/cogames/pyproject.toml | grep -oP '\d+\.\d+\.\d+(\.\d+)?' | head -1)
+            echo "mettagrid_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Found mettagrid version requirement: $VERSION"
+          else
+            echo "No mettagrid version found - skipping wait"
+            echo "mettagrid_version=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Wait for mettagrid on PyPI
+        if: steps.version.outputs.mettagrid_version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.mettagrid_version }}
+          PYPI_URL: "https://pypi.org"
+        run: |
+          # Timing rationale:
+          # - mettagrid's build job takes ~5 minutes
+          # - PyPI propagation might add a few minutes
+          # - Add some buffer just in case
+          # Total: 10 minutes should be sufficient
+          MAX_WAIT=600  # 10 minutes total
+          CHECK_INTERVAL=60  # Check every minute
+          ELAPSED=0
+
+          echo "Waiting for mettagrid==$VERSION to be available on $PYPI_URL..."
+          echo "This ensures cogames can be installed with its pinned mettagrid dependency."
+          echo ""
+
+          while [ $ELAPSED -le $MAX_WAIT ]; do
+            if curl -sf "$PYPI_URL/pypi/mettagrid/$VERSION/json" > /dev/null 2>&1; then
+              echo "✓ mettagrid $VERSION is available on $PYPI_URL!"
+              exit 0
+            fi
+            echo "⏳ Waiting... ($ELAPSED/$MAX_WAIT seconds elapsed)"
+            sleep $CHECK_INTERVAL
+            ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+          done
+
+          echo "❌ ERROR: mettagrid $VERSION not found on $PYPI_URL after $MAX_WAIT seconds"
+          echo "The mettagrid release workflow may have failed or is taking longer than expected."
+          exit 1
+
   publish:
     name: Publish to PyPI
-    needs: build
+    needs: wait-for-mettagrid
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
