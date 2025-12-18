@@ -31,7 +31,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     latent_dim: int = Field(default=96)
     actor_hidden: int = Field(default=384)
     core_num_heads: int = Field(default=4)
-    max_tokens: int = Field(default=64)
+    max_tokens: int = Field(default=128)
     core_num_latents: int = Field(default=16)
 
     # Whether training passes cached pre-state to the Cortex core

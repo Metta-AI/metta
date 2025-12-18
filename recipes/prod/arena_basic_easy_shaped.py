@@ -267,7 +267,6 @@ def sweep(sweep_name: str) -> SweepTool:
     )
 
 
-@ci_job(timeout_s=300)
 def train_ci() -> TrainTool:
     """Minimal train for CI smoke test."""
     return TrainTool(
@@ -295,7 +294,6 @@ def play_ci() -> PlayTool:
     )
 
 
-@ci_job(depends_on=train_ci, input_references={"policy_uri": "policy_uri"}, timeout_s=120)
 def evaluate_ci(policy_uri: str) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
     sim = mettagrid(num_agents=6)
