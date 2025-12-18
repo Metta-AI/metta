@@ -437,7 +437,9 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             "num_tracked_tasks": float(len(self._outcomes)),
             "mean_task_success_rate": float(
                 np.mean([np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()])
-            ) if self._outcomes else 0.0,
+            )
+            if self._outcomes
+            else 0.0,
             "mean_learning_progress": mean_learning_progress,
         }
 
