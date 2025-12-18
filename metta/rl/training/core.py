@@ -258,6 +258,7 @@ class CoreTrainingLoop:
             else:
                 # Value-free setups still need a tensor shaped like the buffer for sampling.
                 advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
+            self.experience.buffer["advantages_full"] = advantages
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
