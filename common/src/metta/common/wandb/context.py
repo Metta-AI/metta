@@ -83,22 +83,15 @@ class WandbContext:
         if not self.wandb_config.enabled:
             return None
 
-        # Best-effort connectivity check. Even if it fails, still attempt to
-        # initialize W&B — instances sometimes need a few seconds for outbound
-        # access (e.g., freshly booted SkyPilot nodes). Skipping init caused
-        # sweeps to run without any logging when the first probe was flaky.
-        _connection_verified = True
+        # Check for a live connection to W&B before proceeding
         try:
             socket.setdefaulttimeout(5)  # Set a 5-second timeout for the connection check
             socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.wandb_host, self.wandb_port))
             logger.info(f"Connection to {self.wandb_host} verified")
         except Exception as ex:
-            _connection_verified = False
-            logger.warning(
-                "Could not verify connectivity to %s (%s); will still attempt W&B init in case network comes up.",
-                self.wandb_host,
-                str(ex),
-            )
+            logger.warning(f"No connection to {self.wandb_host} servers detected: {str(ex)}")
+            logger.info("Continuing without W&B logging")
+            return None
 
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
