@@ -1,6 +1,7 @@
 import re
 import subprocess
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -35,6 +36,12 @@ def _is_working_tree_clean() -> bool:
 
 def _is_on_main_branch() -> bool:
     return gitta.get_current_branch() == "main"
+
+
+def _is_staging_area_clean() -> bool:
+    # git diff --cached shows the changes staged for commit.
+    # If there are no staged changes, the output will be empty.
+    return not gitta.run_git("diff", "--cached").strip()
 
 
 def _get_metta_repo_remote() -> str:
@@ -112,6 +119,43 @@ def _get_next_version(*, package: str, version_override: Optional[str]) -> str:
         assert not gitta.resolve_git_ref(f"{tag_prefix}{next_version}")
 
         return next_version
+
+
+def _pin_dependency_version(*, package: str, dependency: str, version: str, dry_run: bool) -> None:
+    pyproject_path = Path(get_repo_root()) / "packages" / package / "pyproject.toml"
+    assert pyproject_path.exists()
+
+    # Pattern to match dependency in the dependencies array.
+    # Matches: "dependency", or "dependency>=X.Y.Z", or "dependency==X.Y.Z"
+    pattern = rf'("{dependency}(?:[><=~!]+[\d.]+)?",)'
+    replacement = f'"{dependency}=={version}",'
+
+    old_content = pyproject_path.read_text()
+    new_content = re.sub(pattern, replacement, old_content)
+
+    assert re.search(pattern, old_content)
+    assert new_content != old_content
+
+    if dry_run:
+        info(f"Would pin {dependency} to =={version} in {package}/pyproject.toml and commit changes.")
+        return
+
+    info(f"Pinning dependency {dependency} to version {version} in {package}/pyproject.toml")
+    pyproject_path.write_text(new_content)
+
+    info(f"Staging changes to {package}/pyproject.toml")
+    if not _is_staging_area_clean():
+        error(f"Staging area is not clean. Can't commit changes to {package}/pyproject.toml")
+        raise typer.Exit(1)
+    gitta.run_git("add", str(pyproject_path))
+
+    if not typer.confirm(f"Okay to commit changes to {package}/pyproject.toml?", default=True):
+        error("Publishing aborted.")
+        raise typer.Exit(1)
+
+    commit_msg = f"chore: pin {dependency} dependency to {version} for {package} release"
+    gitta.run_git("commit", "-m", commit_msg)
+    success(f"Created commit {gitta.get_current_commit()}")
 
 
 def _create_and_push_tag_to_monorepo(*, package: str, version: str, remote: str, dry_run: bool) -> None:
@@ -269,6 +313,13 @@ def _publish(
             print()
             print()
             header(f"Resuming with publishing {package}...")
+
+            _pin_dependency_version(
+                package="cogames",
+                dependency="mettagrid",
+                version=mettagrid_version,
+                dry_run=dry_run,
+            )
 
         _create_and_push_tag_to_monorepo(package=package, version=next_version, remote=remote, dry_run=dry_run)
 
