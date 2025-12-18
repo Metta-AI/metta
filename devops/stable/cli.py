@@ -94,6 +94,13 @@ def main(
     skip_submitting_metrics: Annotated[
         bool, typer.Option("--skip-submitting-metrics", help="Skip submitting metrics to Datadog")
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Do not make external API calls (e.g. Observatory reporting).",
+        ),
+    ] = False,
 ):
     # Get Datadog client up front to fail fast in case of missing credentials
     datadog_client: DatadogMetricsClient | None = None

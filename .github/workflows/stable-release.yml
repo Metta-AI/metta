@@ -94,6 +94,12 @@ jobs:
           mkdir -p $HOME/.metta
           echo "${{ secrets.OBSERVATORY_TOKEN }}" > $HOME/.metta/observatory_token
 
+      - name: Validate Observatory token
+        run: |
+          set -euo pipefail
+          OBSERVATORY_SERVER_URI="${OBSERVATORY_SERVER_URI:-https://api.observatory.softmax-research.net}"
+          curl -fsS -H "X-Auth-Token: ${{ secrets.OBSERVATORY_TOKEN }}" "$OBSERVATORY_SERVER_URI/whoami" > /dev/null
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
