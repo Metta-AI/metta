@@ -620,42 +620,42 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         ),
         # PPO
         **SP.param(
-            "trainer.losses.ppo.clip_coef",
+            "trainer.losses.ppo_actor.clip_coef",
             D.UNIFORM,
             min=0.2,
             max=0.32,
             search_center=0.26,
         ),
         **SP.param(
-            "trainer.losses.ppo.gae_lambda",
+            "trainer.advantage.gae_lambda",
             D.UNIFORM,
             min=0.97,
             max=0.995,
             search_center=0.99,
         ),
         **SP.param(
-            "trainer.losses.ppo.vf_coef",
+            "trainer.losses.ppo_critic.vf_coef",
             D.UNIFORM,
             min=0.5,
             max=1.0,
             search_center=0.75,
         ),
         **SP.param(
-            "trainer.losses.ppo.ent_coef",
+            "trainer.losses.ppo_actor.ent_coef",
             D.LOG_NORMAL,
             min=0.015,
             max=0.035,
             search_center=0.025,
         ),
         **SP.param(
-            "trainer.losses.ppo.gamma",
+            "trainer.advantage.gamma",
             D.UNIFORM,
             min=0.968,
             max=0.977,
             search_center=0.973,
         ),
         **SP.categorical(
-            "trainer.losses.ppo.vf_clip_coef",
+            "trainer.losses.ppo_critic.vf_clip_coef",
             choices=[0.0, 0.1],
         ),
         **SP.categorical(
