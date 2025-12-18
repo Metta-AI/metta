@@ -1,4 +1,4 @@
-"""Model configuration and pricing for LLM providers."""
+"""Model configuration for LLM providers."""
 
 import logging
 import sys
@@ -11,6 +11,7 @@ MODEL_CONTEXT_WINDOWS = {
     "gpt-4o-mini": 128_000,
     "gpt-4o": 128_000,
     "gpt-5.1": 128_000,
+    "gpt-5.2": 128_000,
     # Anthropic models
     "claude-haiku-4-5": 200_000,
     "claude-sonnet-4-5": 200_000,
@@ -41,41 +42,16 @@ MODEL_CONTEXT_WINDOWS = {
 TOKENS_PER_STEP_BASE = 1500
 TOKENS_PER_CONVERSATION_TURN = 100
 
-# OpenAI pricing (per 1M tokens)
-OPENAI_PRICES = {
-    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "gpt-4o": {"input": 2.50, "output": 10.00},
-    "gpt-5.2": {"input": 5.00, "output": 15.00},
-}
-
-# Anthropic pricing (per 1M tokens)
-ANTHROPIC_PRICES = {
-    "claude-haiku-4-5": {"input": 0.80, "output": 4.00},
-    "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
-    "claude-opus-4-5": {"input": 15.00, "output": 75.00},
-}
-
-
-def calculate_llm_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Calculate the cost of an LLM API call based on model and token usage.
-
-    Prices are per 1M tokens as of January 2025.
-    """
-    all_prices = {**OPENAI_PRICES, **ANTHROPIC_PRICES}
-
-    if model not in all_prices:
-        logger.warning(f"Unknown model '{model}' for cost calculation. Using default pricing.")
-        prices = OPENAI_PRICES["gpt-4o-mini"]
-    else:
-        prices = all_prices[model]
-
-    input_cost = (input_tokens / 1_000_000) * prices["input"]
-    output_cost = (output_tokens / 1_000_000) * prices["output"]
-
-    return input_cost + output_cost
-
 
 def get_model_context_window(model: str) -> int | None:
+    """Get the context window size for a model.
+
+    Args:
+        model: Model name
+
+    Returns:
+        Context window size in tokens, or None if unknown
+    """
     if model in MODEL_CONTEXT_WINDOWS:
         return MODEL_CONTEXT_WINDOWS[model]
 
@@ -88,6 +64,15 @@ def get_model_context_window(model: str) -> int | None:
 
 
 def estimate_required_context(context_window_size: int, summary_interval: int) -> int:
+    """Estimate required context tokens for given config.
+
+    Args:
+        context_window_size: Number of conversation turns to keep
+        summary_interval: Steps between history summaries
+
+    Returns:
+        Estimated required tokens (with 50% safety margin)
+    """
     num_summaries = context_window_size // summary_interval
     summary_tokens = num_summaries * 150  # ~150 tokens per summary
 
@@ -102,6 +87,15 @@ def validate_model_context(
     context_window_size: int | str,
     summary_interval: int | str,
 ) -> None:
+    """Validate that model has sufficient context window for config.
+
+    Args:
+        model: Model name
+        context_window_size: Number of conversation turns to keep
+        summary_interval: Steps between history summaries
+
+    Exits with error if model context is insufficient.
+    """
     # Handle string inputs from CLI
     context_window_size = int(context_window_size) if isinstance(context_window_size, str) else context_window_size
     summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
