@@ -274,4 +274,3 @@ class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
         grid[grid == "altar"] = "assembler"
 
         return GameMap(grid=grid)
-
