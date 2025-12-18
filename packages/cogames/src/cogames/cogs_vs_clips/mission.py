@@ -191,7 +191,8 @@ class Mission(Config):
                     ),
                 },
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / num_cogs},
+                    # Reward only the agent that deposits a heart.
+                    stats={"chest.heart.deposited_by_agent": 1.0},
                 ),
                 initial_inventory={
                     "energy": self.energy_capacity,

@@ -205,7 +205,7 @@ def make_random_maps_curriculum(
     # Standard curriculum buckets
     tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
 
-    tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3])
+    tasks.add_bucket("game.agent.rewards.stats.chest.heart.deposited_by_agent", [3])
 
     if heart_buckets:
         tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
