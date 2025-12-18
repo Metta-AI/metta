@@ -123,34 +123,6 @@ def _prepare_mission(
     return mission
 
 
-def _add_buckets_to_tasks(
-    mission_tasks,
-    *,
-    dr_rewards: bool = False,
-    dr_misc: bool = False,
-) -> None:
-    """Add buckets to mission tasks based on dr_rewards and dr_misc flags."""
-    mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-
-    if dr_rewards:
-        mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
-        mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
-        resources = ["carbon", "oxygen", "germanium", "silicon"]
-        for resource in resources:
-            mission_tasks.add_bucket(f"game.agent.rewards.inventory.{resource}", [0.0, 0.01, 0.1, 1])
-        equipment = ["scrambler", "modulator", "decoder", "resonator"]
-        for item in equipment:
-            mission_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0.0, 0.1, 1.0, 10.0])
-
-    if dr_misc:
-        mission_tasks.add_bucket("game.agent.inventory_regen_amounts.energy", [0, 1, 2])
-        mission_tasks.add_bucket("game.actions.move.consumed_resources.energy", [1, 2, 3])
-        mission_tasks.add_bucket("game.agent.resource_limits.cargo.limit", [25, 50, 100])
-        mission_tasks.add_bucket("game.agent.resource_limits.energy.limit", [50, 75, 100])
-        mission_tasks.add_bucket("game.clipper.clip_period", [0, 25, 50])
-        mission_tasks.add_bucket("game.inventory_regen_interval", [0, 1, 2])
-
-
 def make_eval_suite(
     num_cogs: int = 4,
     difficulty: str | None = "standard",
