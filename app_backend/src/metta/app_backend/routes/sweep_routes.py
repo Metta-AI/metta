@@ -58,7 +58,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/{sweep_name}")
     @timed_http_handler
-    async def get_sweep(sweep_name: str, user: UserOrToken) -> SweepInfo:
+    async def get_sweep(sweep_name: str, _user: UserOrToken) -> SweepInfo:
         """Get sweep information by name."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
 
@@ -69,7 +69,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/{sweep_name}/runs/next")
     @timed_http_handler
-    async def get_next_run_id(sweep_name: str, user: UserOrToken) -> RunIdResponse:
+    async def get_next_run_id(sweep_name: str, _user: UserOrToken) -> RunIdResponse:
         """Get the next run ID for a sweep (atomic operation)."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
 

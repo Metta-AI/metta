@@ -132,13 +132,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/latest", response_model=EvalTaskRow)
     @timed_http_handler
-    async def get_latest_assigned_task_for_worker(assignee: str) -> EvalTaskRow | None:
+    async def get_latest_assigned_task_for_worker(assignee: str, _user: UserOrToken) -> EvalTaskRow | None:
         task = await stats_repo.get_latest_assigned_task_for_worker(assignee=assignee)
         return task
 
     @router.get("/available")
     @timed_http_handler
     async def get_available_tasks(
+        _user: UserOrToken,
         limit: int = Query(default=200, ge=1, le=1000),
     ) -> TasksResponse:
         tasks = await stats_repo.get_available_tasks(limit=limit)
@@ -146,7 +147,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/claim")
     @timed_http_handler
-    async def claim_tasks(request: TaskClaimRequest) -> TaskClaimResponse:
+    async def claim_tasks(request: TaskClaimRequest, _user: UserOrToken) -> TaskClaimResponse:
         claimed_ids = await stats_repo.claim_tasks(
             task_ids=request.tasks,
             assignee=request.assignee,
@@ -155,19 +156,20 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/claimed")
     @timed_http_handler
-    async def get_claimed_tasks(assignee: str | None = Query(None)) -> TasksResponse:
+    async def get_claimed_tasks(_user: UserOrToken, assignee: str | None = Query(None)) -> TasksResponse:
         tasks = await stats_repo.get_claimed_tasks(assignee=assignee)
         return TasksResponse(tasks=tasks)
 
     @router.post("/git-hashes")
     @timed_http_handler
-    async def get_git_hashes_for_workers(request: GitHashesRequest) -> GitHashesResponse:
+    async def get_git_hashes_for_workers(request: GitHashesRequest, _user: UserOrToken) -> GitHashesResponse:
         git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=request.assignees)
         return GitHashesResponse(git_hashes=git_hashes)
 
     @router.get("/all")
     @timed_http_handler
     async def get_all_tasks(
+        _user: UserOrToken,
         limit: int = Query(default=500, ge=1, le=1000),
         statuses: list[TaskStatus] | None = Query(default=None),
         git_hash: str | None = Query(default=None),
@@ -182,6 +184,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/paginated")
     @timed_http_handler
     async def get_tasks_paginated(
+        _user: UserOrToken,
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=50, ge=1, le=100),
         status: str | None = Query(default=None),
@@ -212,13 +215,13 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/{task_id}/start")
     @timed_http_handler
-    async def start_task(task_id: int) -> TaskIdResponse:
+    async def start_task(task_id: int, _user: UserOrToken) -> TaskIdResponse:
         await stats_repo.start_task(task_id=task_id)
         return TaskIdResponse(task_id=task_id)
 
     @router.post("/{task_id}/finish")
     @timed_http_handler
-    async def finish_task(task_id: int, request: TaskFinishRequest) -> TaskIdResponse:
+    async def finish_task(task_id: int, request: TaskFinishRequest, _user: UserOrToken) -> TaskIdResponse:
         await stats_repo.finish_task(
             task_id=task_id, status=request.status, status_details=request.status_details, log_path=request.log_path
         )
@@ -226,7 +229,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/{task_id}")
     @timed_http_handler
-    async def get_task(task_id: int) -> EvalTaskRow:
+    async def get_task(task_id: int, _user: UserOrToken) -> EvalTaskRow:
         """Get a single task by ID with full details including attributes."""
         task = await stats_repo.get_task_by_id(task_id)
         if not task:
@@ -235,14 +238,14 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/{task_id}/attempts")
     @timed_http_handler
-    async def get_task_attempts(task_id: int) -> TaskAttemptsResponse:
+    async def get_task_attempts(task_id: int, _user: UserOrToken) -> TaskAttemptsResponse:
         """Get all attempts for a specific task."""
         attempts = await stats_repo.get_task_attempts(task_id)
         return TaskAttemptsResponse(attempts=attempts)
 
     @router.get("/{task_id}/logs/{log_type}")
     @timed_http_handler
-    async def get_task_logs(task_id: int, log_type: str):
+    async def get_task_logs(task_id: int, log_type: str, _user: UserOrToken):
         """Stream log files from S3 for a specific task.
 
         Args:
