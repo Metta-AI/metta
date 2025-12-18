@@ -294,7 +294,6 @@ def play_ci() -> PlayTool:
     )
 
 
-@ci_job(depends_on=train_ci, input_references={"policy_uri": "policy_uri"}, timeout_s=120)
 def evaluate_ci(policy_uri: str) -> EvaluateTool:
     """Evaluate the trained policy from train_ci."""
     sim = mettagrid(num_agents=6)
