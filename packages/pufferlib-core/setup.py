@@ -38,8 +38,11 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 # Get torch library path for rpath
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
-# Check if CUDA compiler is available
-if shutil.which("nvcc") and torch.cuda.is_available():
+# Check if CUDA compiler is available.
+# Note: `torch.cuda.is_available()` reflects *runtime* GPU availability, which may be False in build
+# environments (e.g., CI, containers) even when a CUDA toolkit is present. We only need the toolkit
+# to compile the extension.
+if shutil.which("nvcc"):
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
     print("Building with CUDA support")
