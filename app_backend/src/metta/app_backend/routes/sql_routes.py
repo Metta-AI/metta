@@ -161,7 +161,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     await con.execute("SET statement_timeout = '20s'")
 
                     # Execute the query
-                    result = await con.execute("%s", request.query)
+                    result = await con.execute(request.query)
 
                     # Get column names
                     columns = []
