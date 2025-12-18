@@ -10,7 +10,6 @@ from torchrl.data import Composite, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
@@ -24,11 +23,7 @@ class LogitKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
-    teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)
-    logit_noise_prob: float = Field(default=0.0, ge=0.0, le=1.0)
-    logit_noise_std: float = Field(default=1.0, ge=0.0)
-    logit_dropout_prob: float = Field(default=0.0, ge=0.0, le=1.0)
+    teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     def create(
         self,
@@ -43,12 +38,14 @@ class LogitKickstarterConfig(LossConfig):
 
 
 class LogitKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
-    It also injects the teacher's logits into the student's observations.
-    """
+    """This also injects the teacher's logits into the student's observations."""
 
-    __slots__ = ("teacher_policy", "student_forward", "num_actions")
+    __slots__ = (
+        "teacher_policy",
+        "extended_policy_env_info",
+        "logit_feature_ids",
+        "num_actions",
+    )
 
     def __init__(
         self,
@@ -60,8 +57,6 @@ class LogitKickstarter(Loss):
         cfg: "LogitKickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-        self.student_forward = self.cfg.student_forward
-
         base_policy_env_info = getattr(self.env, "policy_env_info", None)
         if base_policy_env_info is None:
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
@@ -114,12 +109,7 @@ class LogitKickstarter(Loss):
         minibatch = shared_loss_data["sampled_mb"]
         B, TT = minibatch.batch_size
 
-        # Student forward pass
-        if self.student_forward:  # leave to false if also running PPO since it forwards student during train
-            student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
-            student_td = self.policy(student_td, action=None)
-        else:
-            student_td = shared_loss_data["policy_td"].reshape(B * TT)  # shared_loss_data is populated by PPO
+        student_td = shared_loss_data["policy_td"].reshape(B * TT)  # we should do this without reshaping
 
         # action loss
         temperature = self.cfg.temperature
