@@ -267,7 +267,6 @@ def sweep(sweep_name: str) -> SweepTool:
     )
 
 
-@ci_job(timeout_s=300)
 def train_ci() -> TrainTool:
     """Minimal train for CI smoke test."""
     return TrainTool(
