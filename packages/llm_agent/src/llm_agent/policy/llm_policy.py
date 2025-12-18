@@ -1,15 +1,23 @@
 """LLM-based policy for MettaGrid using GPT or Claude."""
 
 import atexit
-import json
 import logging
 import os
 import random
-import subprocess
 import sys
 from typing import Literal
 
+from llm_agent.action_parser import parse_action
+from llm_agent.cost_tracker import CostTracker
+from llm_agent.exploration_tracker import ExplorationTracker
+from llm_agent.model_config import validate_model_context
 from llm_agent.observation_debugger import ObservationDebugger
+from llm_agent.providers import (
+    ensure_ollama_model,
+    select_anthropic_model,
+    select_openai_model,
+)
+from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
@@ -17,443 +25,8 @@ from mettagrid.simulator import Action, AgentObservation
 logger = logging.getLogger(__name__)
 
 
-def calculate_llm_cost(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Calculate the cost of an LLM API call based on model and token usage.
-
-    Prices are per 1M tokens as of January 2025.
-
-    Args:
-        model: Model name
-        input_tokens: Number of input tokens
-        output_tokens: Number of output tokens
-
-    Returns:
-        Cost in USD
-    """
-    # OpenAI pricing (per 1M tokens)
-    openai_prices = {
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "gpt-4o": {"input": 2.50, "output": 10.00},
-        "gpt-5.1": {"input": 5.00, "output": 15.00},
-    }
-
-    # Anthropic pricing (per 1M tokens)
-    anthropic_prices = {
-        "claude-haiku-4-5": {"input": 0.80, "output": 4.00},
-        "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
-        "claude-opus-4-5": {"input": 15.00, "output": 75.00},
-    }
-
-    # Combine all pricing
-    all_prices = {**openai_prices, **anthropic_prices}
-
-    # Get pricing for the model
-    if model not in all_prices:
-        logger.warning(f"Unknown model '{model}' for cost calculation. Using default pricing.")
-        # Default to GPT-4o-mini pricing if model is unknown
-        prices = openai_prices["gpt-4o-mini"]
-    else:
-        prices = all_prices[model]
-
-    # Calculate cost (prices are per 1M tokens, so divide by 1,000,000)
-    input_cost = (input_tokens / 1_000_000) * prices["input"]
-    output_cost = (output_tokens / 1_000_000) * prices["output"]
-
-    return input_cost + output_cost
-
-
-# Model context window sizes (in tokens)
-MODEL_CONTEXT_WINDOWS = {
-    # OpenAI models
-    "gpt-4o-mini": 128_000,
-    "gpt-4o": 128_000,
-    "gpt-5.1": 128_000,
-    # Anthropic models
-    "claude-haiku-4-5": 200_000,
-    "claude-sonnet-4-5": 200_000,
-    "claude-opus-4-5": 200_000,
-    # Common Ollama models
-    "llama3.2": 8_000,
-    "llama3.2:1b": 8_000,
-    "llama3.2:3b": 8_000,
-    "llama3.1": 128_000,
-    "llama3.1:8b": 128_000,
-    "llama3.1:70b": 128_000,
-    "qwen2.5": 32_000,
-    "qwen2.5:7b": 32_000,
-    "qwen2.5:14b": 32_000,
-    "qwen2.5:32b": 32_000,
-    "qwen2.5:72b": 128_000,
-    "mistral": 32_000,
-    "mixtral": 32_000,
-    "gemma2": 8_000,
-    "gemma2:2b": 8_000,
-    "gemma2:9b": 8_000,
-    "phi3": 128_000,
-    "deepseek-r1": 64_000,
-}
-
-# Estimated tokens per step based on config
-# Base prompt ~1500 tokens + ~100 tokens per conversation turn
-TOKENS_PER_STEP_BASE = 1500
-TOKENS_PER_CONVERSATION_TURN = 100
-
-
-def get_model_context_window(model: str) -> int | None:
-    """Get the context window size for a model.
-
-    Args:
-        model: Model name
-
-    Returns:
-        Context window size in tokens, or None if unknown
-    """
-    # Direct lookup
-    if model in MODEL_CONTEXT_WINDOWS:
-        return MODEL_CONTEXT_WINDOWS[model]
-
-    # Try partial match (e.g., "llama3.2:latest" -> "llama3.2")
-    base_model = model.split(":")[0]
-    if base_model in MODEL_CONTEXT_WINDOWS:
-        return MODEL_CONTEXT_WINDOWS[base_model]
-
-    return None
-
-
-def estimate_required_context(context_window_size: int, summary_interval: int) -> int:
-    """Estimate the required context window for the given config.
-
-    Args:
-        context_window_size: Number of steps before conversation reset
-        summary_interval: Number of steps between summaries
-
-    Returns:
-        Estimated required context in tokens
-    """
-    # Base prompt + (context_window_size * tokens per turn) + buffer for summaries
-    num_summaries = context_window_size // summary_interval
-    summary_tokens = num_summaries * 150  # ~150 tokens per summary
-
-    required = TOKENS_PER_STEP_BASE + (context_window_size * TOKENS_PER_CONVERSATION_TURN * 2) + summary_tokens
-
-    # Add 50% safety margin
-    return int(required * 1.5)
-
-
-def validate_model_context(
-    model: str,
-    context_window_size: int | str,
-    summary_interval: int | str,
-) -> None:
-    """Validate that the model has sufficient context for the config.
-
-    Args:
-        model: Model name
-        context_window_size: Number of steps before conversation reset
-        summary_interval: Number of steps between summaries
-
-    Raises:
-        SystemExit: If model context is insufficient
-    """
-    # Handle string inputs from CLI
-    context_window_size = int(context_window_size) if isinstance(context_window_size, str) else context_window_size
-    summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
-
-    model_context = get_model_context_window(model)
-    required_context = estimate_required_context(context_window_size, summary_interval)
-
-    if model_context is None:
-        # Unknown model - just warn
-        print(
-            f"\n\033[1;33mWarning:\033[0m Unknown model '{model}' - cannot verify context window.\n"
-            f"Estimated requirement: ~{required_context:,} tokens for context_window_size={context_window_size}\n"
-        )
-        return
-
-    if model_context < required_context:
-        print(
-            f"\n\033[1;31mError:\033[0m Model '{model}' has insufficient context window.\n\n"
-            f"  Model context:    {model_context:,} tokens\n"
-            f"  Required context: ~{required_context:,} tokens\n"
-            f"  (context_window_size={context_window_size}, summary_interval={summary_interval})\n\n"
-            f"Options:\n"
-            f"  1. Use a smaller context window:\n"
-            f"     kw.context_window_size=5,kw.summary_interval=5\n\n"
-            f"  2. Use a model with larger context:\n"
-        )
-        # Suggest compatible models
-        compatible = [
-            (name, ctx) for name, ctx in MODEL_CONTEXT_WINDOWS.items()
-            if ctx >= required_context
-        ]
-        compatible.sort(key=lambda x: x[1])
-        for name, ctx in compatible[:5]:
-            print(f"     - {name} ({ctx:,} tokens)")
-        print()
-        sys.exit(1)
-
-    # Context is sufficient - show info
-    usage_pct = (required_context / model_context) * 100
-    if usage_pct > 50:
-        print(
-            f"\n\033[1;33mNote:\033[0m Model '{model}' context usage: ~{usage_pct:.0f}%\n"
-            f"  ({required_context:,} / {model_context:,} tokens)\n"
-        )
-
-
-def _print_cost_summary_on_exit() -> None:
-    """Print cost summary when program exits or is interrupted."""
-    # Access the class through globals to avoid circular import
-    try:
-        llm_policy_class = globals().get("LLMAgentPolicy")
-        if llm_policy_class is None:
-            return
-
-        summary = llm_policy_class.get_cost_summary()
-        if summary["total_calls"] > 0:
-            print("\n" + "=" * 60)
-            print("LLM API USAGE SUMMARY")
-            print("=" * 60)
-            print(f"Total API calls: {summary['total_calls']}")
-            print(f"Total tokens: {summary['total_tokens']:,}")
-            print(f"  - Input tokens: {summary['total_input_tokens']:,}")
-            print(f"  - Output tokens: {summary['total_output_tokens']:,}")
-            print(f"Total cost: ${summary['total_cost']:.4f}")
-            print("=" * 60 + "\n")
-    except Exception:
-        # Silently fail if there's any issue printing the summary
-        pass
-
-def check_ollama_available() -> bool:
-    """Check if Ollama server is running.
-
-    Returns:
-        True if Ollama is available, False otherwise
-    """
-    try:
-        from openai import OpenAI
-
-        client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-        # Try to list models as a health check
-        client.models.list()
-        return True
-    except Exception:
-        return False
-
-
-def list_ollama_models() -> list[str]:
-    """List available Ollama models.
-
-    Returns:
-        List of model names
-    """
-    try:
-        result = subprocess.run(["ollama", "list"], capture_output=True, text=True, check=True)
-        # Parse output: skip header line, extract model names
-        lines = result.stdout.strip().split("\n")[1:]  # Skip header
-        models = [line.split()[0] for line in lines if line.strip()]
-        return models
-    except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
-        return []
-
-
-def get_openai_models() -> list[tuple[str, str]]:
-    """Get tested working OpenAI models.
-
-    Returns:
-        List of (model_name, description) tuples
-    """
-    return [
-        ("gpt-4o-mini", "Cheapest - Fast and cost-effective"),
-        ("gpt-4o", "Capable - Best GPT-4 model"),
-        ("gpt-5.1", "Best - Latest GPT-5 for complex reasoning"),
-    ]
-
-
-def select_openai_model() -> str:
-    """Prompt user to select an OpenAI model.
-
-    Returns:
-        Selected model name
-    """
-    models = get_openai_models()
-
-    print("\n" + "=" * 60)
-    print("Select OpenAI Model:")
-    print("=" * 60)
-    for idx, (model_name, description) in enumerate(models, 1):
-        print(f"  [{idx}] {model_name}")
-        print(f"      {description}")
-    print("=" * 60)
-
-    while True:
-        try:
-            selection = input(f"\nSelect a model (1-{len(models)}): ").strip()
-            idx = int(selection) - 1
-            if 0 <= idx < len(models):
-                model = models[idx][0]
-                print(f"\n✓ Selected: {model}\n")
-                return model
-            else:
-                print(f"Please enter a number between 1 and {len(models)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except (KeyboardInterrupt, EOFError):
-            print("\n\n⚠️  No model selected. Exiting.\n")
-            sys.exit(0)
-
-
-def get_anthropic_models() -> list[tuple[str, str]]:
-    """Get tested working Anthropic Claude models.
-
-    Returns:
-        List of (model_name, description) tuples
-    """
-    return [
-        ("claude-haiku-4-5", "Cheapest - Fastest with near-frontier intelligence"),
-        ("claude-sonnet-4-5", "Best - Smartest for complex agents & coding"),
-        ("claude-opus-4-5", "Premium - Maximum intelligence & performance"),
-    ]
-
-
-def select_anthropic_model() -> str:
-    """Prompt user to select an Anthropic Claude model.
-
-    Returns:
-        Selected model name
-    """
-    models = get_anthropic_models()
-
-    print("\n" + "=" * 60)
-    print("Select Claude Model:")
-    print("=" * 60)
-    for idx, (model_name, description) in enumerate(models, 1):
-        print(f"  [{idx}] {model_name}")
-        print(f"      {description}")
-    print("=" * 60)
-
-    while True:
-        try:
-            selection = input(f"\nSelect a model (1-{len(models)}): ").strip()
-            idx = int(selection) - 1
-            if 0 <= idx < len(models):
-                model = models[idx][0]
-                print(f"\n✓ Selected: {model}\n")
-                return model
-            else:
-                print(f"Please enter a number between 1 and {len(models)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except (KeyboardInterrupt, EOFError):
-            print("\n\n⚠️  No model selected. Exiting.\n")
-            sys.exit(0)
-
-
-def ensure_ollama_model(model: str | None = None) -> str:
-    """Ensure an Ollama model is available, pulling if necessary.
-
-    Args:
-        model: Model name to check/pull, or None to prompt user to select
-
-    Returns:
-        The model name that is available
-
-    Raises:
-        RuntimeError: If Ollama is not available or model pull fails
-    """
-    if not check_ollama_available():
-        raise RuntimeError(
-            "Ollama server is not running. Please start it with 'ollama serve' or install from https://ollama.ai"
-        )
-
-    available_models = list_ollama_models()
-
-    # If no model specified, prompt user to select
-    if model is None:
-        if not available_models:
-            # No models available, prompt user
-            print("\n" + "=" * 60)
-            print("⚠️  No Ollama models found!")
-            print("=" * 60)
-            print("\nOptions:")
-            print("  1. Install default model (llama3.2) - ~2GB download")
-            print("  2. Install a model manually with 'ollama pull <model>'")
-            print("  3. Use llm-anthropic or llm-openai instead")
-            print("=" * 60)
-
-            try:
-                response = input("\nInstall default model (llama3.2)? [y/N]: ").strip().lower()
-                if response in ("y", "yes"):
-                    model = "llama3.2"
-                    print(f"\n📥 Pulling {model}...")
-                    print("(This may take a few minutes...)\n")
-                    subprocess.run(["ollama", "pull", model], check=True)
-                    print(f"\n✓ Successfully installed {model}\n")
-                    return model
-                else:
-                    print("\n" + "=" * 60)
-                    print("To use Ollama:")
-                    print("  1. Pull a model: ollama pull llama3.2")
-                    print("  2. Run again: cogames play -m <mission> -p llm-ollama")
-                    print("\nAlternatively, use cloud LLMs:")
-                    print("  • cogames play -m <mission> -p llm-openai")
-                    print("  • cogames play -m <mission> -p llm-anthropic")
-                    print("=" * 60 + "\n")
-                    sys.exit(0)
-            except (KeyboardInterrupt, EOFError):
-                print("\n\n⚠️  Cancelled by user.\n")
-                sys.exit(0)
-
-        # Show available models and prompt user to select
-        print("\n" + "=" * 60)
-        print("Available Ollama Models:")
-        print("=" * 60)
-        for idx, model_name in enumerate(available_models, 1):
-            print(f"  [{idx}] {model_name}")
-        print("=" * 60)
-
-        while True:
-            try:
-                selection = input(f"\nSelect a model (1-{len(available_models)}): ").strip()
-                idx = int(selection) - 1
-                if 0 <= idx < len(available_models):
-                    model = available_models[idx]
-                    print(f"\n✓ Selected: {model}\n")
-                    return model
-                else:
-                    print(f"Please enter a number between 1 and {len(available_models)}")
-            except ValueError:
-                print("Please enter a valid number")
-            except (KeyboardInterrupt, EOFError):
-                print("\n\n⚠️  No model selected. Exiting.\n")
-                sys.exit(0)
-
-    # Model was explicitly specified, check if it's available
-    if any(model in m for m in available_models):
-        return model
-
-    # Try to pull the specified model
-    print(f"\nModel '{model}' not found. Pulling from Ollama...")
-    try:
-        subprocess.run(
-            ["ollama", "pull", model],
-            check=True,
-            capture_output=False,  # Show progress
-        )
-        print(f"\n✓ Successfully pulled model: {model}\n")
-        return model
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to pull Ollama model '{model}': {e}") from e
-
-
 class LLMAgentPolicy(AgentPolicy):
     """Per-agent LLM policy that queries GPT or Claude for action selection."""
-
-    # Class-level tracking for all instances
-    total_calls = 0
-    total_input_tokens = 0
-    total_output_tokens = 0
-    total_cost = 0.0
 
     def __init__(
         self,
@@ -514,33 +87,16 @@ class LLMAgentPolicy(AgentPolicy):
         # Step counter for summary intervals (separate from context window)
         self._summary_step_count = 0
 
-        # Track global position (agent starts at 0,0 in global coordinates)
-        self._global_x = 0
-        self._global_y = 0
-        # Track positions visited in current summary interval
-        self._current_window_positions: list[tuple[int, int]] = [(0, 0)]
-        # Track all positions ever visited (for breadcrumb)
-        self._all_visited_positions: set[tuple[int, int]] = {(0, 0)}
+        # Exploration tracker handles position, discovery, and other agent tracking
+        self.exploration = ExplorationTracker(policy_env_info)
 
-        # Track discovered objects with their global positions
-        # Format: {object_type: (global_x, global_y)}
-        self._discovered_objects: dict[str, tuple[int, int]] = {}
-
-        # Track extractor visits and resources collected
-        # Format: {extractor_type: {"position": (x, y), "visits": int, "collected": int}}
-        self._extractor_stats: dict[str, dict] = {}
-
-        # Track other agents' last seen positions and inventories
-        # Format: {agent_id: {"position": (x, y), "inventory": dict, "last_seen_step": int}}
-        self._other_agents_info: dict[int, dict] = {}
+        # Cost tracker (singleton - shared across all policy instances)
+        self.cost_tracker = CostTracker()
 
         # Track exploration direction and steps in that direction
         self._current_direction: str | None = None
         self._steps_in_direction: int = 0
         self._direction_change_threshold: int = 8  # Change direction after this many steps
-
-        # Track inventory for smarter decisions
-        self._last_inventory: dict[str, int] = {}
 
         # Initialize prompt builder
         from llm_agent.policy.prompt_builder import LLMPromptBuilder
@@ -674,36 +230,25 @@ class LLMAgentPolicy(AgentPolicy):
         if not self._current_window_actions:
             return ""
 
+        # Get summary info from exploration tracker
+        summary_info = self.exploration.get_summary_info()
+        window_positions = summary_info["window_positions"]
+
         # Get start and end positions for this window
-        if self._current_window_positions:
-            start_pos = self._current_window_positions[0]
-            end_pos = self._current_window_positions[-1]
+        if window_positions:
+            start_pos = window_positions[0]
+            end_pos = window_positions[-1]
         else:
             start_pos = (0, 0)
-            end_pos = (self._global_x, self._global_y)
+            end_pos = (self.exploration.global_x, self.exploration.global_y)
 
         # Build summary with position info
         window_num = len(self._history_summaries) + 1
 
-        # Format position as direction from origin
-        def pos_to_dir(x: int, y: int) -> str:
-            if x == 0 and y == 0:
-                return "origin"
-            parts = []
-            if y < 0:
-                parts.append(f"{abs(y)}N")
-            elif y > 0:
-                parts.append(f"{y}S")
-            if x > 0:
-                parts.append(f"{x}E")
-            elif x < 0:
-                parts.append(f"{abs(x)}W")
-            return "".join(parts) if parts else "origin"
-
         # Get unique positions visited this window (excluding duplicates)
         unique_positions = []
         seen = set()
-        for pos in self._current_window_positions:
+        for pos in window_positions:
             if pos not in seen:
                 unique_positions.append(pos)
                 seen.add(pos)
@@ -723,7 +268,7 @@ class LLMAgentPolicy(AgentPolicy):
         net_dir_str = "-".join(net_direction) if net_direction else "stationary"
 
         summary = f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} (heading {net_dir_str})"
-        summary += f" | {len(unique_positions)} new spots, {len(self._all_visited_positions)} total"
+        summary += f" | {len(unique_positions)} new spots, {summary_info['total_explored']} total"
 
         return summary
 
@@ -757,21 +302,8 @@ class LLMAgentPolicy(AgentPolicy):
                 self._current_direction = new_direction
                 self._steps_in_direction = 1
 
-        # Update global position based on movement action
-        # Note: In MettaGrid, North=Y--, South=Y++, East=X++, West=X--
-        if action == "move_north":
-            self._global_y -= 1
-        elif action == "move_south":
-            self._global_y += 1
-        elif action == "move_east":
-            self._global_x += 1
-        elif action == "move_west":
-            self._global_x -= 1
-
-        # Track this position
-        pos = (self._global_x, self._global_y)
-        self._current_window_positions.append(pos)
-        self._all_visited_positions.add(pos)
+        # Delegate position tracking to exploration tracker
+        self.exploration.update_position(action)
 
     def _finalize_window_summary(self) -> None:
         """Create summary for current window and reset for next window."""
@@ -788,8 +320,8 @@ class LLMAgentPolicy(AgentPolicy):
 
         # Reset for next window
         self._current_window_actions = []
-        # Start new window positions from current position
-        self._current_window_positions = [(self._global_x, self._global_y)]
+        # Reset exploration tracker window positions
+        self.exploration.reset_window_positions()
 
     def _generate_debug_summary(self) -> None:
         """Generate an LLM debug summary for the last N steps and write to file.
@@ -809,7 +341,8 @@ class LLMAgentPolicy(AgentPolicy):
         # Format action summary
         action_summary = ", ".join(f"{k}:{v}" for k, v in sorted(action_counts.items()))
 
-        # Get current state summary
+        # Get current state summary from exploration tracker
+        summary_info = self.exploration.get_summary_info()
         inventory = self._last_inventory
         inv_str = ", ".join(f"{k}={v}" for k, v in inventory.items() if v > 0 and k != "energy")
         energy = inventory.get("energy", 0)
@@ -818,11 +351,11 @@ class LLMAgentPolicy(AgentPolicy):
         summary_prompt = f"""Summarize what Agent {self.agent_id} did in the last {len(self._debug_summary_actions)} steps.
 
 Actions taken: {action_summary}
-Current position: ({self._global_x}, {self._global_y}) from origin
-Explored tiles: {len(self._all_visited_positions)}
+Current position: ({summary_info['global_x']}, {summary_info['global_y']}) from origin
+Explored tiles: {summary_info['total_explored']}
 Current inventory: {inv_str if inv_str else 'empty'}
 Energy: {energy}
-Discovered objects: {', '.join(self._discovered_objects.keys()) if self._discovered_objects else 'none'}
+Discovered objects: {', '.join(summary_info['discovered_objects']) if summary_info['discovered_objects'] else 'none'}
 
 Write a 2-3 sentence summary of progress, challenges, and current strategy. Be concise."""
 
@@ -867,7 +400,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                 f.write(f"\n{'='*60}\n")
                 f.write(f"[Agent {self.agent_id}] Steps {(interval_num-1)*self.debug_summary_interval + 1}-{interval_num*self.debug_summary_interval}\n")
                 f.write(f"{'='*60}\n")
-                f.write(f"Position: ({self._global_x}, {self._global_y}) | Explored: {len(self._all_visited_positions)} tiles\n")
+                f.write(f"Position: ({summary_info['global_x']}, {summary_info['global_y']}) | Explored: {summary_info['total_explored']} tiles\n")
                 f.write(f"Inventory: {inv_str if inv_str else 'empty'} | Energy: {energy}\n")
                 f.write(f"Actions: {action_summary}\n")
                 f.write(f"\nSummary: {summary_text}\n")
@@ -890,21 +423,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         if not self._history_summaries:
             return ""
 
-        # Format current position as direction from origin
-        def pos_to_dir(x: int, y: int) -> str:
-            if x == 0 and y == 0:
-                return "origin (starting point)"
-            parts = []
-            if y < 0:
-                parts.append(f"{abs(y)} tiles North")
-            elif y > 0:
-                parts.append(f"{y} tiles South")
-            if x > 0:
-                parts.append(f"{x} tiles East")
-            elif x < 0:
-                parts.append(f"{abs(x)} tiles West")
-            return " and ".join(parts) + " of origin"
-
         # Format window summaries
         window_summaries = "\n".join(f"  {summary}" for summary in self._history_summaries)
 
@@ -913,62 +431,13 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         template_path = Path(__file__).parent / "prompts" / "exploration_history.md"
         template = template_path.read_text()
 
+        summary_info = self.exploration.get_summary_info()
         return (
             template
-            .replace("{{CURRENT_POSITION}}", pos_to_dir(self._global_x, self._global_y))
-            .replace("{{TOTAL_EXPLORED}}", str(len(self._all_visited_positions)))
+            .replace("{{CURRENT_POSITION}}", pos_to_dir(summary_info["global_x"], summary_info["global_y"], verbose=True))
+            .replace("{{TOTAL_EXPLORED}}", str(summary_info["total_explored"]))
             .replace("{{WINDOW_SUMMARIES}}", window_summaries)
         )
-
-    def _extract_discovered_objects(self, obs: AgentObservation) -> None:
-        """Extract and track discovered objects from observation.
-
-        Updates self._discovered_objects with global positions of important objects.
-        Also tracks extractor visits when agent steps on them.
-
-        Args:
-            obs: Agent observation
-        """
-        agent_x = self.policy_env_info.obs_width // 2
-        agent_y = self.policy_env_info.obs_height // 2
-
-        # Important object types to track
-        important_types = {
-            "charger", "assembler", "chest",
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
-        }
-
-        # Extractor types for visit tracking
-        extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
-        }
-
-        for token in obs.tokens:
-            if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
-                tag_name = self.policy_env_info.tags[token.value]
-                if tag_name in important_types:
-                    # Calculate global position
-                    rel_x = token.row() - agent_x
-                    rel_y = token.col() - agent_y
-                    global_x = self._global_x + rel_x
-                    global_y = self._global_y + rel_y
-
-                    # Store with global position (keep closest one if multiple)
-                    if tag_name not in self._discovered_objects:
-                        self._discovered_objects[tag_name] = (global_x, global_y)
-
-                    # Track extractor visits when agent is at extractor position (rel_x=0, rel_y=0)
-                    if tag_name in extractor_types and rel_x == 0 and rel_y == 0:
-                        if tag_name not in self._extractor_stats:
-                            self._extractor_stats[tag_name] = {
-                                "position": (global_x, global_y),
-                                "visits": 0,
-                                "collected": 0,
-                            }
-                        # Increment visit count (will track collection separately)
-                        self._extractor_stats[tag_name]["visits"] += 1
 
     def _extract_inventory_from_obs(self, obs: AgentObservation) -> dict[str, int]:
         """Extract current inventory from observation.
@@ -992,188 +461,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                     inventory["energy"] = token.value
 
         return inventory
-
-    def _update_extractor_collection(self, new_inventory: dict[str, int]) -> None:
-        """Update extractor collection stats based on inventory changes.
-
-        Compares new inventory to last inventory and attributes gains to extractors.
-
-        Args:
-            new_inventory: Current inventory
-        """
-        # Map resources to their extractors
-        resource_to_extractor = {
-            "carbon": "carbon_extractor",
-            "oxygen": "oxygen_extractor",
-            "germanium": "germanium_extractor",
-            "silicon": "silicon_extractor",
-        }
-
-        for resource, extractor in resource_to_extractor.items():
-            old_amount = self._last_inventory.get(resource, 0)
-            new_amount = new_inventory.get(resource, 0)
-            if new_amount > old_amount:
-                collected = new_amount - old_amount
-                # Update extractor stats if we've visited this extractor
-                if extractor in self._extractor_stats:
-                    self._extractor_stats[extractor]["collected"] += collected
-
-    def _extract_other_agents_info(self, obs: AgentObservation) -> None:
-        """Extract other agents' positions and inventories from observation.
-
-        Updates self._other_agents_info with latest seen data.
-
-        Args:
-            obs: Agent observation
-        """
-        agent_x = self.policy_env_info.obs_width // 2
-        agent_y = self.policy_env_info.obs_height // 2
-
-        # Track agents seen in this observation
-        agents_in_view: dict[int, dict] = {}
-
-        for token in obs.tokens:
-            # Skip our own position (center of view)
-            if token.row() == agent_x and token.col() == agent_y:
-                continue
-
-            # Look for agent ID tokens
-            if token.feature.name == "agent:id":
-                other_agent_id = token.value
-                # Calculate their global position
-                rel_x = token.row() - agent_x
-                rel_y = token.col() - agent_y
-                global_x = self._global_x + rel_x
-                global_y = self._global_y + rel_y
-
-                if other_agent_id not in agents_in_view:
-                    agents_in_view[other_agent_id] = {
-                        "position": (global_x, global_y),
-                        "inventory": {},
-                        "last_seen_step": self.prompt_builder.step_count,
-                    }
-
-            # Look for other agents' inventory (same position as agent:id)
-            # Inventory tokens are at the agent's position
-            if token.feature.name.startswith("inv:"):
-                # Find which agent this belongs to by checking if we already found an agent at this position
-                for _aid, info in agents_in_view.items():
-                    # Check if this inventory token is at the same relative position as the agent
-                    rel_x = token.row() - agent_x
-                    rel_y = token.col() - agent_y
-                    agent_global = (self._global_x + rel_x, self._global_y + rel_y)
-                    if info["position"] == agent_global:
-                        resource = token.feature.name[4:]
-                        if token.value > 0:
-                            info["inventory"][resource] = token.value
-                        break
-
-        # Update our tracking with any agents we saw
-        for aid, info in agents_in_view.items():
-            self._other_agents_info[aid] = info
-
-    def _get_other_agents_text(self) -> str:
-        """Get formatted text of other agents' last known states.
-
-        Returns:
-            Formatted string showing other agents' positions and inventories.
-        """
-        if not self._other_agents_info:
-            return ""
-
-        def pos_to_dir(x: int, y: int) -> str:
-            if x == 0 and y == 0:
-                return "at origin"
-            parts = []
-            if y < 0:
-                parts.append(f"{abs(y)}N")
-            elif y > 0:
-                parts.append(f"{y}S")
-            if x > 0:
-                parts.append(f"{x}E")
-            elif x < 0:
-                parts.append(f"{abs(x)}W")
-            return "".join(parts)
-
-        lines = ["=== OTHER AGENTS (last seen) ==="]
-        for agent_id, info in sorted(self._other_agents_info.items()):
-            pos = info["position"]
-            inv = info["inventory"]
-            step = info["last_seen_step"]
-            steps_ago = self.prompt_builder.step_count - step
-
-            inv_str = ", ".join(f"{k}={v}" for k, v in sorted(inv.items()) if v > 0) if inv else "empty"
-            lines.append(f"  Agent {agent_id}: {pos_to_dir(*pos)} ({steps_ago} steps ago) | inv: {inv_str}")
-
-        return "\n".join(lines)
-
-    def _get_discovered_objects_text(self) -> str:
-        """Get formatted text of discovered objects for the prompt.
-
-        Returns:
-            Formatted string listing discovered objects and their locations.
-        """
-        if not self._discovered_objects:
-            return ""
-
-        def pos_to_dir(x: int, y: int) -> str:
-            if x == 0 and y == 0:
-                return "at origin"
-            parts = []
-            if y < 0:
-                parts.append(f"{abs(y)}N")
-            elif y > 0:
-                parts.append(f"{y}S")
-            if x > 0:
-                parts.append(f"{x}E")
-            elif x < 0:
-                parts.append(f"{abs(x)}W")
-            return "".join(parts)
-
-        lines = ["=== DISCOVERED OBJECTS (from exploration) ==="]
-
-        # Extractor types for special formatting with visit stats
-        extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
-        }
-
-        for obj_type, (gx, gy) in sorted(self._discovered_objects.items()):
-            # Add visit stats for extractors
-            if obj_type in extractor_types and obj_type in self._extractor_stats:
-                stats = self._extractor_stats[obj_type]
-                visits = stats["visits"]
-                collected = stats["collected"]
-                resource = obj_type.replace("_extractor", "")
-                loc = pos_to_dir(gx, gy)
-                lines.append(f"  - {obj_type}: {loc} (visited {visits}x, collected {collected} {resource})")
-            else:
-                lines.append(f"  - {obj_type}: {pos_to_dir(gx, gy)}")
-
-        return "\n".join(lines)
-
-    def _get_visible_extractors(self, obs: AgentObservation) -> list[str]:
-        """Get list of extractor types visible in current observation.
-
-        Args:
-            obs: Agent observation
-
-        Returns:
-            List of visible extractor type names
-        """
-        visible = []
-        extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
-        }
-
-        for token in obs.tokens:
-            if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
-                tag_name = self.policy_env_info.tags[token.value]
-                if tag_name in extractor_types and tag_name not in visible:
-                    visible.append(tag_name)
-
-        return visible
 
     def _get_heart_recipe(self) -> dict[str, int]:
         """Get the heart crafting recipe requirements from assembler protocols.
@@ -1220,7 +507,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         # Check for visible extractors that we need (TOP PRIORITY HINT)
         if obs is not None:
-            visible_extractors = self._get_visible_extractors(obs)
+            visible_extractors = self.exploration.get_visible_extractors(obs)
             needed_extractors = []
 
             carbon = inventory.get("carbon", 0)
@@ -1265,7 +552,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             )
 
         # Distance from origin warning
-        distance = abs(self._global_x) + abs(self._global_y)
+        distance = abs(self.exploration.global_x) + abs(self.exploration.global_y)
         if distance > 25:
             hints.append(
                 f"⚠️ You're {distance} tiles from origin. "
@@ -1279,7 +566,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         silicon = inventory.get("silicon", 0)
         heart = inventory.get("heart", 0)
 
-        if heart > 0 and "chest" in self._discovered_objects:
+        if heart > 0 and "chest" in self.exploration.discovered_objects:
             hints.append(f"💡 You have {heart} heart(s)! Go to chest to deposit for reward!")
         elif carbon >= req_carbon and oxygen >= req_oxygen and germanium >= req_germanium and silicon >= req_silicon:
             hints.append("💡 You have all resources for a heart! Find an assembler and use heart_a vibe!")
@@ -1311,16 +598,16 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             Action to take
         """
         # Extract and track discovered objects from this observation
-        self._extract_discovered_objects(obs)
+        self.exploration.extract_discovered_objects(obs)
 
         # Extract other agents' positions and inventories
-        self._extract_other_agents_info(obs)
+        self.exploration.extract_other_agents_info(obs, self.prompt_builder.step_count)
 
         # Extract current inventory for strategic hints
         inventory = self._extract_inventory_from_obs(obs)
 
         # Track resource collection before updating last inventory
-        self._update_extractor_collection(inventory)
+        self.exploration.update_extractor_collection(inventory)
         self._last_inventory = inventory
 
         # Increment summary step counter
@@ -1364,8 +651,8 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             user_prompt = history_text + "\n" + user_prompt
 
         # Add discovered objects, other agents info, strategic hints, and pathfinding to every prompt
-        discovered_text = self._get_discovered_objects_text()
-        other_agents_text = self._get_other_agents_text()
+        discovered_text = self.exploration.get_discovered_objects_text()
+        other_agents_text = self.exploration.get_other_agents_text(self.prompt_builder.step_count)
         strategic_hints = self._get_strategic_hints(inventory, obs)
         pathfinding_hints = self.prompt_builder.get_pathfinding_hints(obs)
 
@@ -1424,23 +711,15 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
-                # Track usage and cost
+                # Track token usage
                 usage = response.usage
                 if usage:
-                    LLMAgentPolicy.total_calls += 1
-                    LLMAgentPolicy.total_input_tokens += usage.prompt_tokens
-                    LLMAgentPolicy.total_output_tokens += usage.completion_tokens
-
-                    # Calculate cost based on model
-                    call_cost = calculate_llm_cost(self.model, usage.prompt_tokens, usage.completion_tokens)
-                    LLMAgentPolicy.total_cost += call_cost
+                    self.cost_tracker.record_usage(usage.prompt_tokens, usage.completion_tokens)
 
                     if self.debug_mode:
                         logger.debug(
                             f"OpenAI response: '{action_name}' | "
-                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
-                            f"Cost: ${call_cost:.6f} | "
-                            f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
+                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out"
                         )
 
             elif self.provider == "ollama":
@@ -1499,19 +778,15 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
-                # Track usage (Ollama is free/local)
+                # Track token usage
                 usage = response.usage
                 if usage:
-                    LLMAgentPolicy.total_calls += 1
-                    LLMAgentPolicy.total_input_tokens += usage.prompt_tokens
-                    LLMAgentPolicy.total_output_tokens += usage.completion_tokens
-                    # No cost for local Ollama
+                    self.cost_tracker.record_usage(usage.prompt_tokens, usage.completion_tokens)
 
                     if self.debug_mode:
                         logger.debug(
                             f"Ollama response: '{action_name}' | "
-                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out | "
-                            f"Cost: $0.00 (local)"
+                            f"Tokens: {usage.prompt_tokens} in, {usage.completion_tokens} out"
                         )
 
             elif self.provider == "anthropic":
@@ -1555,26 +830,18 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
                 # Track response for debugging
                 self.conversation_history[-1]["response"] = action_name
 
-                # Track usage and cost
+                # Track token usage
                 usage = response.usage
-                LLMAgentPolicy.total_calls += 1
-                LLMAgentPolicy.total_input_tokens += usage.input_tokens
-                LLMAgentPolicy.total_output_tokens += usage.output_tokens
-
-                # Calculate cost based on model
-                call_cost = calculate_llm_cost(self.model, usage.input_tokens, usage.output_tokens)
-                LLMAgentPolicy.total_cost += call_cost
+                self.cost_tracker.record_usage(usage.input_tokens, usage.output_tokens)
 
                 if self.debug_mode:
                     logger.debug(
                         f"Anthropic response: '{action_name}' | "
-                        f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out | "
-                        f"Cost: ${call_cost:.6f} | "
-                        f"Total so far: ${LLMAgentPolicy.total_cost:.4f}"
+                        f"Tokens: {usage.input_tokens} in, {usage.output_tokens} out"
                     )
 
             # Parse and return action
-            parsed_action, reasoning = self._parse_action(action_name)
+            parsed_action, reasoning = parse_action(action_name, self.policy_env_info.actions.actions())
 
             # Track action for history summary (with reasoning if available)
             self._add_action_to_window(parsed_action.name, reasoning)
@@ -1590,84 +857,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             self._add_action_to_window(fallback_action.name, "API error fallback")
             self.last_action = fallback_action.name
             return fallback_action
-
-    def _parse_action(self, response_text: str) -> tuple[Action, str]:
-        """Parse LLM response and return valid Action and reasoning.
-
-        Handles both JSON format {"reasoning": "...", "action": "..."} and plain action names.
-
-        Args:
-            response_text: Raw response from LLM
-
-        Returns:
-            Tuple of (Action, reasoning_string)
-        """
-        # Clean up response
-        response_text = response_text.strip()
-        reasoning = ""
-
-        # Try to parse as JSON first (expected format)
-        try:
-            parsed = json.loads(response_text)
-            if isinstance(parsed, dict) and "action" in parsed:
-                action_name = parsed["action"].strip().lower()
-                reasoning = parsed.get("reasoning", "")
-                for action in self.policy_env_info.actions.actions():
-                    if action.name.lower() == action_name:
-                        return action, reasoning
-                # If action from JSON doesn't match, fall through to other parsing
-        except json.JSONDecodeError:
-            pass  # Not valid JSON, try other parsing methods
-
-        # Clean up for non-JSON parsing
-        action_name = response_text.strip().strip("\"'").lower()
-
-        # Try exact match first (best case - LLM followed instructions)
-        for action in self.policy_env_info.actions.actions():
-            if action.name.lower() == action_name:
-                return action, reasoning
-
-        # If response contains multiple words, try to extract action from end
-        # (LLM might have said "I will move_east" instead of just "move_east")
-        words = action_name.split()
-        if len(words) > 1:
-            # Check last word first (most likely to be the actual action)
-            last_word = words[-1].strip(".,!?;:")
-            for action in self.policy_env_info.actions.actions():
-                if action.name.lower() == last_word:
-                    return action, reasoning
-
-            # Check each word from end to start
-            for word in reversed(words):
-                word = word.strip(".,!?;:")
-                for action in self.policy_env_info.actions.actions():
-                    if action.name.lower() == word:
-                        return action, reasoning
-
-        # Last resort: partial match
-        # This is dangerous because it might pick up "don't move_north" as move_north
-        for action in self.policy_env_info.actions.actions():
-            if action.name.lower() in action_name:
-                return action, reasoning
-
-        # Fallback to random action if parsing completely fails
-        return random.choice(self.policy_env_info.actions.actions()), reasoning
-
-    @classmethod
-    def get_cost_summary(cls) -> dict:
-        """Get summary of LLM API usage and costs.
-
-        Returns:
-            Dictionary with total_calls, total_tokens, total_input_tokens,
-            total_output_tokens, and total_cost
-        """
-        return {
-            "total_calls": cls.total_calls,
-            "total_tokens": cls.total_input_tokens + cls.total_output_tokens,
-            "total_input_tokens": cls.total_input_tokens,
-            "total_output_tokens": cls.total_output_tokens,
-            "total_cost": cls.total_cost,
-        }
 
     def print_conversation_history(self) -> None:
         """Print all LLM prompts and responses from this episode."""
@@ -1739,6 +928,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         super().__init__(policy_env_info)
         self.provider: Literal["openai", "anthropic", "ollama"] = provider
         self.temperature = temperature
+        self.cost_tracker = CostTracker()  # Singleton - shared across all policy instances
         # Handle string "true"/"false" from CLI kwargs
         if isinstance(debug_mode, str):
             self.debug_mode = debug_mode.lower() not in ("false", "0", "no", "")
@@ -1796,7 +986,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
 
         # Register atexit handler to print costs when program ends (for paid APIs only)
         if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
-            atexit.register(_print_cost_summary_on_exit)
+            atexit.register(self.cost_tracker.print_summary)
             LLMMultiAgentPolicy._atexit_registered = True
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:

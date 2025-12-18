@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation
 
@@ -868,16 +869,7 @@ class LLMPromptBuilder:
             distance = abs(rel_x) + abs(rel_y)
 
             # Direction description
-            dir_parts = []
-            if rel_y < 0:
-                dir_parts.append(f"{abs(rel_y)}N")
-            elif rel_y > 0:
-                dir_parts.append(f"{rel_y}S")
-            if rel_x > 0:
-                dir_parts.append(f"{rel_x}E")
-            elif rel_x < 0:
-                dir_parts.append(f"{abs(rel_x)}W")
-            direction = "".join(dir_parts) if dir_parts else "here"
+            direction = pos_to_dir(rel_x, rel_y) if (rel_x != 0 or rel_y != 0) else "here"
 
             if first_move:
                 # Format: "assembler (3N2E, 5 tiles) -> move_east"

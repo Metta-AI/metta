@@ -304,11 +304,35 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 
 | Task | Status | Notes |
 |------|--------|-------|
-| R1: model_config.py | [ ] Pending | |
-| R2: cost_tracker.py | [ ] Pending | |
-| R3: providers/ | [ ] Pending | |
-| R4: exploration_tracker.py | [ ] Pending | |
-| R5: action_parser.py | [ ] Pending | |
-| R6: Remove duplicates | [ ] Pending | |
-| R7: Simplify policy | [ ] Pending | |
+| R1: model_config.py | [x] Complete | MODEL_CONTEXT_WINDOWS, pricing, validation |
+| R2: cost_tracker.py | [x] Complete | Singleton CostTracker class |
+| R3: providers.py | [x] Complete | Ollama/OpenAI/Anthropic model selection |
+| R4: exploration_tracker.py | [x] Complete | Position, discovery, other agents tracking |
+| R5: action_parser.py | [x] Complete | LLM response parsing |
+| R6: Remove duplicates | [x] Complete | pos_to_dir consolidated in utils.py |
+| R7: Simplify policy | [~] Partial | 1114 lines (from ~1900, 41% reduction). <500 requires step() refactoring |
 | Post-refactor tests | [ ] Pending | |
+
+### Created Files
+- `packages/llm_agent/src/llm_agent/model_config.py`
+- `packages/llm_agent/src/llm_agent/cost_tracker.py`
+- `packages/llm_agent/src/llm_agent/providers.py`
+- `packages/llm_agent/src/llm_agent/exploration_tracker.py`
+- `packages/llm_agent/src/llm_agent/action_parser.py`
+- `packages/llm_agent/src/llm_agent/utils.py`
+
+
+
+
+
+- [ ] validate model_config.py -> add gpt 5.2 and test
+- [ ] validate providers.py
+- [ ] validate exploration_tracker.py
+- [ ] validate action_parser
+- [ ] validate utils
+- [ ] llm_policy.py
+  - [ ] initiating models is still with a lot of code instead of using clean code
+- [ ] use cogames/scripted_agent/utils.py to enhance my code
+- [ ] make sure no unused functions go in
+
+- [x] cost_tracker.py remove unused code

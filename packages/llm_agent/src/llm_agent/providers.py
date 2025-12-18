@@ -31,6 +31,7 @@ def get_openai_models() -> list[tuple[str, str]]:
     return [
         ("gpt-4o-mini", "Cheapest - Fast and cost-effective"),
         ("gpt-4o", "Capable - Best GPT-4 model"),
+        ("gpt-5.1", "Advanced - GPT-5 with strong reasoning"),
         ("gpt-5.2", "Best - Latest GPT-5 for complex reasoning"),
     ]
 
