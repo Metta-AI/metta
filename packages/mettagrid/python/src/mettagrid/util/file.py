@@ -15,15 +15,6 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from mettagrid.util.uri_resolvers.base import FileParsedScheme, ParsedScheme, S3ParsedScheme
 from mettagrid.util.uri_resolvers.schemes import parse_uri
 
-
-class ParsedURI:
-    """Wrapper for backwards compatibility with ParsedScheme."""
-
-    @staticmethod
-    def parse(value: str) -> ParsedScheme:
-        return parse_uri(value)
-
-
 logger = logging.getLogger(__name__)
 
 
