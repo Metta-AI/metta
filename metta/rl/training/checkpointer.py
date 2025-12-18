@@ -13,7 +13,7 @@ from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.checkpoint_policy import architecture_from_spec
-from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 from safetensors.torch import load as load_safetensors
 
@@ -71,7 +71,7 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_checkpoint_bundle(candidate_uri).dir_uri
+                normalized_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
@@ -115,7 +115,7 @@ class Checkpointer(TrainerComponent):
             missing, unexpected = policy.load_state_dict({k: v.to(load_device) for k, v in state_dict.items()}, strict=True)
             if missing or unexpected:
                 raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-            self._latest_policy_uri = resolve_checkpoint_bundle(candidate_uri).dir_uri
+            self._latest_policy_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 

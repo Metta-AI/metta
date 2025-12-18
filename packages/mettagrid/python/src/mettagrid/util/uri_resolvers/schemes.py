@@ -54,7 +54,7 @@ class FileSchemeResolver(SchemeResolver):
                 candidates.append((entry.name, entry.resolve().as_uri()))
         return _select_latest_checkpoint_uri(candidates)
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_checkpoint_dir(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):
@@ -124,7 +124,7 @@ class S3SchemeResolver(SchemeResolver):
             candidates.append((run_dir, f"s3://{parsed.bucket}/{dir_path}"))
         return _select_latest_checkpoint_uri(candidates)
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_checkpoint_dir(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):
@@ -248,7 +248,7 @@ def resolve_uri(uri: str) -> ParsedScheme:
     resolver = _get_resolver(uri)
     if not resolver:
         raise ValueError("Unsupported URI")
-    resolved_uri_str = resolver.get_path_to_policy_spec_or_mpt(uri)
+    resolved_uri_str = resolver.get_path_to_policy_spec_or_checkpoint_dir(uri)
     return parse_uri(resolved_uri_str, allow_none=False)
 
 
@@ -264,10 +264,7 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
     return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=parsed.canonical)
 
 
-def policy_spec_from_uri(
-    uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
-):
-    from mettagrid.policy.policy import PolicySpec
+def policy_spec_from_uri(uri: str, *, device: str = "cpu", remove_downloaded_copy_on_exit: bool = False):
     from mettagrid.policy.prepare_policy_spec import (
         load_policy_spec_from_local_dir,
         load_policy_spec_from_s3,
@@ -279,16 +276,16 @@ def policy_spec_from_uri(
             uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
         )
 
-    from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
+    from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 
-    bundle = resolve_checkpoint_bundle(uri)
-    spec_uri = bundle.policy_spec_uri
+    checkpoint_dir = resolve_checkpoint_dir(uri)
+    spec_uri = checkpoint_dir.policy_spec_uri
     parsed = resolve_uri(spec_uri)
 
     if parsed.scheme == "s3":
         # This is a checkpoint directory in S3 (not a submission.zip). Sync the spec + data file locally.
         return load_policy_spec_from_s3_checkpoint_dir(
-            bundle.dir_uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+            checkpoint_dir.dir_uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
         )
 
     if parsed.local_path:

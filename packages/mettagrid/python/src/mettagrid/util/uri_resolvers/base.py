@@ -97,5 +97,5 @@ class SchemeResolver(ABC):
     def parse(self, uri: str) -> ParsedScheme:
         pass
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_checkpoint_dir(self, uri: str) -> str:
         return self.parse(uri).canonical

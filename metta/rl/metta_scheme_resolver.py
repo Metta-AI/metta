@@ -110,7 +110,7 @@ class MettaSchemeResolver(SchemeResolver):
 
         return policy_version
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec_or_checkpoint_dir(self, uri: str) -> str:
         policy_version = self._get_policy_version(uri)
         # By default we send you to the s3 path that contains the policy spec
         if policy_version.s3_path:

@@ -38,8 +38,8 @@ def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict
     return result
 
 @dataclass(frozen=True)
-class CheckpointBundle:
-    """Represents a checkpoint directory containing policy_spec.json and its artifacts."""
+class CheckpointDir:
+    """Checkpoint directory containing policy_spec.json and weights.safetensors."""
 
     dir_uri: str
     local_dir: Path | None = None
@@ -49,7 +49,7 @@ class CheckpointBundle:
         return _join_uri(self.dir_uri, "policy_spec.json")
 
     @property
-    def policy_data_uri(self) -> str:
+    def weights_uri(self) -> str:
         return _join_uri(self.dir_uri, "weights.safetensors")
 
     @property
@@ -57,15 +57,15 @@ class CheckpointBundle:
         return _join_uri(self.dir_uri, "submission.zip")
 
 
-def create_local_bundle(
+def write_checkpoint_dir(
     *,
     base_dir: Path,
     run_name: str,
     epoch: int,
     architecture: Any,
     state_dict: Mapping[str, torch.Tensor],
-) -> CheckpointBundle:
-    """Write a checkpoint bundle to disk and return its metadata."""
+) -> CheckpointDir:
+    """Write a checkpoint directory to disk and return its metadata."""
     checkpoint_dir = base_dir / checkpoint_filename(run_name, epoch)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -82,30 +82,30 @@ def create_local_bundle(
     spec_path = checkpoint_dir / "policy_spec.json"
     spec_path.write_text(spec.model_dump_json())
 
-    return CheckpointBundle(dir_uri=checkpoint_dir.as_uri(), local_dir=checkpoint_dir)
+    return CheckpointDir(dir_uri=checkpoint_dir.as_uri(), local_dir=checkpoint_dir)
 
 
-def upload_bundle(bundle: CheckpointBundle, remote_prefix: str) -> CheckpointBundle:
-    """Copy a local bundle to a remote prefix (file:// or s3://)."""
-    if bundle.local_dir is None:
-        raise ValueError("upload_bundle requires a local bundle with a local_dir")
+def upload_checkpoint_dir(checkpoint: CheckpointDir, remote_prefix: str) -> CheckpointDir:
+    """Copy a local checkpoint directory to a remote prefix (file:// or s3://)."""
+    if checkpoint.local_dir is None:
+        raise ValueError("upload_checkpoint_dir requires a local checkpoint with a local_dir")
 
-    remote_dir = _join_uri(remote_prefix, bundle.local_dir.name)
+    remote_dir = _join_uri(remote_prefix, checkpoint.local_dir.name)
     remote_weights_uri = _join_uri(remote_dir, "weights.safetensors")
-    write_data(remote_weights_uri, (bundle.local_dir / "weights.safetensors").read_bytes())
+    write_data(remote_weights_uri, (checkpoint.local_dir / "weights.safetensors").read_bytes())
 
-    local_spec = PolicySpec.model_validate_json((bundle.local_dir / "policy_spec.json").read_text())
+    local_spec = PolicySpec.model_validate_json((checkpoint.local_dir / "policy_spec.json").read_text())
     local_spec.data_path = "weights.safetensors"
     write_data(
         _join_uri(remote_dir, "policy_spec.json"),
         local_spec.model_dump_json().encode("utf-8"),
         content_type="application/json",
     )
-    return CheckpointBundle(dir_uri=remote_dir)
+    return CheckpointDir(dir_uri=remote_dir)
 
 
-def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
-    """Normalize a checkpoint URI (directory or :latest) to a bundle."""
+def resolve_checkpoint_dir(uri: str) -> CheckpointDir:
+    """Normalize a checkpoint URI (directory or :latest) to a checkpoint directory."""
     parsed = resolve_uri(uri)
     dir_uri = parsed.canonical
     local_dir: Path | None = None
@@ -127,9 +127,5 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
         if dir_uri.endswith("policy_spec.json"):
             dir_uri = dir_uri[: -len("policy_spec.json")].rstrip("/")
 
-    return CheckpointBundle(dir_uri=dir_uri, local_dir=local_dir)
+    return CheckpointDir(dir_uri=dir_uri, local_dir=local_dir)
 
-
-def resolve_policy_spec_uri(uri: str) -> str:
-    """Resolve arbitrary checkpoint URI to policy_spec.json URI."""
-    return resolve_checkpoint_bundle(uri).policy_spec_uri

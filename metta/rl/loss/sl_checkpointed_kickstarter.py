@@ -17,7 +17,7 @@ from mettagrid.util.uri_resolvers.schemes import (
     parse_uri,
     policy_spec_from_uri,
 )
-from mettagrid.util.checkpoint_bundle import resolve_checkpoint_bundle
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -152,7 +152,7 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        base_bundle = resolve_checkpoint_bundle(self._base_teacher_uri)
+        base_bundle = resolve_checkpoint_dir(self._base_teacher_uri)
         info = parse_uri(base_bundle.dir_uri).checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")

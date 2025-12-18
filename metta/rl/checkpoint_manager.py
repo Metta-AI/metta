@@ -9,7 +9,7 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.util.checkpoint_bundle import create_local_bundle, resolve_checkpoint_bundle, upload_bundle
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir, upload_checkpoint_dir, write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class CheckpointManager:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             target = f"{uri}:latest" if not uri.endswith(":latest") else uri
             try:
-                bundle = resolve_checkpoint_bundle(target)
+                bundle = resolve_checkpoint_dir(target)
                 parsed = resolve_uri(bundle.dir_uri)
                 info = parsed.checkpoint_info
                 if info:
@@ -87,7 +87,7 @@ class CheckpointManager:
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        bundle = create_local_bundle(
+        bundle = write_checkpoint_dir(
             base_dir=self.checkpoint_dir,
             run_name=self.run_name,
             epoch=epoch,
@@ -96,7 +96,7 @@ class CheckpointManager:
         )
 
         if self._remote_prefix:
-            remote_bundle = upload_bundle(bundle, self.output_uri)
+            remote_bundle = upload_checkpoint_dir(bundle, self.output_uri)
             logger.debug("Policy checkpoint saved remotely to %s", remote_bundle.dir_uri)
             return remote_bundle.dir_uri
 
@@ -163,4 +163,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-

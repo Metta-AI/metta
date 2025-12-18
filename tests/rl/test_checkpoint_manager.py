@@ -19,7 +19,7 @@ from mettagrid.base_config import Config
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.checkpoint_bundle import create_local_bundle, resolve_checkpoint_bundle
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir, write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
 
 
@@ -133,8 +133,8 @@ class TestCheckpointManagerFlows:
         result = policy(td.clone())
         assert "actions" in result
 
-    def test_resolve_checkpoint_bundle_accepts_policy_spec_uri(self, mock_agent, mock_policy_architecture, tmp_path):
-        bundle = create_local_bundle(
+    def test_resolve_checkpoint_dir_accepts_policy_spec_uri(self, mock_agent, mock_policy_architecture, tmp_path):
+        bundle = write_checkpoint_dir(
             base_dir=tmp_path,
             run_name="run",
             epoch=1,
@@ -142,7 +142,7 @@ class TestCheckpointManagerFlows:
             state_dict=mock_agent.state_dict(),
         )
 
-        resolved = resolve_checkpoint_bundle(bundle.policy_spec_uri)
+        resolved = resolve_checkpoint_dir(bundle.policy_spec_uri)
         assert resolved.dir_uri == bundle.dir_uri
 
 

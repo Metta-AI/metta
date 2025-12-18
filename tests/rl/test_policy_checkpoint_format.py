@@ -17,7 +17,7 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.checkpoint_bundle import create_local_bundle
+from mettagrid.util.checkpoint_dir import write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 
@@ -90,7 +90,7 @@ def test_save_and_load_checkpoint_bundle(tmp_path: Path) -> None:
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    bundle = create_local_bundle(
+    bundle = write_checkpoint_dir(
         base_dir=tmp_path,
         run_name="run",
         epoch=1,
@@ -111,7 +111,7 @@ def test_safetensors_checkpoint_with_fast_core(tmp_path: Path) -> None:
     policy = architecture.make_policy(policy_env_info)
     policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
-    bundle = create_local_bundle(
+    bundle = write_checkpoint_dir(
         base_dir=tmp_path,
         run_name="run",
         epoch=1,
@@ -133,7 +133,7 @@ def test_checkpoint_reinitializes_environment_dependent_buffers(tmp_path: Path) 
     # Save state before env init so env-derived buffers are empty in the checkpoint.
     policy = architecture.make_policy(policy_env_info)
 
-    bundle = create_local_bundle(
+    bundle = write_checkpoint_dir(
         base_dir=tmp_path,
         run_name="run",
         epoch=1,
@@ -194,4 +194,3 @@ def test_architecture_from_spec_with_args_round_trip() -> None:
     assert "critic_hidden_dim=4096" in canonical
     round_tripped = PolicyArchitecture.from_spec(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
-
