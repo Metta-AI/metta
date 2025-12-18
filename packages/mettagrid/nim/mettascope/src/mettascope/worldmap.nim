@@ -713,10 +713,6 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
     # Replay has not been loaded yet.
     return
 
-  # Fit to visible area on first load if camera is still at default position.
-  if zoomInfo.pos == vec2(0, 0):
-    fitVisibleMap(zoomInfo)
-
   ## Draw the world map.
   if settings.lockFocus:
     centerAt(zoomInfo, selection)
