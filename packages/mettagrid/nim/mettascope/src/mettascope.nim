@@ -1,8 +1,8 @@
 import
-  std/[strutils, strformat, os, parseopt, json],
+  std/[strutils, strformat, os, parseopt],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap, header]
+  footer, timeline, minimap, header, replayloader]
 
 when isMainModule:
   # Build the atlas.
@@ -50,10 +50,6 @@ proc parseUrlParams() =
   ## Parse URL parameters.
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
-
-proc onReplayLoaded() =
-  ## Called when a replay is loaded.
-  echo "Replay loaded: ", replay.fileName
 
 proc replaySwitch(replay: string) =
   ## Load the replay.
@@ -190,6 +186,18 @@ proc onFrame() =
 proc initMettascope*() =
 
   window.onFrame = onFrame
+
+  window.onFileDrop = proc(fileName: string, fileData: string) =
+    echo "File dropped: ", fileName, " (", fileData.len, " bytes)"
+    if fileName.endsWith(".json.z"):
+      try:
+        common.replay = loadReplay(fileData, fileName)
+        onReplayLoaded()
+        echo "Successfully loaded replay: ", fileName
+      except:
+        echo "Error loading replay file: ", getCurrentExceptionMsg()
+    else:
+      echo "Ignoring dropped file (not .json.z): ", fileName
 
   initPanels()
 
