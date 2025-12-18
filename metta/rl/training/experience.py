@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List
 
 import torch
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -290,9 +290,9 @@ class Experience:
         shared_loss_mb_data["prio_weights"] = prio_weights
 
         shared_loss_mb_data["sampled_mb"] = minibatch
-        shared_loss_mb_data["indices"] = NonTensorData(indices)
+        # broadcasting indices lets slicing work on it too. that way losses can more easily update buffer using indices
+        shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
         shared_loss_mb_data["advantages"] = advantages[indices]
-        shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
 
         return shared_loss_mb_data
 

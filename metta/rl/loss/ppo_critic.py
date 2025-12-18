@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -33,7 +33,6 @@ class PPOCritic(Loss):
     """PPO value loss."""
 
     __slots__ = (
-        "advantages",
         "burn_in_steps",
         "burn_in_steps_iter",
     )
@@ -48,7 +47,6 @@ class PPOCritic(Loss):
         cfg: "PPOCriticConfig",
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
-        self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
@@ -92,9 +90,6 @@ class PPOCritic(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         # Sampling happens in the core loop; use the shared minibatch and indices.
         minibatch = shared_loss_data["sampled_mb"]
-        indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
@@ -103,12 +98,6 @@ class PPOCritic(Loss):
         # Keep the full advantages around for explained variance logging.
         old_values = minibatch["values"]
         advantages_mb = shared_loss_data["advantages"]
-        if mb_idx == 0:
-            advantages_full = shared_loss_data.get("advantages_full", None)
-            if isinstance(advantages_full, NonTensorData):
-                advantages_full = advantages_full.data
-            # Keep full advantages for explained variance logging.
-            self.advantages = advantages_full if advantages_full is not None else advantages_mb
         returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
         # Read policy forward results from the core loop (forward_policy_for_training).
@@ -138,6 +127,7 @@ class PPOCritic(Loss):
                 },
                 batch_size=minibatch.batch_size,
             )
+            indices = shared_loss_data["indices"][:, 0]
             self.replay.update(indices, update_td)
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
@@ -151,7 +141,7 @@ class PPOCritic(Loss):
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
+            y_true = self.replay.buffer["advantages_full"].flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
