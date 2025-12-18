@@ -12,7 +12,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_policy import MptPolicy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
@@ -66,8 +66,8 @@ class Kickstarter(Loss):
             raise RuntimeError("Environment metadata is required to instantiate teacher policy")
         teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
         self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
-        if isinstance(self.teacher_policy, MptPolicy):
-            self.teacher_policy = self.teacher_policy._policy
+        if isinstance(self.teacher_policy, CheckpointPolicy):
+            self.teacher_policy = self.teacher_policy.wrapped_policy
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape

@@ -17,8 +17,10 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
-from mettagrid.policy.mpt_artifact import load_mpt
-from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata
+from mettagrid.config import MettaGridConfig
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
 
@@ -156,5 +158,10 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        artifact = load_mpt(policy_uri)
-        assert artifact.state_dict is not None
+        spec = policy_spec_from_uri(policy_uri)
+        assert spec.data_path is not None
+        assert Path(spec.data_path).exists()
+
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        policy = initialize_or_load_policy(policy_env_info, spec)
+        assert policy is not None

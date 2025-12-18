@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import torch
+from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.file import write_data
@@ -15,15 +16,30 @@ def _join_uri(base: str, child: str) -> str:
     return f"{base.rstrip('/')}/{child}"
 
 
-def bundle_dir_from_mpt_uri(mpt_uri: str) -> str:
-    if mpt_uri.endswith("policy.mpt"):
-        return mpt_uri[: -len("policy.mpt")].rstrip("/")
-    return mpt_uri.rsplit("/", 1)[0].rstrip("/")
+def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Prepare state dict for safetensors: detach, move to CPU, handle shared storage."""
+    result: dict[str, torch.Tensor] = {}
+    seen_storage: dict[int, str] = {}
 
+    for key, tensor in state_dict.items():
+        if not isinstance(tensor, torch.Tensor):
+            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
+
+        value = tensor.detach().cpu()
+        data_ptr = value.data_ptr()
+
+        if data_ptr in seen_storage:
+            value = value.clone()
+        else:
+            seen_storage[data_ptr] = key
+
+        result[key] = value
+
+    return result
 
 @dataclass(frozen=True)
 class CheckpointBundle:
-    """Represents a checkpoint directory containing policy_spec.json and policy.mpt."""
+    """Represents a checkpoint directory containing policy_spec.json and its artifacts."""
 
     dir_uri: str
     local_dir: Path | None = None
@@ -33,8 +49,8 @@ class CheckpointBundle:
         return _join_uri(self.dir_uri, "policy_spec.json")
 
     @property
-    def policy_mpt_uri(self) -> str:
-        return _join_uri(self.dir_uri, "policy.mpt")
+    def policy_data_uri(self) -> str:
+        return _join_uri(self.dir_uri, "weights.safetensors")
 
     @property
     def submission_zip_uri(self) -> str:
@@ -50,17 +66,18 @@ def create_local_bundle(
     state_dict: Mapping[str, torch.Tensor],
 ) -> CheckpointBundle:
     """Write a checkpoint bundle to disk and return its metadata."""
-    from mettagrid.policy.mpt_artifact import save_mpt  # local import to avoid circular dependency
-
     checkpoint_dir = base_dir / checkpoint_filename(run_name, epoch)
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    mpt_path = checkpoint_dir / "policy.mpt"
-    mpt_uri = save_mpt(mpt_path, architecture=architecture, state_dict=state_dict)
+    weights_path = checkpoint_dir / "weights.safetensors"
+    prepared_state = _prepare_state_dict_for_save(state_dict)
+    weights_blob = save_safetensors(dict(prepared_state))
+    weights_path.write_bytes(weights_blob)
 
     spec = PolicySpec(
-        class_path="mettagrid.policy.mpt_policy.MptPolicy",
-        init_kwargs={"checkpoint_uri": mpt_uri},
+        class_path="mettagrid.policy.checkpoint_policy.CheckpointPolicy",
+        data_path="weights.safetensors",
+        init_kwargs={"architecture_spec": architecture.to_spec()},
     )
     spec_path = checkpoint_dir / "policy_spec.json"
     spec_path.write_text(spec.model_dump_json())
@@ -74,11 +91,11 @@ def upload_bundle(bundle: CheckpointBundle, remote_prefix: str) -> CheckpointBun
         raise ValueError("upload_bundle requires a local bundle with a local_dir")
 
     remote_dir = _join_uri(remote_prefix, bundle.local_dir.name)
-    remote_mpt_uri = _join_uri(remote_dir, "policy.mpt")
-    write_data(remote_mpt_uri, (bundle.local_dir / "policy.mpt").read_bytes())
+    remote_weights_uri = _join_uri(remote_dir, "weights.safetensors")
+    write_data(remote_weights_uri, (bundle.local_dir / "weights.safetensors").read_bytes())
 
     local_spec = PolicySpec.model_validate_json((bundle.local_dir / "policy_spec.json").read_text())
-    local_spec.init_kwargs["checkpoint_uri"] = remote_mpt_uri
+    local_spec.data_path = "weights.safetensors"
     write_data(
         _join_uri(remote_dir, "policy_spec.json"),
         local_spec.model_dump_json().encode("utf-8"),
@@ -98,11 +115,8 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
             if parsed.local_path.name == "policy_spec.json":
                 local_dir = parsed.local_path.parent
                 dir_uri = local_dir.as_uri()
-            elif parsed.local_path.name == "policy.mpt":
-                local_dir = parsed.local_path.parent
-                dir_uri = local_dir.as_uri()
             else:
-                raise ValueError("Checkpoint URI must point to a checkpoint directory, policy_spec.json, or policy.mpt")
+                raise ValueError("Checkpoint URI must point to a checkpoint directory or policy_spec.json")
         else:
             spec_path = parsed.local_path / "policy_spec.json"
             if not spec_path.exists():
@@ -112,8 +126,6 @@ def resolve_checkpoint_bundle(uri: str) -> CheckpointBundle:
     else:
         if dir_uri.endswith("policy_spec.json"):
             dir_uri = dir_uri[: -len("policy_spec.json")].rstrip("/")
-        elif dir_uri.endswith("policy.mpt"):
-            dir_uri = bundle_dir_from_mpt_uri(dir_uri)
 
     return CheckpointBundle(dir_uri=dir_uri, local_dir=local_dir)
 

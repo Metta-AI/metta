@@ -147,10 +147,9 @@ class Evaluator(TrainerComponent):
             zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
         return buffer.getvalue()
 
-    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
+    def _upload_submission_zip(self, checkpoint_uri: str, policy_spec: PolicySpec) -> str | None:
         """Upload a submission zip to S3 and return the s3_path."""
-        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
-        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
+        if not checkpoint_uri.startswith("s3://"):
             return None
 
         submission_path = resolve_checkpoint_bundle(checkpoint_uri).submission_zip_uri
@@ -164,6 +163,7 @@ class Evaluator(TrainerComponent):
         *,
         stats_client: StatsClient,
         policy_spec: PolicySpec,
+        policy_uri: str,
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
@@ -177,7 +177,7 @@ class Evaluator(TrainerComponent):
         )
 
         # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_spec)
+        s3_path = self._upload_submission_zip(policy_uri, policy_spec)
 
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
@@ -210,6 +210,7 @@ class Evaluator(TrainerComponent):
             policy_version_id = self._create_policy_version(
                 stats_client=self._stats_client,
                 policy_spec=policy_spec,
+                policy_uri=policy_uri,
                 epoch=epoch,
                 agent_step=agent_step,
             )

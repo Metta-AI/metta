@@ -71,15 +71,13 @@ class FileSchemeResolver(SchemeResolver):
             if not spec_path.exists():
                 raise ValueError(f"Directory does not contain policy_spec.json: {parsed.local_path}")
         elif parsed.local_path.is_file():
-            if parsed.local_path.suffix == ".mpt":
-                return parsed.canonical
             if parsed.local_path.suffix == ".json":
                 if Path(parsed.local_path).name != "policy_spec.json":
                     raise ValueError("Expected policy_spec.json")
             else:
-                raise ValueError("Only .mpt files, policy_spec.json, or directories containing it are supported")
+                raise ValueError("Only policy_spec.json or directories containing it are supported")
         else:
-            raise ValueError("Only .mpt files, policy_spec.json, or directories containing it are supported")
+            raise ValueError("Only policy_spec.json or directories containing it are supported")
         return parsed.canonical
 
 
@@ -270,7 +268,11 @@ def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
 ):
     from mettagrid.policy.policy import PolicySpec
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.prepare_policy_spec import (
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_s3,
+        load_policy_spec_from_s3_checkpoint_dir,
+    )
 
     if uri.endswith(".zip"):
         return load_policy_spec_from_s3(
@@ -284,16 +286,16 @@ def policy_spec_from_uri(
     parsed = resolve_uri(spec_uri)
 
     if parsed.scheme == "s3":
-        return load_policy_spec_from_s3(
-            spec_uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        # This is a checkpoint directory in S3 (not a submission.zip). Sync the spec + data file locally.
+        return load_policy_spec_from_s3_checkpoint_dir(
+            bundle.dir_uri, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
         )
 
     if parsed.local_path:
         if parsed.local_path.is_file():
-            spec = PolicySpec.model_validate_json(parsed.local_path.read_text())
-            if device is not None and "device" in spec.init_kwargs:
-                spec.init_kwargs["device"] = device
-            return spec
+            if parsed.local_path.name != "policy_spec.json":
+                raise ValueError("Expected policy_spec.json")
+            return load_policy_spec_from_local_dir(parsed.local_path.parent, device=device)
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
     raise ValueError("Provide a checkpoint directory or policy_spec.json")

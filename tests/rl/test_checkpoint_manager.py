@@ -16,10 +16,11 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_policy import MptPolicy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.checkpoint_bundle import create_local_bundle, resolve_checkpoint_bundle
-from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
 
 
 class MockActionComponentConfig(ComponentConfig):
@@ -110,8 +111,8 @@ class TestCheckpointManagerFlows:
         metadata = get_checkpoint_metadata(parsed.canonical)
         assert metadata.epoch == 7
 
-    def test_mpt_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        """MptPolicy is used for evaluation - it must load checkpoint and produce actions."""
+    def test_checkpoint_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+        """CheckpointPolicy is used for evaluation - it must load checkpoint and produce actions."""
         checkpoint_manager.save_policy_checkpoint(
             state_dict=mock_agent.state_dict(),
             architecture=mock_policy_architecture,
@@ -121,15 +122,18 @@ class TestCheckpointManagerFlows:
         assert latest is not None
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        policy = MptPolicy(env_info, checkpoint_uri=latest)
+        spec = policy_spec_from_uri(latest)
+        policy = initialize_or_load_policy(env_info, spec)
+        if isinstance(policy, CheckpointPolicy):
+            policy = policy.wrapped_policy
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
         td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
-        result = policy._policy(td.clone())
+        result = policy(td.clone())
         assert "actions" in result
 
-    def test_resolve_checkpoint_bundle_accepts_mpt_uri(self, mock_agent, mock_policy_architecture, tmp_path):
+    def test_resolve_checkpoint_bundle_accepts_policy_spec_uri(self, mock_agent, mock_policy_architecture, tmp_path):
         bundle = create_local_bundle(
             base_dir=tmp_path,
             run_name="run",
@@ -138,7 +142,7 @@ class TestCheckpointManagerFlows:
             state_dict=mock_agent.state_dict(),
         )
 
-        resolved = resolve_checkpoint_bundle(bundle.policy_mpt_uri)
+        resolved = resolve_checkpoint_bundle(bundle.policy_spec_uri)
         assert resolved.dir_uri == bundle.dir_uri
 
 

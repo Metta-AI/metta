@@ -14,9 +14,9 @@ Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py \
       --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
+      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/run:v<N> --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/model.mpt --cogs 1
+      --agent s3://bucket/path/run:v<N> --cogs 1
 """
 
 import argparse
@@ -38,6 +38,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from safetensors.torch import load as load_safetensors
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -86,12 +87,13 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
-
-        artifact = load_mpt(policy_path)
+        spec = policy_spec_from_uri(policy_path)
+        if not spec.data_path:
+            return None
+        weights = load_safetensors(Path(spec.data_path).read_bytes())
 
         # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
+        for key, tensor in weights.items():
             if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
                 action_space = tensor.shape[0]
                 _policy_action_space_cache[policy_path] = action_space
@@ -1140,7 +1142,12 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
 def main():
     parser = argparse.ArgumentParser(description="Evaluate scripted or custom agents.")
     parser.add_argument("--agent", nargs="*", default=None, help="Agent key, class path, or S3 URI")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (or S3 URI)")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Checkpoint URI (directory or policy_spec.json; local path or s3://)",
+    )
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
