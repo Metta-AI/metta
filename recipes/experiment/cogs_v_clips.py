@@ -266,7 +266,7 @@ def make_curriculum(
             mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
 
             if dr_rewards:
-                mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+                mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.deposited_by_agent", [0, 1, 5, 10])
                 mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
                 resources = ["carbon", "oxygen", "germanium", "silicon"]
                 for resource in resources:
