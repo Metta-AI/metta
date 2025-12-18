@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, List
 
 import torch
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -280,10 +280,14 @@ class Experience:
                 self.sampling_config.prio_beta0,
                 advantages,
             )
-            shared_loss_mb_data["prio_weights"] = prio_weights
+            # Ensure weights match minibatch batch dims (B, T) so they slice cleanly with TensorDict ops.
+            if prio_weights.dim() == 1:
+                prio_weights = prio_weights[:, None]
+            shared_loss_mb_data["prio_weights"] = prio_weights.expand(-1, self.bptt_horizon)
 
         shared_loss_mb_data["sampled_mb"] = minibatch
-        shared_loss_mb_data["indices"] = NonTensorData(indices)
+        # need to broadcast since we store indices in a tensordict and don't want to use NonTensorData
+        shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
         shared_loss_mb_data["advantages"] = advantages[indices]
 
         return shared_loss_mb_data

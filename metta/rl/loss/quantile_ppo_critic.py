@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -130,17 +130,11 @@ class QuantilePPOCritic(Loss):
                 self.cfg.gamma,
                 self.cfg.gae_lambda,
                 self.device,
-                vtrace_rho_clip=1.0,  # v-trace is used in PPO actor instead
-                vtrace_c_clip=1.0,  # v-trace is used in PPO actor instead
             )
 
             minibatch = shared_loss_data["sampled_mb"]
             indices = shared_loss_data["indices"]
-            if isinstance(indices, NonTensorData):
-                indices = indices.data
-            if indices is None:
-                indices = torch.arange(minibatch.batch_size[0], device=self.device)
-
+            indices = indices[:, 0]
             if "prio_weights" not in shared_loss_data:
                 shared_loss_data["prio_weights"] = torch.ones(
                     (minibatch.shape[0], minibatch.shape[1]),

@@ -252,6 +252,7 @@ class CoreTrainingLoop:
                 self.context.config.advantage.gae_lambda,
                 self.device,
             )
+            self.experience.buffer["advantages"] = advantages
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):

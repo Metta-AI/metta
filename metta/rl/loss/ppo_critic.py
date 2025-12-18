@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -92,16 +92,13 @@ class PPOCritic(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
         # compute value loss
         old_values = minibatch["values"]
-        self.advantages = shared_loss_data["advantages"]  # setting as class attribute for use in on_train_phase_end()
-        returns = self.advantages + minibatch["values"]
+        returns = shared_loss_data["advantages"] + minibatch["values"]
         minibatch["returns"] = returns
         # Read policy forward results from core loop (populated by _forward_policy_for_loss
         policy_td = shared_loss_data.get("policy_td", None)
@@ -130,7 +127,7 @@ class PPOCritic(Loss):
                 },
                 batch_size=minibatch.batch_size,
             )
-            self.replay.update(indices, update_td)
+            self.replay.update(indices[:, 0], update_td)
         else:
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
         # Scale value loss by coefficient
@@ -143,7 +140,7 @@ class PPOCritic(Loss):
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
+            y_true = self.replay.buffer["advantages"].flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
