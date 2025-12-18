@@ -141,11 +141,17 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     if len(entries):
         first_entry = entries[0]
-        if parse_uri(first_entry, allow_none=True, default_scheme=None):
+        looks_like_uri = "://" in first_entry
+        looks_like_path = first_entry.startswith(("/", "./", "../", "~")) or Path(first_entry).suffix in {".mpt", ".pt"}
+        if looks_like_uri or looks_like_path or parse_uri(first_entry, allow_none=True, default_scheme=None):
             s = policy_spec_from_uri(first_entry)
             class_path = s.class_path
             init_kwargs = s.init_kwargs
             data_path = s.data_path
+            entries = entries[1:]
+        elif "=" not in first_entry:
+            # Backwards-compatible shorthand: `-p scripted_baseline` (equivalent to `-p class=scripted_baseline`)
+            class_path = first_entry
             entries = entries[1:]
 
     for entry in entries:
