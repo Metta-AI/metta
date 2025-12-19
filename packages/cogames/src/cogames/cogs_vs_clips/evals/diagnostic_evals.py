@@ -235,13 +235,13 @@ class _DiagnosticMissionBase(Mission):
     def _apply_heart_reward_cap(self, cfg: MettaGridConfig) -> None:
         """Normalize diagnostics so a single deposited heart yields at most 1 reward per episode.
 
-        - Make each unit change of chest.heart.amount worth exactly 1.0 reward.
+        - Make each agent-deposited heart worth exactly 1.0 reward (credited only to the depositor).
         - Ensure all chests can store at most 1 heart so total reward per episode cannot exceed 1.
         """
         agent_cfg = cfg.game.agent
         rewards = agent_cfg.rewards
         stats = dict(rewards.stats or {})
-        stats["chest.heart.amount"] = 1.0
+        stats["chest.heart.deposited_by_agent"] = 1.0
         agent_cfg.rewards = rewards.model_copy(update={"stats": stats})
 
         # Cap heart capacity for every chest used in diagnostics (communal or resource-specific).
@@ -497,7 +497,7 @@ class DiagnosticChargeUp(_DiagnosticMissionBase):
         agent = cfg.game.agent
         agent.initial_inventory = dict(agent.initial_inventory)
         agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"energy": 0}
+        agent.inventory_regen_amounts = {"default": {"energy": 0}}
 
 
 class DiagnosticAgile(_DiagnosticMissionBase):
@@ -543,7 +543,7 @@ class DiagnosticRadial(_DiagnosticMissionBase):
         inventory = dict(agent.initial_inventory)
         inventory["energy"] = 255
         agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"energy": 255}
+        agent.inventory_regen_amounts = {"default": {"energy": 255}}
 
 
 # ----------------------------------------------------------------------
@@ -602,7 +602,7 @@ class DiagnosticChargeUpHard(_DiagnosticMissionBase):
         agent = cfg.game.agent
         agent.initial_inventory = dict(agent.initial_inventory)
         agent.initial_inventory["energy"] = 60
-        agent.inventory_regen_amounts = {"energy": 0}
+        agent.inventory_regen_amounts = {"default": {"energy": 0}}
 
 
 class DiagnosticMemoryHard(_DiagnosticMissionBase):
@@ -692,7 +692,7 @@ class DiagnosticRadialHard(_DiagnosticMissionBase):
         inventory = dict(agent.initial_inventory)
         inventory["energy"] = 255
         agent.initial_inventory = inventory
-        agent.inventory_regen_amounts = {"energy": 255}
+        agent.inventory_regen_amounts = {"default": {"energy": 255}}
 
 
 DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [

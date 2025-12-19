@@ -68,7 +68,7 @@ dependencies = [
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
-  "torch>=2.7.1",
+  "torch==2.9.0",
   "transformers>=4.46.0",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
@@ -95,6 +95,7 @@ testing = [
   "pytest-xdist>=3.8.0",
   "testcontainers>=4.10.0",
   "pyright>=1.1.401",
+  "freezegun>=1.5.5",
 ]
 lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
@@ -127,10 +128,7 @@ filterwarnings = [
   "ignore::DeprecationWarning:wandb.analytics.sentry",
   "ignore:The @wait_container_is_ready decorator is deprecated.*:DeprecationWarning",
 ]
-markers = [
-  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-  "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
-]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 console_output_style = "progress"
 addopts = "-n auto --import-mode=importlib --ignore-glob=**/bazel-*"
 pythonpath = [".", "packages/mettagrid/python/src"]

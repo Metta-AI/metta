@@ -219,14 +219,13 @@ class HeartChorusVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        # Supplemental shaping: keep the base rewards (e.g., chest.heart.amount)
-        # and add heart-centric/collection bonuses on top.
+        # Supplemental shaping: focus rewards on the acting agent for heart progress.
         rewards = dict(env.game.agent.rewards.stats)
         rewards.update(
             {
                 "assembler.heart.created": 1.0,
-                "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -1.0,
+                "chest.heart.deposited_by_agent": 1.0,
+                "chest.heart.withdrawn_by_agent": -1.0,
                 "inventory.diversity.ge.2": 0.17,
                 "inventory.diversity.ge.3": 0.18,
                 "inventory.diversity.ge.4": 0.60,

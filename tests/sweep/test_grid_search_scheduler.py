@@ -9,10 +9,8 @@ Covers:
 
 from datetime import datetime, timezone
 
-import pytest
-
 from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.core import CategoricalParameterConfig
+from metta.sweep.parameter_config import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
 
@@ -23,8 +21,8 @@ def _now():
 def test_grid_scheduler_basic_flow():
     # Build a 2x2 grid: model.color x trainer.device
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
-        "trainer": {"device": ["cpu", "cuda"]},
+        "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
+        "trainer.device": ["cpu", "cuda"],
     }
 
     cfg = GridSearchSchedulerConfig(
@@ -142,28 +140,26 @@ def test_grid_scheduler_basic_flow():
     assert scheduler.is_experiment_complete(runs_done) is True
 
 
-def test_grid_scheduler_rejects_non_categorical():
-    # Provide an unsupported numeric leaf value to ensure we fail fast
+def test_grid_scheduler_ignores_non_categorical_leaves():
+    # Non-categorical leaves are ignored; only categorical dimensions are used.
     params = {
-        "trainer": {
-            "optimizer": {
-                "device": ["cpu", "cuda"],
-                # Unsupported type (int) to simulate misconfiguration
-                "learning_rate": 1e-3,
-            }
-        }
+        "trainer.optimizer.device": ["cpu", "cuda"],
+        "trainer.optimizer.learning_rate": 1e-3,  # ignored
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_bad", parameters=params)
-    with pytest.raises(TypeError):
-        _ = GridSearchScheduler(cfg)
+    scheduler = GridSearchScheduler(cfg)
+
+    jobs = scheduler.schedule([], available_training_slots=1)
+    assert len(jobs) == 1
+    suggestion = jobs[0].metadata.get("sweep/suggestion", {})
+    assert suggestion["trainer.optimizer.device"] in {"cpu", "cuda"}
+    assert "trainer.optimizer.learning_rate" not in suggestion
 
 
 def test_grid_scheduler_accepts_list_and_nested_config():
     params = {
-        # Dotted key as leaf list is allowed
         "trainer.optimizer.device": ["cpu", "cuda"],
-        # Nested with CategoricalParameterConfig is allowed
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
+        "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_ok", parameters=params)
     scheduler = GridSearchScheduler(cfg)
@@ -178,8 +174,8 @@ def test_grid_scheduler_accepts_list_and_nested_config():
 
 def test_grid_scheduler_resume_hydrates_from_runs():
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
-        "trainer": {"device": ["cpu", "cuda"]},
+        "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
+        "trainer.device": ["cpu", "cuda"],
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_resume", parameters=params)
 
@@ -223,8 +219,8 @@ def test_grid_scheduler_resume_hydrates_from_runs():
 
 def test_grid_scheduler_eval_throttling():
     params = {
-        "model": {"color": CategoricalParameterConfig(choices=["red", "blue"])},
-        "trainer": {"device": ["cpu", "cuda"]},
+        "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
+        "trainer.device": ["cpu", "cuda"],
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_throttle", parameters=params, max_concurrent_evals=1)
     scheduler = GridSearchScheduler(cfg)

@@ -2,6 +2,7 @@ from typing import List, Optional
 
 from cortex.config import CortexStackConfig
 from cortex.stacks import build_cortex_auto_config
+from pydantic import ConfigDict
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -17,6 +18,7 @@ class CortexBaseConfig(PolicyArchitecture):
     """ViT-style policy with Cortex stack (xLSTM) replacing LSTM core."""
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
+    model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
 
     # Default geometry; stack_cfg may override d_hidden
     _token_embed_dim: int = 8

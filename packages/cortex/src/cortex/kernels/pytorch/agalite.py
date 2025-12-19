@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import torch
+import torch.jit
 
 
-@torch.jit.script
 def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """Time-major discounted sum with higher-precision accumulator for low-precision inputs."""
     T = x.shape[0]
@@ -30,6 +30,9 @@ def _jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: t
         outputs.append(current)
     out_acc = torch.stack(outputs, dim=0)
     return out_acc.to(x.dtype)
+
+
+_jit_discounted_sum = torch.compile(_jit_discounted_sum)
 
 
 def discounted_sum_pytorch(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:

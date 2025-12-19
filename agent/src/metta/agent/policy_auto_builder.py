@@ -61,7 +61,7 @@ class PolicyAutoBuilder(Policy):
         device: torch.device,
     ):
         self.to(device)
-        if device.type == "cuda":
+        if torch.cuda.is_available():
             self._configure_sdp()
         logs = []
         for _, value in self.components.items():

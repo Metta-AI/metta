@@ -284,6 +284,8 @@ class LossScheduler(TrainerComponent):
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
         epoch = self.context.epoch
         agent_step = self.context.agent_step
+        # One-time supervisor teardown after teacher phase to avoid extra forwards.
+        env_obj = getattr(self.context, "env", None)
         # 1) Apply run gates for the requested phase
         gates = getattr(self.context, "loss_run_gates", None)
         if gates is None:
@@ -311,6 +313,23 @@ class LossScheduler(TrainerComponent):
                 entry[phase] = False
                 seen_loss_phase.add(key)
             entry[phase] = bool(entry[phase]) or bool(allowed)
+
+        # If a teacher/supervisor rollout loss is gated OFF, disable the supervisor to avoid extra forwards.
+        if phase == "rollout":
+            sup_off = False
+            for loss_name, entry in gates.items():
+                if loss_name in {"sliced_scripted_cloner", "supervisor", "sliced_kickstarter", "logit_kickstarter"}:
+                    if entry.get("rollout") is False:
+                        sup_off = True
+                        break
+            if sup_off:
+                env_obj = getattr(self.context, "env", None)
+                driver = getattr(getattr(env_obj, "vecenv", None), "driver_env", None)
+                if driver and hasattr(driver, "disable_supervisor"):
+                    driver.disable_supervisor()
+                te_cfg = getattr(getattr(self.context, "config", None), "training_env", None)
+                if te_cfg:
+                    te_cfg.supervisor_policy_uri = None
 
         # 2) Apply unified rules
         for rule in self.config.rules:

@@ -3,15 +3,13 @@ from typing import TYPE_CHECKING, Any
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
@@ -22,11 +20,10 @@ if TYPE_CHECKING:
 
 class KickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
-    teacher_lead_prob: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     def create(
         self,
@@ -45,10 +42,7 @@ class Kickstarter(Loss):
     value against the student's using a KL divergence and MSE loss respectively.
     """
 
-    __slots__ = (
-        "teacher_policy",
-        "student_forward",
-    )
+    __slots__ = ("teacher_policy",)
 
     def __init__(
         self,
@@ -60,7 +54,6 @@ class Kickstarter(Loss):
         cfg: "KickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-        self.student_forward = self.cfg.student_forward
 
         policy_env_info = getattr(self.env, "policy_env_info", None)
         if policy_env_info is None:
@@ -78,10 +71,7 @@ class Kickstarter(Loss):
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
         logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
 
-        # Include rewards/actions so Experience.stats() and downstream logging don't KeyError when PPO is disabled.
         return Composite(
-            rewards=scalar_f32,
-            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
         )
@@ -101,7 +91,7 @@ class Kickstarter(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.teacher_lead_prob:
+        if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
             td["actions"] = teacher_actions
 
@@ -111,40 +101,21 @@ class Kickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        # If no other loss populated the minibatch (e.g. PPO disabled), sample sequentially.
-        minibatch = shared_loss_data.get("sampled_mb", None)
-        if minibatch is None:
-            minibatch, indices = sequential_sample(self.replay, mb_idx)
-            shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)
-
+        minibatch = shared_loss_data["sampled_mb"]
         B, TT = minibatch.batch_size
 
-        # Student forward pass
-        policy_td = shared_loss_data.get("policy_td", None)
-        if self.student_forward or policy_td is None:  # safe fallback when PPO is disabled
-            student_td, _, _ = prepare_policy_forward_td(minibatch, self.policy.get_agent_experience_spec(), clone=True)
-            self.policy.reset_memory()
-            student_td = self.policy(student_td, action=None)
-        else:
-            student_td = policy_td.reshape(B * TT)  # shared_loss_data is populated by PPO
+        student_td = shared_loss_data["policy_td"].reshape(B * TT)  # we should do this without reshaping
 
         # action loss
         temperature = self.cfg.temperature
         teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
         student_logits = student_td["logits"].to(dtype=torch.float32)
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
-        teacher_probs = torch.exp(teacher_log_probs)
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
+        student_probs = torch.exp(student_log_probs)
         ks_action_loss = (temperature**2) * (
-            (teacher_probs * (teacher_log_probs - student_log_probs)).sum(dim=-1).mean()
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
         )
-
-        # action-level metric: argmax agreement between teacher and student
-        with torch.no_grad():
-            teacher_argmax = teacher_logits.argmax(dim=-1)
-            student_argmax = student_logits.detach().argmax(dim=-1)
-            ks_action_agreement = (teacher_argmax == student_argmax).float().mean()
 
         # value loss
         teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
@@ -155,9 +126,7 @@ class Kickstarter(Loss):
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
-        self.loss_tracker["ks_action_agreement"].append(float(ks_action_agreement.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
-        self.loss_tracker["ks_teacher_lead_prob"].append(float(self.cfg.teacher_lead_prob))
 
         return loss, shared_loss_data, False

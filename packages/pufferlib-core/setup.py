@@ -2,17 +2,13 @@ import os
 import platform
 import shutil
 import sys
-from typing import Optional
 
 from setuptools import setup
-
-# Always build extensions
-BUILD_EXTENSIONS = True
 
 # Import torch for extensions
 try:
     import torch
-    from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension, CUDA_HOME
+    from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
 
     print("Building pufferlib-core with C++/CUDA extensions")
 except ImportError:
@@ -21,33 +17,6 @@ except ImportError:
 
 # Build with DEBUG=1 to enable debug symbols
 DEBUG = os.getenv("DEBUG", "0") == "1"
-
-
-def _detect_cuda_home() -> Optional[str]:
-    """Use the CUDA toolkit path baked into our base image."""
-    if CUDA_HOME and os.path.exists(CUDA_HOME):
-        return CUDA_HOME
-    return None
-
-
-def _nvcc_available() -> bool:
-    """Detect nvcc, preferring the toolkit path shipped in our sandbox image."""
-    nvcc_path = shutil.which("nvcc")
-    if nvcc_path:
-        return True
-
-    cuda_home = _detect_cuda_home()
-    if not cuda_home:
-        return False
-
-    candidate = os.path.join(cuda_home, "bin", "nvcc")
-    if os.path.exists(candidate):
-        os.environ.setdefault("CUDA_HOME", cuda_home)
-        os.environ["PATH"] = os.pathsep.join([os.path.join(cuda_home, "bin"), os.environ.get("PATH", "")])
-        return True
-
-    return False
-
 
 # Compile args
 cxx_args = ["-fdiagnostics-color=always"]
@@ -66,14 +35,30 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 # Get torch library path for rpath
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
-# Check if CUDA compiler is available
-if _nvcc_available():
+force_cuda = os.getenv("PUFFERLIB_BUILD_CUDA", "0") == "1"
+disable_cuda = os.getenv("PUFFERLIB_DISABLE_CUDA", "0") == "1"
+has_nvcc = shutil.which("nvcc") is not None
+
+try:
+    cuda_runtime_available = bool(torch.cuda.is_available() and torch.cuda.device_count() > 0)
+except Exception:
+    cuda_runtime_available = False
+
+build_with_cuda = has_nvcc and (force_cuda or (cuda_runtime_available and not disable_cuda))
+
+if build_with_cuda:
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
-    print("Building with CUDA support")
+    if force_cuda and not cuda_runtime_available:
+        print("Building with CUDA support (PUFFERLIB_BUILD_CUDA=1; runtime CUDA unavailable)")
+    else:
+        print("Building with CUDA support")
 else:
     extension_class = CppExtension
-    print("Building with CPU-only support")
+    if disable_cuda and has_nvcc:
+        print("Building with CPU-only support (PUFFERLIB_DISABLE_CUDA=1)")
+    else:
+        print("Building with CPU-only support")
 
 # Add rpath for torch libraries
 extra_link_args = []

@@ -248,15 +248,15 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.quantile",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="experience/rewards",
-        parameters=parameters,
+        metric_key="experience/rewards",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

@@ -1,4 +1,5 @@
-from metta.sweep.core import Distribution, ParameterConfig, SweepParameters
+from metta.sweep.core import SweepParameters
+from metta.sweep.parameter_config import Distribution, ParameterConfig
 
 
 def test_parameter_config_creation():
@@ -13,7 +14,7 @@ def test_parameter_config_creation():
 def test_sweep_parameters_builder_logit_sanitization():
     # Ensure logit bounds are sanitized away from 0 and 1
     param = SweepParameters.param(
-        name="trainer.losses.ppo.gae_lambda",
+        name="trainer.advantage.gae_lambda",
         distribution=Distribution.LOGIT_NORMAL,
         min=0.0,
         max=1.0,

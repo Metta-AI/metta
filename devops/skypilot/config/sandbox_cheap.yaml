@@ -4,15 +4,8 @@ resources:
   instance_type: m6i.2xlarge # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
   cpus: 8+
   memory: 32+
-  image_id: docker:metta:latest
-
-config:
-  docker:
-    run_options:
-      - --cap-add=IPC_LOCK
-      - --ulimit memlock=-1:-1
-      - --ipc=host
-      - --userns=host
+  # Ubuntu Server 22.04 LTS (Jammy), us-east-1, 2025-12-12
+  image_id: ami-0030e4319cbf4dbf2
 
 file_mounts:
   /mnt/s3/softmax-public:

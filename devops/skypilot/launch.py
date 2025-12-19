@@ -123,13 +123,13 @@ def main(
         ),
     ] = 300,
     max_runtime_hours: Annotated[
-        Optional[float],
+        float,
         typer.Option(
             "-t",
             "--max-runtime-hours",
             help="Maximum job runtime in hours before automatic termination (supports decimals, e.g. 1.5 = 90 minutes)",
         ),
-    ] = None,
+    ] = 72.0,
     skip_git_check: Annotated[
         bool, typer.Option("--skip-git-check", help="Skip git state validation and GitHub API calls")
     ] = False,
@@ -244,8 +244,7 @@ def main(
     )
     if heartbeat_timeout_seconds:
         task.update_envs({"HEARTBEAT_TIMEOUT": str(heartbeat_timeout_seconds)})
-    if max_runtime_hours:
-        task.update_envs({"MAX_RUNTIME_HOURS": str(max_runtime_hours)})
+    task.update_envs({"MAX_RUNTIME_HOURS": str(max_runtime_hours)})
 
     task.name = run_id
     task.validate_name()
