@@ -76,7 +76,7 @@ class ReplayLogWriter(InMemoryReplayWriter):
         assert self._episode_replay is not None
         assert self._sim is not None
         assert self._episode_id is not None
-        replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
+        replay_path = f"{self._replay_dir}/{self._episode_id}.json.gz"
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)
         self._episode_urls[self._episode_id] = url
@@ -200,7 +200,7 @@ class EpisodeReplay:
         """Writes a replay to a file."""
         replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
-        compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
+        compressed_data = zlib.compress(replay_bytes, wbits=zlib.MAX_WBITS+16)  # Compress with gzip format
 
         write_data(path, compressed_data, content_type="application/x-compress")
 
