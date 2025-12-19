@@ -327,6 +327,8 @@ uv run cogames play -m hello_world -c 2 -s 300 -p "class=llm-anthropic,kw.model=
 
 
 - [ ] make sure no unused functions go in
+- [x] check all claude models run
+- [x] check that all openai models run
 
 - [x] cost_tracker.py remove unused code
 - [x] validate model_config.py -> add gpt 5.2 and test

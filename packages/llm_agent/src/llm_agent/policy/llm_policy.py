@@ -30,7 +30,7 @@ class LLMAgentPolicy(AgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        verbose: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
@@ -40,7 +40,7 @@ class LLMAgentPolicy(AgentPolicy):
         super().__init__(policy_env_info)
         self.provider = provider
         self.temperature = temperature
-        self.debug_mode = debug_mode
+        self.verbose = verbose
         self.agent_id = agent_id
         self.last_action: str | None = None
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
@@ -78,28 +78,21 @@ class LLMAgentPolicy(AgentPolicy):
             policy_env_info=policy_env_info,
             context_window_size=context_window_size,
             mg_cfg=mg_cfg,
-            debug_mode=self.debug_mode,
+            verbose=self.verbose,
             agent_id=self.agent_id,
         )
-        if self.debug_mode:
-            print(f"[DEBUG] Using dynamic prompts with context window size: {context_window_size}")
-
     def _check_assembler_variant(self, mg_cfg) -> None:
-        """Check and log AssemblerDrawsFromChestsVariant status."""
+        """Check AssemblerDrawsFromChestsVariant status."""
         self._assembler_draws_from_chests = False
         if mg_cfg is None:
-            print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no mg_cfg provided")
             return
 
         assembler_cfg = mg_cfg.game.objects.get("assembler")
         if assembler_cfg is None or not hasattr(assembler_cfg, "chest_search_distance"):
-            print("[DEBUG AssemblerDrawsFromChestsVariant] NOT ACTIVE - no assembler config found")
             return
 
         chest_dist = assembler_cfg.chest_search_distance
         self._assembler_draws_from_chests = chest_dist > 0
-        status = "ACTIVE" if self._assembler_draws_from_chests else "NOT ACTIVE"
-        print(f"[DEBUG AssemblerDrawsFromChestsVariant] {status} - chest_search_distance={chest_dist}")
 
     def _init_llm_client(self, model: str | None) -> None:
         """Initialize the LLM client based on provider."""
@@ -153,29 +146,6 @@ class LLMAgentPolicy(AgentPolicy):
         self._add_to_messages("user", user_prompt)
         # Return a copy of messages for the API call
         return list(self._messages)
-
-    def _should_show(self, component: str) -> bool:
-        """Check if a debug component should be shown.
-
-        Only shows debug output for agent 0 to avoid cluttering the console.
-
-        Args:
-            component: Component name to check (e.g., "prompt", "llm", "grid")
-
-        Returns:
-            True if component should be shown
-        """
-        # Only show debug for agent 0
-        if self.agent_id != 0:
-            return False
-
-        # Handle boolean debug_mode
-        if isinstance(self.debug_mode, bool):
-            return self.debug_mode
-        # Handle set debug_mode
-        if isinstance(self.debug_mode, set):
-            return "all" in self.debug_mode or component in self.debug_mode
-        return False
 
     def _get_net_direction(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> str:
         """Calculate net direction of movement between two positions."""
@@ -575,20 +545,14 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             max_tokens=150,
         )
 
-        if self.debug_mode:
-            print(f"[DEBUG] Ollama response object: {response}")
-
         message = response.choices[0].message
         raw = message.content or ""
 
         if not raw and hasattr(message, "reasoning") and message.reasoning:
-            if self.debug_mode:
-                print(f"[WARNING] Model used reasoning field: {message.reasoning[:100]}...")
             raw = message.reasoning
 
         if not raw:
-            if self.debug_mode:
-                print(f"[ERROR] Ollama empty response! content='{message.content}'")
+            print(f"[ERROR] Ollama empty response for Agent {self.agent_id}")
             raw = "noop"
 
         usage = response.usage
@@ -616,6 +580,9 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
     def _call_llm(self, user_prompt: str) -> str:
         """Call the LLM and return the response text."""
+        if self.verbose:
+            print(f"\n[PROMPT Agent {self.agent_id}]\n{user_prompt}\n")
+
         messages = self._get_messages_for_api(user_prompt)
 
         self.conversation_history.append({
@@ -638,9 +605,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         self._add_to_messages("assistant", action_name)
         self.conversation_history[-1]["response"] = action_name
         self.cost_tracker.record_usage(input_tokens, output_tokens)
-
-        if self.debug_mode:
-            print(f"[DEBUG] {self.provider} response: '{action_name}' | Tokens: {input_tokens} in, {output_tokens} out")
 
         return action_name
 
@@ -711,7 +675,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         provider: Literal["openai", "anthropic", "ollama"] = "openai",
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        verbose: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
@@ -724,7 +688,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             provider: LLM provider ("openai", "anthropic", or "ollama")
             model: Model name (defaults based on provider)
             temperature: Sampling temperature for LLM
-            debug_mode: If True, print human-readable observation debug info (default: True)
+            verbose: If True, print human-readable observation debug info (default: True)
             context_window_size: Number of steps before resending basic info (default: 20)
             summary_interval: Number of steps between history summaries (default: 5)
             debug_summary_interval: Steps between LLM debug summaries written to file (0=disabled, e.g., 100)
@@ -735,10 +699,10 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         self.temperature = temperature
         self.cost_tracker = CostTracker()  # Singleton - shared across all policy instances
         # Handle string "true"/"false" from CLI kwargs
-        if isinstance(debug_mode, str):
-            self.debug_mode = debug_mode.lower() not in ("false", "0", "no", "")
+        if isinstance(verbose, str):
+            self.verbose = verbose.lower() not in ("false", "0", "no", "")
         else:
-            self.debug_mode = bool(debug_mode)
+            self.verbose = bool(verbose)
         self.context_window_size = context_window_size
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
         self.debug_summary_interval = (
@@ -810,7 +774,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             provider=self.provider,
             model=self.model,
             temperature=self.temperature,
-            debug_mode=self.debug_mode,
+            verbose=self.verbose,
             context_window_size=self.context_window_size,
             summary_interval=self.summary_interval,
             debug_summary_interval=self.debug_summary_interval,
@@ -830,7 +794,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        verbose: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
@@ -841,7 +805,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
             provider="openai",
             model=model,
             temperature=temperature,
-            debug_mode=debug_mode,
+            verbose=verbose,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             debug_summary_interval=debug_summary_interval,
@@ -859,7 +823,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        verbose: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
@@ -870,7 +834,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
             provider="anthropic",
             model=model,
             temperature=temperature,
-            debug_mode=debug_mode,
+            verbose=verbose,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             debug_summary_interval=debug_summary_interval,
@@ -888,7 +852,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         model: str | None = None,
         temperature: float = 0.7,
-        debug_mode: bool = False,
+        verbose: bool = False,
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
@@ -899,7 +863,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
             provider="ollama",
             model=model,
             temperature=temperature,
-            debug_mode=debug_mode,
+            verbose=verbose,
             context_window_size=context_window_size,
             summary_interval=summary_interval,
             debug_summary_interval=debug_summary_interval,
