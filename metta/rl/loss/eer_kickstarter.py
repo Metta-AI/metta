@@ -118,7 +118,7 @@ class EERKickstarter(Loss):
         advantages = compute_advantage(
             minibatch["values"],
             rewards,
-            dones,
+            minibatch["dones"],
             torch.ones_like(minibatch["values"]),
             torch.zeros_like(minibatch["values"], device=self.device),
             self.trainer_cfg.advantage.gamma,
@@ -130,7 +130,7 @@ class EERKickstarter(Loss):
 
         B, TT = minibatch.batch_size
 
-        student_td = shared_loss_data["policy_td"].reshape(B * TT)  # we should do this without reshaping
+        student_td = shared_loss_data["policy_td"]
 
         # action loss (cross entropy)
         student_full_log_probs = student_td["full_log_probs"]
@@ -138,7 +138,7 @@ class EERKickstarter(Loss):
         ks_action_loss = (student_full_log_probs.exp() * teacher_full_log_probs).sum(dim=-1).mean()
 
         # value loss
-        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
+        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
         student_value = student_td["values"].to(dtype=torch.float32)
         ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
