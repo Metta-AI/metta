@@ -8,6 +8,13 @@ on:
     branches:
       - main
     paths:
+      - "devops/cost_alerter/**"
+      - "devops/datadog/**"
+      - "devops/skypilot/cost.py"
+      - "mcp_servers/pr_similarity/**"
+      - "common/**"
+      - "softmax/**"
+      - "packages/gitta/**"
       - "devops/charts/cronjob/**"
       - ".github/workflows/deploy-cronjobs.yml"
   workflow_dispatch:
@@ -47,6 +54,10 @@ jobs:
           release: pr-similarity-cache-cronjob
           chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="0 0 * * *"
+            --set datadog.service=pr-similarity-cache-refresh
+            --set-json 'command=["uv","run","python","/workspace/metta/mcp_servers/pr_similarity/build_cache.py","--download-from-s3"]'
 
       - name: Deploy metrics-collector-cronjob
         if: github.ref == 'refs/heads/main'
@@ -56,6 +67,10 @@ jobs:
           release: metrics-collector-cronjob
           chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="*/15 * * * *"
+            --set datadog.service=metrics-collector
+            --set-json 'command=["uv","run","python","-m","devops.datadog.cli","collect","--push"]'
 
       - name: Deploy cost-alerter-cronjob
         if: github.ref == 'refs/heads/main'
@@ -65,3 +80,7 @@ jobs:
           release: cost-alerter-cronjob
           chart: ./devops/charts/cronjob
           image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="0 */4 * * *"
+            --set datadog.service=cost-alerter
+            --set-json 'command=["uv","run","python","-m","devops.cost_alerter.cli","check"]'
