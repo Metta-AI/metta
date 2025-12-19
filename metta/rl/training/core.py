@@ -329,14 +329,15 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: ComponentContext) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the start of each epoch.
 
         Args:
             context: Shared trainer context providing epoch state
         """
+        context = self._ensure_context(context)
         for loss in self.losses.values():
-            loss.on_new_training_run(context)
+            loss.on_epoch_start(context)
 
     def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]
