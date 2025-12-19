@@ -134,7 +134,7 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
-    compass_enabled: bool = Field(default=False)
+    compass_enabled: bool = Field(default=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
