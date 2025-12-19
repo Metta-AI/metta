@@ -104,13 +104,16 @@ public:
       return false;  // Object not at expected location
     }
 
+    // Validate object ID first
+    if (obj.id >= objects.size()) {
+      return false;
+    }
+
     // Clear the grid cell
     grid[obj.location.r][obj.location.c] = nullptr;
 
     // Release the object (unique_ptr becomes null but slot remains)
-    if (obj.id < objects.size()) {
-      objects[obj.id].reset();
-    }
+    objects[obj.id].reset();
     return true;
   }
 
