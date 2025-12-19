@@ -12,18 +12,18 @@ var
   heatmapTexture: Uniform[Sampler2D]
 
 proc heatmapVert*(fragmentWorldPos: var Vec2) =
-  ## Generate a full-rect in world units from (-0.5,-0.5) to (mapSize.x-0.5, mapSize.y-0.5).
+  ## Generate a full-rect in world units to align heatmap with tile grid.
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
   let worldPos = vec2(
-    float(corner.x) * uMapSize.x - 0.5,
-    float(corner.y) * uMapSize.y - 0.5
+    float(corner.x) * uMapSize.x - 4.5,
+    float(corner.y) * uMapSize.y + 0.5
   )
   fragmentWorldPos = worldPos
   gl_Position = uMvp * vec4(worldPos.x, worldPos.y, 0.0f, 1.0f)
 
 proc heatmapFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
   ## Sample heatmap texture and convert to thermal colors.
-  let heatmapCoord = (fragmentWorldPos + vec2(0.5, 0.5)) / uMapSize
+  let heatmapCoord = (fragmentWorldPos + vec2(4.5, -0.5)) / uMapSize
   let heatSample = texture(heatmapTexture, heatmapCoord)
   let heat = heatSample.r * 255.0
 
@@ -101,7 +101,8 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
   hs.currentStep = step
 
   # Prepare heatmap data as uint8 array.
-  # OpenGL textures have (0,0) at bottom-left, so flip Y when uploading.
+  # Prepare heatmap data as uint8 array.
+  # OpenGL textures have (0,0) at bottom-left, matching world coordinates.
   var heatmapData: seq[uint8]
   heatmapData.setLen(heatmap.width * heatmap.height)
 
@@ -110,9 +111,8 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
       let heat = heatmap.getHeat(step, x, y)
       # Clamp heat to 0-255 range for texture storage.
       let clampedHeat = min(heat, 255).uint8
-      # Flip Y: bottom row of texture = top row of world
-      let flippedY = heatmap.height - 1 - y
-      heatmapData[flippedY * heatmap.width + x] = clampedHeat
+      # No Y flip needed - data and world coordinates align
+      heatmapData[y * heatmap.width + x] = clampedHeat
 
   # Upload to texture.
   glActiveTexture(GL_TEXTURE0)
