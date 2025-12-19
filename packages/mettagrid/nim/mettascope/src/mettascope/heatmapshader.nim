@@ -23,7 +23,8 @@ proc heatmapVert*(fragmentWorldPos: var Vec2) =
 
 proc heatmapFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
   ## Sample heatmap texture and convert to thermal colors.
-  let heatmapCoord = (fragmentWorldPos + vec2(4.5, -0.5)) / uMapSize
+  let adjustedPos = fragmentWorldPos + vec2(4.5, -0.5)
+  let heatmapCoord = vec2(adjustedPos.x / uMapSize.x, 1.0 - adjustedPos.y / uMapSize.y)
   let heatSample = texture(heatmapTexture, heatmapCoord)
   let heat = heatSample.r * 255.0
 
@@ -101,8 +102,7 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
   hs.currentStep = step
 
   # Prepare heatmap data as uint8 array.
-  # Prepare heatmap data as uint8 array.
-  # OpenGL textures have (0,0) at bottom-left, matching world coordinates.
+  # Game world has Y=0 at top, but OpenGL textures have (0,0) at bottom-left, so flip Y.
   var heatmapData: seq[uint8]
   heatmapData.setLen(heatmap.width * heatmap.height)
 
@@ -111,8 +111,9 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
       let heat = heatmap.getHeat(step, x, y)
       # Clamp heat to 0-255 range for texture storage.
       let clampedHeat = min(heat, 255).uint8
-      # No Y flip needed - data and world coordinates align
-      heatmapData[y * heatmap.width + x] = clampedHeat
+      # Flip Y: game's Y=0 (top) maps to texture bottom.
+      let flippedY = heatmap.height - 1 - y
+      heatmapData[flippedY * heatmap.width + x] = clampedHeat
 
   # Upload to texture.
   glActiveTexture(GL_TEXTURE0)

@@ -3,13 +3,6 @@ import
   vmath,
   replays, common
 
-proc at[T](sequence: seq[T], step: int): T =
-  ## Get the value at the given step (local copy to avoid circular dependency).
-  # TODO remove this stupid circular dependency crap
-  if sequence.len == 0:
-    return default(T)
-  sequence[step.clamp(0, sequence.len - 1)]
-
 proc newHeatmap*(replay: Replay): Heatmap =
   ## Create a new heatmap for the given replay.
   result = Heatmap()

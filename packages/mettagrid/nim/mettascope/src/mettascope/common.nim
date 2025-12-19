@@ -107,13 +107,13 @@ var
   mouseDownPos*: Vec2
 
 proc at*[T](sequence: seq[T], step: int): T =
-  # Get the value at the given step.
+  ## Get the value at the given step.
   if sequence.len == 0:
     return default(T)
   sequence[step.clamp(0, sequence.len - 1)]
 
 proc at*[T](sequence: seq[T]): T =
-  # Get the value at the current step.
+  ## Get the value at the current step.
   sequence.at(step)
 
 proc irect*(x, y, w, h: SomeNumber): IRect =
