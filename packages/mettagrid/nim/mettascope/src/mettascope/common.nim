@@ -1,6 +1,6 @@
 import
   std/[times, tables, os],
-  boxy, windy, vmath, silky,
+  boxy, boxy/shaders, windy, vmath, silky, opengl,
   replays
 
 let rootDir* = "packages/mettagrid/nim/mettascope/"
@@ -18,12 +18,28 @@ type
     showVisualRange* = true
     showGrid* = true
     showResources* = true
+    showHeatmap* = false
     showObservations* = -1
     lockFocus* = false
 
   PlayMode* = enum
     Historical
     Realtime
+
+  Heatmap* = ref object
+    ## Tracks agent presence on tiles over time.
+    data*: seq[seq[int]] ## data[step][y * width + x] - flattened 2D array
+    width*: int
+    height*: int
+    maxSteps*: int
+    maxHeat*: seq[int] ## Cached max heat per step for normalization
+
+  HeatmapShader* = ref object
+    ## Shader for rendering heatmap overlay.
+    shader*: Shader
+    vao*: GLuint
+    texture*: GLuint
+    currentStep*: int ## Track which step's data is in the texture
 
 var
   sk*: Silky

@@ -63,3 +63,5 @@ proc drawFooter*(pos, size: Vec2) =
         settings.showVisualRange = not settings.showVisualRange
       clickableIcon("ui/cloud", settings.showFogOfWar):
         settings.showFogOfWar = not settings.showFogOfWar
+      clickableIcon("ui/heatmap", settings.showHeatmap):
+        settings.showHeatmap = not settings.showHeatmap

@@ -6,7 +6,8 @@ generatePixelAtlas(
   dirsToScan = @[
     "data/agents",
     "data/objects",
-    "data/view"
+    "data/view",
+    "data/ui"
   ],
   outputImagePath = "data/atlas.png",
   outputJsonPath = "data/atlas.json"

@@ -3,7 +3,7 @@ import
   vmath, windy, boxy,
   common, actions, utils, replays,
   pathfinding, tilemap, pixelator, shaderquad,
-  panels, objectinfo
+  panels, objectinfo, heatmap, heatmapshader
 
 proc foo() =
   echo window.size.x, "x", window.size.y
@@ -22,6 +22,8 @@ var
   px*: Pixelator
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
+  worldHeatmap*: Heatmap
+  worldHeatmapShader*: HeatmapShader
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -585,6 +587,21 @@ proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
 proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
+
+  # Draw heatmap if enabled.
+  if settings.showHeatmap and worldHeatmap != nil and worldHeatmapShader != nil:
+    # Update heatmap texture if step changed.
+    worldHeatmapShader.updateTexture(worldHeatmap, step)
+    # Draw heatmap overlay.
+    bxy.enterRawOpenGLMode()
+    let maxHeat = worldHeatmap.getMaxHeat(step).float32
+    worldHeatmapShader.draw(
+      getProjectionView(),
+      vec2(replay.mapSize[0].float32, replay.mapSize[1].float32),
+      maxHeat
+    )
+    bxy.exitRawOpenGLMode()
+
   drawTrajectory()
   drawObjects()
 
