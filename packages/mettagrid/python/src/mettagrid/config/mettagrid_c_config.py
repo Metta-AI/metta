@@ -289,8 +289,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
                 cpp_protocol.input_resources = input_res
                 cpp_protocol.output_resources = output_res
                 cpp_protocol.cooldown = protocol_config.cooldown
-                cpp_protocol.slope = protocol_config.slope
-                cpp_protocol.exponent = protocol_config.exponent
                 protocols.append(cpp_protocol)
 
             # Convert tag names to IDs
@@ -570,8 +568,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
                 output_res[key] = val
             cpp_protocol.output_resources = output_res
             cpp_protocol.cooldown = protocol_config.cooldown
-            cpp_protocol.slope = protocol_config.slope
-            cpp_protocol.exponent = protocol_config.exponent
             clipper_protocols.append(cpp_protocol)
         clipper_config = CppClipperConfig()
         clipper_config.unclipping_protocols = clipper_protocols

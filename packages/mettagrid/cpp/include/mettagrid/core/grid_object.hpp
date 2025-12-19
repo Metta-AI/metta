@@ -84,18 +84,13 @@ public:
 
   virtual ~GridObject() = default;
 
-  void init(TypeId object_type_id,
-            const std::string& object_type_name,
-            const GridLocation& object_location,
-            const std::vector<int>& tags,
-            ObservationType object_vibe = 0,
-            const DemolishConfig* demolish = nullptr) {
-    this->type_id = object_type_id;
-    this->type_name = object_type_name;
+  void init(const GridObjectConfig& cfg, const GridLocation& object_location) {
+    this->type_id = cfg.type_id;
+    this->type_name = cfg.type_name;
     this->location = object_location;
-    this->tag_ids = tags;
-    this->vibe = object_vibe;
-    this->demolish_config = demolish;
+    this->tag_ids = cfg.tag_ids;
+    this->vibe = cfg.initial_vibe;
+    this->demolish_config = cfg.demolish.has_value() ? &cfg.demolish.value() : nullptr;
   }
 
   // Called when this object is demolished. Override for cleanup.

@@ -20,8 +20,7 @@ struct WallConfig : public GridObjectConfig {
 class Wall : public GridObject {
 public:
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    const DemolishConfig* demolish = cfg.demolish.has_value() ? &cfg.demolish.value() : nullptr;
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, demolish);
+    GridObject::init(cfg, GridLocation(r, c));
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
