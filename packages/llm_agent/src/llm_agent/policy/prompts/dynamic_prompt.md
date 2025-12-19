@@ -5,6 +5,7 @@
 ⚠️ RECIPE: {{RECIPE_SUMMARY}}
 
 === QUICK DECISION GUIDE ===
+
 1. Energy < 40? → Go to charger NOW
 2. Have HEART? → Go to CHEST with heart_b vibe to SCORE!
 3. Have resources matching RECIPE above? → Go to ASSEMBLER with heart_a vibe to CRAFT!
@@ -14,5 +15,4 @@
 
 VALID: {{ACTIONS}}
 
-⚠️ RESPOND WITH ONLY JSON - NO OTHER TEXT:
-{"reasoning": "<brief>", "action": "<action_name>"}
+⚠️ RESPOND WITH ONLY JSON - NO OTHER TEXT: {"reasoning": "<brief>", "action": "<action_name>"}

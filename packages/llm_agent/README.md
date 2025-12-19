@@ -25,13 +25,13 @@ cogames play -m hello_world -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,k
 
 ### Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `model` | Provider default | Model name (e.g., `gpt-4o-mini`, `claude-sonnet-4-5`, `qwen2.5:7b`) |
-| `temperature` | 0.7 | Sampling temperature |
-| `context_window_size` | 20 | Steps before resending basic game info |
-| `summary_interval` | 5 | Steps between history summaries |
-| `verbose` | false | Enable verbose output (shows prompts sent to LLM) |
+| Parameter             | Default          | Description                                                         |
+| --------------------- | ---------------- | ------------------------------------------------------------------- |
+| `model`               | Provider default | Model name (e.g., `gpt-4o-mini`, `claude-sonnet-4-5`, `qwen2.5:7b`) |
+| `temperature`         | 0.7              | Sampling temperature                                                |
+| `context_window_size` | 20               | Steps before resending basic game info                              |
+| `summary_interval`    | 5                | Steps between history summaries                                     |
+| `verbose`             | false            | Enable verbose output (shows prompts sent to LLM)                   |
 
 ## Environment Variables
 

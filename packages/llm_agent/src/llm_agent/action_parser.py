@@ -2,10 +2,20 @@
 
 import json
 import random
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mettagrid.simulator import Action
+
+
+def _strip_markdown_code_blocks(text: str) -> str:
+    """Strip markdown code blocks from response (e.g., ```json ... ```)."""
+    pattern = r"^```(?:json)?\s*\n?(.*?)\n?```$"
+    match = re.match(pattern, text.strip(), re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text
 
 
 def _find_action_by_name(name: str, actions: list["Action"]) -> "Action | None":
@@ -37,6 +47,9 @@ def _find_action_as_substring(text: str, actions: list["Action"]) -> "Action | N
 
 def _try_parse_json(text: str, actions: list["Action"]) -> tuple["Action | None", str]:
     """Try parsing response as JSON with action and reasoning fields."""
+    # Strip markdown code blocks (claude-haiku wraps JSON in ```json ... ```)
+    text = _strip_markdown_code_blocks(text)
+
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict) and "action" in parsed:

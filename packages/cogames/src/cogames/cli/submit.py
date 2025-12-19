@@ -123,7 +123,7 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
 
     _, env_cfg, _ = get_mission("machina_1")
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(policy_env_info, policy_spec, mg_cfg=env)
+    policy = initialize_or_load_policy(policy_env_info, policy_spec, mg_cfg=env_cfg)
 
     # Run 1 episode for up to 10 steps to validate the policy works
     env_cfg.game.max_steps = 10

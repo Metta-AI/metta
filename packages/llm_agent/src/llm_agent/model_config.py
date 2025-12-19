@@ -118,10 +118,7 @@ def validate_model_context(
             f"     kw.context_window_size=5,kw.summary_interval=5\n\n"
             f"  2. Use a model with larger context:\n"
         )
-        compatible = [
-            (name, ctx) for name, ctx in MODEL_CONTEXT_WINDOWS.items()
-            if ctx >= required_context
-        ]
+        compatible = [(name, ctx) for name, ctx in MODEL_CONTEXT_WINDOWS.items() if ctx >= required_context]
         compatible.sort(key=lambda x: x[1])
         for name, ctx in compatible[:5]:
             print(f"     - {name} ({ctx:,} tokens)")

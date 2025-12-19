@@ -81,6 +81,7 @@ class LLMAgentPolicy(AgentPolicy):
             verbose=self.verbose,
             agent_id=self.agent_id,
         )
+
     def _check_assembler_variant(self, mg_cfg) -> None:
         """Check AssemblerDrawsFromChestsVariant status."""
         self._assembler_draws_from_chests = False
@@ -102,14 +103,17 @@ class LLMAgentPolicy(AgentPolicy):
 
         if self.provider == "openai":
             from openai import OpenAI
+
             self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             self.model = model or select_openai_model()
         elif self.provider == "anthropic":
             from anthropic import Anthropic
+
             self.anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
             self.model = model or select_anthropic_model()
         elif self.provider == "ollama":
             from openai import OpenAI
+
             self.model = ensure_ollama_model(model)
             self.ollama_client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
         else:
@@ -129,7 +133,7 @@ class LLMAgentPolicy(AgentPolicy):
         if len(self._messages) > max_messages:
             # Keep system message (if first) + last N messages
             if self._messages and self._messages[0].get("role") == "system":
-                self._messages = [self._messages[0]] + self._messages[-(max_messages - 1):]
+                self._messages = [self._messages[0]] + self._messages[-(max_messages - 1) :]
             else:
                 self._messages = self._messages[-max_messages:]
 
@@ -175,8 +179,10 @@ class LLMAgentPolicy(AgentPolicy):
         window_num = len(self._history_summaries) + 1
         net_dir = self._get_net_direction(start_pos, end_pos)
 
-        return (f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} "
-                f"(heading {net_dir}) | {unique_count} new spots, {summary_info['total_explored']} total")
+        return (
+            f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} "
+            f"(heading {net_dir}) | {unique_count} new spots, {summary_info['total_explored']} total"
+        )
 
     def _add_action_to_window(self, action: str, reasoning: str = "") -> None:
         """Track an action for the current context window summary."""
@@ -206,7 +212,7 @@ class LLMAgentPolicy(AgentPolicy):
         if summary:
             self._history_summaries.append(summary)
             if len(self._history_summaries) > self._max_history_summaries:
-                self._history_summaries = self._history_summaries[-self._max_history_summaries:]
+                self._history_summaries = self._history_summaries[-self._max_history_summaries :]
             print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
 
         self._current_window_actions = []
@@ -232,11 +238,11 @@ class LLMAgentPolicy(AgentPolicy):
         summary_prompt = f"""Summarize what Agent {self.agent_id} did in the last {num_actions} steps.
 
 Actions taken: {action_summary}
-Current position: ({summary_info['global_x']}, {summary_info['global_y']}) from origin
-Explored tiles: {summary_info['total_explored']}
-Current inventory: {inv_str if inv_str else 'empty'}
+Current position: ({summary_info["global_x"]}, {summary_info["global_y"]}) from origin
+Explored tiles: {summary_info["total_explored"]}
+Current inventory: {inv_str if inv_str else "empty"}
 Energy: {energy}
-Discovered objects: {', '.join(summary_info['discovered_objects']) if summary_info['discovered_objects'] else 'none'}
+Discovered objects: {", ".join(summary_info["discovered_objects"]) if summary_info["discovered_objects"] else "none"}
 
 Write a 2-3 sentence summary of progress, challenges, and current strategy. Be concise."""
 
@@ -260,6 +266,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         if self.provider == "anthropic" and self.anthropic_client:
             from anthropic.types import TextBlock
+
             response = self.anthropic_client.messages.create(
                 model=self.model, messages=messages, max_tokens=150, temperature=0.3
             )
@@ -288,9 +295,9 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         step_end = interval_num * self.debug_summary_interval
 
         with open(self._debug_summary_file, "a") as f:
-            f.write(f"\n{'='*60}\n")
+            f.write(f"\n{'=' * 60}\n")
             f.write(f"[Agent {self.agent_id}] Steps {step_start}-{step_end}\n")
-            f.write(f"{'='*60}\n")
+            f.write(f"{'=' * 60}\n")
             pos = f"({summary_info['global_x']}, {summary_info['global_y']})"
             f.write(f"Position: {pos} | Explored: {summary_info['total_explored']} tiles\n")
             f.write(f"Inventory: {inv_str if inv_str else 'empty'} | Energy: {energy}\n")
@@ -313,14 +320,14 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         # Load template and substitute variables
         from pathlib import Path
+
         template_path = Path(__file__).parent / "prompts" / "exploration_history.md"
         template = template_path.read_text()
 
         summary_info = self.exploration.get_summary_info()
         current_pos = pos_to_dir(summary_info["global_x"], summary_info["global_y"], verbose=True)
         return (
-            template
-            .replace("{{CURRENT_POSITION}}", current_pos)
+            template.replace("{{CURRENT_POSITION}}", current_pos)
             .replace("{{TOTAL_EXPLORED}}", str(summary_info["total_explored"]))
             .replace("{{WINDOW_SUMMARIES}}", window_summaries)
         )
@@ -370,9 +377,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         # Fallback to defaults
         return {"carbon": 10, "oxygen": 10, "germanium": 2, "silicon": 30}
 
-    def _get_strategic_hints(
-        self, inventory: dict[str, int], obs: AgentObservation | None = None
-    ) -> str:
+    def _get_strategic_hints(self, inventory: dict[str, int], obs: AgentObservation | None = None) -> str:
         """Generate strategic hints based on current state.
 
         Args:
@@ -414,8 +419,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             if needed_extractors:
                 ext_list = ", ".join(needed_extractors)
                 hints.append(
-                    f"🎯 VISIBLE EXTRACTOR YOU NEED: {ext_list} - "
-                    "PURSUE IT NOW! Navigate around walls if blocked!"
+                    f"🎯 VISIBLE EXTRACTOR YOU NEED: {ext_list} - PURSUE IT NOW! Navigate around walls if blocked!"
                 )
 
         # Energy warning
@@ -427,10 +431,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         # Direction change suggestion
         if self._steps_in_direction >= self._direction_change_threshold:
-            opposite = {
-                "north": "south", "south": "north",
-                "east": "west", "west": "east"
-            }
+            opposite = {"north": "south", "south": "north", "east": "west", "west": "east"}
             suggested = opposite.get(self._current_direction, "different")
             hints.append(
                 f"⚠️ You've gone {self._current_direction} for {self._steps_in_direction} steps. "
@@ -441,8 +442,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         distance = abs(self.exploration.global_x) + abs(self.exploration.global_y)
         if distance > 25:
             hints.append(
-                f"⚠️ You're {distance} tiles from origin. "
-                "Extractors are usually within 20 tiles - try going back!"
+                f"⚠️ You're {distance} tiles from origin. Extractors are usually within 20 tiles - try going back!"
             )
 
         # Resource gathering hints
@@ -491,9 +491,11 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         if self._summary_step_count > 1 and at_boundary:
             self._finalize_window_summary()
 
-        if (self.debug_summary_interval > 0 and
-            self._debug_summary_step_count > 0 and
-            self._debug_summary_step_count % self.debug_summary_interval == 0):
+        if (
+            self.debug_summary_interval > 0
+            and self._debug_summary_step_count > 0
+            and self._debug_summary_step_count % self.debug_summary_interval == 0
+        ):
             self._generate_debug_summary()
 
         next_step = self.prompt_builder.step_count + 1
@@ -585,12 +587,14 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         messages = self._get_messages_for_api(user_prompt)
 
-        self.conversation_history.append({
-            "step": len(self.conversation_history) + 1,
-            "prompt": user_prompt,
-            "num_messages": len(messages),
-            "response": None,
-        })
+        self.conversation_history.append(
+            {
+                "step": len(self.conversation_history) + 1,
+                "prompt": user_prompt,
+                "num_messages": len(messages),
+                "response": None,
+            }
+        )
 
         call_methods = {
             "openai": self._call_openai,
@@ -679,7 +683,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg = None,
+        mg_cfg=None,
     ):
         """Initialize LLM multi-agent policy.
 
@@ -756,7 +760,7 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
             )
 
         # Register atexit handler to print costs when program ends (for paid APIs only)
-        if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, '_atexit_registered'):
+        if provider in ("openai", "anthropic") and not hasattr(LLMMultiAgentPolicy, "_atexit_registered"):
             atexit.register(self.cost_tracker.print_summary)
             LLMMultiAgentPolicy._atexit_registered = True
 
@@ -783,7 +787,6 @@ class LLMMultiAgentPolicy(MultiAgentPolicy):
         )
 
 
-
 class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
     """OpenAI GPT-based policy for MettaGrid."""
 
@@ -798,7 +801,7 @@ class LLMGPTMultiAgentPolicy(LLMMultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg = None,
+        mg_cfg=None,
     ):
         super().__init__(
             policy_env_info,
@@ -827,7 +830,7 @@ class LLMClaudeMultiAgentPolicy(LLMMultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg = None,
+        mg_cfg=None,
     ):
         super().__init__(
             policy_env_info,
@@ -856,7 +859,7 @@ class LLMOllamaMultiAgentPolicy(LLMMultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg = None,
+        mg_cfg=None,
     ):
         super().__init__(
             policy_env_info,

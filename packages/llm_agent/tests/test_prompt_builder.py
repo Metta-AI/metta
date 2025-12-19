@@ -5,12 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from gymnasium.spaces import Box, Discrete
+from llm_agent.policy.prompt_builder import LLMPromptBuilder, VisibleElements
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
-from llm_agent.policy.prompt_builder import LLMPromptBuilder, VisibleElements
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator import AgentObservation, ObservationToken, Simulation
+from mettagrid.simulator import AgentObservation, ObservationToken
 
 
 @pytest.fixture
@@ -27,8 +27,17 @@ def mock_policy_env_info():
     ]
 
     # Create tag names matching common MettaGrid objects
-    tags = ["agent", "assembler", "carbon_extractor", "charger", "chest",
-            "germanium_extractor", "oxygen_extractor", "silicon_extractor", "wall"]
+    tags = [
+        "agent",
+        "assembler",
+        "carbon_extractor",
+        "charger",
+        "chest",
+        "germanium_extractor",
+        "oxygen_extractor",
+        "silicon_extractor",
+        "wall",
+    ]
 
     # Simple action names for testing
     action_names = ["noop", "move_north", "move_south", "move_east", "move_west", "use"]
@@ -199,7 +208,7 @@ class TestLLMPromptBuilder:
         # Steps 1-19: basic info only at step 1
         for i in range(19):
             _, includes_basic = prompt_builder.context_prompt(sample_observation)
-            expected_basic = (i == 0)  # Only first step
+            expected_basic = i == 0  # Only first step
             assert includes_basic == expected_basic
 
         # Step 20: should NOT reset yet (20 % 20 = 0, but we want reset at 21)
@@ -440,8 +449,8 @@ class TestLLMPromptBuilder:
 
         # Simulate 12 steps (more than 2 full context windows)
         for _ in range(12):
-            basic_info = builder.basic_info_prompt()
-            observable = builder.observable_prompt(sample_observation)
+            _ = builder.basic_info_prompt()
+            _ = builder.observable_prompt(sample_observation)
             builder._step_counter += 1
             step = builder.step_count
             is_first_step = step == 1
@@ -527,12 +536,12 @@ class TestLLMPromptBuilder:
 
         # Test North object - with x=row, y=col, object at row=4, col=5 shows as (4,5)
         north_prompt = builder.observable_prompt(north_obs)
-        assert "West" in north_prompt, f"Object should show West direction (due to x=row convention), got: {north_prompt}"
+        assert "West" in north_prompt, f"Should show West direction, got: {north_prompt}"
         assert "(4,5)" in north_prompt, f"Object should be at (4,5), got: {north_prompt}"
 
         # Test East object - with x=row, y=col, object at row=5, col=6 shows as (5,6)
         east_prompt = builder.observable_prompt(east_obs)
-        assert "South" in east_prompt, f"Object should show South direction (due to y=col convention), got: {east_prompt}"
+        assert "South" in east_prompt, f"Should show South direction, got: {east_prompt}"
         assert "(5,6)" in east_prompt, f"Object should be at (5,6), got: {east_prompt}"
 
     def test_context_window_ab_pattern(self, mock_policy_env_info, sample_observation):
@@ -595,6 +604,5 @@ class TestLLMPromptBuilder:
         assert b_count == 38, f"Expected 38 Bs in 40 steps, got {b_count}. Pattern: {''.join(results)}"
 
         # Verify A appears at positions 0 and 20 (steps 1 and 21)
-        assert results[0] == "A", f"Step 1 should be A"
-        assert results[20] == "A", f"Step 21 should be A (new context window)"
-
+        assert results[0] == "A", "Step 1 should be A"
+        assert results[20] == "A", "Step 21 should be A (new context window)"

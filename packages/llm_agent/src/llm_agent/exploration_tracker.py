@@ -87,14 +87,20 @@ class ExplorationTracker:
         agent_y = self.obs_height // 2
 
         important_types = {
-            "charger", "assembler", "chest",
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
+            "charger",
+            "assembler",
+            "chest",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
         }
 
         extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
         }
 
         for token in obs.tokens:
@@ -221,8 +227,10 @@ class ExplorationTracker:
         lines = ["=== DISCOVERED OBJECTS (from exploration) ==="]
 
         extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
         }
 
         for obj_type, (gx, gy) in sorted(self._discovered_objects.items()):
@@ -249,8 +257,10 @@ class ExplorationTracker:
         """
         visible = []
         extractor_types = {
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
         }
 
         for token in obs.tokens:
