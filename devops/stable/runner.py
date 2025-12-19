@@ -323,21 +323,48 @@ class Runner:
         if not job_ids:
             return
 
-        try:
-            request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
-            queue_data = sky.get(request_id)
-            if not isinstance(queue_data, list):
-                msg = f"Expected list from sky.get(), got {type(queue_data).__name__}: {str(queue_data)[:200]}"
-                raise TypeError(msg)
-            status_by_id = {}
-            for item in queue_data:
-                if not isinstance(item, dict):
-                    raise TypeError(f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}")
-                status_by_id[str(item.get("job_id"))] = item
-        except Exception as e:
+        def _is_transient_skypilot_error(exc: Exception) -> bool:
+            msg = str(exc)
+            # Conservative heuristic: retry on gateway/timeouts/rate limits.
+            return any(s in msg for s in (" 502 ", "502 Bad Gateway", " 503 ", " 504 ", "429", "timeout", "timed out"))
+
+        last_exc: Exception | None = None
+        status_by_id: dict[str, dict] | None = None
+
+        # SkyPilot server/API can transiently 502; retry a few times before failing all jobs.
+        for attempt in range(1, 4):
+            try:
+                request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
+                queue_data = sky.get(request_id)
+                if not isinstance(queue_data, list):
+                    msg = f"Expected list from sky.get(), got {type(queue_data).__name__}: {str(queue_data)[:200]}"
+                    raise TypeError(msg)
+
+                status_by_id = {}
+                for item in queue_data:
+                    if not isinstance(item, dict):
+                        raise TypeError(
+                            f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}"
+                        )
+                    status_by_id[str(item.get("job_id"))] = item
+
+                last_exc = None
+                break
+            except Exception as e:
+                last_exc = e
+                if attempt < 3 and _is_transient_skypilot_error(e):
+                    # Keep this concise; the workflow logs are already noisy.
+                    self._print(
+                        f"[skypilot] transient poll error (attempt {attempt}/3): {str(e)[:160]} ... retrying"
+                    )
+                    time.sleep(2.0 * attempt)
+                    continue
+                break
+
+        if last_exc is not None or status_by_id is None:
             for job in running:
                 if job.status == JobStatus.RUNNING:
-                    self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {e}")
+                    self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {last_exc}")
             return
 
         for job in running:
