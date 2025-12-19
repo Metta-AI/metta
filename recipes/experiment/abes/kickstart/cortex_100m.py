@@ -215,13 +215,7 @@ def replay(policy_uri: Optional[str] = None) -> ReplayTool:
 
 
 def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
-    """Evaluation tool for sweep runs.
-
-    Uses 10 episodes per simulation with a 4-minute time limit to get
-    reliable results quickly during hyperparameter sweeps.
-    NB: Please note that this function takes a **single** policy_uri. This is the expected signature in our sweeps.
-    Additional arguments are supported through eval_overrides.
-    """
+    """Evaluation tool for sweep runs (single policy_uri, 4-minute sims)."""
 
     # Create sweep-optimized versions of the standard evaluations
     # Use a dedicated suite name to control the metric namespace in WandB
@@ -259,37 +253,7 @@ def evaluate_stub(*args, **kwargs) -> StubTool:
 
 
 def sweep(sweep_name: str) -> SweepTool:
-    """
-    Prototypical sweep function.
-    In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
-
-    Example usage:
-        `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-            sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-
-    We recommend running using local_test=True before running the sweep on the remote:
-        `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-            sweep_name="ak.baes.10081528.local_test" -- local_test=True`
-
-    This will run a quick local sweep and allow you to catch configuration bugs
-    (NB: Unless those bugs are related to batch_size, minibatch_size, or hardware config).
-    If this runs smoothly, you must launch the sweep on a remote sandbox
-    (otherwise sweep progress will halt when you close your computer).
-
-    Running on the remote:
-        1 - Start a sweep controller sandbox: `./devops/skypilot/sandbox.py --sweep-controller`, and ssh into it.
-        2 - Clean git pollution: `git clean -df && git stash`
-        3 - Ensure your sky credentials are present: `sky status` -- if not, follow the instructions on screen.
-        4 - Install tmux on the sandbox `apt install tmux`
-        5 - Launch tmux session: `tmux new -s sweep`
-        6 - Launch the sweep:
-            `uv run ./tools/run.py recipes.prod.arena_basic_easy_shaped.sweep \
-                sweep_name="ak.baes.10081528" -- gpus=4 nodes=2`
-        7 - Detach when you want: CTRL+B then d
-        8 - Attach to look at status/output: `tmux attach -t sweep_configs`
-
-    Please tag Axel (akerbec@softmax.ai) on any bug report.
-    """
+    """Prototypical sweep entrypoint."""
 
     # Common parameters are accessible via SP (SweepParameters).
     parameters = [
