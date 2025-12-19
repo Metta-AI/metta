@@ -335,7 +335,6 @@ class CoreTrainingLoop:
         Args:
             context: Shared trainer context providing epoch state
         """
-        context = self._ensure_context(context)
         for loss in self.losses.values():
             loss.on_epoch_start(context)
 

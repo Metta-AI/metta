@@ -64,7 +64,6 @@ class EERKickstarter(Loss):
             self.teacher_policy = self.teacher_policy._policy
 
     def get_experience_spec(self) -> Composite:
-        # Get action space size for logits shape
         act_space = self.env.single_action_space
         num_actions = act_space.n
 
@@ -72,7 +71,7 @@ class EERKickstarter(Loss):
         logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
 
         return Composite(
-            # av add teacher log likelihoods
+            teacher_act_log_prob=scalar_f32,
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
         )
@@ -81,22 +80,20 @@ class EERKickstarter(Loss):
         with torch.no_grad():
             teacher_td = td.clone()
             self.teacher_policy.forward(teacher_td)
-            teacher_actions = teacher_td["actions"]
             td["teacher_logits"] = teacher_td["logits"]
             td["teacher_values"] = teacher_td["values"]
-            self.policy.forward(td)
 
-        # av compute teacher log likelihoods ahead of storage in buffer and add to td
+            self.policy.forward(td)
+            student_action = td["actions"]
+            teacher_full_log_probs = td["full_log_probs"]
+            teacher_log_probs = teacher_full_log_probs.gather(dim=1, index=student_action.unsqueeze(1)).squeeze(1)
+            td["teacher_act_log_prob"] = teacher_log_probs
 
         # Store experience
         env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
-
-        if torch.rand(1) < self.cfg.teacher_led_proportion:
-            # overwrite student actions w teacher actions with some probability. anneal this.
-            td["actions"] = teacher_actions
 
     def run_train(
         self,
