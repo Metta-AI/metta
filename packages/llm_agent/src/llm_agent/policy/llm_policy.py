@@ -1,7 +1,6 @@
 """LLM-based policy for MettaGrid using GPT or Claude."""
 
 import atexit
-import logging
 import os
 import random
 import sys
@@ -11,7 +10,6 @@ from llm_agent.action_parser import parse_action
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.exploration_tracker import ExplorationTracker
 from llm_agent.model_config import validate_model_context
-from llm_agent.observation_debugger import ObservationDebugger
 from llm_agent.providers import (
     ensure_ollama_model,
     select_anthropic_model,
@@ -21,8 +19,6 @@ from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
-
-logger = logging.getLogger(__name__)
 
 
 class LLMAgentPolicy(AgentPolicy):
@@ -55,7 +51,6 @@ class LLMAgentPolicy(AgentPolicy):
         self._init_tracking_state()
         self._init_prompt_builder(policy_env_info, context_window_size, mg_cfg)
         self._check_assembler_variant(mg_cfg)
-        self.debugger = ObservationDebugger(policy_env_info) if debug_mode else None
         self._init_llm_client(model)
 
     def _init_tracking_state(self) -> None:
@@ -87,7 +82,7 @@ class LLMAgentPolicy(AgentPolicy):
             agent_id=self.agent_id,
         )
         if self.debug_mode:
-            logger.info(f"Using dynamic prompts with context window size: {context_window_size}")
+            print(f"[DEBUG] Using dynamic prompts with context window size: {context_window_size}")
 
     def _check_assembler_variant(self, mg_cfg) -> None:
         """Check and log AssemblerDrawsFromChestsVariant status."""
@@ -279,7 +274,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             summary_text = self._call_debug_summary_llm(summary_prompt)
             self._write_debug_summary_to_file(summary_info, inv_str, energy, action_summary, summary_text)
         except Exception as e:
-            logger.warning(f"Failed to generate debug summary: {e}")
+            print(f"[WARNING] Failed to generate debug summary: {e}")
 
         self._debug_summary_actions = []
 
@@ -581,19 +576,19 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         )
 
         if self.debug_mode:
-            logger.debug(f"Ollama response object: {response}")
+            print(f"[DEBUG] Ollama response object: {response}")
 
         message = response.choices[0].message
         raw = message.content or ""
 
         if not raw and hasattr(message, "reasoning") and message.reasoning:
             if self.debug_mode:
-                logger.warning(f"Model used reasoning field: {message.reasoning[:100]}...")
+                print(f"[WARNING] Model used reasoning field: {message.reasoning[:100]}...")
             raw = message.reasoning
 
         if not raw:
             if self.debug_mode:
-                logger.error(f"Ollama empty response! content='{message.content}'")
+                print(f"[ERROR] Ollama empty response! content='{message.content}'")
             raw = "noop"
 
         usage = response.usage
@@ -645,7 +640,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         self.cost_tracker.record_usage(input_tokens, output_tokens)
 
         if self.debug_mode:
-            logger.debug(f"{self.provider} response: '{action_name}' | Tokens: {input_tokens} in, {output_tokens} out")
+            print(f"[DEBUG] {self.provider} response: '{action_name}' | Tokens: {input_tokens} in, {output_tokens} out")
 
         return action_name
 
@@ -662,7 +657,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             self.last_action = parsed_action.name
             return parsed_action
         except Exception as e:
-            logger.error(f"LLM API error: {e}. Falling back to random action.")
+            print(f"[ERROR] LLM API error: {e}. Falling back to random action.")
             fallback_action = random.choice(self.policy_env_info.actions.actions())
             self._add_action_to_window(fallback_action.name, "API error fallback")
             self.last_action = fallback_action.name

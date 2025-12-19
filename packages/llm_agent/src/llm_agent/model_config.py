@@ -1,9 +1,6 @@
 """Model configuration for LLM providers."""
 
-import logging
 import sys
-
-logger = logging.getLogger(__name__)
 
 # Model context window sizes (in tokens)
 MODEL_CONTEXT_WINDOWS = {
