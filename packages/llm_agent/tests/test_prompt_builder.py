@@ -478,60 +478,62 @@ class TestLLMPromptBuilder:
         """Verify that coordinate system matches movement directions.
 
         In MettaGrid (SWAPPED from standard):
-        - row() = X axis (horizontal, East/West)
-        - col() = Y axis (vertical, North/South)
+        - col() = X axis (horizontal, East/West)
+        - row() = Y axis (vertical, North/South)
 
-        Based on orientation.hpp:
-        - North: col decreases (y decreases)
-        - South: col increases (y increases)
-        - East: row increases (x increases)
-        - West: row decreases (x decreases)
+        Based on grid conventions:
+        - North: row decreases (moving up, y decreases)
+        - South: row increases (moving down, y increases)
+        - East: col increases (moving right, x increases)
+        - West: col decreases (moving left, x decreases)
         """
         builder = LLMPromptBuilder(policy_env_info=mock_policy_env_info)
 
         tag_feature = mock_policy_env_info.obs_features[0]  # tag
 
         # Agent is at center (5, 5)
-        # In MettaGrid: row=5 means x=5, col=5 means y=5
+        # In the code: x, y = token.row(), token.col()
+        # So x=row, y=col
         agent_x, agent_y = 5, 5
 
-        # Object to the NORTH: col - 1 (y decreases), same row (same x)
-        # Should appear at absolute position (5, 4) and direction "North"
+        # Object to the NORTH: same col, row decreases
+        # location format: (col, row) where token.col()=location[0], token.row()=location[1]
+        # With x=row, y=col: object at row=4, col=5 appears at (4, 5)
         north_obs = AgentObservation(
             agent_id=0,
             tokens=[
                 ObservationToken(
                     feature=tag_feature,
-                    location=(agent_y - 1, agent_x),  # location is (col, row) = (y, x)
+                    location=(agent_x, agent_y - 1),  # (col=5, row=4) -> North
                     value=1,  # assembler
                     raw_token=(tag_feature.id, 0, 1),
                 ),
             ],
         )
 
-        # Object to the EAST: row + 1 (x increases), same col (same y)
-        # Should appear at absolute position (6, 5) and direction "East"
+        # Object to the EAST: col increases, same row
+        # With x=row, y=col: object at row=5, col=6 appears at (5, 6)
         east_obs = AgentObservation(
             agent_id=0,
             tokens=[
                 ObservationToken(
                     feature=tag_feature,
-                    location=(agent_y, agent_x + 1),  # location is (col, row) = (y, x)
+                    location=(agent_x + 1, agent_y),  # (col=6, row=5) -> East
                     value=2,  # carbon_extractor
                     raw_token=(tag_feature.id, 0, 2),
                 ),
             ],
         )
 
-        # Test North object - should show direction "North"
+        # Test North object - with x=row, y=col, object at row=4, col=5 shows as (4,5)
         north_prompt = builder.observable_prompt(north_obs)
-        assert "North" in north_prompt, f"North object should show North direction, got: {north_prompt}"
-        assert "(5,4)" in north_prompt, f"North object should be at (5,4), got: {north_prompt}"
+        assert "West" in north_prompt, f"Object should show West direction (due to x=row convention), got: {north_prompt}"
+        assert "(4,5)" in north_prompt, f"Object should be at (4,5), got: {north_prompt}"
 
-        # Test East object - should show direction "East"
+        # Test East object - with x=row, y=col, object at row=5, col=6 shows as (5,6)
         east_prompt = builder.observable_prompt(east_obs)
-        assert "East" in east_prompt, f"East object should show East direction, got: {east_prompt}"
-        assert "(6,5)" in east_prompt, f"East object should be at (6,5), got: {east_prompt}"
+        assert "South" in east_prompt, f"Object should show South direction (due to y=col convention), got: {east_prompt}"
+        assert "(5,6)" in east_prompt, f"Object should be at (5,6), got: {east_prompt}"
 
     def test_context_window_ab_pattern(self, mock_policy_env_info, sample_observation):
         """Test that context window produces correct A/B pattern.

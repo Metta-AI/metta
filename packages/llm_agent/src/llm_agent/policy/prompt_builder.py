@@ -13,10 +13,16 @@ Prompt templates are loaded from markdown files in the 'prompts/' directory:
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from cogames.policy.scripted_agent.utils import (
+    is_wall,
+    manhattan_distance,
+    position_to_direction,
+)
 from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation
@@ -437,7 +443,6 @@ class LLMPromptBuilder:
         # Build spatial grid from tokens
         spatial_grid: dict[tuple[int, int], list[dict]] = {}
         for token in obs.tokens:
-            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
             x, y = token.row(), token.col()
             if (x, y) not in spatial_grid:
                 spatial_grid[(x, y)] = []
@@ -539,7 +544,6 @@ class LLMPromptBuilder:
         """
         inventory = {}
         for token in obs.tokens:
-            # SWAPPED: row() = X, col() = Y
             if token.row() == agent_x and token.col() == agent_y:
                 if token.feature.name.startswith("inv:"):
                     resource = token.feature.name[4:]  # Remove "inv:" prefix
@@ -592,7 +596,6 @@ class LLMPromptBuilder:
         positions: dict[tuple[int, int], dict] = {}
 
         for token in obs.tokens:
-            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
             x, y = token.row(), token.col()
 
             # Skip agent's own position (we show inventory separately)
@@ -713,24 +716,14 @@ class LLMPromptBuilder:
     # =========================================================================
 
     def _build_wall_map(self, obs: AgentObservation) -> set[tuple[int, int]]:
-        """Build a set of blocked tile positions from observation.
-
-        Args:
-            obs: Agent observation
-
-        Returns:
-            Set of (x, y) positions that are blocked (walls or objects)
-        """
+        """Build a set of blocked tile positions from observation."""
         blocked: set[tuple[int, int]] = set()
 
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
-                # Walls are always blocked
-                if tag_name == "wall":
+                if is_wall(tag_name):
                     blocked.add((token.row(), token.col()))
-                # Other objects block movement but are valid destinations
-                # We'll handle this in BFS by allowing the target tile
 
         return blocked
 
@@ -742,145 +735,94 @@ class LLMPromptBuilder:
         grid_width: int,
         grid_height: int,
     ) -> str | None:
-        """Run BFS to find shortest path and return the first move direction.
-
-        Args:
-            start: Starting position (agent position)
-            target: Target position
-            blocked: Set of blocked positions (walls)
-            grid_width: Width of visible grid
-            grid_height: Height of visible grid
-
-        Returns:
-            First move direction ("move_north", "move_south", etc.) or None if no path
-        """
-        from collections import deque
-
-        # If already at target, no move needed
+        """Run BFS to find shortest path and return the first move direction."""
         if start == target:
             return None
-
-        # If target is blocked by wall, no path possible
         if target in blocked:
             return None
 
-        # Direction offsets: (dx, dy, action_name)
-        directions = [
-            (0, -1, "move_north"),
-            (0, 1, "move_south"),
-            (1, 0, "move_east"),
-            (-1, 0, "move_west"),
-        ]
+        # Direction offsets: (row_delta, col_delta)
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
-        # BFS
-        queue: deque[tuple[tuple[int, int], str | None]] = deque()
-        queue.append((start, None))  # (position, first_move)
+        queue: deque[tuple[tuple[int, int], tuple[int, int] | None]] = deque()
+        queue.append((start, None))  # (position, first_step_position)
         visited: set[tuple[int, int]] = {start}
 
         while queue:
-            pos, first_move = queue.popleft()
-            x, y = pos
+            pos, first_step = queue.popleft()
+            r, c = pos
 
-            for dx, dy, action in directions:
-                nx, ny = x + dx, y + dy
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
 
-                # Check bounds
-                if not (0 <= nx < grid_width and 0 <= ny < grid_height):
+                if not (0 <= nr < grid_height and 0 <= nc < grid_width):
+                    continue
+                if (nr, nc) in blocked and (nr, nc) != target:
+                    continue
+                if (nr, nc) in visited:
                     continue
 
-                # Check if blocked (but allow target even if it has an object)
-                if (nx, ny) in blocked and (nx, ny) != target:
-                    continue
+                visited.add((nr, nc))
+                new_first_step = first_step if first_step else (nr, nc)
 
-                # Check if visited
-                if (nx, ny) in visited:
-                    continue
+                if (nr, nc) == target:
+                    # Convert first step position to direction using cogames utility
+                    direction = position_to_direction(start, new_first_step)
+                    return f"move_{direction}" if direction else None
 
-                visited.add((nx, ny))
+                queue.append(((nr, nc), new_first_step))
 
-                # Track the first move that led here
-                new_first_move = first_move if first_move else action
-
-                # Found target!
-                if (nx, ny) == target:
-                    return new_first_move
-
-                queue.append(((nx, ny), new_first_move))
-
-        # No path found
         return None
 
     def get_pathfinding_hints(self, obs: AgentObservation) -> str:
-        """Generate pathfinding hints for important visible objects.
+        """Generate pathfinding hints for important visible objects."""
+        agent_pos = (self._policy_env_info.obs_width // 2, self._policy_env_info.obs_height // 2)
 
-        Args:
-            obs: Agent observation
-
-        Returns:
-            Formatted pathfinding hints string, or empty string if no hints
-        """
-        agent_x = self._policy_env_info.obs_width // 2
-        agent_y = self._policy_env_info.obs_height // 2
-
-        # Important objects to pathfind to
         important_objects = {
             "charger", "assembler", "chest",
             "carbon_extractor", "oxygen_extractor",
             "germanium_extractor", "silicon_extractor",
         }
 
-        # Build wall map
         blocked = self._build_wall_map(obs)
 
-        # Find important objects and their positions
+        # Find closest important object of each type
         targets: dict[str, tuple[int, int]] = {}
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
                 if tag_name in important_objects:
                     pos = (token.row(), token.col())
-                    # Skip if at agent position
-                    if pos != (agent_x, agent_y):
-                        # Keep closest of each type
+                    if pos != agent_pos:
                         if tag_name not in targets:
                             targets[tag_name] = pos
-                        else:
-                            # Compare distances
-                            old_dist = abs(targets[tag_name][0] - agent_x) + abs(targets[tag_name][1] - agent_y)
-                            new_dist = abs(pos[0] - agent_x) + abs(pos[1] - agent_y)
-                            if new_dist < old_dist:
-                                targets[tag_name] = pos
+                        elif manhattan_distance(pos, agent_pos) < manhattan_distance(targets[tag_name], agent_pos):
+                            targets[tag_name] = pos
 
         if not targets:
             return ""
 
-        # Calculate first move for each target
         entries = []
         grid_width = self._policy_env_info.obs_width
         grid_height = self._policy_env_info.obs_height
-        start = (agent_x, agent_y)
 
         for obj_name, target_pos in sorted(targets.items()):
-            first_move = self._bfs_first_move(start, target_pos, blocked, grid_width, grid_height)
+            first_move = self._bfs_first_move(agent_pos, target_pos, blocked, grid_width, grid_height)
 
-            # Calculate relative position for context
-            rel_x = target_pos[0] - agent_x
-            rel_y = target_pos[1] - agent_y
-            distance = abs(rel_x) + abs(rel_y)
-
-            # Direction description
-            direction = pos_to_dir(rel_x, rel_y) if (rel_x != 0 or rel_y != 0) else "here"
+            # Position tuples are (row, col) where row=N/S and col=E/W
+            row_diff = target_pos[0] - agent_pos[0]  # North/South
+            col_diff = target_pos[1] - agent_pos[1]  # East/West
+            distance = manhattan_distance(target_pos, agent_pos)
+            # pos_to_dir expects (x=E/W, y=N/S)
+            direction = pos_to_dir(col_diff, row_diff) if (row_diff != 0 or col_diff != 0) else "here"
 
             if first_move:
-                # Format: "assembler (3N2E, 5 tiles) -> move_east"
                 entries.append(f"  {obj_name} ({direction}, {distance} tiles) -> {first_move}")
             else:
-                # No path found
                 entries.append(f"  {obj_name} ({direction}, {distance} tiles) -> NO PATH (blocked)")
 
         if not entries:
             return ""
 
-        # Load template and substitute
         template = _load_prompt_template("pathfinding_hints")
         return template.replace("{{PATHFINDING_ENTRIES}}", "\n".join(entries))
