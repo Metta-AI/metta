@@ -1,5 +1,5 @@
+import socket
 import sys
-from sys import stdin, stdout
 
 from cogames.cli.utils import suppress_noisy_logs
 from mettagrid.config.mettagrid_config import ProtocolConfig
@@ -39,10 +39,26 @@ def main():
     We respond with a single line containing our chosen action as a string.
     """
 
+    try:
+        sock_fd = int(sys.argv[1])
+        sock = socket.socket(fileno=sock_fd)
+        file = sock.makefile(mode="rw")
+    except (
+        IndexError,
+        OSError,
+    ):
+        print(
+            "The first command-line argument must be an FD number "
+            "corresponding to a socket for communicating with "
+            "the parent process",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     setup_lines: list[str] = []
 
     while True:
-        line = stdin.readline()
+        line = file.readline()
         if line == "":  # EOF
             return
         line = line.strip()
@@ -79,13 +95,13 @@ def main():
     agent.reset()
 
     try:
-        stdout.write("READY\n")
-        stdout.flush()
+        file.write("READY\n")
+        file.flush()
     except BrokenPipeError:
         pass
 
     while True:
-        line = stdin.readline()
+        line = file.readline()
         if line == "":  # EOF
             return
 
@@ -116,8 +132,8 @@ def main():
 
         try:
             name, _, _ = str(action.name).partition("\n")
-            stdout.write("{0}\n".format(name))
-            stdout.flush()
+            file.write("{0}\n".format(name))
+            file.flush()
         except BrokenPipeError:
             return
 

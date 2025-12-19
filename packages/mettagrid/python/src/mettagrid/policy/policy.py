@@ -1,7 +1,9 @@
 """Base policy classes and interfaces."""
 
 import ctypes
+import io
 import os
+import socket
 import subprocess
 import sys
 from abc import abstractmethod
@@ -361,6 +363,8 @@ class _PipedPolicyWrapper(AgentPolicy):
         self._step = 0
         self._process = None
         self._policy_spec = policy_spec
+        self._socket: socket.socket | None = None
+        self._file: io.TextIOWrapper | None = None
 
     def reset(self, simulation: Optional[Simulation] = None) -> None:
         # Each instance of this class is used only once, for a single subprocess. The call to reset
@@ -368,44 +372,50 @@ class _PipedPolicyWrapper(AgentPolicy):
         # That's our cue to create the subprocess.
         if self._process is not None:
             # TODO(rhys): we'll want to hear about the end of the simulation so we know when to kill
-            self._process.kill()  # This is still a single-use wrapper, don't reset
+            self._destroy()  # This is still a single-use wrapper, don't reset
         else:
             worker = os.path.join(os.path.dirname(__file__), "run_one_agent.py")
+            self._socket, child = socket.socketpair()
+            child.set_inheritable(True)
+            self._file = self._socket.makefile(mode="rw")
             self._process = subprocess.Popen(
-                [sys.executable, worker],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                text=True,
+                [sys.executable, worker, str(child.fileno())],
+                pass_fds=(child.fileno(),),
             )
-
-            assert self._process.stdin is not None
-            assert self._process.stdout is not None
+            child.close()
 
             # Protocol described in ./run_one_agent.py
-            self._process.stdin.write("{0:02x}\n".format(self._agent_id))
-            self._process.stdin.write("{0}\n".format(self._policy_spec.model_dump_json()))
-            self._process.stdin.write("{0}\n".format(self.policy_env_info.model_dump_json()))
-            self._process.stdin.write("READY\n")
-            self._process.stdin.flush()
-            ready = self._process.stdout.readline().strip()
+            for msg in [
+                "{0:02x}\n".format(self._agent_id),
+                "{0}\n".format(self._policy_spec.model_dump_json()),
+                "{0}\n".format(self.policy_env_info.model_dump_json()),
+                "READY\n",
+            ]:
+                self._file.write(msg)
+            self._file.flush()
+
+            ready = self._file.readline().strip()
             if ready != "READY":
-                self._process.kill()
+                self._destroy()
                 raise RuntimeError("Failed to start agent subprocess")
         return super().reset(simulation)
 
-    def step(self, obs: AgentObservation) -> Action:
-        if self._process is None:
-            return Action(name="noop")
+    def _destroy(self):
+        if self._process is not None:
+            self._process.kill()
+        if self._socket is not None:
+            self._socket.close()
 
-        assert self._process.stdin is not None
-        assert self._process.stdout is not None
+    def step(self, obs: AgentObservation) -> Action:
+        if self._process is None or self._file is None:
+            return Action(name="noop")
 
         # Protocol described in ./run_one_agent.py
         parts = ["{0:02x} {1:08x}".format(self._agent_id, self._step)]
         for o in obs.tokens:
             parts.append("{0:02x}{1:02x}{2:02x}".format(o.raw_token[0], o.raw_token[1], o.raw_token[2]))
-        self._process.stdin.write(" ".join(parts) + "\n")
-        self._process.stdin.flush()
-        action = self._process.stdout.readline().strip()
+        self._file.write(" ".join(parts) + "\n")
+        self._file.flush()
+        action = self._file.readline().strip()
         self._step += 1
         return Action(name=action)
