@@ -15,9 +15,10 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import OptimizerConfig, TorchProfilerConfig, TrainerConfig
+from metta.rl.trainer_config import AdvantageConfig, OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -32,16 +33,14 @@ from mettagrid import MettaGridConfig
 
 
 def _trainer_and_env_overrides(
-    learning_rate: Optional[float] = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    lr = float(learning_rate) if learning_rate is not None else 1e-4
-
     trainer_updates = {
         "compile": False,
         "batch_size": 4_194_304 // 2,
         "minibatch_size": 8192,
         "bptt_horizon": 256,
-        "optimizer": OptimizerConfig(learning_rate=lr),
+        "optimizer": OptimizerConfig(learning_rate=1e-4),
+        "advantage": AdvantageConfig(gae_lambda=0.95, gamma=0.999),
     }
 
     env_updates = {
@@ -123,15 +122,15 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-    learning_rate: Optional[float] = None,
     dtype: str = "float32",
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher: Optional[TeacherConfig] = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
 
-    trainer_updates, env_updates = _trainer_and_env_overrides(learning_rate=learning_rate)
+    trainer_updates, env_updates = _trainer_and_env_overrides()
 
     if policy_architecture is None:
         stack_cfg = build_cortex_auto_config(
@@ -150,19 +149,13 @@ def train(
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
 
     losses_config = LossesConfig()
-    losses_config.sliced_kickstarter.enabled = True
-
-    losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt"
+    default_teacher_steps = 600_000_000
+    teacher = teacher or TeacherConfig(
+        policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt",
+        mode="sliced_kickstarter",
+        steps=default_teacher_steps,
+        teacher_led_proportion=0.2,
     )
-    ks_end_step = 600_000_000
-    losses_config.ppo_critic.sample_enabled = False
-    losses_config.ppo_critic.train_forward_enabled = False
-    losses_config.ppo_critic.deferred_training_start_step = ks_end_step
-
-    losses_config.ppo_critic.gae_lambda = 0.95
-    losses_config.ppo_critic.gamma = 0.999
-    losses_config.sliced_kickstarter.teacher_led_proportion = 0.2
     losses_config.sliced_kickstarter.action_loss_coef = 1.0
     losses_config.sliced_kickstarter.value_loss_coef = 0.0
 
@@ -172,42 +165,25 @@ def train(
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     training_env = training_env.model_copy(update=env_updates)
 
-    scheduler = SchedulerConfig(
-        run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ks_end_step),
-            LossRunGate(
-                loss_instance_name="sliced_kickstarter",
-                phase="rollout",
-                end_at_step=ks_end_step,
-            ),
-            LossRunGate(
-                loss_instance_name="sliced_kickstarter",
-                phase="train",
-                end_at_step=ks_end_step,
-            ),
-        ],
-        rules=[
-            HyperUpdateRule(
-                loss_instance_name="sliced_kickstarter",
-                attr_path="teacher_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.2,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=ks_end_step,
-            ),
-        ],
-    )
-
-    return TrainTool(
+    tt = TrainTool(
         trainer=trainer_cfg,
         training_env=training_env,
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        scheduler=scheduler,
     )
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[HyperUpdateRule] = []
+    apply_teacher_phase(
+        trainer_cfg=tt.trainer,
+        training_env_cfg=tt.training_env,
+        scheduler_rules=scheduler_rules,
+        scheduler_run_gates=scheduler_run_gates,
+        teacher_cfg=teacher,
+        default_steps=default_teacher_steps,
+    )
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+    return tt
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
