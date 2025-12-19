@@ -45,12 +45,6 @@ class CostTracker:
             "total_output_tokens": self.total_output_tokens,
         }
 
-    def reset(self) -> None:
-        """Reset all tracking counters."""
-        self.total_calls = 0
-        self.total_input_tokens = 0
-        self.total_output_tokens = 0
-
     def print_summary(self) -> None:
         """Print token usage summary to console."""
         summary = self.get_summary()

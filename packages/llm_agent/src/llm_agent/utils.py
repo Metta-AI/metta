@@ -1,5 +1,23 @@
 """Utility functions for LLM agent."""
 
+# Extractor types for resource gathering
+EXTRACTOR_TYPES = frozenset(
+    {
+        "carbon_extractor",
+        "oxygen_extractor",
+        "germanium_extractor",
+        "silicon_extractor",
+    }
+)
+
+# Mapping from resource name to extractor type
+RESOURCE_TO_EXTRACTOR = {
+    "carbon": "carbon_extractor",
+    "oxygen": "oxygen_extractor",
+    "germanium": "germanium_extractor",
+    "silicon": "silicon_extractor",
+}
+
 
 def pos_to_dir(x: int, y: int, verbose: bool = False) -> str:
     """Format position as direction from origin.

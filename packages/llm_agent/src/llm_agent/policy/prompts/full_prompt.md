@@ -2,7 +2,7 @@
 
 {{OBSERVABLE}}
 
-=== YOUR ROLE === **You are Agent {{AGENT_ID}}** {{ROLE_ASSIGNMENT}}
+=== YOUR ROLE === **You are Agent {{AGENT_ID}}** - Gather resources, craft hearts, deposit in chest
 
 === DECISION PRIORITY (FOLLOW THIS ORDER) ===
 

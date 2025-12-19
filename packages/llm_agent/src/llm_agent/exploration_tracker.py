@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from llm_agent.utils import pos_to_dir
+from llm_agent.utils import EXTRACTOR_TYPES, RESOURCE_TO_EXTRACTOR, pos_to_dir
 
 if TYPE_CHECKING:
     from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -96,13 +96,6 @@ class ExplorationTracker:
             "silicon_extractor",
         }
 
-        extractor_types = {
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
-        }
-
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
                 tag_name = self.policy_env_info.tags[token.value]
@@ -115,7 +108,7 @@ class ExplorationTracker:
                     if tag_name not in self._discovered_objects:
                         self._discovered_objects[tag_name] = (global_x, global_y)
 
-                    if tag_name in extractor_types and rel_x == 0 and rel_y == 0:
+                    if tag_name in EXTRACTOR_TYPES and rel_x == 0 and rel_y == 0:
                         if tag_name not in self._extractor_stats:
                             self._extractor_stats[tag_name] = {
                                 "position": (global_x, global_y),
@@ -174,14 +167,7 @@ class ExplorationTracker:
         Args:
             new_inventory: Current inventory
         """
-        resource_to_extractor = {
-            "carbon": "carbon_extractor",
-            "oxygen": "oxygen_extractor",
-            "germanium": "germanium_extractor",
-            "silicon": "silicon_extractor",
-        }
-
-        for resource, extractor in resource_to_extractor.items():
+        for resource, extractor in RESOURCE_TO_EXTRACTOR.items():
             old_amount = self._last_inventory.get(resource, 0)
             new_amount = new_inventory.get(resource, 0)
             if new_amount > old_amount:
@@ -226,15 +212,8 @@ class ExplorationTracker:
 
         lines = ["=== DISCOVERED OBJECTS (from exploration) ==="]
 
-        extractor_types = {
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
-        }
-
         for obj_type, (gx, gy) in sorted(self._discovered_objects.items()):
-            if obj_type in extractor_types and obj_type in self._extractor_stats:
+            if obj_type in EXTRACTOR_TYPES and obj_type in self._extractor_stats:
                 stats = self._extractor_stats[obj_type]
                 visits = stats["visits"]
                 collected = stats["collected"]
@@ -256,17 +235,11 @@ class ExplorationTracker:
             List of visible extractor type names
         """
         visible = []
-        extractor_types = {
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
-        }
 
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self.policy_env_info.tags):
                 tag_name = self.policy_env_info.tags[token.value]
-                if tag_name in extractor_types and tag_name not in visible:
+                if tag_name in EXTRACTOR_TYPES and tag_name not in visible:
                     visible.append(tag_name)
 
         return visible

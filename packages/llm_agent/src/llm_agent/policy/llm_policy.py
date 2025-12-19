@@ -151,7 +151,8 @@ class LLMAgentPolicy(AgentPolicy):
         # Return a copy of messages for the API call
         return list(self._messages)
 
-    def _get_net_direction(self, start_pos: tuple[int, int], end_pos: tuple[int, int]) -> str:
+    @staticmethod
+    def _get_net_direction(start_pos: tuple[int, int], end_pos: tuple[int, int]) -> str:
         """Calculate net direction of movement between two positions."""
         dx, dy = end_pos[0] - start_pos[0], end_pos[1] - start_pos[1]
         parts = []
@@ -585,7 +586,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         if self.verbose:
             print(f"\n[PROMPT Agent {self.agent_id}]\n{user_prompt}\n")
 
-        messages = self._get_messages_for_api(user_prompt)
+        messages: list[dict[str, str]] = self._get_messages_for_api(user_prompt)
 
         self.conversation_history.append(
             {
@@ -596,12 +597,12 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             }
         )
 
-        call_methods = {
-            "openai": self._call_openai,
-            "anthropic": self._call_anthropic,
-            "ollama": self._call_ollama,
-        }
-        raw_response, input_tokens, output_tokens = call_methods[self.provider](messages)
+        if self.provider == "openai":
+            raw_response, input_tokens, output_tokens = self._call_openai(messages)
+        elif self.provider == "anthropic":
+            raw_response, input_tokens, output_tokens = self._call_anthropic(messages)
+        else:
+            raw_response, input_tokens, output_tokens = self._call_ollama(messages)
 
         print(f"[LLM Agent {self.agent_id}] {raw_response}")
 

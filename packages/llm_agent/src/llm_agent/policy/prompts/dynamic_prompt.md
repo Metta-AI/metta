@@ -1,6 +1,6 @@
 {{OBSERVABLE}}
 
-**Agent {{AGENT_ID}}** - {{ROLE_ASSIGNMENT}}
+**Agent {{AGENT_ID}}** - Gather resources, craft hearts, deposit in chest
 
 ⚠️ RECIPE: {{RECIPE_SUMMARY}}
 

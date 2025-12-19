@@ -127,20 +127,6 @@ class LLMPromptBuilder:
             recipes = self._build_all_recipes()
             print(f"[LLMPromptBuilder] Recipes:\n{recipes}")
 
-    def _get_role_assignment(self) -> str:
-        """Get role assignment based on agent ID.
-
-        Returns:
-            Role description string for this agent
-        """
-        # Generic role for all agents - gather ALL resources needed for hearts
-        return (
-            "ROLE: Resource gatherer\n"
-            "- Find and use ALL extractors to collect resources\n"
-            "- Check RECIPE above for exact amounts needed\n"
-            "- Craft at ASSEMBLER when you have all resources"
-        )
-
     def _build_basic_info(self) -> str:
         """Build minimal game information prompt.
 
@@ -191,9 +177,7 @@ class LLMPromptBuilder:
         if not self._policy_env_info.assembler_protocols:
             return ""
 
-        lines = ["=== CRAFTING RECIPES ==="]
-        lines.append("Use these vibes at an ASSEMBLER to craft items:")
-        lines.append("")
+        lines = ["=== CRAFTING RECIPES ===", "Use these vibes at an ASSEMBLER to craft items:", ""]
 
         # Group by output for clarity
         seen_recipes: set[str] = set()
@@ -266,11 +250,9 @@ class LLMPromptBuilder:
 
         try:
             id_map = self._mg_cfg.game.id_map()
-            lines = []
+            lines = ["=== OBJECT TYPES ===", "Objects you may encounter:"]
 
             # Tags section - what objects exist in this mission
-            lines.append("=== OBJECT TYPES ===")
-            lines.append("Objects you may encounter:")
             for tag in id_map.tag_names():
                 lines.append(f"  - {tag}")
 
@@ -281,11 +263,6 @@ class LLMPromptBuilder:
             return ""
 
     def basic_info_prompt(self) -> str:
-        """Get the basic game information prompt.
-
-        Returns:
-            Static game rules and mechanics
-        """
         return self._basic_info_cache
 
     def observable_prompt(self, obs: AgentObservation, include_actions: bool = False) -> str:
@@ -312,17 +289,17 @@ class LLMPromptBuilder:
         directions = self._analyze_adjacent_tiles(obs, agent_x, agent_y)
         sections.append(self._build_directional_awareness_section(directions))
 
-        # 3. Agent's inventory summary (extracted from tokens at agent position)
+        # 2. Agent's inventory summary (extracted from tokens at agent position)
         inventory = self._extract_inventory(obs, agent_x, agent_y)
         if inventory:
             sections.append(self._build_inventory_section(inventory))
 
-        # 4. Visible objects with coordinates (spatial awareness)
+        # 3. Visible objects with coordinates (spatial awareness)
         visible_objects = self._extract_visible_objects_with_coords(obs, agent_x, agent_y)
         if visible_objects:
             sections.append(self._build_visible_objects_section(visible_objects))
 
-        # 5. Include available actions only on first/reset steps
+        # 4. Include available actions only on first/reset steps
         if include_actions:
             # Only include essential actions, not all 156 vibes
             essential_actions = self._get_essential_actions()
@@ -350,7 +327,6 @@ class LLMPromptBuilder:
             template.replace("{{BASIC_INFO}}", self.basic_info_prompt())
             .replace("{{OBSERVABLE}}", self.observable_prompt(obs, include_actions=True))
             .replace("{{AGENT_ID}}", str(self._agent_id))
-            .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
         )
 
     def context_prompt(
@@ -403,7 +379,6 @@ class LLMPromptBuilder:
                 template.replace("{{OBSERVABLE}}", self.observable_prompt(obs))
                 .replace("{{ACTIONS}}", ", ".join(action_list[:8]) + ", ...")
                 .replace("{{AGENT_ID}}", str(self._agent_id))
-                .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
                 .replace("{{RECIPE_SUMMARY}}", self._build_recipe_summary())
             )
             includes_basic = False
@@ -421,7 +396,8 @@ class LLMPromptBuilder:
         self._step_counter = 0
         self._last_visible = None
 
-    def _extract_visible_elements(self, obs: AgentObservation) -> VisibleElements:
+    @staticmethod
+    def _extract_visible_elements(obs: AgentObservation) -> VisibleElements:
         """Extract unique tags and features from observation.
 
         Args:
@@ -496,7 +472,8 @@ class LLMPromptBuilder:
 
         return directions
 
-    def _build_directional_awareness_section(self, directions: dict[str, str]) -> str:
+    @staticmethod
+    def _build_directional_awareness_section(directions: dict[str, str]) -> str:
         """Build the directional awareness section for the prompt.
 
         Args:
@@ -514,7 +491,8 @@ class LLMPromptBuilder:
                 lines.append(f"  {direction}: {status} - can move")
         return "\n".join(lines)
 
-    def _get_direction_name(self, dx: int, dy: int) -> str:
+    @staticmethod
+    def _get_direction_name(dx: int, dy: int) -> str:
         """Get human-readable direction name from offset.
 
         Args:
@@ -544,7 +522,8 @@ class LLMPromptBuilder:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
 
-    def _extract_inventory(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
+    @staticmethod
+    def _extract_inventory(obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
         """Extract inventory from tokens at agent's position.
 
         Args:
@@ -563,7 +542,8 @@ class LLMPromptBuilder:
                     inventory[resource] = token.value
         return inventory
 
-    def _build_inventory_section(self, inventory: dict[str, int]) -> str:
+    @staticmethod
+    def _build_inventory_section(inventory: dict[str, int]) -> str:
         """Build the inventory section for the prompt.
 
         Args:
@@ -753,8 +733,8 @@ class LLMPromptBuilder:
 
         return blocked
 
+    @staticmethod
     def _bfs_first_move(
-        self,
         start: tuple[int, int],
         target: tuple[int, int],
         blocked: set[tuple[int, int]],
