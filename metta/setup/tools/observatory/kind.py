@@ -9,6 +9,7 @@ from rich.console import Console
 from devops.docker.push_image import push_image
 from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
 from metta.common.util.fs import get_repo_root
+from metta.setup.tools.observatory.utils import build_img
 from metta.setup.utils import error, info, success
 
 repo_root = get_repo_root()
@@ -96,9 +97,9 @@ class Kind:
 
         info("Orchestrator deployed via Helm")
 
-        info("To view pods: metta local kind get-pods")
-        info("To view logs: metta local kind logs <pod-name>")
-        info("To stop: metta local kind down")
+        info("To view pods: metta observatory kind get-pods")
+        info("To view logs: metta observatory kind logs <pod-name>")
+        info("To stop: metta observatory kind down")
 
     def down(self) -> None:
         """Stop orchestrator and worker pods."""
@@ -171,6 +172,16 @@ class Kind:
         return wandb.Api().api_key
 
 
+def build_policy_evaluator_img_internal(
+    tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
+):
+    build_img(
+        tag,
+        repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
+        build_args or [],
+    )
+
+
 class KindLocal(Kind):
     cluster_name = "metta-local"
     namespace = "orchestrator"
@@ -216,8 +227,6 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        from metta.setup.local_commands import build_policy_evaluator_img_internal
-
         self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
         success("Kind cluster ready")
 
@@ -240,7 +249,6 @@ class EksProd(Kind):
         info("Building AMD64 for EKS...")
 
         local_image_name = "metta-policy-evaluator-local:latest-amd64"
-        from metta.setup.local_commands import build_policy_evaluator_img_internal
 
         build_policy_evaluator_img_internal(
             tag=local_image_name,
