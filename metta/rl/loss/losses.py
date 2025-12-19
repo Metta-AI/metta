@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
@@ -28,6 +29,7 @@ class LossesConfig(Config):
     _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
         "sliced_kickstarter",
         "sliced_scripted_cloner",
+        "eer_kickstarter",
         "ppo_critic",
         "quantile_ppo_critic",
         "ppo_actor",
@@ -43,6 +45,7 @@ class LossesConfig(Config):
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
+
     quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
 
     # other aux losses below
@@ -60,6 +63,7 @@ class LossesConfig(Config):
     sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
         default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
     )
+    eer_kickstarter: EERKickstarterConfig = Field(default_factory=lambda: EERKickstarterConfig(enabled=False))
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )

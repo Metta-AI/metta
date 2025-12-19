@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING, Any
 
 import torch
-import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -22,8 +22,7 @@ class EERKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    temperature: float = Field(default=2.0, gt=0)
-    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
+    r_lambda: float = Field(default=1.0, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     def create(
         self,
@@ -38,8 +37,8 @@ class EERKickstarterConfig(LossConfig):
 
 
 class EERKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
+    """Expected Entropy Regularization Kickstarter. See "Distilling Policy Distillation."
+    Note that this needs to be tweaked if we are to use it with prio sampling. For now, use sequential sampling.
     """
 
     __slots__ = ("teacher_policy",)
@@ -72,7 +71,7 @@ class EERKickstarter(Loss):
 
         return Composite(
             teacher_act_log_prob=scalar_f32,
-            teacher_logits=logits_f32,
+            teacher_full_log_probs=logits_f32,
             teacher_values=scalar_f32,
         )
 
@@ -80,7 +79,7 @@ class EERKickstarter(Loss):
         with torch.no_grad():
             teacher_td = td.clone()
             self.teacher_policy.forward(teacher_td)
-            td["teacher_logits"] = teacher_td["logits"]
+            td["teacher_full_log_probs"] = teacher_td["full_log_probs"]
             td["teacher_values"] = teacher_td["values"]
 
             self.policy.forward(td)
@@ -103,24 +102,40 @@ class EERKickstarter(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
 
-        # av modify rewards in the minibatch to include teacher log likelihoods offset by timestep
-        # av recompute advantages on the new minibatch
+        teach_act_logp = minibatch["teacher_act_log_prob"]
+        teach_act_logp_shift = torch.zeros_like(teach_act_logp)
+        teach_act_logp_shift[:-1] = teach_act_logp[1:]
+
+        dones = minibatch["dones"] > 0.5
+        truncateds = minibatch["truncateds"] > 0.5
+        terminations = dones | truncateds
+        teach_act_logp_shift[terminations] = 0.0
+
+        rewards = minibatch["rewards"]
+        rewards = rewards + self.cfg.r_lambda * teach_act_logp_shift
+        minibatch["rewards"] = rewards
+
+        advantages = compute_advantage(
+            minibatch["values"],
+            rewards,
+            dones,
+            torch.ones_like(minibatch["values"]),
+            torch.zeros_like(minibatch["values"], device=self.device),
+            self.trainer_cfg.advantage.gamma,
+            self.trainer_cfg.advantage.gae_lambda,
+            self.device,
+        )
+
+        minibatch["advantages"] = advantages
 
         B, TT = minibatch.batch_size
 
         student_td = shared_loss_data["policy_td"].reshape(B * TT)  # we should do this without reshaping
 
-        # av update the loss below to be the cross entropy loss
-        # action loss
-        temperature = self.cfg.temperature
-        teacher_logits = minibatch["teacher_logits"].to(dtype=torch.float32).reshape(B * TT, -1).detach()
-        student_logits = student_td["logits"].to(dtype=torch.float32)
-        teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
-        student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        student_probs = torch.exp(student_log_probs)
-        ks_action_loss = (temperature**2) * (
-            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
-        )
+        # action loss (cross entropy)
+        student_full_log_probs = student_td["full_log_probs"]
+        teacher_full_log_probs = minibatch["teacher_full_log_probs"]
+        ks_action_loss = (student_full_log_probs.exp() * teacher_full_log_probs).sum(dim=-1).mean()
 
         # value loss
         teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()

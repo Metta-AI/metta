@@ -16,6 +16,7 @@ TeacherMode = Literal[
     "sliced_kickstarter",
     "kickstarter",
     "logit_kickstarter",
+    "eer_kickstarter",
 ]
 
 DEFAULT_TEACHER_STEPS = 1_000_000_000
@@ -181,6 +182,39 @@ def apply_teacher_phase(
             start_value=teacher_cfg.student_led_proportion,
         )
 
+    elif teacher_cfg.mode == "eer_kickstarter":
+        _require_policy_uri(teacher_cfg)
+        eer_kick = losses.eer_kickstarter
+        eer_kick.enabled = True
+        eer_kick.teacher_uri = teacher_cfg.policy_uri
+
+        _gate_loss("eer_kickstarter")
+        _gate_critic_after_teacher()
+        if total_steps:
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="eer_kickstarter",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=eer_kick.action_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="eer_kickstarter",
+                    attr_path="value_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=eer_kick.value_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
     elif teacher_cfg.mode == "kickstarter":
         _require_policy_uri(teacher_cfg)
         ks = losses.kickstarter
@@ -191,6 +225,31 @@ def apply_teacher_phase(
         _gate_loss("kickstarter")
         _gate_critic_after_teacher()
         _anneal("kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
+        if total_steps:
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="kickstarter",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=ks.action_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="kickstarter",
+                    attr_path="value_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=ks.value_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)
