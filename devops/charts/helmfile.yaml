@@ -165,6 +165,16 @@ releases:
       - datadog:
           service: metrics-collector
 
+  - name: cost-alerter-cronjob
+    <<: *cronjob_template
+    values:
+      - schedule: "0 */4 * * *" # Every 4 hours
+      - command: ["uv", "run", "python", "-m", "devops.cost_alerter.cli", "check"]
+      - image:
+          tag: latest-cronjob
+      - datadog:
+          service: cost-alerter
+
   # Dev cronjob deployments (see devops/charts/CRONJOB_DEV_WORKFLOW.md for instructions)
   # Uncomment the release you want to deploy for dev testing:
   #
