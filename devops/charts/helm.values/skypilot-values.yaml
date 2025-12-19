@@ -1,5 +1,5 @@
 apiService:
-  image: berkeleyskypilot/skypilot:0.10.3
+  image: berkeleyskypilot/skypilot:0.11.1
   dbConnectionSecretName: skypilot-db-connection-uri
   config: null
   # config: |
@@ -33,9 +33,10 @@ apiService:
 awsCredentials:
   enabled: true
 ingress:
-  certManager:
-    clusterIssuer: letsencrypt
+  tls:
     enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
   host: skypilot-api.softmax-research.net
 auth:
   oauth:

@@ -8,9 +8,7 @@ repositories:
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server/
   - name: skypilot
-    url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
-  # - name: skypilot-beta
-  #   url: git+https://github.com/Metta-AI/skypilot@charts?ref=softmax-0.10.3
+    url: https://helm.skypilot.co
   - name: datadog
     url: https://helm.datadoghq.com
 
@@ -82,7 +80,7 @@ releases:
   ########## Skypilot ##########
   - name: skypilot
     chart: skypilot/skypilot
-    version: 0.0.0
+    version: 0.11.1
     namespace: skypilot
     values:
       - ./helm.values/skypilot-values.yaml
@@ -97,7 +95,7 @@ releases:
   # done
 
   # - name: skypilot-beta
-  #   chart: skypilot-beta/skypilot
+  #   chart: skypilot/skypilot
   #   version: 0.0.0
   #   namespace: skypilot-beta
   #   values:
