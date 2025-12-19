@@ -22,6 +22,9 @@ proc drawVibes*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Ve
         sk.at.x = startX
         sk.at.y += 32 + m
       iconButton(vibe):
+        if selection == nil or not selection.isAgent:
+          return
+
         let vibeName = vibe.split("/")[1]
         let vibeActionId = replay.actionNames.find("change_vibe_" & vibeName)
         if vibeActionId == -1:
