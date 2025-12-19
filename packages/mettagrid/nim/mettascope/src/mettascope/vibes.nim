@@ -3,9 +3,9 @@
 ## the world and other agents.
 
 import
-  std/[os, tables, strutils],
+  std/[tables, strutils],
   silky, windy,
-  common, panels, replays, actions, pathfinding
+  common, panels, replays, actions
 
 proc getVibes(): seq[string] =
   for vibe in replay.config.game.vibeNames:
@@ -14,10 +14,12 @@ proc getVibes(): seq[string] =
 proc drawVibes*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   let m = 12.0f
   frame(frameId, contentPos, contentSize):
-    sk.at = sk.pos + vec2(m, m) * 2
+    let buttonWidth = 32.0f + sk.padding
+    let startX = sk.at.x
     for i, vibe in getVibes():
-      if i > 0 and i mod 10 == 0:
-        sk.at.x = sk.pos.x + m * 2
+      # Check if we need to wrap to the next line.
+      if sk.at.x + buttonWidth > sk.pos.x + sk.size.x - m:
+        sk.at.x = startX
         sk.at.y += 32 + m
       iconButton(vibe):
         let vibeName = vibe.split("/")[1]
