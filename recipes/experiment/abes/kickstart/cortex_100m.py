@@ -32,8 +32,7 @@ from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 
 
-def _trainer_and_env_overrides(
-) -> tuple[dict[str, object], dict[str, object]]:
+def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
     trainer_updates = {
         "compile": False,
         "batch_size": 4_194_304 // 2,

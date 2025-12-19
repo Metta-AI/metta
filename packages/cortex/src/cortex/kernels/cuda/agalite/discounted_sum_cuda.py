@@ -4,9 +4,9 @@ import os
 from typing import Tuple
 
 import torch
+from torch._dynamo import disable
 from torch.autograd import Function
 from torch.utils.cpp_extension import load
-from torch._dynamo import disable
 
 _mod_path = os.path.dirname(__file__)
 _ext = None
