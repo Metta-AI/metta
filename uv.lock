@@ -2398,6 +2398,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "fastapi" },
     { name = "gitta" },
+    { name = "greenlet" },
     { name = "httpx" },
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -2405,6 +2406,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pytest-asyncio" },
     { name = "python-multipart" },
+    { name = "sqlmodel" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "wandb" },
 ]
@@ -2427,6 +2429,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.3.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
     { name = "gitta", editable = "packages/gitta" },
+    { name = "greenlet", specifier = ">=3.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
@@ -2434,6 +2437,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "sqlmodel", specifier = ">=0.0.22" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
     { name = "wandb", specifier = ">=0.22.3" },
 ]
