@@ -107,9 +107,17 @@ jobs:
           aws-region: us-east-1
           role-duration-seconds: 36000
 
+      - name: Upgrade SkyPilot client (match API server)
+        run: |
+          set -euo pipefail
+          # The API server is currently 0.11.1; older clients can crash when rendering queue output.
+          uv pip install -U "skypilot==0.11.1"
+
       - name: Configure SkyPilot API server
         run: |
-          sky api login -e https://skypilot-api.softmax-research.net --token ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
+          set -euo pipefail
+          # Use the venv-installed SkyPilot, not a preinstalled runner binary.
+          uv run sky api login -e https://skypilot-api.softmax-research.net --token ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Check and stash uncommitted changes
         run: |
