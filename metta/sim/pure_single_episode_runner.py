@@ -1,3 +1,6 @@
+import socket
+from contextlib import contextmanager
+
 from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
@@ -61,8 +64,27 @@ class PureSingleEpisodeResult(BaseModel):
     steps: int
 
 
+@contextmanager
+def _no_python_sockets():
+    _real_socket = socket.socket
+    _real_getaddrinfo = socket.getaddrinfo
+
+    def _blocked(*args, **kwargs):
+        raise RuntimeError("Network access disabled")
+
+    socket.socket = _blocked
+    socket.getaddrinfo = _blocked
+
+    try:
+        yield
+    finally:
+        socket.socket = _real_socket
+        socket.getaddrinfo = _real_getaddrinfo
+
+
 def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
-    results, replay = run_pure_single_episode(job, device)
+    with _no_python_sockets():
+        results, replay = run_pure_single_episode(job, device)
     if job.replay_uri is not None:
         if replay is not None:
             replay.write_replay(job.replay_uri)
