@@ -181,7 +181,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "metta-cli"
+          install-mode: "testing"
 
       - name: Run linting and formatting
         run: uv run python .github/scripts/run_ci_stage.py lint
