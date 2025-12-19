@@ -422,20 +422,6 @@ class ProtocolConfig(Config):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     cooldown: int = Field(ge=0, default=0)
-    slope: float = Field(
-        default=0.0,
-        description=(
-            "Linear component of cost multiplier. "
-            "Negative = discounting (starts at 1x, decreases linearly). "
-            "Positive = linear cost increase."
-        ),
-    )
-    exponent: float = Field(
-        default=0.0,
-        description=(
-            "Exponential component of cost multiplier. Cost multiplier = max(0, 1 + slope * n) * (1 + exponent)^n."
-        ),
-    )
 
 
 class AssemblerConfig(GridObjectConfig):
