@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
@@ -98,6 +98,9 @@ class SlicedScriptedCloner(Loss):
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs"}
 
     def run_train(
         self,

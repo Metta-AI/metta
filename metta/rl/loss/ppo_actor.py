@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -55,6 +55,9 @@ class PPOActor(Loss):
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
