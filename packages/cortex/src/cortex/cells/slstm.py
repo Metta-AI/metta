@@ -274,7 +274,7 @@ class sLSTMCell(MemoryCell):
         m0 = m_prev.view(B, NH, DH)
         states0 = torch.stack((y0, c0, n0, m0), dim=0)
 
-        allow_triton = (self.head_dim & (self.head_dim - 1)) == 0
+        allow_triton = self.head_dim >= 16 and (self.head_dim & (self.head_dim - 1)) == 0
         logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
             triton_fn="cortex.kernels.triton.slstm:slstm_sequence_triton",

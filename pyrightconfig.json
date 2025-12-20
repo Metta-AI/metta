@@ -1,6 +1,27 @@
 {
   "include": ["**/*.py"],
-  "exclude": ["**/node_modules", "**/__pycache__", ".venv"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".venv",
+    "**/.bazel_output",
+    "**/bazel-*",
+    "wandb",
+    "train_dir",
+    "outputs",
+    "checkpoints",
+    "replays",
+    "tmp",
+    "build",
+    "dist",
+    "packages/pufferlib-core",
+    "external",
+    "personal",
+    "metta-research",
+    "notebooks/.ipynb_checkpoints",
+    "**/.venv",
+    "**/bindings/generated"
+  ],
   "extraPaths": [
     "./agent/src",
     "./app_backend/src",

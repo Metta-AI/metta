@@ -12,7 +12,6 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.util.file import ParsedURI
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
@@ -30,10 +29,10 @@ class SLCheckpointedKickstarterConfig(LossConfig):
     temperature: float = Field(default=2.0, gt=0)
 
     # Checkpoint reloading parameters
-    checkpointed_interval: int = Field(gt=0, description="Interval at which teacher checkpoints are saved")
-    epochs_per_checkpoint: int = Field(gt=0, description="Number of epochs to train with each checkpoint")
-    terminating_epoch: int = Field(ge=0, description="Stop reloading checkpoints before this epoch")
-    final_checkpoint: int = Field(ge=0, description="Final checkpoint to use (can be beyond terminating)")
+    checkpointed_interval: int = Field(default=1, gt=0, description="Interval at which teacher checkpoints are saved")
+    epochs_per_checkpoint: int = Field(default=1, gt=0, description="Number of epochs to train with each checkpoint")
+    terminating_epoch: int = Field(default=0, ge=0, description="Stop reloading checkpoints before this epoch")
+    final_checkpoint: int = Field(default=0, ge=0, description="Final checkpoint to use (can be beyond terminating)")
 
     def create(
         self,
@@ -145,8 +144,8 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        parsed = ParsedURI.parse(self._base_teacher_uri)
-        info = parse_uri(self._base_teacher_uri).checkpoint_info
+        parsed = parse_uri(self._base_teacher_uri, allow_none=False)
+        info = parsed.checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = info

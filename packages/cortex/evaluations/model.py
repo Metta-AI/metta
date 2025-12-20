@@ -25,7 +25,18 @@ class SequenceClassifier(nn.Module):
     ) -> Tuple[torch.Tensor, MaybeState]:  # logits, next_state
         # tokens: [B, T]
         x = self.embed(tokens)  # [B, T, H]
+
+        # Match stack dtype (e.g., bfloat16 stacks) to avoid matmul dtype mismatches.
+        target_stack_dtype = next(self.stack.parameters()).dtype
+        if x.dtype != target_stack_dtype:
+            x = x.to(dtype=target_stack_dtype)
+
         y, next_state = self.stack(x, state)
+
+        # Cast to classifier dtype before the output head.
+        target_head_dtype = self.classifier.weight.dtype
+        if y.dtype != target_head_dtype:
+            y = y.to(dtype=target_head_dtype)
         # Last timestep pooling by default
         logits = self.classifier(y[:, -1, :])
         return logits, next_state

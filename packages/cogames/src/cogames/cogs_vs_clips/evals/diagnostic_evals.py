@@ -235,13 +235,13 @@ class _DiagnosticMissionBase(Mission):
     def _apply_heart_reward_cap(self, cfg: MettaGridConfig) -> None:
         """Normalize diagnostics so a single deposited heart yields at most 1 reward per episode.
 
-        - Make each unit change of chest.heart.amount worth exactly 1.0 reward.
+        - Make each agent-deposited heart worth exactly 1.0 reward (credited only to the depositor).
         - Ensure all chests can store at most 1 heart so total reward per episode cannot exceed 1.
         """
         agent_cfg = cfg.game.agent
         rewards = agent_cfg.rewards
         stats = dict(rewards.stats or {})
-        stats["chest.heart.amount"] = 1.0
+        stats["chest.heart.deposited_by_agent"] = 1.0
         agent_cfg.rewards = rewards.model_copy(update={"stats": stats})
 
         # Cap heart capacity for every chest used in diagnostics (communal or resource-specific).
