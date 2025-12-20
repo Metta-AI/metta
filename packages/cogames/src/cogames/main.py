@@ -65,7 +65,7 @@ from mettagrid.simulator import Simulator
 sys.path.insert(0, ".")
 
 try:  # Optional plugin
-    from tribal_village_env.cogames import register_cli as register_tribal_cli
+    from tribal_village_env.cogames import register_cli as register_tribal_cli  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - plugin optional
     register_tribal_cli = None
 
@@ -768,7 +768,7 @@ def run_cmd(
         episodes=episodes,
         seed=seed,
         output_format=format_,
-        save_replay=save_replay_dir,
+        save_replay=str(save_replay_dir) if save_replay_dir else None,
     )
 
 

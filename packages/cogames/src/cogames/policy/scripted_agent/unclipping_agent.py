@@ -7,7 +7,7 @@ This agent can detect clipped extractors and craft unclip items to restore them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -21,6 +21,7 @@ from .types import (
     Phase,
     SimpleAgentState,
 )
+from .utils import use_object_at
 
 if TYPE_CHECKING:
     pass
@@ -212,7 +213,7 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
             return
 
         # Priority 4: Unclipping workflow (before gathering)
-        if s.blocked_by_clipped_extractor is not None:
+        if s.blocked_by_clipped_extractor is not None and s.unclip_target_resource is not None:
             # First, check if the extractor is still clipped
             target_pos = s.blocked_by_clipped_extractor
             extractors = s.extractors.get(s.unclip_target_resource, [])
@@ -325,7 +326,8 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
     ) -> tuple[Action, UnclippingAgentState]:
         """Override to discover unclip recipes from observations."""
         # First, let the base class handle observation parsing and state updates
-        action, state = super().step_with_state(obs, state)
+        action, updated_state = super().step_with_state(obs, state)
+        state = cast(UnclippingAgentState, updated_state)
 
         # Now discover unclip recipes from the parsed observation
         # We need to parse again to get the nearby_objects
@@ -378,7 +380,9 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
         is_adjacent = (dr == 1 and dc == 0) or (dr == 0 and dc == 1)
 
         if is_adjacent:
-            return self._use_object_at(s, assembler, using_for=f"craft_{item_name}")
+            return use_object_at(
+                s, assembler, actions=self._actions, move_deltas=self._move_deltas, using_for=f"craft_{item_name}"
+            )
 
         return self._move_towards(s, assembler, reach_adjacent=True)
 
@@ -417,7 +421,13 @@ class UnclippingAgentPolicyImpl(BaselineAgentPolicyImpl):
 
         if is_adjacent:
             # Adjacent to clipped extractor - use it to unclip (like using any other object)
-            action = self._use_object_at(s, target, using_for=f"unclip_{s.unclip_target_resource}")
+            action = use_object_at(
+                s,
+                target,
+                actions=self._actions,
+                move_deltas=self._move_deltas,
+                using_for=f"unclip_{s.unclip_target_resource}",
+            )
             # Don't clear unclip state yet - wait until next step to verify it worked
             # The state will be cleared in _update_phase when we see the extractor is unclipped
             return action
@@ -452,9 +462,15 @@ class UnclippingPolicy(MultiAgentPolicy):
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[UnclippingAgentState]:
         if agent_id not in self._agent_policies:
-            self._agent_policies[agent_id] = StatefulAgentPolicy(
-                UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
-                self._policy_env_info,
-                agent_id=agent_id,
+            # UnclippingAgentPolicyImpl uses UnclippingAgentState but inherits from
+            # BaselineAgentPolicyImpl typed with SimpleAgentState, requiring a cast
+            policy = cast(
+                StatefulAgentPolicy[UnclippingAgentState],
+                StatefulAgentPolicy(
+                    UnclippingAgentPolicyImpl(self._policy_env_info, agent_id, self._hyperparams),
+                    self._policy_env_info,
+                    agent_id=agent_id,
+                ),
             )
+            self._agent_policies[agent_id] = policy
         return self._agent_policies[agent_id]
