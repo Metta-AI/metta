@@ -1,7 +1,6 @@
 import os
 from typing import Optional
 
-import torch
 from torch import Tensor
 from torch.library import custom_op
 from torch.utils.cpp_extension import load
