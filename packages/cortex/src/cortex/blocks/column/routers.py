@@ -12,14 +12,9 @@ from cortex.types import Tensor
 
 
 class BaseRouter(nn.Module):
-    """Abstract router that returns a global expert gate via forward().
+    """Abstract router that returns a global expert gate via forward()."""
 
-    The base interface is intentionally lenient with *args/**kwargs so callers
-    that previously passed expert outputs (for logging/inspection) continue to
-    work even though the router no longer needs them.
-    """
-
-    def forward(self, *_args, **_kwargs) -> Tensor:  # shape: [K]
+    def forward(self) -> Tensor:  # shape: [K]
         raise NotImplementedError
 
 
@@ -70,8 +65,8 @@ class GlobalContextRouter(BaseRouter):
         logits = scores / max(self.temperature, 1e-6)
         return logits
 
-    def forward(self, *_args, **_kwargs) -> Tensor:
-        """Return the global gate; extra args are ignored for backward compat."""
+    def forward(self) -> Tensor:
+        """Return the global gate."""
         logits = self.global_logits(restrict_topk=True)
         gate = torch.softmax(logits, dim=-1)
         return gate
