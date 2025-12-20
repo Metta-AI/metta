@@ -73,9 +73,9 @@ class TrainerConfig(Config):
     require_contiguous_env_ids: bool = False
     verbose: bool = True
 
-    batch_size: int = Field(default=524288, gt=0)
+    batch_size: int = Field(default=2_097_152, gt=0)
     minibatch_size: int = Field(default=16384, gt=0)
-    bptt_horizon: int = Field(default=64, gt=0)
+    bptt_horizon: int = Field(default=256, gt=0)
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
