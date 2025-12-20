@@ -63,6 +63,14 @@ def db_uri(postgres_container: PostgresContainer) -> str:
 @pytest.fixture(scope="class")
 def stats_repo(db_uri: str) -> MettaRepo:
     """Create a MettaRepo instance with the test database."""
+    from metta.app_backend import config as app_config
+    from metta.app_backend import database
+
+    # Reset the engine singleton and point it at the test database
+    database._engine = None
+    database._session_factory = None
+    app_config.settings.STATS_DB_URI = db_uri
+
     return MettaRepo(db_uri)
 
 
