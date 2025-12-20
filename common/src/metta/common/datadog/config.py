@@ -26,4 +26,5 @@ class DatadogConfig(BaseSettings):
         env_vars = self.model_dump(mode="json", exclude_none=True)
         return {key: (str(value).lower() if isinstance(value, bool) else str(value)) for key, value in env_vars.items()}
 
+
 datadog_config = DatadogConfig()

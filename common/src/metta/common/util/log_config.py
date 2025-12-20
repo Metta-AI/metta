@@ -36,6 +36,7 @@ class RankAwareLogger(logging.Logger):
             self._is_master = (get_node_rank() or "0") == "0"
         return self._is_master
 
+
 def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
     init_logging()
     return logging.getLogger(name)  # type: ignore[return-value]
