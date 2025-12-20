@@ -12,7 +12,6 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class EERClonerConfig(LossConfig):
@@ -102,7 +101,6 @@ class EERCloner(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 
