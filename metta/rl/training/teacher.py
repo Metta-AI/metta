@@ -147,15 +147,14 @@ def apply_teacher_phase(
         supervisor.enabled = True
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
+        # Match legacy BC behavior: supervisor-only training disables PPO entirely.
+        losses.ppo.enabled = False
+        losses.ppo_actor.enabled = False
+        losses.ppo_critic.enabled = False
+        losses.quantile_ppo_critic.enabled = False
+
         _gate_loss("supervisor")
         _gate_critic_after_teacher()
-        if total_steps:
-            scheduler_run_gates.append(
-                LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=total_steps)
-            )
-            scheduler_run_gates.append(
-                LossRunGate(loss_instance_name="ppo_critic", phase="train", begin_at_step=total_steps)
-            )
         _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
