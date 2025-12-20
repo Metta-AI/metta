@@ -28,16 +28,8 @@ def cyan(text):
     return colorize(text, Fore.CYAN)
 
 
-def blue(text):
-    return colorize(text, Fore.BLUE)
-
-
 def bold(text):
     return colorize(text, Style.BRIGHT)
-
-
-def magenta(text):
-    return colorize(text, Fore.MAGENTA)
 
 
 def use_colors(use_colors: bool):
