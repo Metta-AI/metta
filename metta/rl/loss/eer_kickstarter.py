@@ -22,7 +22,7 @@ class EERKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    r_lambda: float = Field(default=1.0, ge=0)  # scale the teacher log likelihoods that are added to rewards
+    r_lambda: float = Field(default=0.1, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     def create(
         self,
@@ -70,7 +70,6 @@ class EERKickstarter(Loss):
         logits_f32 = UnboundedContinuous(shape=torch.Size([num_actions]), dtype=torch.float32)
 
         return Composite(
-            teacher_act_log_prob=scalar_f32,
             teacher_full_log_probs=logits_f32,
             teacher_values=scalar_f32,
         )
@@ -83,10 +82,6 @@ class EERKickstarter(Loss):
             td["teacher_values"] = teacher_td["values"]
 
             self.policy.forward(td)
-            student_action = td["actions"]
-            teacher_full_log_probs = td["full_log_probs"]
-            teacher_log_probs = teacher_full_log_probs.gather(dim=1, index=student_action.unsqueeze(1)).squeeze(1)
-            td["teacher_act_log_prob"] = teacher_log_probs
 
         # Store experience
         env_slice = context.training_env_id
@@ -101,18 +96,22 @@ class EERKickstarter(Loss):
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
+        student_td = shared_loss_data["policy_td"]
 
-        teach_act_logp = minibatch["teacher_act_log_prob"]
-        teach_act_logp_shift = torch.zeros_like(teach_act_logp)
-        teach_act_logp_shift[:-1] = teach_act_logp[1:]
+        teacher_full_log_probs = minibatch["teacher_full_log_probs"]
+        student_action = minibatch["actions"]
 
+        teach_act_log_probs = teacher_full_log_probs.gather(dim=2, index=student_action.unsqueeze(2)).squeeze(2)
         dones = minibatch["dones"] > 0.5
         truncateds = minibatch["truncateds"] > 0.5
         terminations = dones | truncateds
-        teach_act_logp_shift[terminations] = 0.0
+        teach_act_log_probs[terminations] = 0.0
+
+        teach_act_log_probs_shift = torch.zeros_like(teach_act_log_probs)
+        teach_act_log_probs_shift[:-1] = teach_act_log_probs[1:]
 
         rewards = minibatch["rewards"]
-        rewards = rewards + self.cfg.r_lambda * teach_act_logp_shift
+        rewards = rewards + self.cfg.r_lambda * teach_act_log_probs_shift
         minibatch["rewards"] = rewards
 
         advantages = compute_advantage(
@@ -127,10 +126,6 @@ class EERKickstarter(Loss):
         )
 
         minibatch["advantages"] = advantages
-
-        B, TT = minibatch.batch_size
-
-        student_td = shared_loss_data["policy_td"]
 
         # action loss (cross entropy)
         student_full_log_probs = student_td["full_log_probs"]

@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.eer_cloner import EERClonerConfig
 from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
@@ -30,6 +31,7 @@ class LossesConfig(Config):
         "sliced_kickstarter",
         "sliced_scripted_cloner",
         "eer_kickstarter",
+        "eer_cloner",
         "ppo_critic",
         "quantile_ppo_critic",
         "ppo_actor",
@@ -64,6 +66,7 @@ class LossesConfig(Config):
         default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
     )
     eer_kickstarter: EERKickstarterConfig = Field(default_factory=lambda: EERKickstarterConfig(enabled=False))
+    eer_cloner: EERClonerConfig = Field(default_factory=lambda: EERClonerConfig(enabled=False))
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )

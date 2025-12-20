@@ -17,6 +17,7 @@ TeacherMode = Literal[
     "kickstarter",
     "logit_kickstarter",
     "eer_kickstarter",
+    "eer_cloner",
 ]
 
 DEFAULT_TEACHER_STEPS = 1_000_000_000
@@ -99,7 +100,7 @@ def apply_teacher_phase(
                 )
             )
 
-    if teacher_cfg.mode in {"sliced_cloner", "supervisor"}:
+    if teacher_cfg.mode in {"sliced_cloner", "supervisor", "eer_cloner"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
@@ -274,7 +275,39 @@ def apply_teacher_phase(
                     end_agent_step=total_steps,
                 )
             )
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="eer_cloner",
+                    attr_path="value_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=logit.value_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
 
+    elif teacher_cfg.mode == "eer_cloner":
+        _require_policy_uri(teacher_cfg)
+        eer_cl = losses.eer_cloner
+        eer_cl.enabled = True
+
+        _gate_loss("eer_cloner")
+        _gate_critic_after_teacher()
+        if total_steps:
+            scheduler_rules.append(
+                HyperUpdateRule(
+                    loss_instance_name="eer_cloner",
+                    attr_path="action_loss_coef",
+                    mode="progress",
+                    style="linear",
+                    start_value=eer_cl.action_loss_coef,
+                    end_value=0.0,
+                    start_agent_step=total_steps // 2,
+                    end_agent_step=total_steps,
+                )
+            )
     else:
         raise ValueError(f"Unsupported teacher mode '{teacher_cfg.mode}'")
 
