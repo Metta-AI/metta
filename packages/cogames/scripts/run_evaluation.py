@@ -546,7 +546,7 @@ def _bar_plot(
     output_path: Path,
     width: float = 0.35,
     rotation: int = 45,
-    figsize: tuple[int, int] = (12, 7),
+    figsize: tuple[float, float] = (12, 7),
     annotate: bool = True,
 ):
     # Filter out labels that have no data for any series
