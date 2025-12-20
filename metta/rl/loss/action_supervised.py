@@ -77,6 +77,12 @@ class ActionSupervised(Loss):
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         return {"full_log_probs", "act_log_prob"} if self.cfg.add_action_loss_to_rewards else {"full_log_probs"}
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        keys = {"full_log_probs"}
+        if self.cfg.add_action_loss_to_rewards:
+            keys.add("act_log_prob")
+        return keys
+
     def run_train(
         self,
         shared_loss_data: TensorDict,
