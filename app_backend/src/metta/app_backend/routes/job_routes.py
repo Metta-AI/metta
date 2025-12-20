@@ -89,10 +89,10 @@ def create_job_router() -> APIRouter:
                 if request.status in (JobStatus.completed, JobStatus.failed):
                     job.completed_at = datetime.now(UTC)
 
-            if request.error:
+            if request.error is not None:
                 job.error = request.error
 
-            if request.result:
+            if request.result is not None:
                 job.result = request.result
 
             await session.commit()
