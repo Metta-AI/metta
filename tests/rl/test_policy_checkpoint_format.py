@@ -20,7 +20,8 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.checkpoint_dir import write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
-from metta.rl.mpt_policy import MptPolicy, save_mpt
+from metta.rl.mpt_artifact import save_mpt
+from metta.rl.mpt_policy import MptPolicy
 
 
 class DummyActionComponentConfig(Config):
