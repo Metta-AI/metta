@@ -134,7 +134,7 @@ class Mission(Config):
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
     vibe_count: int | None = Field(default=None)
-    compass_enabled: bool = Field(default=False)
+    compass_enabled: bool = Field(default=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -191,13 +191,14 @@ class Mission(Config):
                     ),
                 },
                 rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / num_cogs},
+                    # Reward only the agent that deposits a heart.
+                    stats={"chest.heart.deposited_by_agent": 1.0},
                 ),
                 initial_inventory={
                     "energy": self.energy_capacity,
                 },
                 vibe_transfers={"charger": {"energy": 20}},
-                inventory_regen_amounts={"energy": self.energy_regen_amount},
+                inventory_regen_amounts={"default": {"energy": self.energy_regen_amount}},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,

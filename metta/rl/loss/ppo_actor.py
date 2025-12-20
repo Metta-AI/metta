@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
@@ -12,29 +12,20 @@ from metta.rl.advantage import compute_advantage, normalize_advantage_distribute
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.utils import add_dummy_loss_for_unused_params
-from mettagrid.base_config import Config
-
-
-class VTraceConfig(Config):
-    # Defaults follow IMPALA (Espeholt et al., 2018)
-    rho_clip: float = Field(default=1.0, gt=0)
-    c_clip: float = Field(default=1.0, gt=0)
 
 
 class PPOActorConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
-    # Entropy term weight from sweep
-    ent_coef: float = Field(default=0.010000, ge=0)
+    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
+    # Entropy term weight tuned from CvC sweep winner
+    ent_coef: float = Field(default=0.027574, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
     norm_adv: bool = True
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
-
-    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     def create(
         self,
@@ -89,33 +80,16 @@ class PPOActor(Loss):
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
         importance_sampling_ratio = logratio.exp()
 
-        indices = shared_loss_data.get("indices", None)
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
-
-        if indices is not None:
-            update_td = TensorDict(
-                {
-                    "ratio": importance_sampling_ratio.detach(),
-                },
-                batch_size=minibatch.batch_size,
-            )
-            self.replay.update(indices, update_td)
+        update_td = TensorDict(
+            {
+                "ratio": importance_sampling_ratio.detach(),
+            },
+            batch_size=minibatch.batch_size,
+        )
+        indices = shared_loss_data["indices"][:, 0]
+        self.replay.update(indices, update_td)
 
         # Re-compute advantages with new ratios (V-trace)
-        # Use gamma/lambda from critic to ensure consistency
-        gamma = shared_loss_data.get("gamma", None)
-        if gamma is not None:
-            gamma = gamma.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gamma in shared_loss_data")
-
-        gae_lambda = shared_loss_data.get("gae_lambda", None)
-        if gae_lambda is not None:
-            gae_lambda = gae_lambda.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
-
         values = minibatch["values"]
         if hasattr(self.policy, "critic_quantiles"):
             # If we are using a quantile critic in our policy
@@ -127,11 +101,11 @@ class PPOActor(Loss):
             minibatch["dones"],
             importance_sampling_ratio,
             shared_loss_data["advantages"],
-            gamma,
-            gae_lambda,
-            cfg.vtrace.rho_clip,
-            cfg.vtrace.c_clip,
+            self.trainer_cfg.advantage.gamma,
+            self.trainer_cfg.advantage.gae_lambda,
             self.device,
+            self.trainer_cfg.advantage.vtrace_rho_clip,
+            self.trainer_cfg.advantage.vtrace_c_clip,
         )
 
         # Normalize advantages with distributed support, then apply prioritized weights

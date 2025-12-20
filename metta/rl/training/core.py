@@ -3,11 +3,13 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.utils import forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -240,6 +242,24 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for _ in range(update_epochs):
+            if "values" in self.experience.buffer.keys():
+                advantages = compute_advantage(
+                    self.experience.buffer["values"],
+                    self.experience.buffer["rewards"],
+                    self.experience.buffer["dones"],
+                    torch.ones_like(self.experience.buffer["values"]),
+                    torch.zeros_like(self.experience.buffer["values"], device=self.device),
+                    self.context.config.advantage.gamma,
+                    self.context.config.advantage.gae_lambda,
+                    self.device,
+                    self.context.config.advantage.vtrace_rho_clip,
+                    self.context.config.advantage.vtrace_c_clip,
+                )
+            else:
+                # Value-free setups still need a tensor shaped like the buffer for sampling.
+                advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
+            self.experience.buffer["advantages_full"] = advantages
+
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
@@ -247,7 +267,20 @@ class CoreTrainingLoop:
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
-                shared_loss_mb_data = self.experience.give_me_empty_md_td()
+
+                shared_loss_mb_data = self.experience.sample(
+                    mb_idx=mb_idx,
+                    epoch=context.epoch,
+                    total_timesteps=context.config.total_timesteps,
+                    batch_size=context.config.batch_size,
+                    advantages=advantages,
+                )
+                if mb_idx == 0:
+                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
+
+                policy_td = shared_loss_mb_data["sampled_mb"]
+                policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
+                shared_loss_mb_data["policy_td"] = policy_td
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
@@ -296,14 +329,14 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: ComponentContext) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the start of each epoch.
 
         Args:
             context: Shared trainer context providing epoch state
         """
         for loss in self.losses.values():
-            loss.on_new_training_run(context)
+            loss.on_epoch_start(context)
 
     def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]

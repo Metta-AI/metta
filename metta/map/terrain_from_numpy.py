@@ -13,7 +13,7 @@ from pydantic import Field
 from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder import MapGrid
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
-from mettagrid.util.file import ParsedURI
+from mettagrid.util.file import parse_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -33,8 +33,11 @@ def pick_random_file(path, rng):
 
 
 def download_from_s3(s3_path: str, save_path: str):
-    parsed = ParsedURI.parse(s3_path)
-    bucket, key = parsed.require_s3()
+    parsed = parse_uri(s3_path, allow_none=False)
+
+    if parsed.scheme != "s3":
+        raise ValueError(f"Expected S3 URI, got: {parsed.scheme}")
+    bucket, key = parsed.bucket, parsed.key
 
     try:
         # Create directory if it doesn't exist

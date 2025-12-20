@@ -3,12 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import torch
-
 from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.file import ParsedURI
+from mettagrid.util.file import parse_uri
 
 
 class MptPolicy(MultiAgentPolicy):
@@ -25,10 +23,10 @@ class MptPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         *,
         checkpoint_uri: str,
-        device: str | torch.device = "cpu",
+        device: str = "cpu",
         strict: bool = True,
     ):
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, device=device)
 
         artifact = load_mpt(checkpoint_uri)
         self._architecture = artifact.architecture
@@ -57,5 +55,5 @@ class MptPolicy(MultiAgentPolicy):
 
         save_mpt(str(destination), architecture=architecture, state_dict=self._policy.state_dict())
 
-        parsed = ParsedURI.parse(str(destination))
+        parsed = parse_uri(str(destination), allow_none=False)
         return parsed.canonical

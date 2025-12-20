@@ -3,7 +3,8 @@
 import pytest
 
 from metta.sweep.optimizer.protein import ProteinOptimizer
-from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+from metta.sweep.parameter_config import ParameterConfig
+from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 
 
 @pytest.fixture

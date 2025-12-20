@@ -11,7 +11,7 @@ from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.file import ParsedURI, local_copy, write_file
+from mettagrid.util.file import local_copy, parse_uri, write_file
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -37,22 +37,21 @@ class MptArtifact:
     def instantiate(
         self,
         policy_env_info: PolicyEnvInterface,
-        device: torch.device | str = "cpu",
+        device: str = "cpu",
         *,
         strict: bool = True,
     ) -> Any:
-        if isinstance(device, str):
-            device = torch.device(device)
+        torch_device = torch.device(device)
 
         policy = self.architecture.make_policy(policy_env_info)
-        policy = policy.to(device)
+        policy = policy.to(torch_device)
 
         missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
         if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
+            policy.initialize_to_environment(policy_env_info, torch_device)
 
         return policy
 
@@ -117,7 +116,7 @@ def save_mpt(
     state_dict: Mapping[str, torch.Tensor],
 ) -> str:
     """Save an .mpt checkpoint to a URI or local path. Returns the saved URI."""
-    parsed = ParsedURI.parse(str(uri))
+    parsed = parse_uri(str(uri), allow_none=False)
 
     if parsed.scheme == "s3":
         with tempfile.NamedTemporaryFile(suffix=".mpt", delete=False) as tmp:

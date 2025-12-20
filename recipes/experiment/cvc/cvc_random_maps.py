@@ -120,14 +120,13 @@ def make_random_maps_curriculum(
     # Create base environment
     base_env = mission.make_env()
 
-    # Use only first 13 vibes from TRAINING_VIBES
-    # (excludes: assembler, chest, wall, red-heart)
+    # Use full vibe set to maintain a single action space across train/eval.
     from mettagrid.config import vibes as vibes_module
 
-    first_13_vibes = [v.name for v in vibes_module.VIBES[:13]]
-    base_env.game.vibe_names = first_13_vibes
+    full_vibes = [v.name for v in vibes_module.VIBES]
+    base_env.game.vibe_names = full_vibes
     if base_env.game.actions.change_vibe:
-        base_env.game.actions.change_vibe.number_of_vibes = 13
+        base_env.game.actions.change_vibe.number_of_vibes = len(full_vibes)
 
     # Replace map builder with random map generator
     # Random.Config has too_many_is_ok=True, so it will cap objects to available space
@@ -206,7 +205,7 @@ def make_random_maps_curriculum(
     # Standard curriculum buckets
     tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500, 2000, 3000, 4000])
 
-    tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [3])
+    tasks.add_bucket("game.agent.rewards.stats.chest.heart.deposited_by_agent", [3])
 
     if heart_buckets:
         tasks.add_bucket("game.agent.rewards.inventory.heart", [0.1, 0.333, 0.5, 1.0])
@@ -420,12 +419,12 @@ def play_sparse(
 
     env = mission.make_env()
 
-    # Use only first 13 vibes from TRAINING_VIBES
+    # Use full vibes to keep action space consistent with eval.
     from mettagrid.config import vibes as vibes_module
 
-    env.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+    env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-        env.game.actions.change_vibe.number_of_vibes = 13
+        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
 
     env.game.map_builder = MapGen.Config(
         width=room_size,
@@ -562,10 +561,10 @@ def replay_curriculum(
 
     env = mission.make_env()
 
-    # Use only first 13 vibes from TRAINING_VIBES (same as training curriculum)
-    env.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+    # Use full vibes to stay aligned with training/eval action space.
+    env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-        env.game.actions.change_vibe.number_of_vibes = 13
+        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
 
     env.game.map_builder = MapGen.Config(
         width=room_size,

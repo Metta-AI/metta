@@ -41,7 +41,7 @@ ANNEALERS: dict[AnnealStyle, Callable[[float, float, float], float]] = {
 
 
 class HyperUpdateRule(Config):
-    """Unified rule for updating loss hyperparameters.
+    """Unified rule for updating hyperparameters.
 
     Supports two modes:
     - progress: anneal between start/end values over epoch or agent_step ranges
@@ -284,6 +284,8 @@ class LossScheduler(TrainerComponent):
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
         epoch = self.context.epoch
         agent_step = self.context.agent_step
+        # One-time supervisor teardown after teacher phase to avoid extra forwards.
+        env_obj = getattr(self.context, "env", None)
         # 1) Apply run gates for the requested phase
         gates = getattr(self.context, "loss_run_gates", None)
         if gates is None:
@@ -312,14 +314,39 @@ class LossScheduler(TrainerComponent):
                 seen_loss_phase.add(key)
             entry[phase] = bool(entry[phase]) or bool(allowed)
 
+        # If a teacher/supervisor rollout loss is gated OFF, disable the supervisor to avoid extra forwards.
+        if phase == "rollout":
+            sup_off = False
+            for loss_name, entry in gates.items():
+                if loss_name in {"sliced_scripted_cloner", "supervisor", "sliced_kickstarter", "logit_kickstarter"}:
+                    if entry.get("rollout") is False:
+                        sup_off = True
+                        break
+            if sup_off:
+                env_obj = getattr(self.context, "env", None)
+                driver = getattr(getattr(env_obj, "vecenv", None), "driver_env", None)
+                if driver and hasattr(driver, "disable_supervisor"):
+                    driver.disable_supervisor()
+                te_cfg = getattr(getattr(self.context, "config", None), "training_env", None)
+                if te_cfg:
+                    te_cfg.supervisor_policy_uri = None
+
         # 2) Apply unified rules
         for rule in self.config.rules:
+            if rule.loss_instance_name == "trainer":
+                # Apply updates to the trainer config (e.g., optimizer.learning_rate)
+                rule.apply(obj=self.context.config, ctx=self.context)
+                continue
+
             loss = self.context.losses.get(rule.loss_instance_name)
             if loss is None:
                 # Skip silently to allow optional losses
                 continue
             # Apply updates to the loss config object
             rule.apply(obj=loss.cfg, ctx=self.context)
+
+        # Keep optimizer learning rate in sync with TrainerConfig if it changed.
+        self._sync_optimizer_from_config()
 
         # 3) If the train phase is gated to false, restrict which experience keys
         #    must be present based on which losses are active for rollout.
@@ -380,6 +407,14 @@ class LossScheduler(TrainerComponent):
             return
 
         experience.set_store_keys(active_keys)
+
+    def _sync_optimizer_from_config(self) -> None:
+        """Propagate TrainerConfig optimizer learning_rate into the live optimizer."""
+        optimizer = self.context.optimizer
+        trainer_cfg = self.context.config
+        lr = float(trainer_cfg.optimizer.learning_rate)
+        for group in optimizer.param_groups:
+            group["lr"] = lr
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

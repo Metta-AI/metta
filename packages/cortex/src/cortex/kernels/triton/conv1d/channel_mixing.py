@@ -48,8 +48,11 @@ def _resolve_reduce_t(block_fi: int, block_fo: int, reduce_t: int, device: torch
     current = reduce_t
 
     def required_bytes(rt: int) -> int:
-        # Two tiles of size [rt, block] promoted to fp32 plus the fp32 accumulator tile.
-        return 4 * (rt * (block_fo + block_fi) + block_fo * block_fi)
+        # `_bwd_cm_dw_kernel` uses `tl.dot(gy.T, x)` with both operands promoted to fp32.
+        # Triton typically stages dot operands in shared memory and double-buffers them
+        # (default `num_stages=2`), while the accumulator stays in registers.
+        # Include a small fixed headroom for alignment/metadata.
+        return 2 * (4 * rt * (block_fo + block_fi)) + 4096
 
     while current > 1 and required_bytes(current) > shared_limit:
         current //= 2

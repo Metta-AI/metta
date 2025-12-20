@@ -17,7 +17,36 @@ from mettagrid.util.grid_object_formatter import format_grid_object
 logger = logging.getLogger("ReplayLogWriter")
 
 
-class ReplayLogWriter(SimulatorEventHandler):
+class InMemoryReplayWriter(SimulatorEventHandler):
+    """EventHandler that maintains a list of completed replay results in memory, and does not write them anywhere"""
+
+    def __init__(self):
+        self._episode_replay: EpisodeReplay | None = None
+        self._completed_replays: list[EpisodeReplay] = []
+
+    def on_episode_start(self) -> None:
+        assert self._sim is not None  # This should be set by Rollout
+        self._episode_replay = EpisodeReplay(self._sim)
+
+    def get_completed_replays(self) -> list[EpisodeReplay]:
+        return self._completed_replays
+
+    def on_step(self) -> None:
+        assert self._episode_replay is not None
+        assert self._sim is not None
+        self._episode_replay.log_step(
+            self._sim.current_step,
+            self._sim._c_sim.actions(),  # type: ignore[attr-defined]
+            self._sim._c_sim.rewards(),  # type: ignore[attr-defined]
+        )
+
+    def on_episode_end(self) -> None:
+        assert self._episode_replay is not None
+        self._completed_replays.append(self._episode_replay)
+        self._episode_replay = None
+
+
+class ReplayLogWriter(InMemoryReplayWriter):
     """EventHandler that writes replay logs to storage (S3 or local files)."""
 
     def __init__(self, replay_dir: str):
@@ -28,8 +57,7 @@ class ReplayLogWriter(SimulatorEventHandler):
         """
         self._replay_dir = replay_dir
         self._episode_id = None
-        self._episode_replay = None
-        self._should_continue = True
+        self._episode_replay: EpisodeReplay | None = None
         self.episodes: Dict[str, EpisodeReplay] = {}
         self._episode_urls: Dict[str, str] = {}
         self._episode_paths: Dict[str, str] = {}
@@ -42,22 +70,6 @@ class ReplayLogWriter(SimulatorEventHandler):
         assert self._episode_id is not None
         self.episodes[self._episode_id] = self._episode_replay
         logger.debug("Started recording episode %s", self._episode_id)
-
-    def on_step(
-        self,
-    ) -> None:
-        """Log a single step in the replay."""
-        assert self._episode_replay is not None
-        assert self._sim is not None
-        self._episode_replay.log_step(
-            self._sim.current_step,
-            self._sim._c_sim.actions(),  # type: ignore[attr-defined]
-            self._sim._c_sim.rewards(),  # type: ignore[attr-defined]
-        )
-
-    def should_continue(self) -> bool:
-        """Check if rendering should continue."""
-        return self._should_continue
 
     def on_episode_end(self) -> None:
         """Write the replay to storage and clean up."""
