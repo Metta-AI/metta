@@ -132,6 +132,7 @@ class TestCheckpointManagerFlows:
         result = policy(td.clone())
         assert "actions" in result
 
+
 class TestCheckpointManagerValidation:
     def test_empty_directory_returns_none(self, checkpoint_manager):
         assert checkpoint_manager.load_trainer_state() is None
