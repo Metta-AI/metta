@@ -19,7 +19,8 @@
     "personal",
     "metta-research",
     "notebooks/.ipynb_checkpoints",
-    "**/.venv"
+    "**/.venv",
+    "**/bindings/generated"
   ],
   "extraPaths": [
     "./agent/src",
