@@ -9,7 +9,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
