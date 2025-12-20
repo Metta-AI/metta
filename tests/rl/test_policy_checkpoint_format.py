@@ -12,6 +12,8 @@ from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.mpt_artifact import save_mpt
+from metta.rl.mpt_policy import MptPolicy
 from mettagrid.base_config import Config
 from mettagrid.config import MettaGridConfig
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
@@ -20,8 +22,6 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.checkpoint_dir import write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
-from metta.rl.mpt_artifact import save_mpt
-from metta.rl.mpt_policy import MptPolicy
 
 
 class DummyActionComponentConfig(Config):
