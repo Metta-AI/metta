@@ -49,10 +49,13 @@ class ActionSupervised(Loss):
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
         act_space = self.env.single_action_space
-        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        if np.issubdtype(act_space.dtype, np.integer):
+            action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
+        else:
+            action_spec = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
-            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=act_dtype),
+            actions=action_spec,
             teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             rewards=scalar_f32,
             dones=scalar_f32,
