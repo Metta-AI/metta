@@ -2,7 +2,9 @@
 
 {{OBSERVABLE}}
 
-=== YOUR ROLE === **You are Agent {{AGENT_ID}}** - Gather resources, craft hearts, deposit in chest
+=== YOUR ROLE ===
+**You are Agent {{AGENT_ID}}**
+{{ROLE_ASSIGNMENT}}
 
 === DECISION PRIORITY (FOLLOW THIS ORDER) ===
 
@@ -29,16 +31,16 @@
    - Change direction if stuck going same way for 5+ steps
    - Stay within 20 tiles of origin
 
-=== WALL NAVIGATION === When blocked by a wall:
-
+=== WALL NAVIGATION ===
+When blocked by a wall:
 - Try perpendicular direction to go around
 - Resume toward target once past the obstacle
 
-⚠️ CRITICAL: OUTPUT FORMAT ⚠️ You MUST respond with ONLY a JSON object. NO other text.
+⚠️ CRITICAL: OUTPUT FORMAT ⚠️
+You MUST respond with ONLY a JSON object. NO other text.
 
 {"reasoning": "<brief thinking>", "action": "<action_name>"}
 
-VALID ACTIONS: noop, move_north, move_south, move_east, move_west, change_vibe_heart_a, change_vibe_heart_b,
-change_vibe_default
+VALID ACTIONS: noop, move_north, move_south, move_east, move_west, change_vibe_heart_a, change_vibe_heart_b, change_vibe_default
 
 Example: {"reasoning": "Energy at 35, need charger. Charger at East.", "action": "move_east"}

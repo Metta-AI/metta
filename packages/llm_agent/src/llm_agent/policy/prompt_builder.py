@@ -13,16 +13,10 @@ Prompt templates are loaded from markdown files in the 'prompts/' directory:
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from cogames.policy.scripted_agent.utils import (
-    is_wall,
-    manhattan_distance,
-    position_to_direction,
-)
 from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation
@@ -76,12 +70,13 @@ class LLMPromptBuilder:
     """
 
     def __init__(
-        self,
-        policy_env_info: PolicyEnvInterface,
-        context_window_size: int = 20,
-        mg_cfg: MettaGridConfig | None = None,
-        verbose: bool = False,
-        agent_id: int = 0,
+            self,
+            policy_env_info: PolicyEnvInterface,
+            context_window_size: int = 20,
+            mg_cfg: MettaGridConfig | None = None,
+            debug_mode: bool = False,
+            agent_id: int = 0,
+            verbose: bool = False,
     ):
         """Initialize prompt builder.
 
@@ -89,15 +84,16 @@ class LLMPromptBuilder:
             policy_env_info: Policy environment interface with feature/tag/action specs
             context_window_size: Number of steps before resending basic info (default: 20)
             mg_cfg: Optional MettaGridConfig to extract chest vibe transfers and other game-specific info
-            verbose: If True, print verbose debug information (default: False)
+            debug_mode: If True, print debug information (default: False)
             agent_id: Agent ID for role assignment (default: 0)
+            verbose: Alias for debug_mode (default: False)
         """
         self._policy_env_info = policy_env_info
         # Ensure context_window_size is an int (may come as string from config)
         self._context_window_size = int(context_window_size)
         self._step_counter = 0
         self._last_visible: VisibleElements | None = None
-        self._verbose = verbose
+        self._debug_mode = debug_mode or verbose
         self._agent_id = agent_id
 
         # Store mg_cfg for id_map access
@@ -109,23 +105,38 @@ class LLMPromptBuilder:
             chest_config = mg_cfg.game.objects.get("chest")
             if chest_config and hasattr(chest_config, "vibe_transfers"):
                 self._chest_vibe_transfers = chest_config.vibe_transfers
-                if self._verbose:
+                if self._debug_mode:
                     print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
             else:
-                if self._verbose:
-                    has_vibe = hasattr(chest_config, "vibe_transfers") if chest_config else "N/A"
-                    print(f"[LLMPromptBuilder] No chest vibe transfers. config={chest_config}, has={has_vibe}")
+                if self._debug_mode:
+                    print(
+                        f"[LLMPromptBuilder] No chest vibe transfers found. chest_config={chest_config}, has vibe_transfers={hasattr(chest_config, 'vibe_transfers') if chest_config else 'N/A'}")
         else:
-            if self._verbose:
+            if self._debug_mode:
                 print("[LLMPromptBuilder] No mg_cfg provided, chest vibe transfers will be empty")
 
         # Pre-build static content (game rules, coordinate system)
         self._basic_info_cache = self._build_basic_info()
 
         # Debug: print the recipes being used
-        if self._verbose:
+        if self._debug_mode:
             recipes = self._build_all_recipes()
             print(f"[LLMPromptBuilder] Recipes:\n{recipes}")
+
+    @staticmethod
+    def _get_role_assignment() -> str:
+        """Get role assignment based on agent ID.
+
+        Returns:
+            Role description string for this agent
+        """
+        # Generic role for all agents - gather ALL resources needed for hearts
+        return (
+            "ROLE: Resource gatherer\n"
+            "- Find and use ALL extractors to collect resources\n"
+            "- Check RECIPE above for exact amounts needed\n"
+            "- Craft at ASSEMBLER when you have all resources"
+        )
 
     def _build_basic_info(self) -> str:
         """Build minimal game information prompt.
@@ -177,7 +188,9 @@ class LLMPromptBuilder:
         if not self._policy_env_info.assembler_protocols:
             return ""
 
-        lines = ["=== CRAFTING RECIPES ===", "Use these vibes at an ASSEMBLER to craft items:", ""]
+        lines = ["=== CRAFTING RECIPES ==="]
+        lines.append("Use these vibes at an ASSEMBLER to craft items:")
+        lines.append("")
 
         # Group by output for clarity
         seen_recipes: set[str] = set()
@@ -185,18 +198,8 @@ class LLMPromptBuilder:
         for protocol in self._policy_env_info.assembler_protocols:
             # Format inputs
             input_parts = []
-            for resource in [
-                "carbon",
-                "oxygen",
-                "germanium",
-                "silicon",
-                "energy",
-                "heart",
-                "decoder",
-                "modulator",
-                "resonator",
-                "scrambler",
-            ]:
+            for resource in ["carbon", "oxygen", "germanium", "silicon", "energy", "heart", "decoder", "modulator",
+                             "resonator", "scrambler"]:
                 amount = protocol.input_resources.get(resource, 0)
                 if amount > 0:
                     input_parts.append(f"{amount} {resource}")
@@ -250,19 +253,26 @@ class LLMPromptBuilder:
 
         try:
             id_map = self._mg_cfg.game.id_map()
-            lines = ["=== OBJECT TYPES ===", "Objects you may encounter:"]
+            lines = []
 
             # Tags section - what objects exist in this mission
+            lines.append("=== OBJECT TYPES ===")
+            lines.append("Objects you may encounter:")
             for tag in id_map.tag_names():
                 lines.append(f"  - {tag}")
 
             return "\n".join(lines)
         except Exception as e:
-            if self._verbose:
+            if self._debug_mode:
                 print(f"[LLMPromptBuilder] Could not build id_map section: {e}")
             return ""
 
     def basic_info_prompt(self) -> str:
+        """Get the basic game information prompt.
+
+        Returns:
+            Static game rules and mechanics
+        """
         return self._basic_info_cache
 
     def observable_prompt(self, obs: AgentObservation, include_actions: bool = False) -> str:
@@ -289,17 +299,17 @@ class LLMPromptBuilder:
         directions = self._analyze_adjacent_tiles(obs, agent_x, agent_y)
         sections.append(self._build_directional_awareness_section(directions))
 
-        # 2. Agent's inventory summary (extracted from tokens at agent position)
+        # 3. Agent's inventory summary (extracted from tokens at agent position)
         inventory = self._extract_inventory(obs, agent_x, agent_y)
         if inventory:
             sections.append(self._build_inventory_section(inventory))
 
-        # 3. Visible objects with coordinates (spatial awareness)
+        # 4. Visible objects with coordinates (spatial awareness)
         visible_objects = self._extract_visible_objects_with_coords(obs, agent_x, agent_y)
         if visible_objects:
             sections.append(self._build_visible_objects_section(visible_objects))
 
-        # 4. Include available actions only on first/reset steps
+        # 5. Include available actions only on first/reset steps
         if include_actions:
             # Only include essential actions, not all 156 vibes
             essential_actions = self._get_essential_actions()
@@ -324,15 +334,17 @@ class LLMPromptBuilder:
         # Load template and substitute variables
         template = _load_prompt_template("full_prompt")
         return (
-            template.replace("{{BASIC_INFO}}", self.basic_info_prompt())
+            template
+            .replace("{{BASIC_INFO}}", self.basic_info_prompt())
             .replace("{{OBSERVABLE}}", self.observable_prompt(obs, include_actions=True))
             .replace("{{AGENT_ID}}", str(self._agent_id))
+            .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
         )
 
     def context_prompt(
-        self,
-        obs: AgentObservation,
-        force_basic_info: bool = False,
+            self,
+            obs: AgentObservation,
+            force_basic_info: bool = False,
     ) -> tuple[str, bool]:
         """Build prompt with smart context window management.
 
@@ -365,20 +377,19 @@ class LLMPromptBuilder:
             # Build common actions list
             common_actions = ["noop", "move_north", "move_south", "move_west", "move_east"]
             # Add vibe actions for resources/hearts
-            vibe_actions = [
-                name
-                for name in self._policy_env_info.action_names
-                if name.startswith("change_vibe_")
-                and any(x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])
-            ]
+            vibe_actions = [name for name in self._policy_env_info.action_names if
+                            name.startswith("change_vibe_") and any(
+                                x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])]
             action_list = common_actions + vibe_actions[:10]  # Limit to top 10 vibe actions
 
             # Load template and substitute variables
             template = _load_prompt_template("dynamic_prompt")
             prompt = (
-                template.replace("{{OBSERVABLE}}", self.observable_prompt(obs))
+                template
+                .replace("{{OBSERVABLE}}", self.observable_prompt(obs))
                 .replace("{{ACTIONS}}", ", ".join(action_list[:8]) + ", ...")
                 .replace("{{AGENT_ID}}", str(self._agent_id))
+                .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
                 .replace("{{RECIPE_SUMMARY}}", self._build_recipe_summary())
             )
             includes_basic = False
@@ -430,6 +441,7 @@ class LLMPromptBuilder:
         # Build spatial grid from tokens
         spatial_grid: dict[tuple[int, int], list[dict]] = {}
         for token in obs.tokens:
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
             x, y = token.row(), token.col()
             if (x, y) not in spatial_grid:
                 spatial_grid[(x, y)] = []
@@ -438,13 +450,11 @@ class LLMPromptBuilder:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
 
-            spatial_grid[(x, y)].append(
-                {
-                    "feature": token.feature.name,
-                    "value": token.value,
-                    "tag": tag_name,
-                }
-            )
+            spatial_grid[(x, y)].append({
+                "feature": token.feature.name,
+                "value": token.value,
+                "tag": tag_name,
+            })
 
         directions = {}
         checks = [
@@ -472,8 +482,7 @@ class LLMPromptBuilder:
 
         return directions
 
-    @staticmethod
-    def _build_directional_awareness_section(directions: dict[str, str]) -> str:
+    def _build_directional_awareness_section(self, directions: dict[str, str]) -> str:
         """Build the directional awareness section for the prompt.
 
         Args:
@@ -491,8 +500,7 @@ class LLMPromptBuilder:
                 lines.append(f"  {direction}: {status} - can move")
         return "\n".join(lines)
 
-    @staticmethod
-    def _get_direction_name(dx: int, dy: int) -> str:
+    def _get_direction_name(self, dx: int, dy: int) -> str:
         """Get human-readable direction name from offset.
 
         Args:
@@ -522,8 +530,7 @@ class LLMPromptBuilder:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
 
-    @staticmethod
-    def _extract_inventory(obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
+    def _extract_inventory(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
         """Extract inventory from tokens at agent's position.
 
         Args:
@@ -536,14 +543,14 @@ class LLMPromptBuilder:
         """
         inventory = {}
         for token in obs.tokens:
+            # SWAPPED: row() = X, col() = Y
             if token.row() == agent_x and token.col() == agent_y:
                 if token.feature.name.startswith("inv:"):
                     resource = token.feature.name[4:]  # Remove "inv:" prefix
                     inventory[resource] = token.value
         return inventory
 
-    @staticmethod
-    def _build_inventory_section(inventory: dict[str, int]) -> str:
+    def _build_inventory_section(self, inventory: dict[str, int]) -> str:
         """Build the inventory section for the prompt.
 
         Args:
@@ -565,26 +572,16 @@ class LLMPromptBuilder:
         """
         essential = ["noop", "move_north", "move_south", "move_east", "move_west"]
         # Add resource-related vibes
-        for vibe in [
-            "heart_a",
-            "heart_b",
-            "carbon_a",
-            "carbon_b",
-            "oxygen_a",
-            "oxygen_b",
-            "germanium_a",
-            "germanium_b",
-            "silicon_a",
-            "silicon_b",
-            "gear",
-            "default",
-        ]:
+        for vibe in ["heart_a", "heart_b", "carbon_a", "carbon_b", "oxygen_a", "oxygen_b",
+                     "germanium_a", "germanium_b", "silicon_a", "silicon_b", "gear", "default"]:
             action_name = f"change_vibe_{vibe}"
             if action_name in self._policy_env_info.action_names:
                 essential.append(action_name)
         return essential
 
-    def _extract_visible_objects_with_coords(self, obs: AgentObservation, agent_x: int, agent_y: int) -> list[dict]:
+    def _extract_visible_objects_with_coords(
+            self, obs: AgentObservation, agent_x: int, agent_y: int
+    ) -> list[dict]:
         """Extract all visible objects with their absolute coordinates and properties.
 
         Args:
@@ -599,6 +596,7 @@ class LLMPromptBuilder:
         positions: dict[tuple[int, int], dict] = {}
 
         for token in obs.tokens:
+            # SWAPPED: In MettaGrid, row() = X (East/West), col() = Y (North/South)
             x, y = token.row(), token.col()
 
             # Skip agent's own position (we show inventory separately)
@@ -672,19 +670,16 @@ class LLMPromptBuilder:
         agent_x = self._policy_env_info.obs_width // 2
         agent_y = self._policy_env_info.obs_height // 2
 
-        lines = [
-            f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
-            "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)",
-            "",
-        ]
+        lines = [f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
+                 "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)", ""]
 
         for obj in objects:
             # Calculate absolute position from relative
-            abs_x = obj["x"] + agent_x
-            abs_y = obj["y"] + agent_y
+            abs_x = obj['x'] + agent_x
+            abs_y = obj['y'] + agent_y
 
             # Calculate direction from agent
-            direction = self._get_direction_name(obj["x"], obj["y"])
+            direction = self._get_direction_name(obj['x'], obj['y'])
 
             # Format: "assembler at (7, 5) - EAST"
             line = f"  {obj['name']} at ({abs_x},{abs_y}) - {direction}"
@@ -722,117 +717,174 @@ class LLMPromptBuilder:
     # =========================================================================
 
     def _build_wall_map(self, obs: AgentObservation) -> set[tuple[int, int]]:
-        """Build a set of blocked tile positions from observation."""
+        """Build a set of blocked tile positions from observation.
+
+        Args:
+            obs: Agent observation
+
+        Returns:
+            Set of (x, y) positions that are blocked (walls or objects)
+        """
         blocked: set[tuple[int, int]] = set()
 
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
-                if is_wall(tag_name):
+                # Walls are always blocked
+                if tag_name == "wall":
                     blocked.add((token.row(), token.col()))
+                # Other objects block movement but are valid destinations
+                # We'll handle this in BFS by allowing the target tile
 
         return blocked
 
     @staticmethod
     def _bfs_first_move(
-        start: tuple[int, int],
+            start: tuple[int, int],
         target: tuple[int, int],
         blocked: set[tuple[int, int]],
         grid_width: int,
         grid_height: int,
     ) -> str | None:
-        """Run BFS to find shortest path and return the first move direction."""
+        """Run BFS to find shortest path and return the first move direction.
+
+        Args:
+            start: Starting position (agent position)
+            target: Target position
+            blocked: Set of blocked positions (walls)
+            grid_width: Width of visible grid
+            grid_height: Height of visible grid
+
+        Returns:
+            First move direction ("move_north", "move_south", etc.) or None if no path
+        """
+        from collections import deque
+
+        # If already at target, no move needed
         if start == target:
             return None
+
+        # If target is blocked by wall, no path possible
         if target in blocked:
             return None
 
-        # Direction offsets: (row_delta, col_delta)
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        # Direction offsets: (dx, dy, action_name)
+        directions = [
+            (0, -1, "move_north"),
+            (0, 1, "move_south"),
+            (1, 0, "move_east"),
+            (-1, 0, "move_west"),
+        ]
 
-        queue: deque[tuple[tuple[int, int], tuple[int, int] | None]] = deque()
-        queue.append((start, None))  # (position, first_step_position)
+        # BFS
+        queue: deque[tuple[tuple[int, int], str | None]] = deque()
+        queue.append((start, None))  # (position, first_move)
         visited: set[tuple[int, int]] = {start}
 
         while queue:
-            pos, first_step = queue.popleft()
-            r, c = pos
+            pos, first_move = queue.popleft()
+            x, y = pos
 
-            for dr, dc in directions:
-                nr, nc = r + dr, c + dc
+            for dx, dy, action in directions:
+                nx, ny = x + dx, y + dy
 
-                if not (0 <= nr < grid_height and 0 <= nc < grid_width):
-                    continue
-                if (nr, nc) in blocked and (nr, nc) != target:
-                    continue
-                if (nr, nc) in visited:
+                # Check bounds
+                if not (0 <= nx < grid_width and 0 <= ny < grid_height):
                     continue
 
-                visited.add((nr, nc))
-                new_first_step = first_step if first_step else (nr, nc)
+                # Check if blocked (but allow target even if it has an object)
+                if (nx, ny) in blocked and (nx, ny) != target:
+                    continue
 
-                if (nr, nc) == target:
-                    # Convert first step position to direction using cogames utility
-                    direction = position_to_direction(start, new_first_step)
-                    return f"move_{direction}" if direction else None
+                # Check if visited
+                if (nx, ny) in visited:
+                    continue
 
-                queue.append(((nr, nc), new_first_step))
+                visited.add((nx, ny))
 
+                # Track the first move that led here
+                new_first_move = first_move if first_move else action
+
+                # Found target!
+                if (nx, ny) == target:
+                    return new_first_move
+
+                queue.append(((nx, ny), new_first_move))
+
+        # No path found
         return None
 
     def get_pathfinding_hints(self, obs: AgentObservation) -> str:
-        """Generate pathfinding hints for important visible objects."""
-        agent_pos = (self._policy_env_info.obs_width // 2, self._policy_env_info.obs_height // 2)
+        """Generate pathfinding hints for important visible objects.
 
+        Args:
+            obs: Agent observation
+
+        Returns:
+            Formatted pathfinding hints string, or empty string if no hints
+        """
+        agent_x = self._policy_env_info.obs_width // 2
+        agent_y = self._policy_env_info.obs_height // 2
+
+        # Important objects to pathfind to
         important_objects = {
-            "charger",
-            "assembler",
-            "chest",
-            "carbon_extractor",
-            "oxygen_extractor",
-            "germanium_extractor",
-            "silicon_extractor",
+            "charger", "assembler", "chest",
+            "carbon_extractor", "oxygen_extractor",
+            "germanium_extractor", "silicon_extractor",
         }
 
+        # Build wall map
         blocked = self._build_wall_map(obs)
 
-        # Find closest important object of each type
+        # Find important objects and their positions
         targets: dict[str, tuple[int, int]] = {}
         for token in obs.tokens:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
                 if tag_name in important_objects:
                     pos = (token.row(), token.col())
-                    if pos != agent_pos:
+                    # Skip if at agent position
+                    if pos != (agent_x, agent_y):
+                        # Keep closest of each type
                         if tag_name not in targets:
                             targets[tag_name] = pos
-                        elif manhattan_distance(pos, agent_pos) < manhattan_distance(targets[tag_name], agent_pos):
-                            targets[tag_name] = pos
+                        else:
+                            # Compare distances
+                            old_dist = abs(targets[tag_name][0] - agent_x) + abs(targets[tag_name][1] - agent_y)
+                            new_dist = abs(pos[0] - agent_x) + abs(pos[1] - agent_y)
+                            if new_dist < old_dist:
+                                targets[tag_name] = pos
 
         if not targets:
             return ""
 
+        # Calculate first move for each target
         entries = []
         grid_width = self._policy_env_info.obs_width
         grid_height = self._policy_env_info.obs_height
+        start = (agent_x, agent_y)
 
         for obj_name, target_pos in sorted(targets.items()):
-            first_move = self._bfs_first_move(agent_pos, target_pos, blocked, grid_width, grid_height)
+            first_move = self._bfs_first_move(start, target_pos, blocked, grid_width, grid_height)
 
-            # Position tuples are (row, col) where row=N/S and col=E/W
-            row_diff = target_pos[0] - agent_pos[0]  # North/South
-            col_diff = target_pos[1] - agent_pos[1]  # East/West
-            distance = manhattan_distance(target_pos, agent_pos)
-            # pos_to_dir expects (x=E/W, y=N/S)
-            direction = pos_to_dir(col_diff, row_diff) if (row_diff != 0 or col_diff != 0) else "here"
+            # Calculate relative position for context
+            rel_x = target_pos[0] - agent_x
+            rel_y = target_pos[1] - agent_y
+            distance = abs(rel_x) + abs(rel_y)
+
+            # Direction description
+            direction = pos_to_dir(rel_x, rel_y) if (rel_x != 0 or rel_y != 0) else "here"
 
             if first_move:
+                # Format: "assembler (3N2E, 5 tiles) -> move_east"
                 entries.append(f"  {obj_name} ({direction}, {distance} tiles) -> {first_move}")
             else:
+                # No path found
                 entries.append(f"  {obj_name} ({direction}, {distance} tiles) -> NO PATH (blocked)")
 
         if not entries:
             return ""
 
+        # Load template and substitute
         template = _load_prompt_template("pathfinding_hints")
         return template.replace("{{PATHFINDING_ENTRIES}}", "\n".join(entries))
