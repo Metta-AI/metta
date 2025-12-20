@@ -8,7 +8,7 @@ from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.models.database import get_session
-from metta.app_backend.models.job_request import JobRequest, JobStatus, JobType
+from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
 
 VALID_TRANSITIONS = {
@@ -25,16 +25,16 @@ class UpdateJobRequest(BaseModel):
     error: str | None = None
 
 
-def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
-    router = APIRouter(prefix=prefix, tags=[f"{job_type.value}_jobs"])
+def create_job_router() -> APIRouter:
+    router = APIRouter(prefix="/jobs", tags=["jobs"])
 
     @router.post("/batch")
     @timed_http_handler
-    async def create_jobs_batch(jobs: list[dict[str, Any]], _user: UserOrToken) -> list[UUID]:
+    async def create_jobs_batch(jobs: list[JobRequestCreate], user: UserOrToken) -> list[UUID]:
         if not jobs:
             return []
 
-        db_jobs = [JobRequest(job_type=job_type, job=j) for j in jobs]
+        db_jobs = [JobRequest(**j.model_dump(), user=user) for j in jobs]
         async with get_session() as session:
             session.add_all(db_jobs)
             await session.commit()
@@ -44,20 +44,17 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
     @timed_http_handler
     async def list_jobs(
         _user: UserOrToken,
-        status: list[JobStatus] | None = Query(default=None),
+        job_type: JobType | None = Query(default=None),
+        statuses: list[JobStatus] | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
         offset: int = Query(default=0, ge=0),
     ) -> list[JobRequest]:
         async with get_session() as session:
-            query = (
-                select(JobRequest)
-                .where(JobRequest.job_type == job_type)
-                .order_by(col(JobRequest.created_at).desc())
-                .offset(offset)
-                .limit(limit)
-            )
-            if status:
-                query = query.where(col(JobRequest.status).in_(status))
+            query = select(JobRequest).order_by(col(JobRequest.created_at).desc()).offset(offset).limit(limit)
+            if statuses:
+                query = query.where(col(JobRequest.status).in_(statuses))
+            if job_type:
+                query = query.where(col(JobRequest.job_type) == job_type)
             result = await session.execute(query)
             return list(result.scalars().all())
 
@@ -65,9 +62,7 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
     @timed_http_handler
     async def get_job(job_id: UUID, _user: UserOrToken) -> JobRequest:
         async with get_session() as session:
-            result = await session.execute(
-                select(JobRequest).where(JobRequest.id == job_id, JobRequest.job_type == job_type)
-            )
+            result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             row = result.scalar_one_or_none()
             if not row:
                 raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -77,9 +72,7 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
     @timed_http_handler
     async def update_job(job_id: UUID, request: UpdateJobRequest, _user: UserOrToken) -> JobRequest:
         async with get_session() as session:
-            result = await session.execute(
-                select(JobRequest).where(JobRequest.id == job_id, JobRequest.job_type == job_type)
-            )
+            result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             job = result.scalar_one_or_none()
             if not job:
                 raise HTTPException(status_code=404, detail=f"Job {job_id} not found")

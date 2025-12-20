@@ -17,7 +17,6 @@ from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.models.job_request import JobType
 from metta.app_backend.routes import (
     eval_task_routes,
     job_routes,
@@ -121,21 +120,19 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     )
 
     # Create routers with the provided StatsRepo
-    for job_type in JobType:
-        router = job_routes.create_job_router(job_type, f"/jobs/{job_type.value}")
-        app.include_router(router)
-
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
+    jobs_router = job_routes.create_job_router()
 
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(sweep_router)
     app.include_router(leaderboard_router)
+    app.include_router(jobs_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
