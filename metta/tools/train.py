@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 import platform
 from datetime import timedelta
@@ -171,6 +172,12 @@ class TrainTool(Tool):
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
+
+        if distributed_helper.is_master():
+            total_params = sum(param.numel() for param in policy.parameters())
+            trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
+            logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
+
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
