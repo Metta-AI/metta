@@ -11,7 +11,6 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class PPOActorConfig(LossConfig):
@@ -124,7 +123,6 @@ class PPOActor(Loss):
         entropy_loss = entropy.mean()
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         # Compute metrics
         with torch.no_grad():
