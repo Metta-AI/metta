@@ -327,8 +327,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         elif state.phase == HarvestPhase.RECHARGE:
             return "charger"
         else:
-            # GATHER: use vibe for target resource if known
-            return "default"
+            # GATHER: use heart_a vibe to coordinate with other agents for vibe_check missions
+            # (vibe_check requires 2+ agents on heart_a to craft hearts)
+            return "heart_a"
 
     def _execute_phase(self, state: HarvestState) -> Action:
         """Execute action for current phase."""
@@ -357,7 +358,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             return self._explore(state)
 
         # Navigate to extractor
-        if not is_adjacent((state.row, state.col), extractor.position):
+        adj = is_adjacent((state.row, state.col), extractor.position)
+        if not adj:
             return self._move_towards(state, extractor.position, reach_adjacent=True)
 
         # Adjacent - use it
