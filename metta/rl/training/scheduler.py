@@ -41,7 +41,7 @@ ANNEALERS: dict[AnnealStyle, Callable[[float, float, float], float]] = {
 
 
 class HyperUpdateRule(Config):
-    """Unified rule for updating loss hyperparameters.
+    """Unified rule for updating hyperparameters.
 
     Supports two modes:
     - progress: anneal between start/end values over epoch or agent_step ranges
@@ -333,12 +333,20 @@ class LossScheduler(TrainerComponent):
 
         # 2) Apply unified rules
         for rule in self.config.rules:
+            if rule.loss_instance_name == "trainer":
+                # Apply updates to the trainer config (e.g., optimizer.learning_rate)
+                rule.apply(obj=self.context.config, ctx=self.context)
+                continue
+
             loss = self.context.losses.get(rule.loss_instance_name)
             if loss is None:
                 # Skip silently to allow optional losses
                 continue
             # Apply updates to the loss config object
             rule.apply(obj=loss.cfg, ctx=self.context)
+
+        # Keep optimizer learning rate in sync with TrainerConfig if it changed.
+        self._sync_optimizer_from_config()
 
         # 3) If the train phase is gated to false, restrict which experience keys
         #    must be present based on which losses are active for rollout.
@@ -399,6 +407,14 @@ class LossScheduler(TrainerComponent):
             return
 
         experience.set_store_keys(active_keys)
+
+    def _sync_optimizer_from_config(self) -> None:
+        """Propagate TrainerConfig optimizer learning_rate into the live optimizer."""
+        optimizer = self.context.optimizer
+        trainer_cfg = self.context.config
+        lr = float(trainer_cfg.optimizer.learning_rate)
+        for group in optimizer.param_groups:
+            group["lr"] = lr
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

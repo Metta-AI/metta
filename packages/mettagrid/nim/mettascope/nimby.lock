@@ -14,7 +14,7 @@ opengl 1.2.9 https://github.com/nim-lang/opengl 8e2e098f82dc5eefd874488c37b58302
 pixie 5.1.0 https://github.com/treeform/pixie 5eda4949a3c8bea318cfac8e42060a8f90f3f35d
 puppy 2.1.2 https://github.com/treeform/puppy 700044e8baa1d33b58847f4f6c13224d6a964867
 shady 0.1.4 https://github.com/treeform/shady 9f322cfd0c3cfc1840eabe2504ff31411f6cd857
-silky 0.0.1 http://github.com/treeform/silky 237c5e7ca3c7bf85757a66819f2124de30ed54d3
+silky 0.0.1 https://github.com/treeform/silky 237c5e7ca3c7bf85757a66819f2124de30ed54d3
 urlly 1.1.1 https://github.com/treeform/urlly 99784779f05649df25fd9c33003d8ef6de027345
 vmath 2.0.1 https://github.com/treeform/vmath ddfcd738578c47ed3330b917f5efecf5a15128b2
 webby 0.2.1 https://github.com/treeform/webby/ 55a2c03abbd32abf4775712c1959d975dc982549
