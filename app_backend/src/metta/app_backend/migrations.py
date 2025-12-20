@@ -133,4 +133,30 @@ MIGRATIONS = [
                ON episode_tags (episode_id, key, value)""",
         ],
     ),
+    SqlMigration(
+        version=3,
+        description="Create job_requests table for job orchestration",
+        sql_statements=[
+            """CREATE TYPE job_status AS ENUM ('pending', 'dispatched', 'running', 'completed', 'failed')""",
+            """CREATE TABLE job_requests (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                job_type TEXT NOT NULL,
+                job JSONB NOT NULL,
+                user_id TEXT NOT NULL,
+                status job_status NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                dispatched_at TIMESTAMP,
+                running_at TIMESTAMP,
+                completed_at TIMESTAMP,
+                worker TEXT,
+                result JSONB,
+                error TEXT
+            )""",
+            """CREATE INDEX idx_job_requests_type_status_created ON job_requests (job_type, status, created_at DESC)""",
+            """CREATE INDEX idx_job_requests_type_created ON job_requests (job_type, created_at DESC)""",
+            """CREATE INDEX idx_job_requests_created ON job_requests (created_at DESC)""",
+            """CREATE INDEX idx_job_requests_status ON job_requests (status)""",
+            """CREATE INDEX idx_job_requests_user_id ON job_requests (user_id)""",
+        ],
+    ),
 ]

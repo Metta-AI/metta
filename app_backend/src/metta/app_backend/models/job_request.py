@@ -1,0 +1,61 @@
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
+from uuid import UUID, uuid4
+
+from sqlalchemy import Column, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import Field, SQLModel
+
+# SQLModel + Pydantic multiple-models pattern for FastAPI.
+# See: https://sqlmodel.tiangolo.com/tutorial/fastapi/multiple-models/
+#
+# A convention to stick to for our codebase:
+#   - _<Name>Base: shared fields (no table=True). Not to be exposed to other files
+#   - <Name>Create: fields needed for creation, extends Base
+#   - <Name>Update: fields needed for updates
+#   - <Name>: defines columns of the db table (table=True). Extends Base and possibly others, adds other fields
+#   - <Name>Public (optional): model for api responses. Note that FastAPI will both:
+#         - auto-marshall between <Name> and <Name>Public based on the return type annotation on the endpoint.
+#         - exclude Fields with `exclude=True` from the API response.
+
+
+class JobType(str, Enum):
+    episode = "episode"
+
+
+class JobStatus(str, Enum):
+    pending = "pending"
+    dispatched = "dispatched"
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+
+
+class _JobRequestBase(SQLModel):
+    job_type: JobType
+    job: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+
+
+class JobRequestCreate(_JobRequestBase):
+    pass
+
+
+class JobRequestUpdate(SQLModel):
+    status: JobStatus = Field(default=JobStatus.pending)
+    worker: str | None = None
+    result: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
+    error: str | None = Field(default=None, exclude=True)
+
+
+class JobRequest(_JobRequestBase, JobRequestUpdate, table=True):
+    __tablename__ = "job_requests"  # type: ignore[assignment]
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    user_id: str
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
+    )
+    dispatched_at: datetime | None = None
+    running_at: datetime | None = None
+    completed_at: datetime | None = None
