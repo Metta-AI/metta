@@ -175,10 +175,13 @@ class Kind:
 def build_policy_evaluator_img_internal(
     tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
 ):
+    args = build_args or []
+    if "--platform" not in args:
+        args = ["--platform", "linux/amd64"] + args
     build_img(
         tag,
         repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
-        build_args or [],
+        args,
     )
 
 
@@ -224,6 +227,10 @@ class KindLocal(Kind):
             if result.returncode != 0:
                 info("Cluster exists but is not healthy. Recreating...")
                 subprocess.run(["kind", "delete", "cluster", "--name", self.cluster_name], check=True)
+                subprocess.run(
+                    ["docker", "rm", "-f", f"{self.cluster_name}-control-plane"],
+                    capture_output=True,
+                )
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 

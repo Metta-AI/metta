@@ -54,3 +54,14 @@ evalScheduler:
     enabled: true
     env: "production"
     service: "leaderboard-eval-scheduler"
+
+jobRunner:
+  enabled: false
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
