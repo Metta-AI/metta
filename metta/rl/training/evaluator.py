@@ -7,6 +7,7 @@ import logging
 import os
 import uuid
 import zipfile
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
@@ -27,9 +28,9 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
-from mettagrid.util.file import write_data
+from mettagrid.util.file import read, write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -140,20 +141,42 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
-    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy_spec.json."""
+    def _create_submission_zip(
+        self,
+        *,
+        policy_spec_bytes: bytes,
+        data_path: str | None,
+        data_bytes: bytes | None,
+    ) -> bytes:
+        """Create a submission zip containing policy_spec.json and optional weights."""
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
+            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec_bytes)
+            if data_path and data_bytes is not None:
+                zipf.writestr(data_path, data_bytes)
         return buffer.getvalue()
 
-    def _upload_submission_zip(self, checkpoint_uri: str, policy_spec: PolicySpec) -> str | None:
+    def _upload_submission_zip(self, checkpoint_uri: str) -> str | None:
         """Upload a submission zip to S3 and return the s3_path."""
         if not checkpoint_uri.startswith("s3://"):
             return None
 
-        submission_path = resolve_checkpoint_dir(checkpoint_uri).submission_zip_uri
-        zip_data = self._create_submission_zip(policy_spec)
+        checkpoint_dir = resolve_checkpoint_dir(checkpoint_uri)
+        submission_path = checkpoint_dir.submission_zip_uri
+
+        spec_bytes = read(checkpoint_dir.policy_spec_uri)
+        submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
+        data_path = submission_spec.data_path
+        data_bytes = None
+        if data_path:
+            if Path(data_path).is_absolute():
+                data_path = Path(data_path).name
+                submission_spec.data_path = data_path
+                spec_bytes = submission_spec.model_dump_json().encode("utf-8")
+            data_uri = f"{checkpoint_dir.dir_uri.rstrip('/')}/{data_path.lstrip('/')}"
+            data_bytes = read(data_uri)
+
+        zip_data = self._create_submission_zip(policy_spec_bytes=spec_bytes, data_path=data_path, data_bytes=data_bytes)
         write_data(submission_path, zip_data, content_type="application/zip")
         logger.info("Uploaded submission zip to %s", submission_path)
         return submission_path
@@ -177,7 +200,7 @@ class Evaluator(TrainerComponent):
         )
 
         # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_uri, policy_spec)
+        s3_path = self._upload_submission_zip(policy_uri)
 
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
