@@ -14,7 +14,7 @@ from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
-EXPECTED_REMOTE_URL = f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git"
+
 DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME = "discord/channel-webhook/updates"
 
 
@@ -27,6 +27,31 @@ _RELEASE_WORKFLOW_URL_FOR_PACKAGE = {
     Package.COGAMES: "https://github.com/Metta-AI/metta/actions/workflows/release-cogames.yml",
     Package.METTAGRID: "https://github.com/Metta-AI/metta/actions/workflows/release-mettagrid.yml",
 }
+
+
+def _check_git_state(force: bool) -> tuple[str, str]:
+    try:
+        status_output = git.run_git("status", "--porcelain")
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to read git status: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    if status_output.strip() and not force:
+        error("Working tree is not clean. Commit, stash, or clean changes before publishing (use --force to override).")
+        raise typer.Exit(1)
+
+    try:
+        current_branch = git.run_git("rev-parse", "--abbrev-ref", "HEAD")
+        current_commit = git.run_git("rev-parse", "HEAD")
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to determine git state: {exc}")
+        raise typer.Exit(exc.returncode) from exc
+
+    if current_branch not in {"main"} and not force:
+        error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
+        raise typer.Exit(1)
+
+    return current_branch, current_commit
 
 
 def _get_metta_remote() -> str:
@@ -75,34 +100,6 @@ def _ensure_tag_unique(package: str, version: str) -> None:
         raise typer.Exit(1)
 
 
-def _push_child_repo(package: str, dry_run: bool) -> None:
-    if dry_run:
-        info(f"  [dry-run] Would push {package} to child repo")
-        return
-    info(f"Pushing {package} to child repo...")
-    try:
-        subprocess.run(
-            [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"],
-            check=True,
-        )
-        success(f"Pushed {package} to child repo.")
-    except subprocess.CalledProcessError as exc:
-        error(f"Failed to push child repo: {exc}")
-        raise typer.Exit(exc.returncode) from exc
-
-
-def _create_and_push_tag(package: str, version: str, remote: str, dry_run: bool) -> str:
-    tag_name = f"{package}-v{version}"
-    if dry_run:
-        info(f"  [dry-run] Would create and push tag {tag_name}")
-        return tag_name
-    info(f"Tagging {package} {version}...")
-    git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {version}")
-    git.run_git("push", remote, tag_name)
-    success(f"Published {tag_name} to {remote}.")
-    return tag_name
-
-
 def _get_next_version(package: str, version_override: Optional[str], remote: str) -> tuple[str, Optional[str]]:
     prefix = f"{package}-v"
 
@@ -138,29 +135,16 @@ def _get_next_version(package: str, version_override: Optional[str], remote: str
     return target_version, latest_tag
 
 
-def _check_git_state(force: bool) -> tuple[str, str]:
-    try:
-        status_output = git.run_git("status", "--porcelain")
-    except subprocess.CalledProcessError as exc:
-        error(f"Failed to read git status: {exc}")
-        raise typer.Exit(exc.returncode) from exc
-
-    if status_output.strip() and not force:
-        error("Working tree is not clean. Commit, stash, or clean changes before publishing (use --force to override).")
-        raise typer.Exit(1)
-
-    try:
-        current_branch = git.run_git("rev-parse", "--abbrev-ref", "HEAD")
-        current_commit = git.run_git("rev-parse", "HEAD")
-    except subprocess.CalledProcessError as exc:
-        error(f"Failed to determine git state: {exc}")
-        raise typer.Exit(exc.returncode) from exc
-
-    if current_branch not in {"main"} and not force:
-        error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
-        raise typer.Exit(1)
-
-    return current_branch, current_commit
+def _create_and_push_tag(package: str, version: str, remote: str, dry_run: bool) -> str:
+    tag_name = f"{package}-v{version}"
+    if dry_run:
+        info(f"  [dry-run] Would create and push tag {tag_name}")
+        return tag_name
+    info(f"Tagging {package} {version}...")
+    git.run_git("tag", "-a", tag_name, "-m", f"Release {package} {version}")
+    git.run_git("push", remote, tag_name)
+    success(f"Published {tag_name} to {remote}.")
+    return tag_name
 
 
 def _post_to_discord(
@@ -209,32 +193,20 @@ def _post_to_discord(
     success("Posted release announcement to Discord.")
 
 
-def cmd_publish(
-    package: Annotated[Package, typer.Argument(help="Package to publish")],
-    version: Annotated[
-        Optional[str],
-        typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
-    ] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without executing")] = False,
-    repo_only: Annotated[bool, typer.Option("--repo-only", help="Only push to child repo")] = False,
-    tag_only: Annotated[bool, typer.Option("--tag-only", help="Only create/push tag (skip child repo)")] = False,
-    force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
-):
-    if repo_only and tag_only:
-        error("Cannot use --repo-only and --tag-only together")
-        raise typer.Exit(1)
-
-    remote = _get_metta_remote()
-
-    _publish(
-        package=package,
-        version=version,
-        dry_run=dry_run,
-        repo_only=repo_only,
-        tag_only=tag_only,
-        remote=remote,
-        force=force,
-    )
+def _push_child_repo(package: str, dry_run: bool) -> None:
+    if dry_run:
+        info(f"  [dry-run] Would push {package} to child repo")
+        return
+    info(f"Pushing {package} to child repo...")
+    try:
+        subprocess.run(
+            [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"],
+            check=True,
+        )
+        success(f"Pushed {package} to child repo.")
+    except subprocess.CalledProcessError as exc:
+        error(f"Failed to push child repo: {exc}")
+        raise typer.Exit(exc.returncode) from exc
 
 
 def _publish(
@@ -308,3 +280,31 @@ def _publish(
 
     if dry_run:
         success("Dry run complete.")
+
+
+def cmd_publish(
+    package: Annotated[Package, typer.Argument(help="Package to publish")],
+    version: Annotated[
+        Optional[str],
+        typer.Option("--version", "-v", help="Explicit version to tag (digits separated by dots)"),
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview actions without executing")] = False,
+    repo_only: Annotated[bool, typer.Option("--repo-only", help="Only push to child repo")] = False,
+    tag_only: Annotated[bool, typer.Option("--tag-only", help="Only create/push tag (skip child repo)")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Bypass branch and clean checks")] = False,
+):
+    if repo_only and tag_only:
+        error("Cannot use --repo-only and --tag-only together")
+        raise typer.Exit(1)
+
+    remote = _get_metta_remote()
+
+    _publish(
+        package=package,
+        version=version,
+        dry_run=dry_run,
+        repo_only=repo_only,
+        tag_only=tag_only,
+        remote=remote,
+        force=force,
+    )
