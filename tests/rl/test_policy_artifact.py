@@ -15,7 +15,6 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.mpt_artifact import save_mpt
 from metta.rl.mpt_policy import MptPolicy
 from mettagrid.base_config import Config
-from mettagrid.config import MettaGridConfig
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -32,13 +31,15 @@ class DummyActionComponentConfig(Config):
 
 
 class DummyPolicyArchitecture(PolicyArchitecture):
-    class_path: str = "tests.rl.test_policy_checkpoint_format.DummyPolicy"
+    class_path: str = "tests.rl.test_policy_artifact.DummyPolicy"
     action_probs_config: DummyActionComponentConfig = Field(default_factory=DummyActionComponentConfig)
 
 
 class DummyPolicy(Policy):
     def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
         if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
             policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
         self.linear = nn.Linear(1, 1)
@@ -56,13 +57,15 @@ class DummyPolicy(Policy):
 
 
 class ActionTestArchitecture(PolicyArchitecture):
-    class_path: str = "tests.rl.test_policy_checkpoint_format.ActionTestPolicy"
+    class_path: str = "tests.rl.test_policy_artifact.ActionTestPolicy"
     action_probs_config: DummyActionComponentConfig = Field(default_factory=DummyActionComponentConfig)
 
 
 class ActionTestPolicy(Policy):
     def __init__(self, policy_env_info: PolicyEnvInterface | None, _: PolicyArchitecture | None = None):
         if policy_env_info is None:
+            from mettagrid.config import MettaGridConfig
+
             policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
         config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4, num_embeddings=196)
@@ -85,6 +88,8 @@ class ActionTestPolicy(Policy):
 
 
 def _policy_env_info() -> PolicyEnvInterface:
+    from mettagrid.config import MettaGridConfig
+
     return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 

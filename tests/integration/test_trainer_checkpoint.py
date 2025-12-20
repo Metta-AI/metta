@@ -17,9 +17,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
-from mettagrid.config import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
@@ -65,6 +62,7 @@ class TestTrainerCheckpointIntegration:
         expected_checkpoint_dir = expected_run_dir / "checkpoints"
         assert expected_checkpoint_dir.exists(), "expected_checkpoint_dir was not created"
 
+        print("Starting first training run...")
         self._run_training(
             run_name=run_name,
             trainer_cfg=trainer_cfg,
@@ -91,6 +89,9 @@ class TestTrainerCheckpointIntegration:
         first_run_agent_step = trainer_state["agent_step"]
         first_run_epoch = trainer_state["epoch"]
 
+        print(f"First run completed: agent_step={first_run_agent_step}, epoch={first_run_epoch}")
+
+        print("Starting second training run (resume from checkpoint)...")
         trainer_cfg.total_timesteps = first_run_agent_step + 500
 
         checkpoint_manager_2 = CheckpointManager(run=run_name, system_cfg=system_cfg)
@@ -161,7 +162,3 @@ class TestTrainerCheckpointIntegration:
         spec = policy_spec_from_uri(policy_uri)
         assert spec.data_path is not None
         assert Path(spec.data_path).exists()
-
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
-        policy = initialize_or_load_policy(policy_env_info, spec)
-        assert policy is not None

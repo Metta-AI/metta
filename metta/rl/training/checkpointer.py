@@ -12,7 +12,8 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.checkpoint_policy import architecture_from_spec
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy, architecture_from_spec
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
@@ -107,15 +108,10 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            architecture_spec, state_dict = load_state_from_checkpoint_uri(candidate_uri)
-            arch = architecture_from_spec(architecture_spec)
-            policy = arch.make_policy(policy_env_info).to(load_device)
-            if hasattr(policy, "initialize_to_environment"):
-                policy.initialize_to_environment(policy_env_info, load_device)
-            prepared_state = {k: v.to(load_device) for k, v in state_dict.items()}
-            missing, unexpected = policy.load_state_dict(prepared_state, strict=True)
-            if missing or unexpected:
-                raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+            spec = policy_spec_from_uri(candidate_uri, device=str(load_device))
+            policy = initialize_or_load_policy(policy_env_info, spec, device_override=str(load_device))
+            if isinstance(policy, CheckpointPolicy):
+                policy = policy.wrapped_policy
             self._latest_policy_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
             logger.info("Loaded policy from %s", candidate_uri)
             return policy

@@ -9,7 +9,8 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir, upload_checkpoint_dir, write_checkpoint_dir
+from mettagrid.util.checkpoint_dir import upload_checkpoint_dir, write_checkpoint_dir
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -61,23 +62,22 @@ class CheckpointManager:
         return f"file://{self.checkpoint_dir}"
 
     def get_latest_checkpoint(self) -> str | None:
-        def try_resolve(uri: str) -> str | None:
-            target = f"{uri}:latest" if not uri.endswith(":latest") else uri
+        def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
-                return resolve_checkpoint_dir(target).dir_uri
+                parsed = resolve_uri(uri)
+                info = parsed.checkpoint_info
+                if info:
+                    return (parsed.canonical, info[1])
             except (ValueError, FileNotFoundError):
-                return None
+                pass
+            return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
-        if local:
-            # Prefer local checkpoints to avoid picking up stale remote artifacts from other runs.
-            return local
-
         remote = try_resolve(self.output_uri) if self._remote_prefix else None
-        if remote:
-            return remote
-
-        return None
+        candidates = [c for c in [local, remote] if c]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)

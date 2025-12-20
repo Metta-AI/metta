@@ -12,7 +12,6 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
@@ -145,14 +144,32 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        base_bundle = resolve_checkpoint_dir(self._base_teacher_uri)
-        info = parse_uri(base_bundle.dir_uri, allow_none=False).checkpoint_info
+        parsed = parse_uri(self._base_teacher_uri, allow_none=False)
+        info = parsed.checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = info
         filename = checkpoint_filename(run_name, epoch)
-        parent_uri = base_bundle.dir_uri.rstrip("/").rsplit("/", 1)[0]
-        return f"{parent_uri}/{filename}"
+
+        if parsed.scheme == "file" and parsed.local_path:
+            if parsed.local_path.is_file() and parsed.local_path.name == "policy_spec.json":
+                base_dir = parsed.local_path.parent.parent
+            else:
+                base_dir = parsed.local_path.parent
+            path = base_dir / filename
+            return f"file://{path}"
+        elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
+            key = parsed.key
+            if key.endswith("policy_spec.json"):
+                key = key.rsplit("/", 1)[0]
+            if "/" in key:
+                key_dir = key.rsplit("/", 1)[0]
+                new_key = f"{key_dir}/{filename}"
+            else:
+                new_key = filename
+            return f"s3://{parsed.bucket}/{new_key}"
+        else:
+            raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
     def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
         """Load the teacher policy from a specific checkpoint."""

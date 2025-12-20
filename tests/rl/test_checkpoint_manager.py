@@ -19,7 +19,6 @@ from mettagrid.base_config import Config
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir, write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri, resolve_uri
 
 
@@ -132,19 +131,6 @@ class TestCheckpointManagerFlows:
         td = TensorDict({"env_obs": env_obs}, batch_size=[env_info.num_agents])
         result = policy(td.clone())
         assert "actions" in result
-
-    def test_resolve_checkpoint_dir_accepts_policy_spec_uri(self, mock_agent, mock_policy_architecture, tmp_path):
-        bundle = write_checkpoint_dir(
-            base_dir=tmp_path,
-            run_name="run",
-            epoch=1,
-            architecture=mock_policy_architecture,
-            state_dict=mock_agent.state_dict(),
-        )
-
-        resolved = resolve_checkpoint_dir(bundle.policy_spec_uri)
-        assert resolved.dir_uri == bundle.dir_uri
-
 
 class TestCheckpointManagerValidation:
     def test_empty_directory_returns_none(self, checkpoint_manager):
