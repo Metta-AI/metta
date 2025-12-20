@@ -148,6 +148,10 @@ def apply_teacher_phase(
 
         _gate_loss("supervisor")
         _gate_critic_after_teacher()
+        if total_steps:
+            scheduler_run_gates.append(
+                LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_step=total_steps)
+            )
         _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
