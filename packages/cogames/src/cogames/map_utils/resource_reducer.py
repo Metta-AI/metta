@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 
 if TYPE_CHECKING:
@@ -17,7 +17,7 @@ def reduce_map_resources(
     map_input: str | Path | MapBuilderConfig,
     resource_levels: dict[str, int],
     seed: int | None = None,
-) -> AsciiMapBuilder.Config:
+) -> AsciiMapBuilderConfig:
     """
     Reduce resources in an ASCII map based on difficulty levels.
 
@@ -67,9 +67,9 @@ def reduce_map_resources(
         config = map_input
 
     # Ensure it's an AsciiMapBuilder config
-    if not isinstance(config, AsciiMapBuilder.Config):
+    if not isinstance(config, AsciiMapBuilderConfig):
         raise ValueError(
-            f"Expected AsciiMapBuilder.Config, got {type(config).__name__}. "
+            f"Expected AsciiMapBuilderConfig, got {type(config).__name__}. "
             "This function only works with ASCII map files."
         )
 
@@ -127,11 +127,8 @@ def reduce_map_resources(
             for row_idx, col_idx in positions_to_remove:
                 map_data[row_idx][col_idx] = "."
 
-    # Create and return new AsciiMapBuilder.Config
-    # Convert map_data back from list of lists to list of strings
-    map_data_strings = ["".join(row) if isinstance(row, list) else row for row in map_data]
-
-    return AsciiMapBuilder.Config(
-        map_data=map_data_strings,
+    # Create and return new AsciiMapBuilderConfig
+    return AsciiMapBuilderConfig(
+        map_data=map_data,
         char_to_map_name=char_to_map_name,
     )
