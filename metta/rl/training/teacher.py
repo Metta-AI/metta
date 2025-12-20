@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate
+from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
 
@@ -53,7 +53,7 @@ def apply_teacher_phase(
     *,
     trainer_cfg: TrainerConfig,
     training_env_cfg: TrainingEnvironmentConfig,
-    scheduler_rules: list[HyperUpdateRule],
+    scheduler_rules: list[ScheduleRule],
     scheduler_run_gates: list[LossRunGate],
     teacher_cfg: TeacherConfig,
     default_steps: int = DEFAULT_TEACHER_STEPS,
@@ -88,9 +88,8 @@ def apply_teacher_phase(
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:
         if total_steps and start_value > 0.0:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name=loss_name,
-                    attr_path=attr_path,
+                ScheduleRule(
+                    target_path=f"losses.{loss_name}.{attr_path}",
                     mode="progress",
                     style="linear",
                     start_value=start_value,
@@ -184,9 +183,8 @@ def apply_teacher_phase(
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.action_loss_coef,
@@ -196,9 +194,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_kickstarter",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.value_loss_coef,
@@ -219,9 +216,8 @@ def apply_teacher_phase(
         _anneal("kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.action_loss_coef,
@@ -231,9 +227,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="kickstarter",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.value_loss_coef,
@@ -255,9 +250,8 @@ def apply_teacher_phase(
         _anneal("logit_kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="logit_kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.logit_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.action_loss_coef,
@@ -267,9 +261,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_cloner",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_cloner.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.value_loss_coef,
@@ -288,9 +281,8 @@ def apply_teacher_phase(
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_cloner",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_cloner.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.action_loss_coef,
