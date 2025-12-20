@@ -66,6 +66,8 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
 
     def to_curriculum(self, num_active_tasks: int = 16, algorithm_config=None):
         """Create a CurriculumConfig from this TaskGeneratorConfig."""
+        # Keep local imports for slow loading modules: CurriculumConfig and
+        # LearningProgressConfig
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
         from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 

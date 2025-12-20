@@ -10,6 +10,13 @@ from rich.console import Console
 from rich.table import Table
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.episode_stats_db import (
+    create_episode_stats_db,
+    insert_agent_metric,
+    insert_agent_policy,
+    insert_episode,
+    insert_episode_tag,
+)
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.common.wandb.context import WandbRun
@@ -21,7 +28,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
-from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
+from mettagrid.renderer.common import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.util.file import http_url
 
@@ -325,14 +332,6 @@ def write_eval_results_to_observatory(
     primary_policy_version_id: str | None = None,
 ) -> None:
     """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
-    from metta.app_backend.episode_stats_db import (
-        create_episode_stats_db,
-        insert_agent_metric,
-        insert_agent_policy,
-        insert_episode,
-        insert_episode_tag,
-    )
-
     # Create DuckDB with episode stats
     try:
         conn, duckdb_path = create_episode_stats_db()

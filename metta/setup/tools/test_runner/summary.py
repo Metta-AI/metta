@@ -12,6 +12,7 @@ from rich.markup import escape
 
 from metta.setup.utils import error, info, step, success, warning
 
+# Resolves circular import (low priority refactor): summary <-> test_python
 if TYPE_CHECKING:
     from metta.setup.tools.test_runner.test_python import PackageResult
 

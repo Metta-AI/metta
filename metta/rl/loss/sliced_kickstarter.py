@@ -14,6 +14,7 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 

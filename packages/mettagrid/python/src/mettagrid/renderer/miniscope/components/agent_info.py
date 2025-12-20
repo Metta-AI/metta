@@ -1,17 +1,14 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import Dict, Optional
 
 import numpy as np
 
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class AgentInfoComponent(MiniscopeComponent):
@@ -19,7 +16,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):

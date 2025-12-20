@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
-# Don't use `from ... import ...` here because it will cause a circular import.
+# Don't use `from ... import ...` for convert_to_cpp_game_config or
+# MettaGridConfig because it will cause a circular import.
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
 from mettagrid.config.id_map import ObservationFeatureSpec
@@ -14,8 +15,9 @@ from mettagrid.map_builder.map_builder import GameMap
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
-from mettagrid.simulator.interface import Action, AgentObservation, ObservationToken, SimulatorEventHandler
+from mettagrid.simulator.interface import AgentObservation, ObservationToken, SimulatorEventHandler
 from mettagrid.simulator.map_cache import SharedMapCache, get_shared_cache
+from mettagrid.simulator.types import Action
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_c import EpisodeStats

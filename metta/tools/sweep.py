@@ -13,6 +13,7 @@ from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
+from metta.adaptive.utils import make_monitor_table
 from metta.common.tool import Tool
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.log_config import init_logging
@@ -309,12 +310,11 @@ class SweepTool(Tool):
             scheduler = AsyncCappedOptimizingScheduler(scheduler_config)
         else:
             # GRID_SEARCH scheduler: derive categorical parameters and enumerate
+            # Keep local import for slow loading metta.sweep.schedulers.grid_search
             from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
             # Helper to extract categoricals from search_space if present
             def _extract_categorical_params(params: dict) -> dict:
-                from metta.sweep.core import CategoricalParameterConfig
-
                 out: dict = {}
                 for k, v in params.items():
                     if isinstance(v, CategoricalParameterConfig):
@@ -404,8 +404,6 @@ class SweepTool(Tool):
 
             # Show detailed status table
             if final_runs:
-                from metta.adaptive.utils import make_monitor_table
-
                 table_lines = make_monitor_table(
                     runs=final_runs,
                     title="Final Run Status",

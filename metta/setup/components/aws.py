@@ -59,6 +59,7 @@ class AWSSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
+            # Keep local import: optional dependency
             import boto3
 
             sts = boto3.client("sts")

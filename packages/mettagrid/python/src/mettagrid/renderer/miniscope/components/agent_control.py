@@ -1,18 +1,15 @@
 """Agent control component for miniscope renderer."""
 
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 
 from rich.table import Table
 from rich.text import Text
 
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-from mettagrid.simulator.interface import Action
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
+from mettagrid.simulator.types import Action
 
 
 class AgentControlComponent(MiniscopeComponent):
@@ -20,7 +17,7 @@ class AgentControlComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):

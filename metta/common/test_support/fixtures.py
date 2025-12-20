@@ -9,6 +9,7 @@ def docker_client_fixture():
     @pytest.fixture(scope="class")
     def docker_client():
         try:
+            # Keep local optional import
             import docker
             from docker.errors import DockerException
         except ImportError:
