@@ -6,16 +6,16 @@ from typing import Optional
 
 import torch
 from pydantic import Field
+from safetensors.torch import load as load_safetensors
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.checkpoint_policy import architecture_from_spec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
-from safetensors.torch import load as load_safetensors
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,8 @@ class Checkpointer(TrainerComponent):
             policy = arch.make_policy(policy_env_info).to(load_device)
             if hasattr(policy, "initialize_to_environment"):
                 policy.initialize_to_environment(policy_env_info, load_device)
-            missing, unexpected = policy.load_state_dict({k: v.to(load_device) for k, v in state_dict.items()}, strict=True)
+            prepared_state = {k: v.to(load_device) for k, v in state_dict.items()}
+            missing, unexpected = policy.load_state_dict(prepared_state, strict=True)
             if missing or unexpected:
                 raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
             self._latest_policy_uri = resolve_checkpoint_dir(candidate_uri).dir_uri

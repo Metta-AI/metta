@@ -6,6 +6,7 @@ from typing import Iterable, Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
+
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,

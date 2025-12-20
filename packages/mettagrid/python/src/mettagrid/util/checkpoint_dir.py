@@ -37,6 +37,7 @@ def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict
 
     return result
 
+
 @dataclass(frozen=True)
 class CheckpointDir:
     """Checkpoint directory containing policy_spec.json and weights.safetensors."""
@@ -128,4 +129,3 @@ def resolve_checkpoint_dir(uri: str) -> CheckpointDir:
             dir_uri = dir_uri[: -len("policy_spec.json")].rstrip("/")
 
     return CheckpointDir(dir_uri=dir_uri, local_dir=local_dir)
-

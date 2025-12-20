@@ -10,8 +10,8 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
