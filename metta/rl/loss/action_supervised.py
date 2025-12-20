@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Optional
 
+import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
