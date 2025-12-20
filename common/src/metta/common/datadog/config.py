@@ -22,4 +22,8 @@ class DatadogConfig(BaseSettings):
     # Additional settings
     DD_SITE: str = Field(default="datadoghq.com", description="Datadog site")
 
+    def to_env_dict(self) -> dict[str, str]:
+        env_vars = self.model_dump(mode="json", exclude_none=True)
+        return {key: (str(value).lower() if isinstance(value, bool) else str(value)) for key, value in env_vars.items()}
+
 datadog_config = DatadogConfig()

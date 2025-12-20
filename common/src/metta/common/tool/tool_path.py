@@ -9,6 +9,18 @@ from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 
 
+def validate_module_path(module_path: str) -> bool:
+    """Validate that a module path can be resolved to a tool maker.
+
+    Args:
+        module_path: Module path like 'arena.train' or 'recipes.experiment.arena.train'
+
+    Returns:
+        True if the module path can be resolved, False otherwise
+    """
+    return resolve_and_load_tool_maker(module_path) is not None
+
+
 def _load_tool_maker(path: str) -> Optional[Callable[[], Tool]]:
     """Load a tool maker from an import path.
 
