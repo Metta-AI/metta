@@ -74,7 +74,7 @@ class Loss:
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: ComponentContext | None = None) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
