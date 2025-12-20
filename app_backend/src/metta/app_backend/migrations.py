@@ -137,15 +137,16 @@ MIGRATIONS = [
         version=3,
         description="Create job_requests table for job orchestration",
         sql_statements=[
-            """CREATE TYPE job_status AS ENUM ('pending', 'running', 'completed', 'failed')""",
+            """CREATE TYPE job_status AS ENUM ('pending', 'dispatched', 'running', 'completed', 'failed')""",
             """CREATE TABLE job_requests (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 job_type TEXT NOT NULL,
                 job JSONB NOT NULL,
                 status job_status NOT NULL DEFAULT 'pending',
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                started_at TIMESTAMPTZ,
-                finished_at TIMESTAMPTZ,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                dispatched_at TIMESTAMP,
+                running_at TIMESTAMP,
+                completed_at TIMESTAMP,
                 worker TEXT,
                 result JSONB,
                 error TEXT

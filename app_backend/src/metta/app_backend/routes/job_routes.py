@@ -1,7 +1,9 @@
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
@@ -9,13 +11,26 @@ from metta.app_backend.models.database import get_session
 from metta.app_backend.models.job_request import JobRequest, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
 
+VALID_TRANSITIONS = {
+    JobStatus.pending: {JobStatus.dispatched},
+    JobStatus.dispatched: {JobStatus.running, JobStatus.failed},
+    JobStatus.running: {JobStatus.completed, JobStatus.failed},
+}
+
+
+class UpdateJobRequest(BaseModel):
+    status: JobStatus
+    worker: str | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
 
 def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
     router = APIRouter(prefix=prefix, tags=[f"{job_type.value}_jobs"])
 
     @router.post("/batch")
     @timed_http_handler
-    async def create_jobs_batch(jobs: list[dict[str, Any]], user: UserOrToken) -> list[UUID]:
+    async def create_jobs_batch(jobs: list[dict[str, Any]], _user: UserOrToken) -> list[UUID]:
         if not jobs:
             return []
 
@@ -28,8 +43,8 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
     @router.get("")
     @timed_http_handler
     async def list_jobs(
-        user: UserOrToken,
-        status: JobStatus | None = Query(default=None),
+        _user: UserOrToken,
+        status: list[JobStatus] | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
         offset: int = Query(default=0, ge=0),
     ) -> list[JobRequest]:
@@ -42,14 +57,13 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
                 .limit(limit)
             )
             if status:
-                query = query.where(JobRequest.status == status)
+                query = query.where(col(JobRequest.status).in_(status))
             result = await session.execute(query)
-            rows = result.scalars().all()
-            return list(rows)
+            return list(result.scalars().all())
 
     @router.get("/{job_id}")
     @timed_http_handler
-    async def get_job(job_id: UUID, user: UserOrToken) -> JobRequest:
+    async def get_job(job_id: UUID, _user: UserOrToken) -> JobRequest:
         async with get_session() as session:
             result = await session.execute(
                 select(JobRequest).where(JobRequest.id == job_id, JobRequest.job_type == job_type)
@@ -58,5 +72,45 @@ def create_job_router(job_type: JobType, prefix: str) -> APIRouter:
             if not row:
                 raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
             return row
+
+    @router.post("/{job_id}")
+    @timed_http_handler
+    async def update_job(job_id: UUID, request: UpdateJobRequest, _user: UserOrToken) -> JobRequest:
+        async with get_session() as session:
+            result = await session.execute(
+                select(JobRequest).where(JobRequest.id == job_id, JobRequest.job_type == job_type)
+            )
+            job = result.scalar_one_or_none()
+            if not job:
+                raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+            allowed = VALID_TRANSITIONS.get(job.status, set())
+            if request.status not in allowed:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Cannot transition from {job.status} to {request.status}",
+                )
+
+            job.status = request.status
+
+            if request.status == JobStatus.dispatched:
+                job.dispatched_at = datetime.now(UTC)
+
+            if request.status == JobStatus.running:
+                job.running_at = datetime.now(UTC)
+                if request.worker:
+                    job.worker = request.worker
+
+            if request.status in (JobStatus.completed, JobStatus.failed):
+                job.completed_at = datetime.now(UTC)
+                if request.result:
+                    job.result = request.result
+
+            if request.error:
+                job.error = request.error
+
+            await session.commit()
+            await session.refresh(job)
+            return job
 
     return router

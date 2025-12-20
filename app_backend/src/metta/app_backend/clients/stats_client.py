@@ -212,20 +212,40 @@ class StatsClient:
         )
 
     def create_episode_jobs(self, jobs: list[dict[str, Any]]) -> list[uuid.UUID]:
-        return self._make_sync_request(list[uuid.UUID], "POST", "/episode-jobs/batch", json=jobs)
+        return self._make_sync_request(list[uuid.UUID], "POST", "/jobs/episode/batch", json=jobs)
 
     def list_episode_jobs(self, status: JobStatus | None = None, limit: int = 100, offset: int = 0) -> list[JobRequest]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if status is not None:
             params["status"] = status.value
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
-        response = self._http_client.get("/episode-jobs", headers=headers, params=params)
+        response = self._http_client.get("/jobs/episode", headers=headers, params=params)
         response.raise_for_status()
         return [JobRequest.model_validate(item) for item in response.json()]
 
     def get_episode_job(self, job_id: uuid.UUID) -> JobRequest:
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
-        response = self._http_client.get(f"/episode-jobs/{job_id}", headers=headers)
+        response = self._http_client.get(f"/jobs/episode/{job_id}", headers=headers)
+        response.raise_for_status()
+        return JobRequest.model_validate(response.json())
+
+    def update_episode_job(
+        self,
+        job_id: uuid.UUID,
+        status: JobStatus,
+        worker: str | None = None,
+        result: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> JobRequest:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        body: dict[str, Any] = {"status": status.value}
+        if worker:
+            body["worker"] = worker
+        if result:
+            body["result"] = result
+        if error:
+            body["error"] = error
+        response = self._http_client.post(f"/jobs/episode/{job_id}", headers=headers, json=body)
         response.raise_for_status()
         return JobRequest.model_validate(response.json())
 

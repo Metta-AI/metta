@@ -14,6 +14,7 @@ class JobType(str, Enum):
 
 class JobStatus(str, Enum):
     pending = "pending"
+    dispatched = "dispatched"
     running = "running"
     completed = "completed"
     failed = "failed"
@@ -29,8 +30,9 @@ class JobRequest(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
     )
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
+    dispatched_at: datetime | None = None
+    running_at: datetime | None = None
+    completed_at: datetime | None = None
     worker: str | None = None
     result: dict[str, Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = None

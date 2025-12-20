@@ -121,14 +121,16 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     )
 
     # Create routers with the provided StatsRepo
-    episode_job_router = job_routes.create_job_router(JobType.episode, "/episode-jobs")
+    for job_type in JobType:
+        router = job_routes.create_job_router(job_type, f"/jobs/{job_type.value}")
+        app.include_router(router)
+
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
 
-    app.include_router(episode_job_router)
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
