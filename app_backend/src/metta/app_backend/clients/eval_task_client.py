@@ -15,6 +15,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskFinishRequest,
     TaskIdResponse,
     TasksResponse,
+    TaskStartRequest,
 )
 
 T = TypeVar("T", bound=BaseModel)
@@ -37,8 +38,11 @@ class EvalTaskClient(BaseAppBackendClient):
         params = {"assignee": assignee} if assignee is not None else {}
         return self._make_request(TasksResponse, "GET", "/tasks/claimed", params=params)
 
-    def start_task(self, task_id: int) -> TaskIdResponse:
-        return self._make_request(TaskIdResponse, "POST", f"/tasks/{task_id}/start")
+    def start_task(self, task_id: int, git_hash: str | None = None) -> TaskIdResponse:
+        request = TaskStartRequest(git_hash=git_hash)
+        return self._make_request(
+            TaskIdResponse, "POST", f"/tasks/{task_id}/start", json=request.model_dump(mode="json")
+        )
 
     def finish_task(self, task_id: int, request: TaskFinishRequest) -> TaskIdResponse:
         return self._make_request(
