@@ -361,12 +361,11 @@ def train(
 
     if bc_policy_uri is not None:
         tt.trainer.losses.supervisor.enabled = True
+        # In BC mode we don't need PPO losses at all; disabling them avoids sampled_mb
+        # dependency errors when no sampler runs before the supervised loss.
         tt.trainer.losses.ppo.enabled = False
         tt.trainer.losses.ppo_actor.enabled = False
-        tt.trainer.losses.ppo_critic.enabled = True
-        tt.trainer.losses.ppo_critic.rollout_forward_enabled = False
-        tt.trainer.losses.ppo_critic.sample_enabled = False
-        tt.trainer.losses.ppo_critic.train_forward_enabled = False
+        tt.trainer.losses.ppo_critic.enabled = False
         tt.training_env.supervisor_policy_uri = bc_policy_uri
         tt.trainer.losses.supervisor.teacher_lead_prob = bc_teacher_lead_prob
 
