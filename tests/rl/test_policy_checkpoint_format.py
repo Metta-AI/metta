@@ -17,8 +17,10 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.checkpoint_dir import write_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from metta.rl.mpt_policy import MptPolicy, save_mpt
 
 
 class DummyActionComponentConfig(Config):
@@ -194,3 +196,23 @@ def test_architecture_from_spec_with_args_round_trip() -> None:
     assert "critic_hidden_dim=4096" in canonical
     round_tripped = PolicyArchitecture.from_spec(canonical)
     assert round_tripped.model_dump() == architecture.model_dump()
+
+
+def test_mpt_policy_loads_from_policy_spec(tmp_path: Path) -> None:
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    mpt_path = tmp_path / "checkpoint.mpt"
+    save_mpt(mpt_path, architecture=architecture, state_dict=policy.state_dict())
+
+    submission_spec = SubmissionPolicySpec(
+        class_path="metta.rl.mpt_policy.MptPolicy",
+        data_path="checkpoint.mpt",
+        init_kwargs={},
+    )
+    (tmp_path / POLICY_SPEC_FILENAME).write_text(submission_spec.model_dump_json())
+
+    spec = policy_spec_from_uri(tmp_path.as_posix())
+    loaded = initialize_or_load_policy(policy_env_info, spec)
+    assert isinstance(loaded, MptPolicy)
