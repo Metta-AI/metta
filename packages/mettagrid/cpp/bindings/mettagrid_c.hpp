@@ -13,6 +13,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <chrono>
 #include <memory>
 #include <random>
 #include <string>
@@ -55,6 +56,18 @@ public:
 
   ObservationCoord obs_width;
   ObservationCoord obs_height;
+
+  // Profiling: cumulative time spent in each entry point (microseconds)
+  std::chrono::microseconds time_init{0};
+  std::chrono::microseconds time_step{0};
+  std::chrono::microseconds time_set_buffers{0};
+  std::chrono::microseconds time_grid_objects{0};
+  std::chrono::microseconds time_compute_observations{0};
+
+  // Profiling: call counts for computing averages
+  unsigned int call_count_step{0};
+  unsigned int call_count_set_buffers{0};
+  unsigned int call_count_grid_objects{0};
 
   unsigned int current_step;
   unsigned int max_steps;

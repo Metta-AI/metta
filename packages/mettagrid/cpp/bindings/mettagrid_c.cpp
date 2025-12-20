@@ -47,6 +47,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _inventory_regen_interval(game_config.inventory_regen_interval) {
+  auto start_time = std::chrono::steady_clock::now();
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -110,6 +111,8 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
                                          clipper_cfg.clip_period,
                                          _rng);
   }
+
+  time_init = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start_time);
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -494,11 +497,16 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
 }
 
 void MettaGrid::_compute_observations(const std::vector<ActionType>& executed_actions) {
+  auto obs_start = std::chrono::steady_clock::now();
+
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     ActionType action_idx = executed_actions[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, action_idx);
   }
+
+  time_compute_observations +=
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - obs_start);
 }
 
 void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type) {
@@ -662,6 +670,8 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
                             const py::array_t<bool, py::array::c_style>& truncations,
                             const py::array_t<float, py::array::c_style>& rewards,
                             const py::array_t<ActionType, py::array::c_style>& actions) {
+  auto set_buffers_start = std::chrono::steady_clock::now();
+
   // These are initialized in reset()
   _observations = observations;
   _terminals = terminals;
@@ -674,9 +684,15 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
 
   validate_buffers();
   _init_buffers(_agents.size());
+
+  time_set_buffers +=
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - set_buffers_start);
+  call_count_set_buffers++;
 }
 
 void MettaGrid::step() {
+  auto step_start = std::chrono::steady_clock::now();
+
   auto info = _actions.request();
 
   // Validate that actions array has correct shape
@@ -688,9 +704,14 @@ void MettaGrid::step() {
   }
 
   _step();
+
+  time_step += std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - step_start);
+  call_count_step++;
 }
 
 py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_col, const py::list& ignore_types) {
+  auto grid_objects_start = std::chrono::steady_clock::now();
+
   py::dict objects;
 
   // Determine if bounding box filtering is enabled
@@ -853,6 +874,10 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
     objects[py::int_(obj_id)] = obj_dict;
   }
 
+  time_grid_objects +=
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - grid_objects_start);
+  call_count_grid_objects++;
+
   return objects;
 }
 
@@ -877,6 +902,7 @@ py::dict MettaGrid::get_episode_stats() {
   // {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "profile": dict[str, float],  // Profiling data (times in microseconds)
   // }
 
   py::dict stats;
@@ -887,6 +913,26 @@ py::dict MettaGrid::get_episode_stats() {
     agent_stats.append(py::cast(agent->stats.to_dict()));
   }
   stats["agent"] = agent_stats;
+
+  // Add profiling data
+  py::dict profile;
+  profile["time_init_us"] = static_cast<float>(time_init.count());
+  profile["time_step_us"] = static_cast<float>(time_step.count());
+  profile["time_set_buffers_us"] = static_cast<float>(time_set_buffers.count());
+  profile["time_grid_objects_us"] = static_cast<float>(time_grid_objects.count());
+  profile["time_compute_observations_us"] = static_cast<float>(time_compute_observations.count());
+  profile["call_count_step"] = static_cast<float>(call_count_step);
+  profile["call_count_set_buffers"] = static_cast<float>(call_count_set_buffers);
+  profile["call_count_grid_objects"] = static_cast<float>(call_count_grid_objects);
+
+  // Compute average step time if we have step calls
+  if (call_count_step > 0) {
+    profile["avg_step_us"] = static_cast<float>(time_step.count()) / static_cast<float>(call_count_step);
+    profile["avg_compute_observations_us"] =
+        static_cast<float>(time_compute_observations.count()) / static_cast<float>(call_count_step);
+  }
+
+  stats["profile"] = profile;
 
   return stats;
 }
