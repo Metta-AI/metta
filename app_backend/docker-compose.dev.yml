@@ -26,10 +26,12 @@ services:
       STATS_DB_URI: postgres://postgres:password@postgres:5432/metta
       RUN_MIGRATIONS: "true"
       DEBUG_USER_EMAIL: localdev@example.com
+      AWS_PROFILE: softmax
     volumes:
       - ./src:/workspace/metta/app_backend/src
       - ../common/src:/workspace/metta/common/src
       - ../metta:/workspace/metta/metta
+      - ~/.aws:/root/.aws
     depends_on:
       postgres:
         condition: service_healthy

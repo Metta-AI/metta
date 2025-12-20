@@ -26,7 +26,7 @@ repo_root = get_repo_root()
 
 @app.command(
     name="backend",
-    context_settings={"allow_extra_args": True},
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
     help=(
         "Manage local instance of Observatory Backend. "
         "Usage: metta observatory backend [build|up|down|restart|logs|enter]"
@@ -47,9 +47,8 @@ def observatory_backend(ctx: typer.Context):
         raise typer.Exit(0) from None
 
 
-@app.command(name="frontend", context_settings={"allow_extra_args": True})
+@app.command(name="frontend")
 def frontend(
-    ctx: typer.Context,
     backend: Annotated[str, typer.Option("--backend", "-b", help="Select backend: local or prod")] = "local",
 ):
     env = os.environ.copy()
