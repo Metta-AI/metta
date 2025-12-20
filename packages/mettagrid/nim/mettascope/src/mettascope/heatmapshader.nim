@@ -15,16 +15,19 @@ proc heatmapVert*(fragmentWorldPos: var Vec2) =
   ## Generate a full-rect in world units to align heatmap with tile grid.
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
   let worldPos = vec2(
-    float(corner.x) * uMapSize.x - 4.5,
-    float(corner.y) * uMapSize.y + 0.5
+    float(corner.x) * uMapSize.x - 0.5,
+    float(corner.y) * uMapSize.y - 0.5
   )
   fragmentWorldPos = worldPos
   gl_Position = uMvp * vec4(worldPos.x, worldPos.y, 0.0f, 1.0f)
 
 proc heatmapFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
   ## Sample heatmap texture and convert to thermal colors.
-  let adjustedPos = fragmentWorldPos + vec2(4.5, -0.5)
-  let heatmapCoord = vec2(adjustedPos.x / uMapSize.x, 1.0 - adjustedPos.y / uMapSize.y)
+  # Get integer tile coordinates.
+  let tileX = floor(fragmentWorldPos.x + 0.5)
+  let tileY = floor(fragmentWorldPos.y + 0.5)
+  # Sample at texel center: (tile + 0.5) / size.
+  let heatmapCoord = vec2((tileX + 0.5) / uMapSize.x, (tileY + 0.5) / uMapSize.y)
   let heatSample = texture(heatmapTexture, heatmapCoord)
   let heat = heatSample.r * 255.0
 
@@ -102,7 +105,7 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
   hs.currentStep = step
 
   # Prepare heatmap data as uint8 array.
-  # Game world has Y=0 at top, but OpenGL textures have (0,0) at bottom-left, so flip Y.
+  # Store directly without Y flip - texture coordinates will handle mapping.
   var heatmapData: seq[uint8]
   heatmapData.setLen(heatmap.width * heatmap.height)
 
@@ -111,9 +114,8 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
       let heat = heatmap.getHeat(step, x, y)
       # Clamp heat to 0-255 range for texture storage.
       let clampedHeat = min(heat, 255).uint8
-      # Flip Y: game's Y=0 (top) maps to texture bottom.
-      let flippedY = heatmap.height - 1 - y
-      heatmapData[flippedY * heatmap.width + x] = clampedHeat
+      # Store row-major: row y, column x.
+      heatmapData[y * heatmap.width + x] = clampedHeat
 
   # Upload to texture.
   glActiveTexture(GL_TEXTURE0)

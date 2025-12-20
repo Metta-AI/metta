@@ -31,8 +31,7 @@ proc initialize*(heatmap: Heatmap, replay: Replay) =
       let y = location.y.int
 
       if x >= 0 and x < heatmap.width and y >= 0 and y < heatmap.height:
-        let index = y * heatmap.width + x
-        heatmap.data[step][index] += 1
+        heatmap.data[step][y * heatmap.width + x] += 1
 
     # Calculate max heat for this step.
     var maxHeat = 0
@@ -43,25 +42,28 @@ proc initialize*(heatmap: Heatmap, replay: Replay) =
 
 proc update*(heatmap: Heatmap, step: int, replay: Replay) =
   ## Update the heatmap for a new step in realtime mode.
-  ## Expand the data structure if needed and add agent positions.
+  ## Only expand and add heat when step >= maxSteps (new step).
 
-  if step >= heatmap.maxSteps:
-    # Expand the data structure for the new step.
-    let oldMaxSteps = heatmap.maxSteps
-    heatmap.maxSteps = step + 1
+  if step < heatmap.maxSteps:
+    # Step already processed, nothing to do.
+    return
 
-    # Add new step data arrays.
-    for i in oldMaxSteps ..< heatmap.maxSteps:
-      heatmap.data.add(newSeq[int](heatmap.width * heatmap.height))
+  # Expand the data structure for the new step.
+  let oldMaxSteps = heatmap.maxSteps
+  heatmap.maxSteps = step + 1
 
-    # Expand maxHeat array.
-    heatmap.maxHeat.setLen(heatmap.maxSteps)
+  # Add new step data arrays.
+  for i in oldMaxSteps ..< heatmap.maxSteps:
+    heatmap.data.add(newSeq[int](heatmap.width * heatmap.height))
 
-    # Copy previous step's data to new steps.
-    for i in oldMaxSteps ..< heatmap.maxSteps:
-      if i > 0:
-        for j in 0 ..< heatmap.data[i].len:
-          heatmap.data[i][j] = heatmap.data[i - 1][j]
+  # Expand maxHeat array.
+  heatmap.maxHeat.setLen(heatmap.maxSteps)
+
+  # Copy previous step's data to new steps.
+  for i in oldMaxSteps ..< heatmap.maxSteps:
+    if i > 0:
+      for j in 0 ..< heatmap.data[i].len:
+        heatmap.data[i][j] = heatmap.data[i - 1][j]
 
   # Update the cumulative heatmap for every agent at this step.
   for agent in replay.agents:
@@ -70,8 +72,7 @@ proc update*(heatmap: Heatmap, step: int, replay: Replay) =
     let y = location.y.int
 
     if x >= 0 and x < heatmap.width and y >= 0 and y < heatmap.height:
-      let index = y * heatmap.width + x
-      heatmap.data[step][index] += 1
+      heatmap.data[step][y * heatmap.width + x] += 1
 
   # Calculate max heat for this step.
   var maxHeat = 0
@@ -84,8 +85,7 @@ proc getHeat*(heatmap: Heatmap, step: int, x: int, y: int): int =
   ## Get the heat value at the given position and step.
   if step < 0 or step >= heatmap.maxSteps or x < 0 or x >= heatmap.width or y < 0 or y >= heatmap.height:
     return 0
-  let index = y * heatmap.width + x
-  heatmap.data[step][index]
+  heatmap.data[step][y * heatmap.width + x]
 
 proc getMaxHeat*(heatmap: Heatmap, step: int): int =
   ## Get the maximum heat value for the given step.
