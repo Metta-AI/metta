@@ -68,30 +68,32 @@ def create_job_router() -> APIRouter:
             if not job:
                 raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
-            allowed = VALID_TRANSITIONS.get(job.status, set())
-            if request.status not in allowed:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Cannot transition from {job.status} to {request.status}",
-                )
+            if request.status is not None:
+                allowed = VALID_TRANSITIONS.get(job.status, set())
+                if request.status not in allowed:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Cannot transition from {job.status} to {request.status}",
+                    )
 
-            job.status = request.status
+                job.status = request.status
 
-            if request.status == JobStatus.dispatched:
-                job.dispatched_at = datetime.now(UTC)
+                if request.status == JobStatus.dispatched:
+                    job.dispatched_at = datetime.now(UTC)
 
-            if request.status == JobStatus.running:
-                job.running_at = datetime.now(UTC)
-                if request.worker:
-                    job.worker = request.worker
+                if request.status == JobStatus.running:
+                    job.running_at = datetime.now(UTC)
+                    if request.worker:
+                        job.worker = request.worker
 
-            if request.status in (JobStatus.completed, JobStatus.failed):
-                job.completed_at = datetime.now(UTC)
-                if request.result:
-                    job.result = request.result
+                if request.status in (JobStatus.completed, JobStatus.failed):
+                    job.completed_at = datetime.now(UTC)
 
             if request.error:
                 job.error = request.error
+
+            if request.result:
+                job.result = request.result
 
             await session.commit()
             await session.refresh(job)
