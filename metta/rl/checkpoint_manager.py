@@ -10,7 +10,6 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir, upload_checkpoint_dir, write_checkpoint_dir
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -62,26 +61,21 @@ class CheckpointManager:
         return f"file://{self.checkpoint_dir}"
 
     def get_latest_checkpoint(self) -> str | None:
-        def try_resolve(uri: str) -> tuple[str, int] | None:
+        def try_resolve(uri: str) -> str | None:
             target = f"{uri}:latest" if not uri.endswith(":latest") else uri
             try:
-                bundle = resolve_checkpoint_dir(target)
-                parsed = resolve_uri(bundle.dir_uri)
-                info = parsed.checkpoint_info
-                if info:
-                    return (bundle.dir_uri, info[1])
+                return resolve_checkpoint_dir(target).dir_uri
             except (ValueError, FileNotFoundError):
                 return None
-            return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
         if local:
             # Prefer local checkpoints to avoid picking up stale remote artifacts from other runs.
-            return local[0]
+            return local
 
         remote = try_resolve(self.output_uri) if self._remote_prefix else None
         if remote:
-            return remote[0]
+            return remote
 
         return None
 
