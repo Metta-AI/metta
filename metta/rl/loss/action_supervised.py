@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import torch
@@ -74,6 +74,12 @@ class ActionSupervised(Loss):
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
             td["actions"] = td["teacher_actions"]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        keys = {"full_log_probs"}
+        if self.cfg.add_action_loss_to_rewards:
+            keys.add("act_log_prob")
+        return keys
 
     def run_train(
         self,
