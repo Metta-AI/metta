@@ -11,7 +11,7 @@ when isMainModule:
   builder.addDir(rootDir / "data/ui/", rootDir / "data/")
   builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
   builder.addDir(rootDir / "data/resources/", rootDir / "data/")
-  builder.addDir(rootDir / "data/agents/", rootDir / "data/")
+  # builder.addDir(rootDir / "data/agents/", rootDir / "data/")
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
   builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
