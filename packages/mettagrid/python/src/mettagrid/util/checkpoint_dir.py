@@ -67,7 +67,7 @@ def write_checkpoint_dir(
     state_dict: Mapping[str, torch.Tensor],
 ) -> CheckpointDir:
     """Write a checkpoint directory to disk and return its metadata."""
-    checkpoint_dir = base_dir / checkpoint_filename(run_name, epoch)
+    checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     weights_path = checkpoint_dir / "weights.safetensors"
