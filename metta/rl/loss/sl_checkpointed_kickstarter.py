@@ -145,24 +145,14 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        try:
-            base_uri = resolve_checkpoint_dir(self._base_teacher_uri).dir_uri
-        except ValueError:
-            base_uri = parse_uri(self._base_teacher_uri, allow_none=False).canonical
-
-        parsed = parse_uri(base_uri, allow_none=False)
-        info = parsed.checkpoint_info
+        base_bundle = resolve_checkpoint_dir(self._base_teacher_uri)
+        info = parse_uri(base_bundle.dir_uri, allow_none=False).checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = info
         filename = checkpoint_filename(run_name, epoch)
-        base_uri = base_uri.rstrip("/")
-        if base_uri.endswith("policy_spec.json"):
-            base_uri = base_uri[: -len("policy_spec.json")].rstrip("/")
-
-        suffix = ".mpt" if base_uri.endswith(".mpt") else ""
-        parent_uri = base_uri.rsplit("/", 1)[0]
-        return f"{parent_uri}/{filename}{suffix}"
+        parent_uri = base_bundle.dir_uri.rstrip("/").rsplit("/", 1)[0]
+        return f"{parent_uri}/{filename}"
 
     def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
         """Load the teacher policy from a specific checkpoint."""

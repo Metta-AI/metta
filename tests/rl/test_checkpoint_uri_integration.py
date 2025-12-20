@@ -7,15 +7,11 @@ from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 
 class TestS3URIs:
-    @pytest.mark.parametrize(
-        "uri",
-        [
+    def test_checkpoint_info_parsing(self):
+        info = parse_uri(
             "s3://bucket/foo/checkpoints/foo:v9/policy_spec.json",
-            "s3://bucket/foo/checkpoints/foo:v9.mpt",
-        ],
-    )
-    def test_checkpoint_info_parsing(self, uri: str):
-        info = parse_uri(uri, allow_none=False).checkpoint_info
+            allow_none=False,
+        ).checkpoint_info
         assert info is not None
         run_name, epoch = info
         assert run_name == "foo"
