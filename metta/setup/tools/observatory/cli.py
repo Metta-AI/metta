@@ -33,7 +33,7 @@ repo_root = get_repo_root()
     ),
 )
 def observatory_backend(ctx: typer.Context):
-    cmd = ["docker", "compose", "-f", "app_backend/docker-compose.dev.yml"]
+    cmd = ["docker", "compose", "-f", str(get_repo_root() / "app_backend" / "docker-compose.dev.yml")]
     if ctx.args:
         cmd.extend(ctx.args)
 
