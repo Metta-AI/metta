@@ -64,7 +64,7 @@ def db_uri(postgres_container: PostgresContainer) -> str:
 def stats_repo(db_uri: str) -> MettaRepo:
     """Create a MettaRepo instance with the test database."""
     from metta.app_backend import config as app_config
-    from metta.app_backend.models import database
+    from metta.app_backend import database
 
     # Reset the engine singleton and point it at the test database
     database._engine = None

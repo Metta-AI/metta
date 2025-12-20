@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
-from metta.app_backend.models.database import get_session
+from metta.app_backend.database import get_session
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
 

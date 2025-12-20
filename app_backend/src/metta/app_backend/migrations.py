@@ -153,7 +153,6 @@ MIGRATIONS = [
                 error TEXT
             )""",
             """CREATE INDEX idx_job_requests_type_status_created ON job_requests (job_type, status, created_at DESC)""",
-            """CREATE INDEX idx_job_requests_type ON job_requests (job_type)""",
             """CREATE INDEX idx_job_requests_type_created ON job_requests (job_type, created_at DESC)""",
             """CREATE INDEX idx_job_requests_created ON job_requests (created_at DESC)""",
             """CREATE INDEX idx_job_requests_status ON job_requests (status)""",
