@@ -293,6 +293,13 @@ class CoreTrainingLoop:
                     stop_update_epoch = True
                     break
 
+                # Ensure all policy outputs participate in the graph even if some heads
+                # aren't used by the active losses (e.g., BC-only runs). This avoids
+                # DDP unused-parameter errors without relying on find_unused_parameters.
+                total_loss = add_dummy_loss_for_unused_params(
+                    total_loss, td=policy_td, used_keys=list(self.policy_spec.keys())
+                )
+
                 total_loss.backward()
 
                 # Optimizer step with gradient accumulation
