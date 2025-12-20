@@ -5,11 +5,12 @@ from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
+from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
 from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri, resolve_uri
 
 
 class PureSingleEpisodeJob(BaseModel):
@@ -83,8 +84,23 @@ def _no_python_sockets():
 
 
 def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
+    # Pull each policy onto the local filesystem, leave them as zip files
+    local_uris: list[str] = []
+    for uri in job.policy_uris:
+        resolved = resolve_uri(uri)
+        local: str | None = None
+        if resolved.scheme == "file":
+            local = resolved.local_path.as_uri()
+        elif resolved.scheme == "s3":
+            local = download_policy_spec_from_s3(resolved.canonical, remove_downloaded_copy_on_exit=True).as_uri()
+        if local is None:
+            raise RuntimeError(f"could not resolve policy {uri}")
+        local_uris.append(local)
+    job.policy_uris = local_uris
+
     with _no_python_sockets():
         results, replay = run_pure_single_episode(job, device)
+
     if job.replay_uri is not None:
         if replay is not None:
             replay.write_replay(job.replay_uri)
