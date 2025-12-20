@@ -107,9 +107,7 @@ def test_save_and_load_checkpoint_bundle(tmp_path: Path) -> None:
     )
 
     assert bundle.local_dir is not None
-    spec_on_disk = SubmissionPolicySpec.model_validate_json(
-        (bundle.local_dir / POLICY_SPEC_FILENAME).read_text()
-    )
+    spec_on_disk = SubmissionPolicySpec.model_validate_json((bundle.local_dir / POLICY_SPEC_FILENAME).read_text())
     assert spec_on_disk.data_path == "weights.safetensors"
     assert bundle.dir_uri.startswith("file://")
 
