@@ -9,7 +9,7 @@ from pydantic import TypeAdapter
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
 from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionWithName
-from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType
+from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TasksResponse
 from metta.app_backend.routes.leaderboard_routes import (
     LeaderboardPoliciesResponse,
@@ -242,20 +242,10 @@ class StatsClient:
     def update_job(
         self,
         job_id: uuid.UUID,
-        status: JobStatus,
-        worker: str | None = None,
-        result: dict[str, Any] | None = None,
-        error: str | None = None,
+        update: JobRequestUpdate,
     ) -> JobRequest:
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
-        body: dict[str, Any] = {"status": status.value}
-        if worker:
-            body["worker"] = worker
-        if result:
-            body["result"] = result
-        if error:
-            body["error"] = error
-        response = self._http_client.post(f"/jobs/episode/{job_id}", headers=headers, json=body)
+        response = self._http_client.post(f"/jobs/{job_id}", headers=headers, json=update.model_dump(mode="json"))
         response.raise_for_status()
         return JobRequest.model_validate(response.json())
 

@@ -1,14 +1,12 @@
 from datetime import UTC, datetime
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
 from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.models.database import get_session
-from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType
+from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
 
 VALID_TRANSITIONS = {
@@ -16,13 +14,6 @@ VALID_TRANSITIONS = {
     JobStatus.dispatched: {JobStatus.running, JobStatus.failed},
     JobStatus.running: {JobStatus.completed, JobStatus.failed},
 }
-
-
-class UpdateJobRequest(BaseModel):
-    status: JobStatus
-    worker: str | None = None
-    result: dict[str, Any] | None = None
-    error: str | None = None
 
 
 def create_job_router() -> APIRouter:
@@ -34,7 +25,7 @@ def create_job_router() -> APIRouter:
         if not jobs:
             return []
 
-        db_jobs = [JobRequest(**j.model_dump(), user=user) for j in jobs]
+        db_jobs = [JobRequest(**j.model_dump(), user_id=user) for j in jobs]
         async with get_session() as session:
             session.add_all(db_jobs)
             await session.commit()
@@ -70,7 +61,7 @@ def create_job_router() -> APIRouter:
 
     @router.post("/{job_id}")
     @timed_http_handler
-    async def update_job(job_id: UUID, request: UpdateJobRequest, _user: UserOrToken) -> JobRequest:
+    async def update_job(job_id: UUID, request: JobRequestUpdate, _user: UserOrToken) -> JobRequest:
         async with get_session() as session:
             result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             job = result.scalar_one_or_none()

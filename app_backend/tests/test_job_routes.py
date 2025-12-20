@@ -1,5 +1,5 @@
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.models.job_request import JobRequestCreate, JobStatus, JobType
+from metta.app_backend.models.job_request import JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 
 
 class TestEpisodeJobRoutes:
@@ -32,10 +32,10 @@ class TestEpisodeJobRoutes:
             job = stats_client.get_job(job_ids[i])
             assert job.job_type == JobType.episode
             assert job.id == job_ids[i]
-            assert job.job == j
+            assert job.job == j.job
 
         # Update one
-        stats_client.update_job(job_ids[0], JobStatus.dispatched)
+        stats_client.update_job(job_ids[0], JobRequestUpdate(status=JobStatus.dispatched, worker="worker1"))
 
         # Fetch it again and check that the result is updated
         fetched_job = stats_client.get_job(job_ids[0])
