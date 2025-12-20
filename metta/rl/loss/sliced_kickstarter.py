@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 class SlicedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=10.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
 
@@ -77,6 +77,8 @@ class SlicedKickstarter(Loss):
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
+            rewards=scalar_f32,
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
             stud_mask=boolean,

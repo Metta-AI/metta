@@ -10,7 +10,6 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
@@ -107,7 +106,6 @@ def train(
     eval_simulations = simulations()
 
     loss_config = LossesConfig(
-        ppo=PPOConfig(enabled=True),
         sl_checkpointed_kickstarter=SLCheckpointedKickstarterConfig(
             enabled=True,
             teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016",
@@ -285,7 +283,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.experiment.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.checked",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both

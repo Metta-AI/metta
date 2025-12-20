@@ -1,3 +1,6 @@
-module "skypilot" {
-  source = "./skypilot"
+removed {
+  from = module.skypilot
+  lifecycle {
+    destroy = false
+  }
 }

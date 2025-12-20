@@ -266,7 +266,7 @@ def make_curriculum(
             mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
 
             if dr_rewards:
-                mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+                mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.deposited_by_agent", [0, 1, 5, 10])
                 mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
                 resources = ["carbon", "oxygen", "germanium", "silicon"]
                 for resource in resources:
@@ -572,13 +572,13 @@ def train_sweep(
     mission: str | None = None,
 ) -> TrainTool:
     """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
-    base_variants = ["heart_chorus", "inventory_heart_tune"]
+    base_variants = ["heart_chorus"]
     if variants:
         for v in variants:
             if v not in base_variants:
                 base_variants.append(v)
 
-    return train(
+    tool = train(
         num_cogs=num_cogs,
         base_missions=None,
         variants=base_variants,
@@ -586,6 +586,9 @@ def train_sweep(
         eval_difficulty=eval_difficulty,
         mission=mission,
     )
+    # Sweep-friendly default (kept consistent with the sweep search space).
+    tool.trainer.total_timesteps = 1_000_000_000
+    return tool
 
 
 def evaluate_stub(*args, **kwargs) -> StubTool:
@@ -600,63 +603,95 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         **SP.param(
             "trainer.optimizer.learning_rate",
             D.LOG_NORMAL,
-            min=5e-3,
-            max=1.5e-2,
+            min=1e-3,
+            max=3e-2,
             search_center=1e-2,
         ),
         **SP.param(
             "trainer.optimizer.eps",
             D.LOG_NORMAL,
             min=1e-8,
-            max=2e-6,
+            max=5e-5,
             search_center=1e-6,
         ),
         **SP.param(
             "trainer.optimizer.warmup_steps",
             D.INT_UNIFORM,
-            min=1500,
-            max=3000,
+            min=0,
+            max=10_000,
             search_center=2300,
+        ),
+        **SP.param(
+            "trainer.optimizer.weight_decay",
+            D.LOG_NORMAL,
+            min=1e-5,
+            max=1e-1,
+            search_center=1e-2,
+        ),
+        **SP.param(
+            "trainer.optimizer.momentum",
+            D.UNIFORM,
+            min=0.7,
+            max=0.99,
+            search_center=0.9,
         ),
         # PPO
         **SP.param(
-            "trainer.losses.ppo.clip_coef",
+            "trainer.losses.ppo_actor.clip_coef",
             D.UNIFORM,
-            min=0.2,
-            max=0.32,
+            min=0.05,
+            max=0.4,
             search_center=0.26,
         ),
         **SP.param(
-            "trainer.losses.ppo.gae_lambda",
+            "trainer.advantage.gae_lambda",
             D.UNIFORM,
-            min=0.97,
+            min=0.8,
             max=0.995,
-            search_center=0.99,
+            search_center=0.97,
         ),
         **SP.param(
-            "trainer.losses.ppo.vf_coef",
+            "trainer.losses.ppo_critic.vf_coef",
             D.UNIFORM,
-            min=0.5,
-            max=1.0,
+            min=0.1,
+            max=2.0,
             search_center=0.75,
         ),
         **SP.param(
-            "trainer.losses.ppo.ent_coef",
+            "trainer.losses.ppo_actor.ent_coef",
             D.LOG_NORMAL,
-            min=0.015,
-            max=0.035,
+            min=0.001,
+            max=0.1,
             search_center=0.025,
         ),
         **SP.param(
-            "trainer.losses.ppo.gamma",
+            "trainer.advantage.gamma",
             D.UNIFORM,
-            min=0.968,
-            max=0.977,
-            search_center=0.973,
+            min=0.95,
+            max=0.9995,
+            search_center=0.99,
         ),
         **SP.categorical(
-            "trainer.losses.ppo.vf_clip_coef",
-            choices=[0.0, 0.1],
+            "trainer.losses.ppo_critic.vf_clip_coef",
+            choices=[0.0, 0.1, 0.2, 0.3],
+        ),
+        **SP.categorical(
+            "trainer.sampling.method",
+            choices=["sequential", "prioritized"],
+        ),
+        **SP.param(
+            "trainer.sampling.prio_alpha",
+            D.UNIFORM,
+            min=0.0,
+            max=1.0,
+            search_center=0.4,
+        ),
+        **SP.param(
+            "trainer.sampling.prio_beta0",
+            D.UNIFORM,
+            min=0.2,
+            max=1.0,
+            search_center=0.6,
         ),
         **SP.categorical(
             "policy_architecture.core_resnet_layers",
@@ -681,17 +716,6 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
         **SP.categorical(
             "policy_architecture.core_num_latents",
             choices=[12, 16, 20],
-        ),
-        **SP.categorical(
-            "policy_architecture.max_tokens",
-            choices=[48, 64, 80],
-        ),
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=9e8,
-            max=1.1e9,
-            search_center=1e9,
         ),
     }
 

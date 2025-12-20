@@ -65,15 +65,25 @@ def test_discounted_sum_cuda_parity(shape_case) -> None:
     device = torch.device("cuda")
     dtype = torch.float32
 
-    x = torch.randn(T, B, R, D, device=device, dtype=dtype)
-    discounts = torch.sigmoid(torch.randn(T, B, R, D, device=device, dtype=dtype))
-    start = torch.randn(B, R, D, device=device, dtype=dtype)
-
-    out_ref = discounted_sum_pytorch(start, x, discounts)
-
     from cortex.kernels.cuda.agalite.discounted_sum_cuda import discounted_sum_cuda
 
-    out_cuda = discounted_sum_cuda(start, x, discounts)
+    # Run on a non-default stream with a delay to detect stream-unsafe kernel launches.
+    x = torch.empty((T, B, R, D), device=device, dtype=dtype)
+    discounts = torch.empty_like(x)
+    start = torch.empty((B, R, D), device=device, dtype=dtype)
+
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        torch.cuda._sleep(10_000_000)
+        x.normal_()
+        discounts.normal_()
+        discounts.sigmoid_()
+        start.normal_()
+        out_cuda = discounted_sum_cuda(start, x, discounts)
+
+    stream.synchronize()
+
+    out_ref = discounted_sum_pytorch(start, x, discounts)
 
     torch.testing.assert_close(out_ref, out_cuda, rtol=1e-4, atol=1e-4)
 
@@ -161,6 +171,64 @@ def test_agalite_step_vs_sequence_equivalence() -> None:
     y_step = torch.stack(y_steps, dim=1)
 
     torch.testing.assert_close(y_seq, y_step, rtol=5e-4, atol=5e-4)
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16, torch.bfloat16])
+@pytest.mark.parametrize("chunk", [1, 3, 7, 64, 256])
+def test_agalite_chunked_vs_step_equivalence(chunk: int, dtype) -> None:
+    torch.manual_seed(123)
+    device = _device()
+
+    if dtype is torch.bfloat16 and device.type == "cuda" and not torch.cuda.is_bf16_supported():
+        pytest.skip("CUDA bfloat16 not supported on this device")
+
+    B, T, H, NH, Dh = 2, 257, 32, 4, 8
+    assert H == NH * Dh
+    cfg = AGaLiTeCellConfig(
+        hidden_size=H,
+        n_heads=NH,
+        head_dim=Dh,
+        eta=3,
+        r=2,
+        eps=1e-5,
+        dropout=0.0,
+    )
+    cell = AGaLiTeCell(cfg).to(device=device, dtype=dtype)
+    cell.eval()
+
+    x = torch.randn(B, T, H, device=device, dtype=dtype)
+
+    # Step-wise processing
+    y_steps = []
+    st_step = None
+    with torch.no_grad():
+        for t in range(T):
+            y_t, st_step = cell(x[:, t, :], st_step)
+            y_steps.append(y_t)
+    y_step = torch.stack(y_steps, dim=1)
+
+    # Chunked processing
+    y_chunks = []
+    st_chunk = None
+    with torch.no_grad():
+        t = 0
+        while t < T:
+            x_blk = x[:, t : t + chunk, :]
+            y_blk, st_chunk = cell(x_blk, st_chunk)
+            y_chunks.append(y_blk)
+            t += chunk
+    y_chunk = torch.cat(y_chunks, dim=1)
+
+    assert y_chunk.shape == y_step.shape
+    y_chunk32 = y_chunk.to(torch.float32)
+    y_step32 = y_step.to(torch.float32)
+    if dtype is torch.float32:
+        torch.testing.assert_close(y_chunk32, y_step32, rtol=1e-3, atol=1e-4)
+    elif dtype is torch.float16:
+        torch.testing.assert_close(y_chunk32, y_step32, rtol=5e-3, atol=2e-3)
+    else:
+        max_diff = (y_chunk32 - y_step32).abs().max().item()
+        assert max_diff < 0.215, f"bfloat16 chunk vs step max diff {max_diff}"
 
 
 #! CUDA-only backend parity for discounted sum is covered by kernel test above.

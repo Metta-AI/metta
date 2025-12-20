@@ -5,8 +5,8 @@ import
 
 proc loadReplay(path: string): JsonNode =
   ## Load and decompress a .json.z replay file.
-  if not path.endsWith(".json.z"):
-    raise newException(ValueError, "Replay file name must end with '.json.z'")
+  if not (path.endsWith(".json.gz") or path.endsWith(".json.z")):
+    raise newException(ValueError, "Replay file name must end with '.json.gz' or '.json.z'")
 
   let compressedData = readFile(path)
   var decompressed: string
@@ -40,7 +40,7 @@ block generated_replay_test:
   # Find generated replay files
   var replayFiles: seq[string]
   for file in walkDirRec(tmpDir):
-    if file.endsWith(".json.z"):
+    if file.endsWith(".json.gz") or file.endsWith(".json.z"):
       replayFiles.add(file)
 
   if replayFiles.len == 0:

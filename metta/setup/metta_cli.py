@@ -24,11 +24,11 @@ import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
-from metta.setup.local_commands import app as local_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import app as code_formatters_app
+from metta.setup.tools.observatory.cli import app as observatory_app
 from metta.setup.tools.publish import cmd_publish
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
@@ -718,7 +718,7 @@ def cmd_gridworks(ctx: typer.Context):
 
 
 app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
-app.add_typer(local_app, name="local")
+app.add_typer(observatory_app, name="observatory")
 app.add_typer(book_app, name="book")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
