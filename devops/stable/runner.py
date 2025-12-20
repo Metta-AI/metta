@@ -340,13 +340,40 @@ class Runner:
                     msg = f"Expected list from sky.get(), got {type(queue_data).__name__}: {str(queue_data)[:200]}"
                     raise TypeError(msg)
 
+                def _as_job_dict(item: object) -> dict:
+                    # SkyPilot 0.11+ may return ManagedJobRecord objects instead of dicts.
+                    if isinstance(item, dict):
+                        return item
+
+                    job_id = getattr(item, "job_id", None)
+                    status = getattr(item, "status", None)
+                    if status is None:
+                        status = getattr(item, "state", None)
+
+                    # Best-effort conversion so downstream logic can treat it as a mapping.
+                    if job_id is not None:
+                        d: dict = {"job_id": job_id}
+                        if status is not None:
+                            d["status"] = status
+                        return d
+
+                    # Try common serialization hooks.
+                    for attr in ("model_dump", "dict", "to_dict"):
+                        fn = getattr(item, attr, None)
+                        if callable(fn):
+                            try:
+                                return fn()  # type: ignore[misc]
+                            except Exception:
+                                pass
+
+                    raise TypeError(
+                        f"Expected dict-like job record, got {type(item).__name__}: {str(item)[:200]}"
+                    )
+
                 status_by_id = {}
                 for item in queue_data:
-                    if not isinstance(item, dict):
-                        raise TypeError(
-                            f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}"
-                        )
-                    status_by_id[str(item.get("job_id"))] = item
+                    job_dict = _as_job_dict(item)
+                    status_by_id[str(job_dict.get("job_id"))] = job_dict
 
                 last_exc = None
                 break
