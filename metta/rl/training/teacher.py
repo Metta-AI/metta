@@ -147,7 +147,6 @@ def apply_teacher_phase(
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         # Match legacy BC behavior: supervisor-only training disables PPO entirely.
-        losses.ppo.enabled = False
         losses.ppo_actor.enabled = False
         losses.ppo_critic.enabled = False
         losses.quantile_ppo_critic.enabled = False
