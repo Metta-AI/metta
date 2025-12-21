@@ -1041,8 +1041,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # CRITICAL ENERGY: Only move if charger is very close
         if state.energy < self._recharge_critical:
             # Check if charger visible in current observation
-            charger_direction = self._find_station_direction_in_obs(state, "charger")
-            if charger_direction is not None:
+            result = self._find_station_direction_in_obs(state, "charger")
+            if result is not None:
+                charger_direction, _ = result  # Unpack tuple (direction, cooldown)
                 return self._actions.move.Move(charger_direction)
 
             # Charger not visible - STOP MOVING to conserve energy
