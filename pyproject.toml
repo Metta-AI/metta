@@ -36,6 +36,7 @@ dependencies = [
   "metta-agent",
   "metta-app-backend",
   "metta-common",
+  "metta-cogworks",
   "numpy>=2",
   "ninja>=1.11.1",
   "nvidia-ml-py",
@@ -148,6 +149,7 @@ default-groups = ["interactive", "dev"]
 members = [
   "agent",
   "app_backend",
+  "cogworks",
   "common",
   "packages/codebot",
   "packages/cogames",
@@ -167,6 +169,7 @@ gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
+metta-cogworks = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
 metta-pr-similarity-mcp = { workspace = true }
