@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "heavyball>=2.0.0",
+  "llm_agent",
   "mettagrid",
   "packaging>=24.0.0",
   "pufferlib-core",
@@ -53,6 +54,7 @@ testpaths = ["tests"]
 source = ["cogames"]
 
 [tool.uv.sources]
+llm_agent = { workspace = true }
 mettagrid = { workspace = true }
 
 [tool.uv]
