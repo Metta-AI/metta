@@ -13,11 +13,11 @@ members = [
     "cortexcore",
     "gitta",
     "metta",
-    "metta-adaptive",
     "metta-agent",
     "metta-app-backend",
     "metta-common",
     "metta-pr-similarity-mcp",
+    "metta-sweep",
     "mettagrid",
     "pufferlib-core",
     "softmax",
@@ -2120,10 +2120,10 @@ dependencies = [
     { name = "imageio" },
     { name = "jmespath" },
     { name = "matplotlib" },
-    { name = "metta-adaptive" },
     { name = "metta-agent" },
     { name = "metta-app-backend" },
     { name = "metta-common" },
+    { name = "metta-sweep" },
     { name = "ninja" },
     { name = "numpy" },
     { name = "nvidia-ml-py" },
@@ -2243,10 +2243,10 @@ requires-dist = [
     { name = "imageio", specifier = ">=2.37.0" },
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
-    { name = "metta-adaptive", editable = "adaptive" },
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
+    { name = "metta-sweep", editable = "adaptive" },
     { name = "ninja", specifier = ">=1.11.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
@@ -2335,55 +2335,6 @@ testing = [
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "testcontainers", specifier = ">=4.10.0" },
-]
-
-[[package]]
-name = "metta-adaptive"
-version = "0.1.0"
-source = { editable = "adaptive" }
-dependencies = [
-    { name = "metta-app-backend" },
-    { name = "metta-common" },
-    { name = "mettagrid" },
-    { name = "numpy" },
-    { name = "pydantic" },
-    { name = "pyro-ppl" },
-    { name = "python-dateutil" },
-    { name = "tenacity" },
-    { name = "torch" },
-    { name = "wandb" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "metta-app-backend", editable = "app_backend" },
-    { name = "metta-common", editable = "common" },
-    { name = "mettagrid", editable = "packages/mettagrid" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "pydantic", specifier = ">=2.12.2" },
-    { name = "pyro-ppl", specifier = ">=1.9.1" },
-    { name = "python-dateutil", specifier = ">=2.9.0" },
-    { name = "tenacity", specifier = ">=9.0.0" },
-    { name = "torch", specifier = "==2.9.0" },
-    { name = "wandb", specifier = ">=0.23.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyright", specifier = ">=1.1.401" },
-    { name = "pytest", specifier = ">=8.3.3" },
-    { name = "pytest-cov", specifier = ">=6.1.1" },
-    { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]
@@ -2542,6 +2493,55 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.46.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=1.24.0" },
+]
+
+[[package]]
+name = "metta-sweep"
+version = "0.1.0"
+source = { editable = "adaptive" }
+dependencies = [
+    { name = "metta-app-backend" },
+    { name = "metta-common" },
+    { name = "mettagrid" },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "pyro-ppl" },
+    { name = "python-dateutil" },
+    { name = "tenacity" },
+    { name = "torch" },
+    { name = "wandb" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "metta-app-backend", editable = "app_backend" },
+    { name = "metta-common", editable = "common" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "pydantic", specifier = ">=2.12.2" },
+    { name = "pyro-ppl", specifier = ">=1.9.1" },
+    { name = "python-dateutil", specifier = ">=2.9.0" },
+    { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "torch", specifier = "==2.9.0" },
+    { name = "wandb", specifier = ">=0.23.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]

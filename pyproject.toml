@@ -35,7 +35,7 @@ dependencies = [
   "matplotlib>=3.10.3",
   "metta-agent",
   "metta-app-backend",
-  "metta-adaptive",
+  "metta-sweep",
   "metta-common",
   "numpy>=2",
   "ninja>=1.11.1",
@@ -168,7 +168,7 @@ cortexcore = { workspace = true }
 gitta = { workspace = true }
 metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
-metta-adaptive = { workspace = true }
+metta-sweep = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
