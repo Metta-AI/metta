@@ -60,7 +60,7 @@ class CMPOConfig(LossConfig):
     target_kl: Optional[float] = None
 
     # Prior policy via EMA (None disables)
-    prior_ema_decay: Optional[float] = Field(default=0.995, ge=0, le=1.0)
+    prior_ema_decay: Optional[float] = Field(default=None, ge=0, le=1.0)
 
     world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
 
@@ -281,6 +281,10 @@ class CMPO(Loss):
 
         if mb_idx == 0:
             self._train_world_model()
+
+        if len(self.transition_buffer) < self.cfg.world_model.warmup_transitions:
+            self._update_prior_model()
+            return self._zero(), shared_loss_data, stop_update_epoch
 
         minibatch = shared_loss_data["sampled_mb"]
         if minibatch.batch_size.numel() == 0:
