@@ -35,26 +35,20 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    AOEEffectConfig,
     AssemblerConfig,
     AttackActionConfig,
-    BuildConfig,
     ChangeVibeActionConfig,
     ChestConfig,
     DamageConfig,
-    DemolishConfig,
     GameConfig,
     GlobalObsConfig,
+    GridObjectConfig,
     InventoryConfig,
-    MarketConfig,
-    MarketTerminalConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
-    TransferActionConfig,
-    VibeTransfer,
     WallConfig,
 )
 from mettagrid.config.vibes import Vibe
@@ -81,8 +75,20 @@ vibes = [
     Vibe("🔋", "battery"),
     Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
-    Vibe("🪨", "barrier"),
 ]
+
+class PylonConfig(GridObjectConfig):
+    radius: int
+
+class RoleStationConfig(GridObjectConfig):
+    role: str
+
+class ExtractorConfig(GridObjectConfig):
+    pass
+
+class ColonyConfig(GridObjectConfig):
+    pass
+
 
 
 class CogAssemblerConfig(CvCStationConfig):
@@ -99,43 +105,12 @@ class CogAssemblerConfig(CvCStationConfig):
                     input_resources={
                         "carbon": 10,
                         "oxygen": 10,
-                        "germanium": 1,
-                        "silicon": 50,
+                        "germanium": 10,
+                        "silicon": 10,
                     },
                     output_resources={"heart": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["weapon"],
-                    input_resources={"carbon": 5},
-                    output_resources={"weapon": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["shield"],
-                    input_resources={"silicon": 25},
-                    output_resources={"shield": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["battery"],
-                    input_resources={"germanium": 5, "silicon": 5},
-                    output_resources={"battery": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["gear"],
-                    input_resources={"oxygen": 10, "silicon": 50, "carbon": 10, "germanium": 5},
-                    output_resources={"gear": 1},
-                    sigmoid=5,
-                    inflation=0.1,
                 ),
             ],
-            agent_cooldown=10,
         )
 
 
