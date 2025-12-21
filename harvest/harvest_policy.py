@@ -12,6 +12,7 @@ Designed as a readable reference implementation for competing against neural net
 
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import dataclass, field
 from enum import Enum
@@ -45,6 +46,66 @@ class HarvestPhase(Enum):
     ASSEMBLE = "assemble"  # Craft hearts at the assembler
     DELIVER = "deliver"  # Deposit hearts in the chest
     RECHARGE = "recharge"  # Restore energy at the charger
+
+
+@dataclass
+class ChargerInfo:
+    """Track quality/reliability of a charger."""
+    position: tuple[int, int]
+    times_approached: int = 0
+    times_successfully_used: int = 0
+    last_attempt_step: int = 0
+
+    @property
+    def success_rate(self) -> float:
+        """Success rate for this charger (0.0 to 1.0)."""
+        if self.times_approached == 0:
+            return 1.0  # Optimistic for new chargers
+        return self.times_successfully_used / self.times_approached
+
+    @property
+    def is_reliable(self) -> bool:
+        """True if this charger has proven reliable."""
+        # Require at least 50% success rate, or give benefit of doubt if < 3 attempts
+        return self.success_rate > 0.5 or self.times_approached < 3
+
+
+@dataclass
+class MissionProfile:
+    """Detected characteristics of the current mission."""
+    map_size: str  # "small" (<30), "medium" (30-100), "large" (>100)
+    energy_difficulty: str = "normal"  # "normal" or "starved"
+
+    # Adaptive thresholds based on mission profile
+    @property
+    def recharge_critical(self) -> int:
+        """Critical energy threshold - MUST recharge immediately."""
+        return 10
+
+    @property
+    def recharge_low(self) -> int:
+        """Low energy threshold - enter RECHARGE phase."""
+        if self.map_size == "small":
+            return 20  # More aggressive on small maps
+        elif self.map_size == "medium":
+            return 30
+        else:  # large
+            return 35  # Conservative on large maps
+
+    @property
+    def recharge_high(self) -> int:
+        """High energy threshold - stay in RECHARGE until this level."""
+        if self.map_size == "small":
+            return 85  # Don't waste time waiting for full charge
+        elif self.map_size == "medium":
+            return 75
+        else:  # large
+            return 60  # Exit recharge sooner to continue exploration
+
+    @property
+    def stuck_threshold(self) -> int:
+        """Steps stuck before triggering recovery."""
+        return 5 if self.map_size == "small" else 10
 
 
 @dataclass
@@ -144,6 +205,16 @@ class HarvestState:
     # Track which resource types have been found (to know if we need to explore more)
     found_resource_types: set[str] = field(default_factory=set)
 
+    # MISSION-AWARE ARCHITECTURE: Adapt strategy based on mission characteristics
+    mission_profile: Optional[MissionProfile] = None
+
+    # CHARGER QUALITY TRACKING: Remember which chargers work and which don't
+    charger_info: dict[tuple[int, int], ChargerInfo] = field(default_factory=dict)
+    current_recharge_target: Optional[tuple[int, int]] = None  # Which charger we're currently trying to reach
+
+    # POSITION-BASED STUCK DETECTION: Track recent positions to detect being stuck at a location
+    position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
+
 
 # Resource to vibe mapping for extracting resources
 RESOURCE_VIBES = {
@@ -183,7 +254,21 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Energy thresholds
         self._recharge_critical = 10  # STOP ALL non-recharge activity
         self._recharge_low = 35  # Enter dedicated recharge phase (enough to reach charger)
-        self._recharge_high = 99  # Charge to full (nearly 100) for energy-starved missions
+        self._recharge_high = 95  # Charge to 95+ (chargers give +14, so 84→98 is typical)
+
+        # Set up detailed file logging to debug policy behavior
+        self._logger = logging.getLogger(f"HarvestPolicy.Agent{agent_id}")
+        self._logger.setLevel(logging.DEBUG)
+        # Clear any existing handlers to avoid duplicates
+        self._logger.handlers.clear()
+        # Create file handler
+        fh = logging.FileHandler("harvest.log", mode='w')  # Overwrite each run
+        fh.setLevel(logging.DEBUG)
+        # Create formatter with timestamp, level, and message
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+        fh.setFormatter(formatter)
+        self._logger.addHandler(fh)
+        self._logger.info(f"=== HarvestPolicy Agent {agent_id} initialized ===")
 
     def initial_agent_state(self) -> HarvestState:
         """Initialize state for the agent."""
@@ -233,6 +318,20 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Update inventory from observation
         read_inventory_from_obs(state, obs, obs_hr=self._obs_hr, obs_wr=self._obs_wr)
 
+        # MISSION DETECTION: Detect mission profile early to adapt strategy
+        # Do detection after a few steps to get map extent, but not too late
+        if state.mission_profile is None and state.step_count >= 5:
+            # Wait a few steps to get better map size estimate
+            state.mission_profile = self._detect_mission_profile(state)
+            self._logger.info(f"  ★ DETECTED MISSION: map_size={state.mission_profile.map_size}, "
+                            f"extent={state.observed_map_extent}, "
+                            f"recharge_thresholds=({state.mission_profile.recharge_low},{state.mission_profile.recharge_high})")
+
+        # Log current state at start of step
+        self._logger.debug(f"Step {state.step_count}: pos=({state.row},{state.col}) energy={state.energy} "
+                          f"phase={state.phase.value} inv=(C:{state.carbon} O:{state.oxygen} "
+                          f"G:{state.germanium} Si:{state.silicon} H:{state.hearts})")
+
         # Update position based on last action - but verify move success first!
         self._update_position_with_verification(state, obs)
 
@@ -248,8 +347,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             ),
             # Inventory state (to detect resource gathering progress)
             state.carbon, state.oxygen, state.germanium, state.silicon, state.hearts,
-            # Energy state (bucketized to avoid hash changes from small fluctuations)
-            state.energy // 10,
+            # Energy state (bucketized heavily to avoid hash changes from charger fluctuations)
+            # Use //30 so standing on chargers doesn't reset stuck detection
+            state.energy // 30,
         ))
         if obs_hash == state.prev_obs_hash:
             state.same_observation_count += 1
@@ -360,13 +460,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         desired_vibe = self._get_vibe_for_phase(state)
         if state.current_glyph != desired_vibe:
             state.current_glyph = desired_vibe
+            self._logger.info(f"  VIBE CHANGE: {state.current_glyph} → {desired_vibe}")
             action = change_vibe_action(desired_vibe, actions=self._actions)
             state.last_action = action
+            self._logger.debug(f"  ACTION: {action.name}")
             return action, state
 
         # Execute current phase
         action = self._execute_phase(state)
         state.last_action = action
+        self._logger.debug(f"  ACTION: {action.name}")
         return action, state
 
     def _parse_observation(self, state: HarvestState, obs: AgentObservation) -> ParsedObservation:
@@ -420,6 +523,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if move_succeeded:
             state.row += dr
             state.col += dc
+            self._logger.debug(f"  ✓ Move {direction} SUCCEEDED → new pos ({state.row},{state.col})")
             # Invalidate cached path since we moved
             state.cached_path = None
             # Reset drift counter on successful move
@@ -430,10 +534,13 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         else:
             # Track failed moves for drift detection
             state.consecutive_failed_moves += 1
+            target_r, target_c = state.row + dr, state.col + dc
+            self._logger.debug(f"  ✗ Move {direction} FAILED (stayed at ({state.row},{state.col}), "
+                             f"tried to go to ({target_r},{target_c})) - "
+                             f"consecutive_fails={state.consecutive_failed_moves}")
 
             # CRITICAL FIX: Mark the target cell as OBSTACLE to learn from failures
             # This prevents repeatedly trying invalid moves to the same cell
-            target_r, target_c = state.row + dr, state.col + dc
             if path_is_within_bounds(state, target_r, target_c):
                 state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
                 # Remove from explored cells since it's blocked
@@ -459,19 +566,22 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         This is because our movement and their apparent movement are in same direction.
         If we move north, the world shifts south relative to us, so landmark_row increases.
         """
-        # Method 1: Energy-based verification (most reliable!)
-        # Moving costs 1 energy. If energy didn't decrease, move MUST have failed.
+        # Method 1: Energy-based verification (most reliable when NOT on chargers!)
+        # Moving costs 1 energy. But if on a charger, energy can increase.
         if state.prev_energy is not None:
             expected_energy = state.prev_energy - 1
             if state.energy == state.prev_energy:
-                # Energy didn't decrease → move failed (hit wall or invalid)
+                # Energy didn't change → move failed (hit wall or invalid)
                 return False
             elif state.energy == expected_energy:
-                # Energy decreased as expected → move likely succeeded
-                # Continue with landmark verification for additional confidence
+                # Energy decreased by exactly 1 → move succeeded
+                return True
+            elif state.energy > state.prev_energy:
+                # Energy INCREASED (from charger) → move probably succeeded
+                # Can't verify with energy, rely on landmark verification
                 pass
             # Note: If energy decreased but not by exactly 1, something else happened
-            # (e.g., recharging, energy drain). Continue to landmark verification.
+            # (e.g., energy drain). Continue to landmark verification.
 
         # Method 2: Landmark-based verification
         if not state.prev_landmarks:
@@ -634,7 +744,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     if station_name == "charger":
                         if pos not in state.discovered_chargers:
                             state.discovered_chargers.append(pos)
+                            is_first = not state.found_initial_charger
                             state.found_initial_charger = True
+
+                            # CHARGER QUALITY TRACKING: Create ChargerInfo for new chargers
+                            if pos not in state.charger_info:
+                                state.charger_info[pos] = ChargerInfo(position=pos)
+                                self._logger.debug(f"  CHARGER: Created ChargerInfo for charger at {pos}")
+
+                            if is_first:
+                                self._logger.info(f"  ★ FOUND INITIAL CHARGER at {pos}! Total chargers: {len(state.discovered_chargers)}")
+                            else:
+                                self._logger.debug(f"  Found charger #{len(state.discovered_chargers)} at {pos}")
 
                     # Also store in stations dict (first one found of each type)
                     if state.stations.get(station_name) is None:
@@ -694,28 +815,52 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         CRITICAL: Prioritize finding charger before gathering resources.
         This ensures energy safety on energy-starved missions.
         """
+        old_phase = state.phase
+
+        # Get adaptive thresholds based on mission profile
+        recharge_critical = self._get_recharge_critical(state)
+        recharge_low = self._get_recharge_low(state)
+        recharge_high = self._get_recharge_high(state)
+
         # Priority 1: CRITICAL energy - MUST recharge immediately
-        if state.energy < self._recharge_critical:
+        if state.energy < recharge_critical:
             state.phase = HarvestPhase.RECHARGE
+            if old_phase != state.phase:
+                self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (CRITICAL energy={state.energy} < {recharge_critical})")
             return
 
         # Priority 2: Low energy - start recharging
-        if state.energy < self._recharge_low:
+        if state.energy < recharge_low:
             state.phase = HarvestPhase.RECHARGE
+            if old_phase != state.phase:
+                self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (low energy={state.energy} < {recharge_low})")
             return
 
         # Stay in recharge until energy well-restored
-        if state.phase == HarvestPhase.RECHARGE and state.energy < self._recharge_high:
+        # BUT: If stuck trying to recharge and energy is still safe ON LARGE MAPS, exit RECHARGE to explore
+        if state.phase == HarvestPhase.RECHARGE and state.energy < recharge_high:
+            # Only use aggressive stuck recovery on large maps where chargers may be inaccessible
+            is_large_map = state.mission_profile and state.mission_profile.map_size == "large"
+            stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 5
+            if is_large_map and state.consecutive_failed_moves >= stuck_threshold and state.energy > 20:
+                self._logger.info(f"  PHASE: RECHARGE → GATHER (large map, stuck {state.consecutive_failed_moves} steps, energy={state.energy} still safe, will explore)")
+                state.phase = HarvestPhase.GATHER
+                return
+            self._logger.debug(f"  PHASE: Staying in RECHARGE (energy={state.energy} < {recharge_high})")
             return
 
         # Priority 3: Deliver hearts
         if state.hearts > 0:
             state.phase = HarvestPhase.DELIVER
+            if old_phase != state.phase:
+                self._logger.info(f"  PHASE: {old_phase.value} → DELIVER (hearts={state.hearts})")
             return
 
         # Priority 4: Assemble if we have all resources
         if state.heart_recipe and self._can_assemble(state):
             state.phase = HarvestPhase.ASSEMBLE
+            if old_phase != state.phase:
+                self._logger.info(f"  PHASE: {old_phase.value} → ASSEMBLE (have all resources)")
             return
 
         # Priority 5: FIND CHARGER FIRST before gathering
@@ -723,11 +868,118 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Once we have at least one charger, we can safely gather resources
         if not state.found_initial_charger:
             state.phase = HarvestPhase.GATHER  # Use GATHER phase for exploration
-            # The gather phase will be modified to prioritize charger finding
+            if old_phase != state.phase:
+                self._logger.info(f"  PHASE: {old_phase.value} → GATHER (searching for INITIAL CHARGER)")
+            else:
+                self._logger.debug(f"  PHASE: In GATHER, still searching for initial charger (found={len(state.discovered_chargers)} chargers)")
             return
 
         # Priority 6: Gather resources (only after charger found)
         state.phase = HarvestPhase.GATHER
+        if old_phase != state.phase:
+            self._logger.info(f"  PHASE: {old_phase.value} → GATHER (charger found, gathering resources)")
+
+    def _detect_mission_profile(self, state: HarvestState) -> MissionProfile:
+        """Detect mission characteristics to adapt strategy."""
+        # Use observed map extent to estimate map size
+        # observed_map_extent is the max distance we've explored from starting position
+        map_dimension = state.observed_map_extent * 2  # Estimate full map size
+
+        if map_dimension < 30:
+            map_size = "small"
+        elif map_dimension < 100:
+            map_size = "medium"
+        else:
+            map_size = "large"
+
+        # TODO: Detect energy difficulty by checking charger availability
+        # For now, assume "normal" energy difficulty
+        energy_difficulty = "normal"
+
+        return MissionProfile(map_size=map_size, energy_difficulty=energy_difficulty)
+
+    def _get_recharge_critical(self, state: HarvestState) -> int:
+        """Get critical energy threshold (adaptive based on mission)."""
+        if state.mission_profile:
+            return state.mission_profile.recharge_critical
+        return self._recharge_critical
+
+    def _get_recharge_low(self, state: HarvestState) -> int:
+        """Get low energy threshold (adaptive based on mission)."""
+        if state.mission_profile:
+            return state.mission_profile.recharge_low
+        return self._recharge_low
+
+    def _get_recharge_high(self, state: HarvestState) -> int:
+        """Get high energy threshold (adaptive based on mission)."""
+        if state.mission_profile:
+            return state.mission_profile.recharge_high
+        return self._recharge_high
+
+    def _select_best_charger(self, state: HarvestState) -> tuple[int, int]:
+        """Select best charger based on reliability and distance.
+
+        Strategy:
+        1. If stuck badly (10+ failures), use FARTHEST charger (escape stuck pattern)
+        2. If stuck moderately (5-9 failures), try different charger
+        3. Otherwise, prefer RELIABLE + NEAREST charger
+        """
+        if not state.discovered_chargers:
+            # Fallback: use nearest charger (shouldn't happen, but be safe)
+            return self._find_nearest_charger(state)
+
+        stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 5
+
+        # Strategy 1: Badly stuck - use FARTHEST charger to escape stuck pattern
+        if state.consecutive_failed_moves >= stuck_threshold * 2 and len(state.discovered_chargers) > 1:
+            chargers_by_distance = sorted(
+                state.discovered_chargers,
+                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col),
+                reverse=True  # Farthest first
+            )
+            target = chargers_by_distance[0]
+            self._logger.info(f"  CHARGER: BADLY STUCK ({state.consecutive_failed_moves} steps), using FARTHEST charger at {target}")
+            return target
+
+        # Strategy 2: Moderately stuck - try reliable chargers that aren't the current target
+        if state.consecutive_failed_moves >= stuck_threshold and len(state.discovered_chargers) > 1:
+            # Find reliable chargers (excluding current stuck target if we have one)
+            reliable_chargers = [
+                pos for pos in state.discovered_chargers
+                if pos in state.charger_info and state.charger_info[pos].is_reliable
+                and pos != state.current_recharge_target
+            ]
+
+            if reliable_chargers:
+                # Pick nearest reliable charger (that's not our stuck target)
+                target = min(
+                    reliable_chargers,
+                    key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+                )
+                self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate RELIABLE charger at {target}")
+                return target
+            else:
+                # No reliable alternatives, try any different charger
+                alt_chargers = [pos for pos in state.discovered_chargers if pos != state.current_recharge_target]
+                if alt_chargers:
+                    target = min(alt_chargers, key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col))
+                    self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate charger at {target}")
+                    return target
+
+        # Strategy 3: Not stuck - prefer RELIABLE + NEAREST charger
+        # Score chargers by: reliability (higher is better) and distance (lower is better)
+        def score_charger(pos: tuple[int, int]) -> tuple[float, int]:
+            """Return (reliability, distance) for sorting (higher reliability, lower distance is better)."""
+            info = state.charger_info.get(pos)
+            reliability = info.success_rate if info else 1.0  # Optimistic for unknown chargers
+            distance = abs(pos[0] - state.row) + abs(pos[1] - state.col)
+            return (-reliability, distance)  # Negative reliability so higher values sort first
+
+        target = min(state.discovered_chargers, key=score_charger)
+        info = state.charger_info.get(target)
+        reliability_str = f"{info.success_rate:.2f}" if info else "unknown"
+        self._logger.debug(f"  CHARGER: Selected nearest reliable charger at {target} (reliability={reliability_str})")
+        return target
 
     def _can_assemble(self, state: HarvestState) -> bool:
         """Check if we have resources for a heart."""
@@ -743,18 +995,31 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _get_vibe_for_phase(self, state: HarvestState) -> str:
         """Get the appropriate vibe for the current phase."""
         if state.phase == HarvestPhase.ASSEMBLE:
-            return "heart_a"
+            vibe = "heart_a"
         elif state.phase == HarvestPhase.DELIVER:
-            return "heart_b"  # Deposit hearts to chest (heart_b transfers +1 heart)
+            vibe = "heart_b"  # Deposit hearts to chest (heart_b transfers +1 heart)
         elif state.phase == HarvestPhase.RECHARGE:
-            return "charger"
+            vibe = "charger"
         else:
-            # GATHER: set vibe to target resource for extraction
-            # This is required for some extractors that have resource-specific protocols
-            target_resource = self._get_target_resource(state)
-            if target_resource and target_resource in RESOURCE_VIBES:
-                return RESOURCE_VIBES[target_resource]
-            return "default"
+            # GATHER phase
+            # CRITICAL: If searching for initial charger OR energy is low,
+            # set vibe to "charger" so we can use it!
+            recharge_low = self._get_recharge_low(state)
+            if not state.found_initial_charger or state.energy < recharge_low:
+                vibe = "charger"
+                if not state.found_initial_charger:
+                    self._logger.debug(f"  VIBE: charger (searching for initial charger)")
+                else:
+                    self._logger.debug(f"  VIBE: charger (energy {state.energy} < {recharge_low})")
+            else:
+                # Otherwise, set vibe to target resource for extraction
+                target_resource = self._get_target_resource(state)
+                if target_resource and target_resource in RESOURCE_VIBES:
+                    vibe = RESOURCE_VIBES[target_resource]
+                else:
+                    vibe = "default"
+
+        return vibe
 
     def _get_target_resource(self, state: HarvestState) -> str | None:
         """Get the highest priority resource we need to gather."""
@@ -793,36 +1058,145 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._actions.noop.Noop()
 
     def _do_gather(self, state: HarvestState) -> Action:
-        """Gather resources using hybrid observation + map-based navigation.
+        """Gather resources using OBSERVATION-ONLY navigation.
 
-        CRITICAL: If no charger found yet, prioritize finding one!
-        This ensures energy safety before starting resource gathering.
-
-        Otherwise, dynamically prioritize resources based on:
-        1. Largest deficit (need more of this)
-        2. Germanium gets slight priority (longest cooldown)
-        3. Opportunistic charging if energy low and charger visible
+        TEMPORARY: All pathfinding disabled to debug wall collision issues.
+        Uses only visible objects in current observation.
         """
         from .utils import find_direction_to_object_from_obs
 
+        # PRIORITY -1: STUCK RECOVERY - Check this FIRST before any other logic
+        # If agent is stuck, trigger recovery immediately instead of continuing failed navigation
+        stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 10
+        if state.consecutive_failed_moves >= stuck_threshold and state.discovered_chargers:
+            self._logger.info(f"  GATHER: STUCK ({state.consecutive_failed_moves} fails >= {stuck_threshold}), triggering stuck recovery")
+            # Navigate to nearest charger to reset
+            nearest_charger = self._find_nearest_charger(state)
+            dr = nearest_charger[0] - state.row
+            dc = nearest_charger[1] - state.col
+
+            # Pick direction that reduces distance most
+            if abs(dr) > abs(dc):
+                direction = "north" if dr < 0 else "south"
+            else:
+                direction = "east" if dc > 0 else "west"
+
+            if self._is_direction_clear_in_obs(state, direction):
+                return self._actions.move.Move(direction)
+
+            # Try alternative directions if primary blocked
+            alt_directions = ["north", "south", "east", "west"]
+            alt_directions.remove(direction)
+            for alt_dir in alt_directions:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    return self._actions.move.Move(alt_dir)
+
+            # All directions blocked - use observation-only exploration as last resort
+            return self._explore_observation_only(state)
+
         # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
         if not state.found_initial_charger:
+            self._logger.debug(f"  GATHER: Searching for INITIAL CHARGER (have {len(state.discovered_chargers)} discovered)")
+
             # Check if charger visible in observation
             result = self._find_station_direction_in_obs(state, "charger")
             if result is not None:
                 charger_direction, _ = result
                 if self._is_direction_clear_in_obs(state, charger_direction):
+                    self._logger.info(f"  GATHER: Charger visible in direction {charger_direction}, moving toward it")
                     return self._actions.move.Move(charger_direction)
 
             # Check if charger adjacent
             adj_charger = self._find_station_adjacent_in_obs(state, "charger")
             if adj_charger is not None:
+                self._logger.info(f"  GATHER: Charger adjacent in direction {adj_charger}, moving onto it")
                 state.using_object_this_step = True
                 return self._actions.move.Move(adj_charger)
 
             # Not visible - explore to find charger
-            # Use aggressive exploration to find charger quickly
-            return self._explore(state)
+            self._logger.debug(f"  GATHER: No charger visible, exploring to find one")
+            return self._explore_observation_only(state)
+
+        # PRIORITY 1: After finding charger, GO TO IT if energy is actually LOW
+        # Only navigate to charger when below recharge_low, not when below recharge_high
+        # recharge_high is for "stay on charger until full", not "start going to charger"
+        recharge_low = self._get_recharge_low(state)
+        recharge_high = self._get_recharge_high(state)
+        if state.energy < recharge_low:
+            self._logger.info(f"  GATHER: Energy LOW ({state.energy} < {recharge_low}), navigating to charger")
+
+            # First check if we're ALREADY standing on a charger
+            # If so, stay (noop) to continue charging
+            standing_on_charger = False
+            if state.current_obs and state.current_obs.tokens:
+                center_pos = (self._obs_hr, self._obs_wr)
+                for tok in state.current_obs.tokens:
+                    if tok.location == center_pos and tok.feature.name == "tag":
+                        tag_name = self._tag_names.get(tok.value, "").lower()
+                        if "charger" in tag_name:
+                            standing_on_charger = True
+                            break
+
+            if standing_on_charger:
+                self._logger.info(f"  GATHER: Standing ON charger, staying (noop) to charge to {recharge_high}")
+                state.using_object_this_step = True
+                return self._actions.noop.Noop()
+
+            # IMPORTANT: Check if charger ADJACENT (before checking visible)
+            # Move onto adjacent charger (don't set using_object_this_step - let position update!)
+            adj_charger = self._find_station_adjacent_in_obs(state, "charger")
+            if adj_charger is not None:
+                self._logger.info(f"  GATHER: Charger ADJACENT in direction {adj_charger}, moving onto it")
+                return self._actions.move.Move(adj_charger)
+
+            # Check if charger visible (but not adjacent) in observation
+            result = self._find_station_direction_in_obs(state, "charger")
+            if result is not None:
+                charger_direction, _ = result
+                if self._is_direction_clear_in_obs(state, charger_direction):
+                    self._logger.debug(f"  GATHER: Charger visible (not adjacent) in direction {charger_direction}, moving toward it")
+                    return self._actions.move.Move(charger_direction)
+
+            # Charger not visible - navigate to nearest discovered charger using observation-only
+            # Direction toward charger
+            if state.discovered_chargers:
+                nearest_charger = self._find_nearest_charger(state)
+                dr = nearest_charger[0] - state.row
+                dc = nearest_charger[1] - state.col
+
+                # Pick direction that reduces distance most
+                if abs(dr) > abs(dc):
+                    # Vertical movement more important
+                    direction = "north" if dr < 0 else "south"
+                else:
+                    # Horizontal movement more important
+                    direction = "east" if dc > 0 else "west"
+
+                # Check if that direction is clear
+                if self._is_direction_clear_in_obs(state, direction):
+                    self._logger.debug(f"  GATHER: Moving {direction} toward nearest charger at {nearest_charger}")
+                    return self._actions.move.Move(direction)
+
+                # Try perpendicular direction
+                alt_directions = []
+                if abs(dr) > abs(dc):
+                    # Was trying vertical, try horizontal
+                    alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+                else:
+                    # Was trying horizontal, try vertical
+                    alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+
+                for alt_dir in alt_directions:
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.debug(f"  GATHER: Primary direction blocked, trying {alt_dir}")
+                        return self._actions.move.Move(alt_dir)
+
+            # All directions blocked or no chargers - explore
+            self._logger.debug(f"  GATHER: Can't navigate to charger, exploring")
+            return self._explore_observation_only(state)
+
+        # Energy is sufficient (>= recharge_low) - can now gather resources!
+        self._logger.debug(f"  GATHER: Energy sufficient ({state.energy} >= {recharge_low}), gathering resources")
 
         # OPPORTUNISTIC CHARGING: If energy getting low and charger visible, use it
         # This prevents entering dedicated RECHARGE phase and oscillating to charger
@@ -852,7 +1226,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Find which resources we still need
         deficits = self._calculate_deficits(state)
+        self._logger.debug(f"  GATHER: Resource deficits: {deficits}")
         if all(d <= 0 for d in deficits.values()):
+            self._logger.debug(f"  GATHER: All resources satisfied, nooping")
             return self._actions.noop.Noop()
 
         # Sort resources by deficit - prioritize whichever we need most
@@ -868,6 +1244,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             key=resource_priority,
             reverse=True
         )
+        self._logger.debug(f"  GATHER: Priority order: {priority_order}")
 
         # Priority 1: Check if any READY extractor is visible and adjacent
         for resource_type in priority_order:
@@ -876,6 +1253,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             result = self._find_ready_extractor_in_obs(state, resource_type)
             if result is not None:
                 obs_direction, _cooldown = result
+                self._logger.info(f"  GATHER: Found READY {resource_type} extractor adjacent in direction {obs_direction}, using it!")
                 state.using_object_this_step = True
                 return self._actions.move.Move(obs_direction)
 
@@ -913,21 +1291,66 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if germanium_adjacent_on_cooldown:
             return self._actions.noop.Noop()
 
-        # STUCK RECOVERY: If stuck, skip pathfinding and use exploration
+        # STUCK RECOVERY: If stuck, try to escape
+        # Light stuck (5-9 failures): try observation-only exploration
+        # Heavy stuck (10+ failures) ON LARGE MAPS: navigate back to charger to reset position
         if state.stuck_recovery_active or state.consecutive_failed_moves >= 5:
-            return self._explore(state)
+            # HEAVY STUCK: Navigate back to charger to reset
+            # Use mission-aware stuck threshold
+            stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 10
+            if state.consecutive_failed_moves >= stuck_threshold and state.discovered_chargers:
+                self._logger.info(f"  GATHER: HEAVILY STUCK ({state.consecutive_failed_moves} fails >= {stuck_threshold}), navigating to charger to reset")
+                nearest_charger = self._find_nearest_charger(state)
+                dr = nearest_charger[0] - state.row
+                dc = nearest_charger[1] - state.col
 
-        # Priority 3: Navigate to known extractor using map-based pathfinding
-        for resource_type in priority_order:
-            if deficits.get(resource_type, 0) <= 0:
-                continue
-            extractor = self._find_nearest_extractor(state, resource_type)
+                # Pick direction that reduces distance most
+                if abs(dr) > abs(dc):
+                    direction = "north" if dr < 0 else "south"
+                else:
+                    direction = "east" if dc > 0 else "west"
+
+                if self._is_direction_clear_in_obs(state, direction):
+                    self._logger.debug(f"  GATHER: Moving {direction} toward charger at {nearest_charger}")
+                    return self._actions.move.Move(direction)
+
+                # Try perpendicular
+                alt_directions = []
+                if abs(dr) > abs(dc):
+                    alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+                else:
+                    alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+
+                for alt_dir in alt_directions:
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.debug(f"  GATHER: Primary blocked, trying {alt_dir}")
+                        return self._actions.move.Move(alt_dir)
+
+            # LIGHT STUCK: Try observation-only exploration
+            return self._explore_observation_only(state)
+
+        # Priority 3: Navigate to known extractor OR explore if we don't have it
+        # CRITICAL: Only navigate to extractors for resources we know about
+        # If we need a resource but have NO extractors for it, EXPLORE to find it!
+        top_priority_resource = None
+        for res in priority_order:
+            if deficits.get(res, 0) > 0:
+                top_priority_resource = res
+                break
+
+        if top_priority_resource:
+            extractor = self._find_nearest_extractor(state, top_priority_resource)
             if extractor is not None:
-                # Use pathfinding to navigate to the extractor
+                self._logger.debug(f"  GATHER: Navigating to known {top_priority_resource} extractor at {extractor.position}")
                 return self._move_towards(state, extractor.position, reach_adjacent=True)
+            else:
+                # We need this resource but have NO extractors for it - EXPLORE!
+                self._logger.info(f"  GATHER: Need {top_priority_resource} but no extractors found - EXPLORING")
+                return self._explore(state)
 
-        # Fallback: explore to find resources
-        return self._explore(state)
+        # Fallback: all resources satisfied (shouldn't reach here)
+        self._logger.debug(f"  GATHER: All resources satisfied, nooping")
+        return self._actions.noop.Noop()
 
     def _find_ready_extractor_in_obs(self, state: HarvestState, resource_type: str) -> Optional[tuple[str, int]]:
         """Find a ready extractor of given type adjacent to us in observation.
@@ -1082,10 +1505,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 if self._is_direction_clear_in_obs(state, alt_dir):
                     return self._actions.move.Move(alt_dir)
 
-        # STUCK RECOVERY: If stuck, skip pathfinding and use exploration
-        # (Pathfinding uses our position tracker which may have drifted)
+        # STUCK RECOVERY: If stuck, use observation-only exploration
+        # (Pathfinding uses occupancy map which may have errors)
         if state.stuck_recovery_active or state.consecutive_failed_moves >= 5:
-            return self._explore(state)
+            return self._explore_observation_only(state)
 
         # Priority 3: Use pathfinding to known station location
         station_pos = state.stations.get(station_type)
@@ -1108,35 +1531,117 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_recharge(self, state: HarvestState) -> Action:
         """Recharge at the charger.
 
-        CRITICAL: Uses nearest charger from discovered_chargers list for efficiency.
-        This prevents long navigation to the first charger when a closer one exists.
+        CRITICAL: Must STAY on charger (noop) to charge, not keep moving!
         """
-        # CRITICAL ENERGY: Prioritize survival
-        if state.energy < self._recharge_critical:
-            # Check if charger visible in current observation (immediate action)
-            result = self._find_station_direction_in_obs(state, "charger")
-            if result is not None:
-                charger_direction, _ = result  # Unpack tuple (direction, cooldown)
-                return self._actions.move.Move(charger_direction)
+        recharge_high = self._get_recharge_high(state)
+        self._logger.debug(f"  RECHARGE: energy={state.energy} (target={recharge_high})")
 
-            # Not visible but we have discovered chargers - navigate to nearest
-            if state.discovered_chargers:
-                nearest_charger = self._find_nearest_charger(state)
-                return self._move_towards(state, nearest_charger, reach_adjacent=True)
+        # First check if we're CURRENTLY standing on a charger
+        # Check center of observation (where we are) for charger tag
+        standing_on_charger = False
+        current_charger_pos = None
+        if state.current_obs and state.current_obs.tokens:
+            center_pos = (self._obs_hr, self._obs_wr)
+            for tok in state.current_obs.tokens:
+                if tok.location == center_pos and tok.feature.name == "tag":
+                    tag_name = self._tag_names.get(tok.value, "").lower()
+                    if "charger" in tag_name:
+                        standing_on_charger = True
+                        current_charger_pos = (state.row, state.col)
+                        break
 
-            # Truly desperate: no known charger, energy critical
-            # DON'T explore blindly - that will kill us
-            # Instead, noop and hope for energy from solar cells or other sources
-            # On most missions, standing still generates 1 energy/turn from solar
+        # If standing on charger and not fully charged, STAY (noop) to charge
+        if standing_on_charger and state.energy < recharge_high:
+            self._logger.info(f"  RECHARGE: ON CHARGER at {current_charger_pos}, staying (noop) to charge (energy {state.energy} → {recharge_high})")
+            state.using_object_this_step = True
+
+            # CHARGER QUALITY TRACKING: Record successful use
+            if current_charger_pos and current_charger_pos in state.charger_info:
+                state.charger_info[current_charger_pos].times_successfully_used += 1
+                self._logger.debug(f"  CHARGER: Successfully used charger at {current_charger_pos} "
+                                 f"(success_rate={state.charger_info[current_charger_pos].success_rate:.2f})")
+
             return self._actions.noop.Noop()
 
-        # Normal/low energy: navigate to nearest charger
-        if state.discovered_chargers:
-            nearest_charger = self._find_nearest_charger(state)
-            return self._move_towards(state, nearest_charger, reach_adjacent=True)
+        if standing_on_charger:
+            self._logger.info(f"  RECHARGE: ON CHARGER but fully charged (energy={state.energy} >= {recharge_high})")
 
-        # No charger found yet - try to find one using observation
-        return self._navigate_to_station(state, "charger")
+        # Not on charger or fully charged - find one
+        # Check if charger adjacent - move onto it
+        # CRITICAL: Don't set using_object_this_step - let position update so we can move ONTO charger!
+        # BUT: If we've been stuck trying to move onto an adjacent charger for many steps, skip it and try navigation instead
+        if state.consecutive_failed_moves < 5:  # Only try adjacent charger if not stuck
+            adj_charger = self._find_station_adjacent_in_obs(state, "charger")
+            if adj_charger is not None:
+                self._logger.info(f"  RECHARGE: Charger adjacent in direction {adj_charger}, moving onto it")
+                return self._actions.move.Move(adj_charger)
+        else:
+            self._logger.debug(f"  RECHARGE: Skipping adjacent charger check (stuck: {state.consecutive_failed_moves} failed moves)")
+
+        # Check if charger visible but not adjacent - navigate to it
+        # BUT: Skip if we're stuck (same issue as adjacent charger - might be inaccessible)
+        if state.consecutive_failed_moves < 5:
+            result = self._find_station_direction_in_obs(state, "charger")
+            if result is not None:
+                charger_direction, _ = result
+                if self._is_direction_clear_in_obs(state, charger_direction):
+                    self._logger.debug(f"  RECHARGE: Charger visible in direction {charger_direction}, navigating")
+                    return self._actions.move.Move(charger_direction)
+        else:
+            self._logger.debug(f"  RECHARGE: Skipping visible charger check (stuck: {state.consecutive_failed_moves} failed moves)")
+
+        # Charger not visible - navigate to discovered charger using intelligent selection
+        # CHARGER QUALITY TRACKING: Prefer reliable chargers, avoid stuck patterns
+        if state.discovered_chargers:
+            # INTELLIGENT CHARGER SELECTION based on reliability and distance
+            target_charger = self._select_best_charger(state)
+
+            # Track that we're approaching this charger
+            if target_charger != state.current_recharge_target:
+                # New target - reset approach tracking
+                state.current_recharge_target = target_charger
+                if target_charger in state.charger_info:
+                    state.charger_info[target_charger].times_approached += 1
+                    state.charger_info[target_charger].last_attempt_step = state.step_count
+                    self._logger.debug(f"  CHARGER: Approaching charger at {target_charger} "
+                                     f"(attempts={state.charger_info[target_charger].times_approached}, "
+                                     f"success_rate={state.charger_info[target_charger].success_rate:.2f})")
+
+            dr = target_charger[0] - state.row
+            dc = target_charger[1] - state.col
+
+            self._logger.debug(f"  RECHARGE: Navigating to charger at {target_charger} (current pos=({state.row},{state.col}), dr={dr}, dc={dc})")
+
+            # Pick direction that reduces distance most
+            if abs(dr) > abs(dc):
+                # Vertical movement more important
+                direction = "north" if dr < 0 else "south"
+            else:
+                # Horizontal movement more important
+                direction = "east" if dc > 0 else "west"
+
+            # Check if that direction is clear
+            if self._is_direction_clear_in_obs(state, direction):
+                self._logger.debug(f"  RECHARGE: Moving {direction} toward charger at {target_charger}")
+                return self._actions.move.Move(direction)
+
+            # Try perpendicular direction
+            alt_directions = []
+            if abs(dr) > abs(dc):
+                # Was trying vertical, try horizontal
+                alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+            else:
+                # Was trying horizontal, try vertical
+                alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+
+            for alt_dir in alt_directions:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    self._logger.debug(f"  RECHARGE: Primary direction blocked, trying {alt_dir}")
+                    return self._actions.move.Move(alt_dir)
+
+        # All directions blocked or no chargers - explore to find one
+        self._logger.debug(f"  RECHARGE: Can't navigate to charger, exploring (have {len(state.discovered_chargers)} discovered)")
+        return self._explore_observation_only(state)
 
     def _find_nearest_charger(self, state: HarvestState) -> tuple[int, int]:
         """Find the nearest charger from the list of discovered chargers.
@@ -1322,6 +1827,43 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         best_dir = max(clear_dirs, key=direction_score)
         return self._actions.move.Move(best_dir)
 
+    def _explore_observation_only(self, state: HarvestState) -> Action:
+        """Explore using ONLY observation-based movement (no pathfinding).
+
+        This is safer for initial exploration when we haven't found key landmarks yet.
+        Prefers directions that lead to unexplored cells.
+        """
+        dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+
+        # Check which directions are clear AND score them by exploration value
+        direction_scores = []
+        for direction in ["north", "south", "east", "west"]:
+            if not self._is_direction_clear_in_obs(state, direction):
+                continue  # Skip blocked directions
+
+            # Calculate target position
+            dr, dc = dir_offsets[direction]
+            target_r, target_c = state.row + dr, state.col + dc
+
+            # Score based on whether target has been explored
+            if (target_r, target_c) in state.explored_cells:
+                score = 0  # Already explored - low priority
+            else:
+                score = 10  # Unexplored - high priority
+
+            # Add small random component to avoid getting stuck in patterns
+            score += (state.step_count + ord(direction[0])) % 5
+
+            direction_scores.append((direction, score))
+
+        if not direction_scores:
+            # Completely surrounded - try noop (might be on charger)
+            return self._actions.noop.Noop()
+
+        # Pick highest-scoring direction (prefer unexplored)
+        best_direction = max(direction_scores, key=lambda x: x[1])[0]
+        return self._actions.move.Move(best_direction)
+
     def _explore(self, state: HarvestState) -> Action:
         """Explore using frontier-based navigation + observation fallback.
 
@@ -1413,21 +1955,30 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _is_direction_clear_in_obs(self, state: HarvestState, direction: str) -> bool:
         """Check if a direction is clear based on observation.
 
-        Accounts for both static obstacles (walls, stations) and other agents.
+        Returns True if:
+        - No wall at target position
+        - No other agent at target position
+        - Extractors, stations ARE traversable (we move onto them to use them)
+        - Empty space is traversable
         """
+        # Safety: if no observation, return True (optimistic - let move verification handle it)
+        # Being too conservative here causes all moves to fail
+        if state.current_obs is None:
+            return True
+
         dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
         dr, dc = dir_offsets[direction]
         target_obs_pos = (self._obs_hr + dr, self._obs_wr + dc)
 
+        # Check all tokens at the target position
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block on static obstacles
-                if any(x in tag_name for x in ["wall", "extractor", "assembler", "chest", "charger"]):
+                # Block ONLY on true obstacles: walls and agents
+                if "wall" in tag_name or tag_name == "agent":
                     return False
-                # Block on other agents (multi-agent coordination)
-                if tag_name == "agent":
-                    return False
+
+        # No blocking object found - path is clear
         return True
 
     def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
