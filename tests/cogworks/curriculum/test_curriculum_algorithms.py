@@ -32,7 +32,7 @@ def _create_tasks(
     rng: random.Random,
 ) -> list[int]:
     task_ids: list[int] = []
-    for index in range(count):
+    for _index in range(count):
         task_id = rng.randint(0, 1_000_000)
         task_ids.append(_register_task(algorithm, task_id))
     return task_ids
