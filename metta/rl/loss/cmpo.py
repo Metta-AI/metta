@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import random
 from collections import deque
-from typing import Any, Callable
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -39,7 +39,6 @@ def _build_mlp(
     input_dim: int,
     hidden_dims: list[int],
     output_dim: int,
-    activation: Callable[[Tensor], Tensor] = F.relu,
 ) -> nn.Sequential:
     """Construct a simple feed-forward network."""
     layers: list[nn.Module] = []
@@ -50,11 +49,7 @@ def _build_mlp(
         layers.append(nn.ReLU())
         last_dim = hidden
     layers.append(nn.Linear(last_dim, output_dim))
-    net = nn.Sequential(*layers)
-
-    # Store activation for forward usage when needed.
-    net.activation = activation  # type: ignore[attr-defined]
-    return net
+    return nn.Sequential(*layers)
 
 
 def _stack_trajectories(trajs: list[TensorDict]) -> TensorDict:
@@ -110,7 +105,6 @@ class ModelRolloutConfig(Config):
 
     rollout_length: int = Field(default=5, ge=1)
     batch_size: int = Field(default=128, ge=1)
-    total_transitions: int = Field(default=4096, ge=1)
     termination_variance_threshold: float = Field(default=0.25, ge=0)
 
 
@@ -118,7 +112,6 @@ class SyntheticBufferConfig(Config):
     """Buffer capacity for storing synthetic trajectories."""
 
     capacity: int = Field(default=2048, ge=1)
-    horizon: int = Field(default=5, ge=1)
 
 
 class CMPOConfig(LossConfig):
@@ -186,31 +179,22 @@ class WorldModelEnsemble(nn.Module):
             for _ in range(cfg.ensemble_size)
         )
 
-    def forward(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
+    def _predict(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
         preds_state: list[Tensor] = []
         preds_reward: list[Tensor] = []
         for member in self.members:
             next_state, reward = member(state, action)
             preds_state.append(next_state)
             preds_reward.append(reward)
-        next_state_stack = torch.stack(preds_state, dim=0)
-        reward_stack = torch.stack(preds_reward, dim=0)
-        next_state_mean = next_state_stack.mean(dim=0)
-        reward_mean = reward_stack.mean(dim=0)
-        return next_state_mean, reward_mean
+        return torch.stack(preds_state, dim=0), torch.stack(preds_reward, dim=0)
+
+    def forward(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
+        next_state_stack, reward_stack = self._predict(state, action)
+        return next_state_stack.mean(dim=0), reward_stack.mean(dim=0)
 
     def variance(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
-        preds_state: list[Tensor] = []
-        preds_reward: list[Tensor] = []
-        for member in self.members:
-            next_state, reward = member(state, action)
-            preds_state.append(next_state)
-            preds_reward.append(reward)
-        next_state_stack = torch.stack(preds_state, dim=0)
-        reward_stack = torch.stack(preds_reward, dim=0)
-        next_state_var = next_state_stack.var(dim=0, unbiased=False)
-        reward_var = reward_stack.var(dim=0, unbiased=False)
-        return next_state_var, reward_var
+        next_state_stack, reward_stack = self._predict(state, action)
+        return next_state_stack.var(dim=0, unbiased=False), reward_stack.var(dim=0, unbiased=False)
 
 
 class TransitionBuffer:
@@ -263,18 +247,13 @@ class CuriosityModule(nn.Module):
         state_dim: int,
         action_dim: int,
         cfg: CuriosityConfig,
-        discrete_actions: bool,
     ) -> None:
         super().__init__()
         self.encoder = _build_mlp(state_dim, cfg.hidden_dims, cfg.feature_dim)
         forward_input = cfg.feature_dim + action_dim
         self.forward_model = _build_mlp(forward_input, cfg.hidden_dims, cfg.feature_dim)
         inverse_input = cfg.feature_dim * 2
-        self.discrete_actions = discrete_actions
-        if discrete_actions:
-            self.inverse_head = _build_mlp(inverse_input, cfg.hidden_dims, action_dim)
-        else:
-            self.inverse_head = _build_mlp(inverse_input, cfg.hidden_dims, action_dim)
+        self.inverse_head = _build_mlp(inverse_input, cfg.hidden_dims, action_dim)
 
     def encode(self, state: Tensor) -> Tensor:
         return self.encoder(state)
@@ -355,20 +334,16 @@ class CMPO(Loss):
         action_space = env.single_action_space
         if isinstance(action_space, gym_spaces.Discrete):
             self.action_dim = int(action_space.n)
-            self._action_dtype = torch.int64
             self._encode_action_fn = self._encode_discrete_action
-            self._decode_action_shape = ()
-            discrete_actions = True
+            self._discrete_actions = True
             self._raw_action_dtype = torch.int64
             self._raw_action_shape = (1,)
         elif isinstance(action_space, gym_spaces.Box):
             self.action_dim = int(math.prod(action_space.shape))
-            self._action_dtype = torch.float32
             self._encode_action_fn = self._encode_box_action
-            self._decode_action_shape = tuple(int(dim) for dim in action_space.shape)
-            discrete_actions = False
+            self._discrete_actions = False
             self._raw_action_dtype = torch.float32
-            self._raw_action_shape = self._decode_action_shape
+            self._raw_action_shape = tuple(int(dim) for dim in action_space.shape)
         else:  # pragma: no cover - other spaces currently unsupported.
             raise NotImplementedError(f"Unsupported action space for CMPO: {action_space}")
 
@@ -379,7 +354,6 @@ class CMPO(Loss):
             state_dim=self.obs_dim,
             action_dim=self.action_dim,
             cfg=cfg.curiosity,
-            discrete_actions=discrete_actions,
         ).to(device)
         self.curiosity_opt = torch.optim.Adam(self.curiosity_module.parameters(), lr=cfg.curiosity.learning_rate)
 
@@ -563,7 +537,7 @@ class CMPO(Loss):
             forward_loss = F.mse_loss(pred_next_feature, next_feature)
 
             action_pred = self.curiosity_module.predict_action(feature, next_feature)
-            if action_pred.shape[-1] == self.action_dim and self._action_dtype == torch.int64:
+            if self._discrete_actions:
                 target = actions_raw.view(-1).long()
                 action_loss = F.cross_entropy(action_pred, target)
             else:
@@ -761,13 +735,15 @@ class CMPO(Loss):
     def _track(self, key: str, value: Tensor) -> None:
         self.loss_tracker[key].append(float(value.item()))
 
-    def _process_minibatch_update(
+    def _policy_loss(
         self,
         minibatch: TensorDict,
         policy_td: TensorDict,
-        indices: Tensor,
-        prio_weights: Tensor,
         advantages: Tensor,
+        *,
+        prio_weights: Optional[Tensor] = None,
+        update_indices: Optional[Tensor] = None,
+        prefix: str = "",
     ) -> Tensor:
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
@@ -789,7 +765,7 @@ class CMPO(Loss):
             minibatch["rewards"],
             minibatch["dones"],
             ratio,
-            advantages.clone(),
+            torch.zeros_like(values_for_adv),
             adv_cfg.gamma,
             adv_cfg.gae_lambda,
             self.device,
@@ -797,7 +773,8 @@ class CMPO(Loss):
             adv_cfg.vtrace_c_clip,
         )
         vtrace_adv = normalize_advantage_distributed(vtrace_adv, self.cfg.norm_adv)
-        vtrace_adv = prio_weights * vtrace_adv
+        if prio_weights is not None:
+            vtrace_adv = prio_weights * vtrace_adv
 
         returns = advantages + values_for_adv
 
@@ -813,81 +790,59 @@ class CMPO(Loss):
         )
         v_loss = v_loss * self.cfg.vf_coef
 
-        update_td = TensorDict(
-            {
-                "ratio": ratio.detach(),
-                "values": new_values.view(old_values.shape).detach(),
-            },
-            batch_size=minibatch.batch_size,
-        )
-        self.replay.update(indices, update_td)
+        if update_indices is not None:
+            update_td = TensorDict(
+                {
+                    "ratio": ratio.detach(),
+                    "values": new_values.view(old_values.shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            self.replay.update(update_indices, update_td)
 
-        self._track("policy_loss", pg_loss)
-        self._track("value_loss", v_loss)
-        self._track("entropy", entropy_loss)
-        self._track("approx_kl", approx_kl)
-        self._track("clipfrac", clipfrac)
-        self._track("importance", ratio.mean())
-        self._track("current_logprobs", new_logprob.mean())
+        metrics = {
+            "policy_loss": pg_loss,
+            "value_loss": v_loss,
+            "entropy": entropy_loss,
+            "approx_kl": approx_kl,
+            "clipfrac": clipfrac,
+            "importance": ratio.mean(),
+            "current_logprobs": new_logprob.mean(),
+        }
+        for key, value in metrics.items():
+            name = f"{prefix}{key}" if prefix else key
+            self._track(name, value)
 
         loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss
-        loss = add_dummy_loss_for_unused_params(
+        return add_dummy_loss_for_unused_params(
             loss,
             td=policy_td,
             used_keys=["act_log_prob", "entropy", "values"],
         )
-        return loss
+
+    def _process_minibatch_update(
+        self,
+        minibatch: TensorDict,
+        policy_td: TensorDict,
+        indices: Tensor,
+        prio_weights: Tensor,
+        advantages: Tensor,
+    ) -> Tensor:
+        return self._policy_loss(
+            minibatch,
+            policy_td,
+            advantages,
+            prio_weights=prio_weights,
+            update_indices=indices,
+        )
 
     def _process_model_batch(self, model_batch: TensorDict) -> Tensor:
-        policy_td: TensorDict = model_batch["policy_td"]
-        old_logprob = model_batch["act_log_prob"]
-        new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
-        entropy = policy_td["entropy"]
-        new_values = policy_td["values"]
-
-        values_for_adv = model_batch["values"]
-        new_values_for_loss = new_values
-        if hasattr(self.policy, "critic_quantiles"):
-            values_for_adv = values_for_adv.mean(dim=-1)
-            new_values_for_loss = new_values_for_loss.mean(dim=-1)
-
-        ratio = self._importance_ratio(new_logprob, old_logprob)
-        adv_cfg = self.trainer_cfg.advantage
-        vtrace_adv = compute_advantage(
-            values_for_adv,
-            model_batch["rewards"],
-            model_batch["dones"],
-            ratio,
-            model_batch["advantages"].clone(),
-            adv_cfg.gamma,
-            adv_cfg.gae_lambda,
-            self.device,
-            adv_cfg.vtrace_rho_clip,
-            adv_cfg.vtrace_c_clip,
+        return self._policy_loss(
+            model_batch,
+            model_batch["policy_td"],
+            model_batch["advantages"],
+            prefix="model_",
         )
-        vtrace_adv = normalize_advantage_distributed(vtrace_adv, self.cfg.norm_adv)
-
-        returns = model_batch["advantages"] + values_for_adv
-
-        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self._compute_ppo_losses(
-            new_logprob=new_logprob,
-            old_logprob=old_logprob,
-            entropy=entropy,
-            new_values=new_values_for_loss,
-            old_values=values_for_adv,
-            returns=returns,
-            advantages=vtrace_adv,
-            ratio=ratio,
-        )
-        v_loss = v_loss * self.cfg.vf_coef
-        loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss
-
-        self._track("model_policy_loss", pg_loss)
-        self._track("model_value_loss", v_loss)
-        self._track("model_entropy", entropy_loss)
-        self._track("model_clipfrac", clipfrac)
-        self._track("model_approx_kl", approx_kl)
-        return loss
 
     # ------------------------------------------------------------------
     # Core rollout/training loop overrides
