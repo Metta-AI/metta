@@ -103,4 +103,4 @@ def test_cmpo_config_initializes_world_model() -> None:
     assert cmpo_loss.obs_dim == 4 * 4 * 3
     assert cmpo_loss.action_dim == 6
     assert len(cmpo_loss.world_model.members) == cfg.world_model.ensemble_size
-    assert cmpo_loss.scheduler.current_ratio == cfg.scheduler.min_ratio
+    assert cmpo_loss.prior_model is not None
