@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Literal, overload
+from typing import Iterable, Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -15,6 +15,7 @@ from mettagrid.util.uri_resolvers.base import (
     ParsedScheme,
     S3ParsedScheme,
     SchemeResolver,
+    _extract_run_and_epoch,
 )
 
 
@@ -22,12 +23,13 @@ class FileSchemeResolver(SchemeResolver):
     """Resolves local filesystem URIs.
 
     Supported formats:
-      - file:///absolute/path/to/file.mpt
-      - file://relative/path/to/file.mpt
-      - /absolute/path/to/file.mpt  (bare path, no scheme)
-      - relative/path/to/file.mpt   (bare path, no scheme)
-      - ~/path/to/file.mpt          (expands ~)
-      - /path/to/checkpoints:latest (resolves to highest epoch .mpt in dir)
+      - file:///absolute/path/to/run:v5
+      - file://relative/path/to/run:v5
+      - /absolute/path/to/run:v5  (bare path, no scheme)
+      - relative/path/to/run:v5   (bare path, no scheme)
+      - ~/path/to/run:v5          (expands ~)
+      - /path/to/checkpoints:latest (resolves to highest epoch checkpoint dir)
+      - /path/to/run:v5/policy_spec.json
     """
 
     @property
@@ -55,13 +57,17 @@ class FileSchemeResolver(SchemeResolver):
     def _get_latest_checkpoint_uri(self, parsed: FileParsedScheme) -> str | None:
         if not parsed.local_path.is_dir():
             return None
-        best: tuple[int, str] | None = None
-        for ckpt in parsed.local_path.glob("*.mpt"):
-            uri = f"file://{ckpt}"
-            info = self.parse(uri).checkpoint_info
-            if info and (best is None or info[1] > best[0]):
-                best = (info[1], uri)
-        return best[1] if best else None
+
+        # If the directory itself is a checkpoint dir, treat it as the latest.
+        if (parsed.local_path / "policy_spec.json").exists():
+            return parsed.local_path.as_uri()
+
+        candidates: list[tuple[str, str]] = []
+        for entry in parsed.local_path.iterdir():
+            if entry.is_dir():
+                if (entry / "policy_spec.json").exists():
+                    candidates.append((entry.name, entry.resolve().as_uri()))
+        return _select_latest_checkpoint_uri(candidates)
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -75,10 +81,16 @@ class FileSchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
+        if parsed.local_path.is_dir():
+            if (parsed.local_path / "policy_spec.json").exists():
+                return parsed.canonical
             latest = self._get_latest_checkpoint_uri(parsed)
             if latest:
                 return latest
+        elif parsed.local_path.is_file():
+            if parsed.local_path.name == "policy_spec.json":
+                return parsed.canonical
+            raise ValueError("Only policy_spec.json or directories containing it are supported")
 
         return parsed.canonical
 
@@ -87,8 +99,8 @@ class S3SchemeResolver(SchemeResolver):
     """Resolves AWS S3 URIs.
 
     Supported formats:
-      - s3://bucket/path/to/file.mpt
-      - s3://bucket/path/to/checkpoints:latest (resolves to highest epoch .mpt)
+      - s3://bucket/path/to/checkpoints:latest (resolves to highest epoch checkpoint)
+      - s3://bucket/path/to/run:v5 (checkpoint dir with policy_spec.json)
     """
 
     @property
@@ -118,15 +130,18 @@ class S3SchemeResolver(SchemeResolver):
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
             return None
-        best: tuple[int, str] | None = None
+        candidates: list[tuple[str, str]] = []
         for obj in response["Contents"]:
-            if not obj["Key"].endswith(".mpt"):
+            key = obj["Key"]
+            if not key.endswith("policy_spec.json"):
                 continue
-            uri = f"s3://{parsed.bucket}/{obj['Key']}"
-            info = self.parse(uri).checkpoint_info
-            if info and (best is None or info[1] > best[0]):
-                best = (info[1], uri)
-        return best[1] if best else None
+            parts = key.split("/")
+            if len(parts) < 2:
+                continue
+            dir_path = "/".join(parts[:-1])  # full directory path to the checkpoint
+            run_dir = parts[-2]
+            candidates.append((run_dir, f"s3://{parsed.bucket}/{dir_path}"))
+        return _select_latest_checkpoint_uri(candidates)
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -140,12 +155,24 @@ class S3SchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
-            latest = self._get_latest_checkpoint_uri(parsed)
-            if latest:
-                return latest
-
+        latest = self._get_latest_checkpoint_uri(parsed)
+        if latest:
+            return latest
         return parsed.canonical
+
+
+def _select_latest_checkpoint_uri(candidates: Iterable[tuple[str, str]]) -> str | None:
+    best_epoch: int | None = None
+    best_uri: str | None = None
+    for run_dir, uri in candidates:
+        info = _extract_run_and_epoch(run_dir)
+        if not info:
+            continue
+        epoch = info[1]
+        if best_epoch is None or epoch > best_epoch:
+            best_epoch = epoch
+            best_uri = uri
+    return best_uri
 
 
 class HttpSchemeResolver(SchemeResolver):
@@ -249,7 +276,7 @@ def resolve_uri(uri: str) -> ParsedScheme:
 
 
 def checkpoint_filename(run_name: str, epoch: int) -> str:
-    return f"{run_name}:v{epoch}.mpt"
+    return f"{run_name}:v{epoch}"
 
 
 def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
@@ -261,30 +288,52 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
 
 
 def policy_spec_from_uri(
-    uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
+    uri: str,
+    *,
+    device: str = "cpu",
+    strict: bool = True,
+    remove_downloaded_copy_on_exit: bool = False,
 ):
-    from mettagrid.policy.policy import PolicySpec
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.prepare_policy_spec import (
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_s3,
+        load_policy_spec_from_s3_checkpoint_dir,
+    )
+
+    def _override_strict(spec):
+        if "strict" in spec.init_kwargs:
+            spec.init_kwargs["strict"] = strict
+        return spec
 
     parsed = resolve_uri(uri)
 
-    if parsed.canonical.endswith(".mpt"):
-        checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
-        return PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
-            init_kwargs={
-                "checkpoint_uri": checkpoint_path,
-                "device": device,
-                "strict": strict,
-            },
+    if parsed.canonical.endswith(".zip"):
+        return _override_strict(
+            load_policy_spec_from_s3(
+                parsed.canonical,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+                device=device,
+            )
         )
 
     if parsed.scheme == "s3":
-        return load_policy_spec_from_s3(
-            parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        # This is a checkpoint directory in S3 (not a submission.zip). Sync the spec + data file locally.
+        checkpoint_uri = parsed.canonical
+        if checkpoint_uri.endswith("policy_spec.json"):
+            checkpoint_uri = checkpoint_uri.rsplit("/", 1)[0]
+        return _override_strict(
+            load_policy_spec_from_s3_checkpoint_dir(
+                checkpoint_uri,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+                device=device,
+            )
         )
 
     if parsed.local_path:
-        return load_policy_spec_from_local_dir(parsed.local_path, device=device)
+        if parsed.local_path.is_file():
+            if parsed.local_path.name != "policy_spec.json":
+                raise ValueError("Expected policy_spec.json")
+            return _override_strict(load_policy_spec_from_local_dir(parsed.local_path.parent, device=device))
+        return _override_strict(load_policy_spec_from_local_dir(parsed.local_path, device=device))
 
-    raise ValueError(f"Cannot load policy spec from URI: {uri}")
+    raise ValueError("Provide a checkpoint directory or policy_spec.json")

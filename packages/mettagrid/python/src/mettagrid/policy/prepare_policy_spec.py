@@ -15,7 +15,7 @@ from typing import Optional
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.file import local_copy
+from mettagrid.util.file import local_copy, read
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +211,48 @@ def load_policy_spec_from_s3(
 
         with local_copy(s3_path) as local_archive:
             _extract_submission_archive(local_archive, extraction_root)
+
+        marker_file.touch()
+
+    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
+
+    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+        _registered_cleanup_dirs.add(extraction_root)
+        atexit.register(_cleanup_cache_dir, extraction_root)
+
+    return policy_spec
+
+
+def load_policy_spec_from_s3_checkpoint_dir(
+    checkpoint_dir_uri: str,
+    cache_dir: Optional[Path] = None,
+    remove_downloaded_copy_on_exit: bool = False,
+    *,
+    device: str | None = None,
+) -> PolicySpec:
+    """Download a policy_spec.json + data file from an S3 checkpoint directory and return a ready PolicySpec.
+
+    This mirrors the submission.zip cache behavior but for checkpoint directories like:
+      s3://bucket/path/run:v<N>
+    """
+    if cache_dir is None:
+        cache_dir = DEFAULT_POLICY_CACHE_DIR
+
+    extraction_root = cache_dir / hashlib.sha256(checkpoint_dir_uri.encode()).hexdigest()[:16]
+    marker_file = extraction_root / ".checkpoint_sync_complete"
+
+    if not marker_file.exists():
+        extraction_root.mkdir(parents=True, exist_ok=True)
+
+        spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
+        spec_bytes = read(spec_uri)
+        (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
+
+        submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
+        if submission_spec.data_path:
+            data_uri = f"{checkpoint_dir_uri.rstrip('/')}/{submission_spec.data_path.lstrip('/')}"
+            (extraction_root / submission_spec.data_path).parent.mkdir(parents=True, exist_ok=True)
+            (extraction_root / submission_spec.data_path).write_bytes(read(data_uri))
 
         marker_file.touch()
 
