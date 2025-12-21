@@ -297,7 +297,6 @@ def policy_spec_from_uri(
     from mettagrid.policy.prepare_policy_spec import (
         load_policy_spec_from_local_dir,
         load_policy_spec_from_s3,
-        load_policy_spec_from_s3_checkpoint_dir,
     )
 
     def _override_strict(spec):
@@ -307,23 +306,10 @@ def policy_spec_from_uri(
 
     parsed = resolve_uri(uri)
 
-    if parsed.canonical.endswith(".zip"):
+    if parsed.scheme == "s3":
         return _override_strict(
             load_policy_spec_from_s3(
                 parsed.canonical,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-                device=device,
-            )
-        )
-
-    if parsed.scheme == "s3":
-        # This is a checkpoint directory in S3 (not a submission.zip). Sync the spec + data file locally.
-        checkpoint_uri = parsed.canonical
-        if checkpoint_uri.endswith("policy_spec.json"):
-            checkpoint_uri = checkpoint_uri.rsplit("/", 1)[0]
-        return _override_strict(
-            load_policy_spec_from_s3_checkpoint_dir(
-                checkpoint_uri,
                 remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
                 device=device,
             )
