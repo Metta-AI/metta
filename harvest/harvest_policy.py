@@ -1450,7 +1450,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if top_priority_resource:
             extractor = self._find_nearest_extractor(state, top_priority_resource)
             if extractor is not None:
-                self._logger.debug(f"  GATHER: Navigating to known {top_priority_resource} extractor at {extractor.position}")
+                self._logger.info(f"  GATHER: Navigating to known {top_priority_resource} extractor at {extractor.position}")
+
+                # Try MapManager pathfinding first (uses complete map knowledge)
+                direction = self._navigate_to_with_mapmanager(state, extractor.position, reach_adjacent=True)
+                if direction:
+                    if self._is_direction_clear_in_obs(state, direction):
+                        self._logger.debug(f"  GATHER: Moving {direction} toward extractor (MapManager)")
+                        return self._actions.move.Move(direction)
+                    else:
+                        self._logger.debug(f"  GATHER: MapManager path blocked in obs, trying fallback")
+
+                # Fall back to observation-based pathfinding
                 return self._move_towards(state, extractor.position, reach_adjacent=True)
             else:
                 # We need this resource but have NO extractors for it - EXPLORE!
@@ -2258,7 +2269,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         Strategy:
         1. Check for visible extractors we need (reactive)
-        2. Use frontier-based pathfinding to reach unexplored boundaries
+        2. Use MapManager frontier-based pathfinding to reach unexplored boundaries
         3. Fall back to directional patrol only if pathfinding fails
         """
         # Priority 1: Check if we can see a READY extractor for a resource we NEED
@@ -2280,7 +2291,27 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if nav_direction is not None:
                 return self._actions.move.Move(nav_direction)
 
-        # Priority 3: Navigate to current exploration quadrant target
+        # Priority 3: USE MAPMANAGER FRONTIER EXPLORATION (more efficient on large maps)
+        # This uses complete map knowledge instead of just state.explored_cells
+        if self.map_manager is not None and len(state.discovered_chargers) > 0:
+            frontier = self.exploration.find_nearest_frontier_cell(state, self.map_manager)
+
+            if frontier:
+                self._logger.info(f"  EXPLORE: Targeting MapManager frontier at {frontier}")
+
+                # Try pathfinding to frontier using MapManager
+                direction = self._navigate_to_with_mapmanager(state, frontier, reach_adjacent=False)
+
+                if direction:
+                    if self._is_direction_clear_in_obs(state, direction):
+                        self._logger.info(f"  EXPLORE: Moving {direction} toward frontier")
+                        return self._actions.move.Move(direction)
+                    else:
+                        self._logger.debug(f"  EXPLORE: Frontier path blocked in obs, trying quadrant navigation")
+                else:
+                    self._logger.debug(f"  EXPLORE: No path to frontier, trying quadrant navigation")
+
+        # Priority 4: Navigate to current exploration quadrant target
         # CRITICAL for quadrant_buildings missions
         quadrant_target = self._get_quadrant_target(state)
         if quadrant_target not in state.explored_cells:
@@ -2288,7 +2319,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if action.name != "noop":
                 return action
 
-        # Priority 4: Use frontier-based exploration (guarantees coverage on large maps)
+        # Priority 5: OLD frontier-based exploration (fallback for when MapManager not available)
         frontier_targets = self._find_frontier_targets(state)
         if frontier_targets:
             # CRITICAL: On large maps, pick FARTHEST frontier in current quadrant
