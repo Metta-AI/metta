@@ -1,8 +1,14 @@
 import { FC, useContext, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { Card } from './components/Card'
+import { LinkButton } from './components/LinkButton'
 import { ReplayViewer } from './components/ReplayViewer'
+import { SmallHeader } from './components/SmallHeader'
+import { StyledLink } from './components/StyledLink'
+import { Table, TD, TH, TR } from './components/Table'
+import { TagList } from './components/TagList'
 import type { EpisodeWithTags, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
@@ -142,110 +148,87 @@ export const EpisodeDetailPage: FC = () => {
         </div>
         <div className="flex items-center gap-3">
           {episode?.primary_pv_id ? (
-            <Link
-              to={`/policies/versions/${episode.primary_pv_id}`}
-              className="inline-flex items-center px-3 py-2 rounded border border-blue-500 text-blue-600 no-underline hover:bg-blue-50 text-sm"
-            >
-              View Primary Policy
-            </Link>
+            <LinkButton to={`/policies/versions/${episode.primary_pv_id}`}>View Primary Policy</LinkButton>
           ) : null}
-          <Link
-            to="/leaderboard"
-            className="inline-flex items-center px-3 py-2 rounded border border-gray-300 text-gray-700 no-underline hover:bg-gray-50 text-sm"
-          >
-            Back to Leaderboard
-          </Link>
+          <LinkButton to="/leaderboard" theme="tertiary">
+            ← Back to Leaderboard
+          </LinkButton>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Policies & Scores</h2>
+      <Card title="Policies & Scores">
+        {state.loading ? (
+          <div className="text-gray-500 text-sm">Loading episode...</div>
+        ) : state.error ? (
+          <div className="text-red-600 text-sm">{state.error}</div>
+        ) : !episode ? (
+          <div className="text-gray-500 text-sm">Episode not found.</div>
+        ) : Object.keys(episode.avg_rewards || {}).length === 0 ? (
+          <div className="text-gray-500 text-sm">No policy metrics recorded for this episode.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Header>
+                <TR>
+                  <TH>Policy</TH>
+                  <TH>Policy ID</TH>
+                  <TH>Avg Reward</TH>
+                </TR>
+              </Table.Header>
+              <Table.Body>
+                {Object.entries(episode.avg_rewards || {})
+                  .sort(([, a], [, b]) => (typeof b === 'number' && typeof a === 'number' ? b - a : 0))
+                  .map(([policyId, reward]) => {
+                    const info = policyInfoState.data[policyId]
+                    const policyLabel = formatPolicyVersion(info)
+                    const isPrimary = episode.primary_pv_id === policyId
+                    return (
+                      <TR key={policyId}>
+                        <TD>
+                          <div className="flex items-center gap-2">
+                            <StyledLink to={`/policies/versions/${policyId}`}>{policyLabel}</StyledLink>
+                            {isPrimary ? (
+                              <span className="text-[10px] uppercase tracking-wide text-blue-600 border border-blue-200 rounded px-1 py-0.5">
+                                Primary
+                              </span>
+                            ) : null}
+                            {policyInfoState.loading && !info ? (
+                              <span className="text-xs text-gray-400">(loading details)</span>
+                            ) : null}
+                          </div>
+                        </TD>
+                        <TD>
+                          <span className="font-mono text-xs text-gray-700">{policyId}</span>
+                        </TD>
+                        <TD>
+                          <span className="font-mono">{formatScore(reward)}</span>
+                        </TD>
+                      </TR>
+                    )
+                  })}
+              </Table.Body>
+            </Table>
+            {policyInfoState.error ? (
+              <div className="text-red-600 text-xs mt-2">Failed to load policy details: {policyInfoState.error}</div>
+            ) : null}
           </div>
-        </div>
-        <div className="p-5">
-          {state.loading ? (
-            <div className="text-gray-500 text-sm">Loading episode...</div>
-          ) : state.error ? (
-            <div className="text-red-600 text-sm">{state.error}</div>
-          ) : !episode ? (
-            <div className="text-gray-500 text-sm">Episode not found.</div>
-          ) : Object.keys(episode.avg_rewards || {}).length === 0 ? (
-            <div className="text-gray-500 text-sm">No policy metrics recorded for this episode.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                    <th className="px-3 py-2 border-b border-gray-200">Policy</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Policy ID</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Avg Reward</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(episode.avg_rewards || {})
-                    .sort(([, a], [, b]) => (typeof b === 'number' && typeof a === 'number' ? b - a : 0))
-                    .map(([policyId, reward]) => {
-                      const info = policyInfoState.data[policyId]
-                      const policyLabel = formatPolicyVersion(info)
-                      const isPrimary = episode.primary_pv_id === policyId
-                      return (
-                        <tr key={policyId} className="border-b border-gray-100 align-top">
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                to={`/policies/versions/${policyId}`}
-                                className="text-blue-600 no-underline hover:underline font-medium"
-                              >
-                                {policyLabel}
-                              </Link>
-                              {isPrimary ? (
-                                <span className="text-[10px] uppercase tracking-wide text-blue-600 border border-blue-200 rounded px-1 py-0.5">
-                                  Primary
-                                </span>
-                              ) : null}
-                              {policyInfoState.loading && !info ? (
-                                <span className="text-xs text-gray-400">(loading details)</span>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs text-gray-700">{policyId}</td>
-                          <td className="px-3 py-2 font-mono">{formatScore(reward)}</td>
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              </table>
-              {policyInfoState.error ? (
-                <div className="text-red-600 text-xs mt-2">Failed to load policy details: {policyInfoState.error}</div>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </Card>
+
+      <Card title="Replay">
+        {state.loading ? (
+          <div className="text-gray-500 text-sm">Loading replay...</div>
+        ) : state.error ? (
+          <div className="text-red-600 text-sm">{state.error}</div>
+        ) : !episode || !episode.replay_url ? (
+          <div className="text-gray-500 text-sm">No replay available for this episode.</div>
+        ) : (
+          <ReplayViewer replayUrl={episode.replay_url} label="Episode replay" />
+        )}
+      </Card>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Replay</h2>
-          </div>
-        </div>
-        <div className="p-5 space-y-3">
-          {state.loading ? (
-            <div className="text-gray-500 text-sm">Loading replay...</div>
-          ) : state.error ? (
-            <div className="text-red-600 text-sm">{state.error}</div>
-          ) : !episode || !episode.replay_url ? (
-            <div className="text-gray-500 text-sm">No replay available for this episode.</div>
-          ) : (
-            <ReplayViewer replayUrl={episode.replay_url} label="Episode replay" />
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-6">
           {state.loading ? (
             <div className="text-gray-500 text-sm">Loading episode...</div>
           ) : state.error ? (
@@ -253,27 +236,16 @@ export const EpisodeDetailPage: FC = () => {
           ) : episode ? (
             <>
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Tags</h3>
+                <SmallHeader>Tags</SmallHeader>
                 {Object.keys(episode.tags).length === 0 ? (
                   <div className="text-gray-500 text-sm">No tags found.</div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(episode.tags)
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([key, value]) => (
-                        <span
-                          key={`${episode.id}-${key}-${value}`}
-                          className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200"
-                        >
-                          {key}: {value}
-                        </span>
-                      ))}
-                  </div>
+                  <TagList tags={episode.tags} />
                 )}
               </div>
 
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-2">Attributes</h3>
+                <SmallHeader>Attributes</SmallHeader>
                 {Object.keys(episode.attributes || {}).length === 0 ? (
                   <div className="text-gray-500 text-sm">No attributes recorded.</div>
                 ) : (

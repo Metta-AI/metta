@@ -14,7 +14,8 @@ export const Input: FC<{
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       className={clsx(
-        'box-border w-full border border-gray-300',
+        'box-border border border-gray-300 w-full',
+        'focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500',
         size === 'sm' && 'text-xs px-2 py-1 rounded-sm',
         size === 'md' && 'text-sm px-3 py-2 rounded-md'
       )}
