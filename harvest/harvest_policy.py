@@ -1922,6 +1922,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if self.map_manager is None:
             return None
 
+        # DEBUG: Check target cell type
+        from .map import MapCellType
+        target_cell = self.map_manager.grid[target[0]][target[1]]
+        self._logger.debug(f"  PATHFIND: Target {target} is {target_cell.name}, traversable={self.map_manager.is_traversable(target[0], target[1])}")
+
         # Compute goal cells
         if reach_adjacent:
             goals = []
@@ -1931,8 +1936,21 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     goals.append((nr, nc))
             if not goals:
                 goals = [target]  # Fallback if no adjacent cells traversable
+                self._logger.warning(f"  PATHFIND: No adjacent cells traversable around {target}, using target itself")
         else:
             goals = [target]
+
+        self._logger.debug(f"  PATHFIND: Goals={goals}, start={state.row, state.col}")
+
+        # DEBUG: Check cells around agent
+        agent_vicinity = []
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = state.row + dr, state.col + dc
+            if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
+                cell = self.map_manager.grid[nr][nc]
+                trav = self.map_manager.is_traversable(nr, nc)
+                agent_vicinity.append(f"{cell.name[0]}:{trav}")
+        self._logger.debug(f"  PATHFIND: Agent vicinity NSEW: {agent_vicinity}")
 
         # Use pathfinding with MapManager's traversability
         path = shortest_path(
@@ -1945,7 +1963,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         )
 
         if not path or len(path) < 1:
+            self._logger.warning(f"  PATHFIND: No path found from {state.row, state.col} to {target}")
             return None
+
+        self._logger.debug(f"  PATHFIND: Path found, length={len(path)}, next={path[0]}")
 
         # Convert next position to direction
         next_pos = path[0]  # First step in path

@@ -192,7 +192,10 @@ class MapManager:
             self.dead_ends.add((row, col))
 
     def is_traversable(self, row: int, col: int) -> bool:
-        """Check if a cell is traversable (not wall or dead-end).
+        """Check if a cell is traversable for pathfinding.
+
+        Only explored cells are traversable. UNKNOWN cells are NOT traversable
+        because we don't know if they contain walls.
 
         Args:
             row: Cell row
@@ -205,7 +208,11 @@ class MapManager:
             return False
 
         cell_type = self.grid[row][col]
-        return cell_type not in (MapCellType.WALL, MapCellType.DEAD_END)
+
+        # UNKNOWN cells are NOT traversable - we can't path through unexplored territory
+        # WALL and DEAD_END are NOT traversable
+        # Everything else (FREE, stations, extractors) IS traversable
+        return cell_type not in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END)
 
     def get_nearest_object(
         self,
