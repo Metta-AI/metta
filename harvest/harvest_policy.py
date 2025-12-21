@@ -35,6 +35,7 @@ from .energy import EnergyManager
 from .resources import ResourceManager
 from .navigation import NavigationManager
 from .state_tracker import StateTracker
+from .map import MapManager
 from .utils import (
     change_vibe_action,
     is_adjacent,
@@ -289,6 +290,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         self.resources = ResourceManager()
         self.navigation = NavigationManager(self._logger)
         self.state_tracker = StateTracker(self._obs_hr, self._obs_wr, self._tag_names, self._logger)
+        self.map_manager: Optional[MapManager] = None  # Initialized on first step (needs map dimensions)
 
     def initial_agent_state(self) -> HarvestState:
         """Initialize state for the agent."""
@@ -335,8 +337,23 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         state.current_obs = obs
         state.agent_occupancy.clear()
 
+        # Initialize MapManager on first step (needs map dimensions from state)
+        if self.map_manager is None:
+            self.map_manager = MapManager(
+                state.map_height,
+                state.map_width,
+                self._obs_hr,
+                self._obs_wr,
+                self._tag_names,
+                self._logger
+            )
+            self._logger.info(f"  MAP: Initialized {state.map_height}x{state.map_width} map")
+
         # Update inventory from observation
         read_inventory_from_obs(state, obs, obs_hr=self._obs_hr, obs_wr=self._obs_wr)
+
+        # Update map from current observation
+        self.map_manager.update_from_observation(state)
 
         # MISSION DETECTION: Detect mission profile early to adapt strategy
         # Do detection after a few steps to get map extent, but not too late
@@ -1777,18 +1794,53 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         self._logger.debug(f"  RECHARGE: Can't navigate to charger, exploring (have {len(state.discovered_chargers)} discovered)")
         return self._explore_observation_only(state)
 
-    def _find_nearest_charger(self, state: HarvestState) -> tuple[int, int]:
-        """Find the nearest charger from the list of discovered chargers.
+    def _find_nearest_charger(self, state: HarvestState) -> Optional[tuple[int, int]]:
+        """Find the nearest charger using MapManager.
 
-        Uses Manhattan distance from current position.
+        Returns:
+            Position of nearest charger, or None if none found.
         """
-        if not state.discovered_chargers:
-            # Fallback to first charger in stations dict
-            return state.stations.get("charger", (state.row, state.col))
+        if self.map_manager is None:
+            # Fallback if MapManager not initialized yet
+            if state.discovered_chargers:
+                return min(
+                    state.discovered_chargers,
+                    key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+                )
+            return state.stations.get("charger")
 
-        return min(
-            state.discovered_chargers,
-            key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+        # Use MapManager for complete map knowledge
+        return self.map_manager.get_nearest_object(
+            current_pos=(state.row, state.col),
+            object_type="charger"
+        )
+
+    def _find_nearest_assembler(self, state: HarvestState) -> Optional[tuple[int, int]]:
+        """Find the nearest assembler using MapManager.
+
+        Returns:
+            Position of nearest assembler, or None if none found.
+        """
+        if self.map_manager is None:
+            return state.stations.get("assembler")
+
+        return self.map_manager.get_nearest_object(
+            current_pos=(state.row, state.col),
+            object_type="assembler"
+        )
+
+    def _find_nearest_chest(self, state: HarvestState) -> Optional[tuple[int, int]]:
+        """Find the nearest chest using MapManager.
+
+        Returns:
+            Position of nearest chest, or None if none found.
+        """
+        if self.map_manager is None:
+            return state.stations.get("chest")
+
+        return self.map_manager.get_nearest_object(
+            current_pos=(state.row, state.col),
+            object_type="chest"
         )
 
     def _calculate_deficits(self, state: HarvestState) -> dict[str, int]:
@@ -1814,13 +1866,36 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return None
 
     def _find_nearest_extractor(self, state: HarvestState, resource_type: str) -> Optional[ExtractorInfo]:
-        """Find the nearest available extractor of a given type."""
+        """Find the nearest available extractor of a given type using MapManager.
+
+        Args:
+            resource_type: Type of resource ("carbon", "oxygen", "germanium", "silicon")
+
+        Returns:
+            ExtractorInfo if found, None otherwise.
+        """
+        # Try MapManager first (complete map knowledge)
+        if self.map_manager is not None:
+            extractor_pos = self.resources.find_nearest_available_extractor(
+                state, resource_type, self.map_manager
+            )
+            if extractor_pos:
+                # Create ExtractorInfo from position
+                # Note: We don't track remaining_uses in MapManager, so we assume it's available
+                return ExtractorInfo(
+                    position=extractor_pos,
+                    resource_type=resource_type,
+                    remaining_uses=1,  # Assume available
+                    clipped=False
+                )
+
+        # Fallback to old ExtractorInfo system
         extractors = state.extractors.get(resource_type, [])
         available = [
             e for e in extractors
             if not e.clipped
             and e.remaining_uses > 0
-            and e.position not in state.used_extractors  # CRITICAL: Skip depleted extractors
+            and e.position not in state.used_extractors
         ]
 
         if not available:
@@ -1830,6 +1905,69 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             return abs(ext.position[0] - state.row) + abs(ext.position[1] - state.col)
 
         return min(available, key=distance)
+
+    def _navigate_to_with_mapmanager(
+        self,
+        state: HarvestState,
+        target: tuple[int, int],
+        reach_adjacent: bool = False
+    ) -> Optional[str]:
+        """Navigate to target using MapManager's complete map knowledge.
+
+        Uses BFS pathfinding with MapManager.is_traversable() which knows the
+        entire explored map, not just current observation.
+
+        Args:
+            state: Current agent state
+            target: Target position (row, col)
+            reach_adjacent: Whether to stop adjacent to target instead of on it
+
+        Returns:
+            Direction to move ("north", "south", "east", "west"), or None if no path.
+        """
+        if self.map_manager is None:
+            return None
+
+        # Compute goal cells
+        if reach_adjacent:
+            goals = []
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = target[0] + dr, target[1] + dc
+                if self.map_manager.is_traversable(nr, nc):
+                    goals.append((nr, nc))
+            if not goals:
+                goals = [target]  # Fallback if no adjacent cells traversable
+        else:
+            goals = [target]
+
+        # Use pathfinding with MapManager's traversability
+        path = shortest_path(
+            state=state,
+            start=(state.row, state.col),
+            goals=goals,
+            allow_goal_block=False,
+            cell_type=CellType,
+            is_traversable_fn=lambda r, c: self.map_manager.is_traversable(r, c)
+        )
+
+        if not path or len(path) < 1:
+            return None
+
+        # Convert next position to direction
+        next_pos = path[0]  # First step in path
+        dr = next_pos[0] - state.row
+        dc = next_pos[1] - state.col
+
+        if dr == -1:
+            return "north"
+        elif dr == 1:
+            return "south"
+        elif dc == -1:
+            return "west"
+        elif dc == 1:
+            return "east"
+
+        return None  # Invalid move
 
     def _move_towards(
         self, state: HarvestState, target: tuple[int, int], reach_adjacent: bool = False, station_name: str | None = None
@@ -1977,6 +2115,26 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Forced direction blocked, clear it and proceed with normal exploration
                 self._logger.info(f"  EXPLORE: Forced direction {forced_dir} blocked, trying alternatives")
                 state.forced_exploration_direction = None
+
+        # FRONTIER EXPLORATION: Try using MapManager to target unexplored boundary
+        if self.map_manager is not None and len(state.discovered_chargers) > 0:
+            # Find nearest unexplored frontier cell
+            frontier = self.exploration.find_nearest_frontier_cell(state, self.map_manager)
+
+            if frontier:
+                self._logger.info(f"  EXPLORE: Targeting frontier cell at {frontier}")
+
+                # Try pathfinding to frontier using MapManager
+                direction = self._navigate_to_with_mapmanager(state, frontier, reach_adjacent=False)
+
+                if direction:
+                    if self._is_direction_clear_in_obs(state, direction):
+                        self._logger.info(f"  EXPLORE: Moving {direction} toward frontier")
+                        return self._actions.move.Move(direction)
+                    else:
+                        self._logger.debug(f"  EXPLORE: Frontier path blocked in obs, falling back to scoring")
+                else:
+                    self._logger.debug(f"  EXPLORE: No path to frontier found, falling back to scoring")
 
         dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
 

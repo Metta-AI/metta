@@ -8,7 +8,7 @@ for navigating the grid world.
 from __future__ import annotations
 
 from collections import deque
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
     from .types import CellType, SimpleAgentState
@@ -44,9 +44,23 @@ def shortest_path(
     goals: list[tuple[int, int]],
     allow_goal_block: bool,
     cell_type: type[CellType],
+    is_traversable_fn: Optional[Callable[[int, int], bool]] = None,
 ) -> list[tuple[int, int]]:
     """
     Find shortest path from start to any goal using BFS.
+
+    Args:
+        state: Agent state with map information
+        start: Starting position (row, col)
+        goals: List of goal positions
+        allow_goal_block: Whether goal cells can be blocked
+        cell_type: CellType enum for fallback traversability check
+        is_traversable_fn: Optional custom traversability function (row, col) -> bool.
+                          If provided, uses this instead of state.occupancy checks.
+                          Useful for MapManager integration.
+
+    Returns:
+        Path from start to goal (not including start), or empty list if no path found.
     """
     goal_set = set(goals)
     queue: deque[tuple[int, int]] = deque([start])
@@ -55,6 +69,12 @@ def shortest_path(
     def walkable(r: int, c: int) -> bool:
         if (r, c) in goal_set and allow_goal_block:
             return True
+
+        # Use custom traversability function if provided
+        if is_traversable_fn is not None:
+            return is_traversable_fn(r, c)
+
+        # Fallback to default state.occupancy check
         return is_traversable(state, r, c, cell_type)
 
     while queue:

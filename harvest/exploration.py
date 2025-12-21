@@ -3,9 +3,12 @@
 Handles corridor detection, dead-end avoidance, and breadth-first exploration.
 """
 import random
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .types import HarvestState
+
+if TYPE_CHECKING:
+    from .map import MapManager, MapCellType
 
 
 class ExplorationManager:
@@ -176,3 +179,67 @@ class ExplorationManager:
                     return False
 
         return True
+
+    def find_nearest_frontier_cell(
+        self,
+        state: HarvestState,
+        map_manager: 'MapManager'
+    ) -> Optional[tuple[int, int]]:
+        """Find nearest UNKNOWN cell adjacent to explored FREE cells.
+
+        This targets the boundary between explored and unexplored territory,
+        enabling efficient systematic exploration instead of random wandering.
+
+        A "frontier cell" is an UNKNOWN cell that has at least one explored
+        (non-UNKNOWN, non-WALL) neighbor. These cells represent the edge of
+        what we've discovered.
+
+        Args:
+            state: Current agent state
+            map_manager: MapManager with complete map grid
+
+        Returns:
+            Position of nearest frontier cell, or None if none found.
+        """
+        from .map import MapCellType
+
+        frontier_candidates = []
+
+        # Scan map for frontier cells
+        # Optimization: only scan a reasonable radius around agent to avoid
+        # checking entire large map every step
+        search_radius = 50  # Limit search to 50 cells around agent
+        start_r = max(0, state.row - search_radius)
+        end_r = min(state.map_height, state.row + search_radius + 1)
+        start_c = max(0, state.col - search_radius)
+        end_c = min(state.map_width, state.col + search_radius + 1)
+
+        for r in range(start_r, end_r):
+            for c in range(start_c, end_c):
+                # Must be unknown
+                if map_manager.grid[r][c] != MapCellType.UNKNOWN:
+                    continue
+
+                # Check if adjacent to any explored, non-wall cell
+                is_frontier = False
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
+                        neighbor_type = map_manager.grid[nr][nc]
+                        # Adjacent to explored area (not unknown, not wall)
+                        if neighbor_type not in (MapCellType.UNKNOWN, MapCellType.WALL):
+                            is_frontier = True
+                            break
+
+                if is_frontier:
+                    frontier_candidates.append((r, c))
+
+        if not frontier_candidates:
+            return None
+
+        # Return nearest frontier cell using Manhattan distance
+        current = (state.row, state.col)
+        return min(
+            frontier_candidates,
+            key=lambda pos: abs(pos[0] - current[0]) + abs(pos[1] - current[1])
+        )

@@ -111,3 +111,39 @@ class ResourceManager:
         """
         required = {"carbon", "oxygen", "germanium", "silicon"}
         return required.issubset(state.found_resource_types)
+
+    def find_nearest_available_extractor(
+        self,
+        state: HarvestState,
+        resource_type: str,
+        map_manager: 'MapManager'
+    ) -> Optional[tuple[int, int]]:
+        """Find nearest available extractor using MapManager.
+
+        Args:
+            state: Current agent state
+            resource_type: Type of resource ("carbon", "oxygen", "germanium", "silicon")
+            map_manager: MapManager instance with complete map knowledge
+
+        Returns:
+            Position of nearest available extractor, or None if none found.
+        """
+        # Get extractor positions from MapManager
+        extractor_attr = f"{resource_type}_extractors"
+        all_extractors = getattr(map_manager, extractor_attr, set())
+
+        # Filter out used extractors
+        available = [
+            pos for pos in all_extractors
+            if pos not in state.used_extractors
+        ]
+
+        if not available:
+            return None
+
+        # Return nearest using Manhattan distance
+        current = (state.row, state.col)
+        return min(
+            available,
+            key=lambda pos: abs(pos[0] - current[0]) + abs(pos[1] - current[1])
+        )
