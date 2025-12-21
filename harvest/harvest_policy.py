@@ -1135,14 +1135,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
             )
             dist_to_charger = abs(nearest_charger[0] - state.row) + abs(nearest_charger[1] - state.col)
-            safety_margin = 10
 
-            # Use same logic as exploration: aggressive when many chargers
-            num_chargers = len(state.discovered_chargers)
-            if num_chargers >= 5:
-                max_safe_distance = max(10, (state.energy - safety_margin) // 1.5)
-            else:
-                max_safe_distance = max(5, (state.energy - safety_margin) // 2)
+            # Use EnergyManager for map-aware safe distance calculation
+            max_safe_distance = self.energy.calculate_safe_radius(state)
 
             if dist_to_charger > max_safe_distance:
                 self._logger.info(f"  GATHER: TOO FAR from charger ({dist_to_charger} > {max_safe_distance}, energy={state.energy}), navigating back for safety")
@@ -1752,6 +1747,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir}")
                 return self._actions.move.Move(desperation_dir)
 
+            # Use MapManager pathfinding for intelligent navigation to charger
+            direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=False)
+
+            if direction:
+                self._logger.debug(f"  RECHARGE: Moving {direction} toward charger (MapManager pathfinding)")
+                return self._actions.move.Move(direction)
+
+            # Pathfinding failed - fall back to greedy navigation
+            self._logger.debug(f"  RECHARGE: No path to charger found, trying greedy navigation")
+
             # Pick direction that reduces distance most
             if abs(dr) > abs(dc):
                 # Vertical movement more important
@@ -1762,33 +1767,20 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             # Check if that direction is clear
             if self._is_direction_clear_in_obs(state, direction):
-                self._logger.debug(f"  RECHARGE: Moving {direction} toward charger at {target_charger}")
+                self._logger.debug(f"  RECHARGE: Moving {direction} toward charger (greedy fallback)")
                 return self._actions.move.Move(direction)
 
-            # Primary direction blocked - try perpendicular alternatives
-            # (stuck recovery above handles >= 5 failures case)
-            if False:  # Disabled - dead code, stuck recovery handles this now
-                self._logger.info(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails), trying all directions to escape")
-                alt_directions = ["north", "south", "east", "west"]
-                alt_directions.remove(direction)  # Remove primary direction
-                for alt_dir in alt_directions:
-                    if self._is_direction_clear_in_obs(state, alt_dir):
-                        self._logger.info(f"  RECHARGE: Trying {alt_dir} to escape stuck state")
-                        return self._actions.move.Move(alt_dir)
+            # Try alternative directions
+            alt_directions = []
+            if abs(dr) > abs(dc):
+                alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
             else:
-                # Not stuck yet - try perpendicular directions only
-                alt_directions = []
-                if abs(dr) > abs(dc):
-                    # Was trying vertical, try horizontal
-                    alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
-                else:
-                    # Was trying horizontal, try vertical
-                    alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+                alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
 
-                for alt_dir in alt_directions:
-                    if self._is_direction_clear_in_obs(state, alt_dir):
-                        self._logger.debug(f"  RECHARGE: Primary direction blocked, trying {alt_dir}")
-                        return self._actions.move.Move(alt_dir)
+            for alt_dir in alt_directions:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    self._logger.debug(f"  RECHARGE: Primary blocked, trying {alt_dir}")
+                    return self._actions.move.Move(alt_dir)
 
         # All directions blocked or no chargers - explore to find one
         self._logger.debug(f"  RECHARGE: Can't navigate to charger, exploring (have {len(state.discovered_chargers)} discovered)")
@@ -2140,11 +2132,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
 
-        # ENERGY SAFETY: Calculate safe exploration radius
-        # Rule: Never go farther than (energy - safety_margin) / 2 from nearest charger
-        # Division by 2 because we need energy to get there AND back
-        # BUT: If there are MANY chargers (like energy_starved), be more aggressive
-        safety_margin = 10  # Always keep 10 energy as buffer
+        # ENERGY SAFETY: Calculate safe exploration radius using EnergyManager
+        # Automatically scales with map size and number of chargers
         nearest_charger_dist = float('inf')
 
         if state.discovered_chargers:
@@ -2154,16 +2143,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             )
             nearest_charger_dist = abs(nearest_charger[0] - state.row) + abs(nearest_charger[1] - state.col)
 
-        # Calculate safe exploration radius (how far we can go from current position)
-        # When there are many chargers (5+), use more aggressive exploration
-        num_chargers = len(state.discovered_chargers)
-        if num_chargers >= 5:
-            # Lots of chargers - can explore farther safely
-            max_safe_distance_from_charger = max(10, (state.energy - safety_margin) // 1.5)
-            self._logger.debug(f"  EXPLORE: Many chargers ({num_chargers}), using aggressive radius {max_safe_distance_from_charger}")
-        else:
-            # Few chargers - be conservative
-            max_safe_distance_from_charger = max(5, (state.energy - safety_margin) // 2)
+        # Use EnergyManager for map-aware safe distance calculation
+        max_safe_distance_from_charger = self.energy.calculate_safe_radius(state)
+        self._logger.debug(f"  EXPLORE: Safe radius={max_safe_distance_from_charger} (energy={state.energy}, chargers={len(state.discovered_chargers)})")
 
         # Check which directions are clear AND score them by exploration value
         direction_scores = []

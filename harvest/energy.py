@@ -18,6 +18,7 @@ class EnergyManager:
 
         Uses conservative formula: (energy - safety_margin) / distance_factor
         More chargers = more aggressive exploration.
+        Scales with map size for large maps.
 
         Args:
             state: Current agent state
@@ -28,14 +29,26 @@ class EnergyManager:
         safety_margin = 10  # Always keep 10 energy buffer
         num_chargers = len(state.discovered_chargers)
 
-        if num_chargers >= 5:
-            # Many chargers - can explore more aggressively
-            distance_factor = 1.5
+        # Map size awareness: larger maps need larger exploration radius
+        map_size = max(state.map_height, state.map_width)
+        if map_size > 200:
+            # Large maps (500x500, etc.) - very aggressive
+            base_min_radius = 30
+            distance_factor = 1.2 if num_chargers >= 5 else 1.5
+        elif map_size > 100:
+            # Medium-large maps (200x200) - moderately aggressive
+            base_min_radius = 20
+            distance_factor = 1.5 if num_chargers >= 5 else 1.8
+        elif map_size > 50:
+            # Medium maps (100x100) - slightly aggressive
+            base_min_radius = 15
+            distance_factor = 1.5 if num_chargers >= 5 else 2.0
         else:
-            # Few chargers - be conservative
-            distance_factor = 2.0
+            # Small maps (13x13, etc.) - conservative
+            base_min_radius = 5
+            distance_factor = 1.5 if num_chargers >= 5 else 2.0
 
-        max_safe_distance = max(5, int((state.energy - safety_margin) / distance_factor))
+        max_safe_distance = max(base_min_radius, int((state.energy - safety_margin) / distance_factor))
         return max_safe_distance
 
     def should_recharge(self, state: HarvestState) -> bool:
