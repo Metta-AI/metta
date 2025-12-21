@@ -10,8 +10,9 @@ from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.architecture_spec import architecture_from_spec, architecture_spec_from_value
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.module import load_symbol
+from mettagrid.util.checkpoint_io import prepare_state_dict_for_save
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 WEIGHTS_FILENAME = "weights.safetensors"
@@ -19,28 +20,6 @@ WEIGHTS_FILENAME = "weights.safetensors"
 
 def _join_uri(base: str, child: str) -> str:
     return f"{base.rstrip('/')}/{child}"
-
-
-def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    """Prepare state dict for safetensors: detach, move to CPU, handle shared storage."""
-    result: dict[str, torch.Tensor] = {}
-    seen_storage: dict[int, str] = {}
-
-    for key, tensor in state_dict.items():
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
-
-        value = tensor.detach().cpu()
-        data_ptr = value.data_ptr()
-
-        if data_ptr in seen_storage:
-            value = value.clone()
-        else:
-            seen_storage[data_ptr] = key
-
-        result[key] = value
-
-    return result
 
 
 def _resolve_policy_data_path(policy_data_path: Path) -> Path:
@@ -77,18 +56,6 @@ def _write_policy_spec(checkpoint_dir: Path, architecture_spec: str, *, data_pat
     (checkpoint_dir / POLICY_SPEC_FILENAME).write_text(submission_spec.model_dump_json())
 
 
-def _architecture_spec_from_value(architecture: Any) -> str:
-    if isinstance(architecture, str):
-        spec = architecture
-    elif hasattr(architecture, "to_spec"):
-        spec = architecture.to_spec()
-    else:
-        raise TypeError("architecture must be a spec string or provide to_spec()")
-    if not spec.strip():
-        raise ValueError("architecture_spec cannot be empty")
-    return spec.strip()
-
-
 @dataclass(frozen=True)
 class CheckpointDir:
     """Checkpoint directory containing policy_spec.json and weights.safetensors."""
@@ -107,20 +74,6 @@ class CheckpointDir:
     @property
     def submission_zip_uri(self) -> str:
         return _join_uri(self.dir_uri, "submission.zip")
-
-
-def architecture_from_spec(spec: str) -> Any:
-    spec = spec.strip()
-    if not spec:
-        raise ValueError("architecture_spec cannot be empty")
-
-    class_path = spec.split("(")[0].strip()
-    config_class = load_symbol(class_path)
-    if not isinstance(config_class, type):
-        raise TypeError(f"Loaded symbol {class_path} is not a class")
-    if not hasattr(config_class, "from_spec"):
-        raise TypeError(f"Class {class_path} does not have a from_spec method")
-    return config_class.from_spec(spec)
 
 
 class CheckpointPolicy(MultiAgentPolicy):
@@ -167,12 +120,12 @@ class CheckpointPolicy(MultiAgentPolicy):
         if target_path.is_dir() or target_path.suffix == "":
             target_path.mkdir(parents=True, exist_ok=True)
             weights_path = target_path / WEIGHTS_FILENAME
-            prepared_state = _prepare_state_dict_for_save(self._policy.state_dict())
+            prepared_state = prepare_state_dict_for_save(self._policy.state_dict())
             weights_path.write_bytes(save_safetensors(dict(prepared_state)))
             _write_policy_spec(target_path, self._architecture_spec)
             return
 
-        prepared_state = _prepare_state_dict_for_save(self._policy.state_dict())
+        prepared_state = prepare_state_dict_for_save(self._policy.state_dict())
         target_path.parent.mkdir(parents=True, exist_ok=True)
         target_path.write_bytes(save_safetensors(dict(prepared_state)))
         _write_policy_spec(target_path.parent, self._architecture_spec, data_path=target_path.name)
@@ -187,12 +140,12 @@ class CheckpointPolicy(MultiAgentPolicy):
         state_dict: Mapping[str, torch.Tensor],
     ) -> CheckpointDir:
         """Write a checkpoint directory to disk and return its metadata."""
-        architecture_spec = _architecture_spec_from_value(architecture)
+        architecture_spec = architecture_spec_from_value(architecture)
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         weights_path = checkpoint_dir / WEIGHTS_FILENAME
-        prepared_state = _prepare_state_dict_for_save(state_dict)
+        prepared_state = prepare_state_dict_for_save(state_dict)
         weights_path.write_bytes(save_safetensors(dict(prepared_state)))
         _write_policy_spec(checkpoint_dir, architecture_spec)
 
