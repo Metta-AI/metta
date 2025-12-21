@@ -13,13 +13,16 @@ from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.mpt_artifact import MptArtifact, load_mpt, save_mpt
+from metta.rl.mpt_policy import MptPolicy
 from mettagrid.base_config import Config
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.checkpoint_dir import write_checkpoint_dir
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 
 class DummyActionComponentConfig(Config):
@@ -273,3 +276,23 @@ def test_checkpoint_bundle_reinitializes_environment_buffers(tmp_path: Path) -> 
     expected_indices = tuple(range(len(policy_env_info.action_names)))
     assert tuple(action_component.active_indices.tolist()) == expected_indices
     assert action_component.num_actions == len(expected_indices)
+
+
+def test_mpt_policy_loads_from_policy_spec(tmp_path: Path) -> None:
+    policy_env_info = _policy_env_info()
+    architecture = DummyPolicyArchitecture()
+    policy = architecture.make_policy(policy_env_info)
+
+    mpt_path = tmp_path / "checkpoint.mpt"
+    save_mpt(mpt_path, architecture=architecture, state_dict=policy.state_dict())
+
+    submission_spec = SubmissionPolicySpec(
+        class_path="metta.rl.mpt_policy.MptPolicy",
+        data_path="checkpoint.mpt",
+        init_kwargs={},
+    )
+    (tmp_path / POLICY_SPEC_FILENAME).write_text(submission_spec.model_dump_json())
+
+    spec = policy_spec_from_uri(tmp_path.as_posix())
+    loaded = initialize_or_load_policy(policy_env_info, spec)
+    assert isinstance(loaded, MptPolicy)
