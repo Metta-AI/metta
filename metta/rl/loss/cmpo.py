@@ -402,7 +402,7 @@ class CMPO(Loss):
 
     def _flatten_obs(self, obs: Tensor) -> Tensor:
         obs_f = obs.to(dtype=torch.float32)
-        if obs_f.max() > 1.0:
+        if obs.dtype == torch.uint8:
             obs_f = obs_f / 255.0
         return obs_f.view(obs.shape[0], -1)
 
