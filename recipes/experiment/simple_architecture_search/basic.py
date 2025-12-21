@@ -12,8 +12,8 @@ from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import grid_search
+from metta.sweep.tool import SweepTool
 from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 from recipes.experiment.architectures import architecture_names, get_architecture

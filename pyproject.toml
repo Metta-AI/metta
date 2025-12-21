@@ -3,7 +3,7 @@ requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["cogweb", "devops", "metta", "recipes"]
+packages = ["devops", "metta", "recipes"]
 py-modules = []
 
 [project]
@@ -37,6 +37,7 @@ dependencies = [
   "metta-app-backend",
   "metta-common",
   "metta-adaptive",
+  "metta-sweep",
   "numpy>=2",
   "ninja>=1.11.1",
   "nvidia-ml-py",
@@ -157,6 +158,7 @@ members = [
   "packages/gitta",
   "packages/mettagrid",
   "packages/pufferlib-core",
+  "sweep",
   "softmax",
   "mcp_servers/pr_similarity",
 ]
@@ -170,6 +172,7 @@ metta-agent = { workspace = true }
 metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 metta-adaptive = { workspace = true }
+metta-sweep = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
 metta-pr-similarity-mcp = { workspace = true }

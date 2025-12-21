@@ -13,7 +13,7 @@ from metta.sweep.parameter_config import CategoricalParameterConfig, Distributio
 from metta.sweep.protein_config import ProteinSettings
 
 if TYPE_CHECKING:
-    from metta.tools.sweep import SweepTool
+    from metta.sweep.tool import SweepTool
 
 
 class SweepParameters:
@@ -178,7 +178,7 @@ def make_sweep(
         search_space = flat_params
 
     # Keep local imports: SweepSchedulerType, SweepTool are slow loading
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
+    from metta.sweep.tool import SweepSchedulerType, SweepTool
 
     protein_goal = goal
     protein_settings = ProteinSettings()
@@ -259,7 +259,7 @@ def grid_search(
         search_space = flat_params
 
     # Keep local imports: SweepSchedulerType, SweepTool are slow loading
-    from metta.tools.sweep import SweepSchedulerType, SweepTool
+    from metta.sweep.tool import SweepSchedulerType, SweepTool
 
     scheduler_type = SweepSchedulerType.GRID_SEARCH
 

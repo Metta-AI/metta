@@ -7,9 +7,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+from cogweb.cogweb_client import CogwebClient
 from pydantic import Field
 
-from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
@@ -20,9 +20,37 @@ from metta.common.wandb.context import WandbConfig
 from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig, ParameterSpec
 from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 from metta.sweep.schedulers.async_capped import AsyncCappedOptimizingScheduler, AsyncCappedSchedulerConfig
-from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
+
+
+def _auto_wandb_config(
+    run: str | None = None,
+    group: str | None = None,
+    tags: list[str] | None = None,
+) -> WandbConfig:
+    enabled_env = os.getenv("WANDB_ENABLED")
+    enabled = True
+    if enabled_env is not None:
+        enabled = enabled_env.lower() in {"1", "true", "yes"}
+
+    project = os.getenv("WANDB_PROJECT")
+    entity = os.getenv("WANDB_ENTITY")
+
+    if not enabled or not project or not entity:
+        cfg = WandbConfig.Off()
+    else:
+        cfg = WandbConfig(enabled=True, project=project, entity=entity)
+
+    if run:
+        cfg.run_id = run
+        cfg.data_dir = f"./train_dir/{run}"
+    if group is not None:
+        cfg.group = group
+    if tags is not None:
+        cfg.tags = list(tags)
+
+    return cfg
 
 
 def create_on_eval_completed_hook(metric_path: str, cost_key: Optional[str] = None):
@@ -222,7 +250,7 @@ class SweepTool(Tool):
 
         # Auto-configure wandb if not set (similar to TrainTool)
         if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.sweep_name)
+            self.wandb = _auto_wandb_config(self.sweep_name)
 
         # Create sweep directory
         os.makedirs(self.sweep_dir, exist_ok=True)

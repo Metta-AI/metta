@@ -12,7 +12,7 @@ from metta.sweep.schedulers.grid_search import GridSearchScheduler
 
 
 def test_sweep_tool_grid_search_builds_scheduler(monkeypatch, tmp_path) -> None:
-    import metta.tools.sweep as sweep_mod
+    import metta.sweep.tool as sweep_mod
 
     # Dummy components to avoid external dependencies
     class DummyStore:

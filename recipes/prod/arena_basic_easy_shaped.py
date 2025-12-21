@@ -24,11 +24,11 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
+from metta.sweep.tool import SweepTool
 from metta.tools.eval import EvaluateTool
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
 

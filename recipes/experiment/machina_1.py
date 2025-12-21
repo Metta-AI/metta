@@ -7,8 +7,8 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
+from metta.sweep.tool import SweepTool
 from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
