@@ -312,7 +312,8 @@ from metta.common.types import AgentProtocol
 
 **Internal Modules** (in `metta/` directory):
 
-- **Examples:** `metta/rl/loss/__init__.py`, `cogworks/src/metta/cogworks/curriculum/__init__.py`, `metta/sim/envs/__init__.py`
+- **Examples:** `metta/rl/loss/__init__.py`, `cogworks/src/metta/cogworks/curriculum/__init__.py`,
+  `metta/sim/envs/__init__.py`
 - **Purpose:** Python package organization (implementation detail)
 - **Should be:** Empty or minimal
 - **Rationale:**
