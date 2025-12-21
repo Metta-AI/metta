@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-sim"
+version = "0.1.0"
+description = "Simulation utilities for Metta"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
+dependencies = [
+  "metta-app-backend",
+  "metta-common",
+  "mettagrid",
+  "pydantic>=2.12.2",
+  "rich>=13.9.4",
+  "wandb>=0.23.0",
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+include = ["metta.sim", "metta.sim.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.sim"]
+
+[tool.uv.sources]
+metta-app-backend = { workspace = true }
+metta-common = { workspace = true }
+mettagrid = { workspace = true }

@@ -4,7 +4,7 @@ from typing import Dict
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
+from metta.common.wandb.rl import log_model_parameters, setup_wandb_metrics
 
 
 class WandbLogger(TrainerComponent):
