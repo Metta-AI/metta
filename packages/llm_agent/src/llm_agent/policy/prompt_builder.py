@@ -74,7 +74,6 @@ class LLMPromptBuilder:
             policy_env_info: PolicyEnvInterface,
             context_window_size: int = 20,
             mg_cfg: MettaGridConfig | None = None,
-            debug_mode: bool = False,
             agent_id: int = 0,
             verbose: bool = False,
     ):
@@ -84,16 +83,15 @@ class LLMPromptBuilder:
             policy_env_info: Policy environment interface with feature/tag/action specs
             context_window_size: Number of steps before resending basic info (default: 20)
             mg_cfg: Optional MettaGridConfig to extract chest vibe transfers and other game-specific info
-            debug_mode: If True, print debug information (default: False)
             agent_id: Agent ID for role assignment (default: 0)
-            verbose: Alias for debug_mode (default: False)
+            verbose: If True, print debug information (default: False)
         """
         self._policy_env_info = policy_env_info
         # Ensure context_window_size is an int (may come as string from config)
         self._context_window_size = int(context_window_size)
         self._step_counter = 0
         self._last_visible: VisibleElements | None = None
-        self._debug_mode = debug_mode or verbose
+        self._verbose = verbose
         self._agent_id = agent_id
         # Store mg_cfg for id_map access
         self._mg_cfg = mg_cfg
@@ -104,21 +102,21 @@ class LLMPromptBuilder:
             chest_config = mg_cfg.game.objects.get("chest")
             if chest_config and hasattr(chest_config, "vibe_transfers"):
                 self._chest_vibe_transfers = chest_config.vibe_transfers
-                if self._debug_mode:
+                if self._verbose:
                     print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
             else:
-                if self._debug_mode:
+                if self._verbose:
                     print(
                         f"[LLMPromptBuilder] No chest vibe transfers found. chest_config={chest_config}, has vibe_transfers={hasattr(chest_config, 'vibe_transfers') if chest_config else 'N/A'}")
         else:
-            if self._debug_mode:
+            if self._verbose:
                 print("[LLMPromptBuilder] No mg_cfg provided, chest vibe transfers will be empty")
 
         # Pre-build static content (game rules, coordinate system)
         self._basic_info_cache = self._build_basic_info()
 
         # Debug: print the recipes being used
-        if self._debug_mode:
+        if self._verbose:
             recipes = self._build_all_recipes()
             print(f"[LLMPromptBuilder] Recipes:\n{recipes}")
 
@@ -262,7 +260,7 @@ class LLMPromptBuilder:
 
             return "\n".join(lines)
         except Exception as e:
-            if self._debug_mode:
+            if self._verbose:
                 print(f"[LLMPromptBuilder] Could not build id_map section: {e}")
             return ""
 
