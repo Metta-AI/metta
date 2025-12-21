@@ -1,5 +1,6 @@
 import tempfile
 import uuid
+from collections import Counter
 from typing import Annotated, Any, Optional
 
 import aioboto3
@@ -287,6 +288,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             read_agent_policies,
             read_episode_tags,
             read_episodes,
+            read_policy_metrics,
         )
 
         upload_id = request.upload_id
@@ -317,31 +319,41 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
             agent_policy_map_str = read_agent_policies(conn, str(episode_id))
             agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
+            policy_agent_counts = Counter(agent_policy_map.values())
 
             agent_metrics_result = read_agent_metrics(conn, str(episode_id))
 
             policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
+            explicit_reward_policies: set[uuid.UUID] = set()
+
+            for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
+                pv_id = uuid.UUID(pv_id_str)
+                if metric_name == "reward":
+                    explicit_reward_policies.add(pv_id)
+                policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
+
             for agent_id, metric_name, metric_value in agent_metrics_result:
                 if metric_name != "reward":
                     continue
 
                 pv_id = agent_policy_map.get(int(agent_id))
-                if pv_id is None:
+                if pv_id is None or pv_id in explicit_reward_policies:
                     continue
 
-                if pv_id not in policy_metrics:
-                    policy_metrics[pv_id] = {}
+                metrics = policy_metrics.setdefault(pv_id, {})
+                metrics["reward"] = metrics.get("reward", 0.0) + float(metric_value)
 
-                if metric_name not in policy_metrics[pv_id]:
-                    policy_metrics[pv_id][metric_name] = 0.0
+            for pv_id in explicit_reward_policies:
+                reward_metrics = policy_metrics.get(pv_id)
+                if reward_metrics is None:
+                    continue
+                if "reward" not in reward_metrics:
+                    continue
+                count = policy_agent_counts.get(pv_id)
+                if count:
+                    reward_metrics["reward"] *= count
 
-                policy_metrics[pv_id][metric_name] += float(metric_value)
-
-            policy_agent_counts: dict[uuid.UUID, int] = {}
-            for _agent_id, pv_id in agent_policy_map.items():
-                policy_agent_counts[pv_id] = policy_agent_counts.get(pv_id, 0) + 1
-
-            policy_versions = [(pv_id, count) for pv_id, count in policy_agent_counts.items()]
+            policy_versions = list(policy_agent_counts.items())
             policy_metrics_list = [
                 (pv_id, metric_name, value)
                 for pv_id, metrics in policy_metrics.items()

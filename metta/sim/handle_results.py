@@ -331,6 +331,7 @@ def write_eval_results_to_observatory(
         insert_agent_policy,
         insert_episode,
         insert_episode_tag,
+        insert_policy_metric,
     )
 
     # Create DuckDB with episode stats
@@ -371,6 +372,25 @@ def write_eval_results_to_observatory(
                     agent_metrics = e.stats["agent"][agent_id]
                     for metric_name, metric_value in agent_metrics.items():
                         insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
+
+                failure_steps = e.failure_steps or []
+                policy_failure_steps: dict[int, int] = {}
+                for policy_idx, failure_step in zip(e.assignments, failure_steps, strict=False):
+                    if failure_step is None:
+                        continue
+                    policy_idx = int(policy_idx)
+                    policy_failure_steps[policy_idx] = min(
+                        int(failure_step), policy_failure_steps.get(policy_idx, int(failure_step))
+                    )
+
+                assigned_policy_indices = {int(idx) for idx in e.assignments}
+                for policy_idx in assigned_policy_indices:
+                    pv_id = policy_version_ids[policy_idx]
+                    failure_step = policy_failure_steps.get(policy_idx)
+                    exception_flag = 1.0 if failure_step is not None else 0.0
+                    insert_policy_metric(conn, episode_id, pv_id, "exception_flag", exception_flag)
+                    if failure_step is not None:
+                        insert_policy_metric(conn, episode_id, pv_id, "exception_step", float(failure_step))
 
         conn.close()
 

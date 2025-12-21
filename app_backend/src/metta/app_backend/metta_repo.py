@@ -157,6 +157,7 @@ class EpisodeWithTags(BaseModel):
     created_at: datetime
     tags: dict[str, str] = Field(default_factory=dict)
     avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
+    policy_metrics: dict[str, dict[str, float]] = Field(default_factory=dict)
 
     # We need this because we don't insert a json object into attributes, we insert a string reflecting the json object.
     @field_validator("attributes", mode="before")
@@ -1281,24 +1282,46 @@ WITH episode_tags_agg AS (
     FROM episode_tags
     GROUP BY episode_id
 ),
-episode_avg_rewards AS (
+episode_policy_metrics AS (
     SELECT
         e_sub.id AS episode_id,
-        jsonb_object_agg(
-            pv.id::text,
-            epm.value / NULLIF(ep.num_agents, 0)
-        ) FILTER (
-            WHERE epm.metric_name = 'reward'
-              AND ep.num_agents IS NOT NULL
-              AND ep.num_agents > 0
-        ) AS avg_rewards
+        pv.id AS policy_version_id,
+        epm.metric_name,
+        CASE
+            WHEN epm.metric_name = 'reward' AND ep.num_agents > 0 THEN epm.value / ep.num_agents
+            ELSE epm.value
+        END AS metric_value
     FROM episodes e_sub
     JOIN episode_policies ep ON ep.episode_id = e_sub.id
     JOIN policy_versions pv ON pv.id = ep.policy_version_id
     JOIN episode_policy_metrics epm
         ON epm.episode_internal_id = e_sub.internal_id
        AND epm.pv_internal_id = pv.internal_id
-    GROUP BY e_sub.id
+),
+episode_policy_metrics_map AS (
+    SELECT
+        episode_id,
+        jsonb_object_agg(
+            policy_version_id::text,
+            metrics_by_policy
+        ) AS policy_metrics
+    FROM (
+        SELECT
+            episode_id,
+            policy_version_id,
+            jsonb_object_agg(metric_name, metric_value) AS metrics_by_policy
+        FROM episode_policy_metrics
+        GROUP BY episode_id, policy_version_id
+    ) grouped
+    GROUP BY episode_id
+),
+episode_avg_rewards AS (
+    SELECT
+        episode_id,
+        jsonb_object_agg(policy_version_id::text, metric_value) AS avg_rewards
+    FROM episode_policy_metrics
+    WHERE metric_name = 'reward'
+    GROUP BY episode_id
 )
 SELECT
     e.id,
@@ -1309,10 +1332,12 @@ SELECT
     e.eval_task_id,
     e.created_at,
     COALESCE(t.tags, '{{}}'::jsonb) AS tags,
-    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards
+    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards,
+    COALESCE(pm.policy_metrics, '{{}}'::jsonb) AS policy_metrics
 FROM episodes e
 LEFT JOIN episode_tags_agg t ON t.episode_id = e.id
 LEFT JOIN episode_avg_rewards r ON r.episode_id = e.id
+LEFT JOIN episode_policy_metrics_map pm ON pm.episode_id = e.id
 {where_clause}
 ORDER BY e.created_at DESC
 {limit_clause}
