@@ -62,7 +62,7 @@ def _build_nim() -> None:
 class _EnsureNimMixin:
     def run(self, *args, **kwargs):  # type: ignore[override]
         _build_nim()
-        super().run(*args, **kwargs)
+        super().run(*args, **kwargs)  # type: ignore[misc]
 
 
 class BuildPyCommand(_EnsureNimMixin, build_py): ...

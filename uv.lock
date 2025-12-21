@@ -20,7 +20,6 @@ members = [
     "mettagrid",
     "pufferlib-core",
     "softmax",
-    "wandb-dashboard-mcp",
 ]
 
 [[package]]
@@ -341,17 +340,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b2/4d/71ec4d3939dc755264f680f6c2b4906423a304c3d18e96853f0a595dfe97/async_lru-2.0.5.tar.gz", hash = "sha256:481d52ccdd27275f42c43a928b4a50c3bfb2d67af4e78b170e3e0bb39c66e5bb", size = 10380, upload-time = "2025-03-16T17:25:36.919Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/49/d10027df9fce941cb8184e78a02857af36360d33e1721df81c5ed2179a1a/async_lru-2.0.5-py3-none-any.whl", hash = "sha256:ab95404d8d2605310d345932697371a5f40def0487c03d6d0ad9138de52c9943", size = 6069, upload-time = "2025-03-16T17:25:35.422Z" },
-]
-
-[[package]]
-name = "asyncio-mqtt"
-version = "0.16.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "paho-mqtt" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/64/c8a8c2ed51f3c1f4b8d2f244424d3bad3fbd4333eb01589c6b00a6dd2c04/asyncio_mqtt-0.16.2-py3-none-any.whl", hash = "sha256:fe70ea2c648b248779a7ff3d9218262cdd739083743dfaa7c0d52ba458a8ad71", size = 17380, upload-time = "2023-06-26T19:46:48.342Z" },
 ]
 
 [[package]]
@@ -2193,7 +2181,6 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "testcontainers" },
-    { name = "wandb-dashboard-mcp" },
 ]
 interactive = [
     { name = "anywidget" },
@@ -2213,7 +2200,6 @@ lint = [
 ]
 mcp-servers = [
     { name = "metta-pr-similarity-mcp" },
-    { name = "wandb-dashboard-mcp" },
 ]
 testing = [
     { name = "freezegun" },
@@ -2317,7 +2303,6 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "testcontainers", specifier = ">=4.10.0" },
-    { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
 ]
 interactive = [
     { name = "anywidget", specifier = ">=0.9.18" },
@@ -2335,10 +2320,7 @@ lint = [
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "ruff", specifier = ">=0.11.13" },
 ]
-mcp-servers = [
-    { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
-    { name = "wandb-dashboard-mcp", editable = "mcp_servers/wandb_dashboard" },
-]
+mcp-servers = [{ name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" }]
 testing = [
     { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
@@ -3038,15 +3020,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727, upload-time = "2025-04-19T11:48:59.673Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
-]
-
-[[package]]
-name = "paho-mqtt"
-version = "2.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/39/15/0a6214e76d4d32e7f663b109cf71fb22561c2be0f701d67f93950cd40542/paho_mqtt-2.1.0.tar.gz", hash = "sha256:12d6e7511d4137555a3f6ea167ae846af2c7357b10bc6fa4f7c3968fc1723834", size = 148848, upload-time = "2024-04-29T19:52:55.591Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/cb/00451c3cf31790287768bb12c6bec834f5d292eaf3022afc88e14b8afc94/paho_mqtt-2.1.0-py3-none-any.whl", hash = "sha256:6db9ba9b34ed5bc6b6e3812718c7e06e2fd7444540df2455d2c51bd58808feee", size = 67219, upload-time = "2024-04-29T19:52:48.345Z" },
 ]
 
 [[package]]
@@ -4903,55 +4876,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/3c/ad6d173639e233461329899067dcd3af7d4d20f637f323ecfe74bbead463/wandb_core-0.17.0b11-py3-none-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:da7cf560a04b248d736542070b439847578a706d2f667e12a7a59c69cdafaa39", size = 4521565, upload-time = "2024-04-12T02:14:05.419Z" },
     { url = "https://files.pythonhosted.org/packages/f1/00/1c2375e0cbac18dd0e0ccf7cc8249711e8b6dddab885b4e90cf193cf7b0b/wandb_core-0.17.0b11-py3-none-win32.whl", hash = "sha256:219f2def5ce8e0180e7231ba3e3cc8d186493ad8ac39907b69adf51684a083fa", size = 4585070, upload-time = "2024-04-12T02:14:07.498Z" },
     { url = "https://files.pythonhosted.org/packages/fb/ed/13e49074a044b28da55265e0ae95dd14f6f2e2b16b9d08ec94253d045bd4/wandb_core-0.17.0b11-py3-none-win_amd64.whl", hash = "sha256:1891ae0af383c9c32d393f057e04ce0718dba5d70bfab55747718a92e3bca7df", size = 4585076, upload-time = "2024-04-12T02:14:09.552Z" },
-]
-
-[[package]]
-name = "wandb-dashboard-mcp"
-version = "0.1.0"
-source = { editable = "mcp_servers/wandb_dashboard" }
-dependencies = [
-    { name = "asyncio-mqtt" },
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-    { name = "wandb" },
-    { name = "wandb-workspaces" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncio-mqtt" },
-    { name = "mcp", specifier = ">=1.0.0" },
-    { name = "mypy", marker = "extra == 'dev'" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "typing-extensions" },
-    { name = "wandb" },
-    { name = "wandb-workspaces" },
-]
-provides-extras = ["dev"]
-
-[[package]]
-name = "wandb-workspaces"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "wandb" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/59/d3/fce5adfa563b031540d876315fda1133d1923c6f69dfc0b96e0f5a023ee5/wandb_workspaces-0.2.1.tar.gz", hash = "sha256:772d16d21e3ed86dc3a2c8351b1e326dca42f67622236e406ff13421c8f3e6fe", size = 183263, upload-time = "2025-11-05T20:56:04.944Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/1e/d31ad23fd99b3be9963b002c80578b33119214cfa35797caa5d8acadeb2a/wandb_workspaces-0.2.1-py3-none-any.whl", hash = "sha256:57b5434977c8a98e5049b88eca6774559df35974cbe6240fa0c0bc6337e24699", size = 88651, upload-time = "2025-11-05T20:56:03.305Z" },
 ]
 
 [[package]]
