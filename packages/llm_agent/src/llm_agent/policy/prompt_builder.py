@@ -95,7 +95,6 @@ class LLMPromptBuilder:
         self._last_visible: VisibleElements | None = None
         self._debug_mode = debug_mode or verbose
         self._agent_id = agent_id
-
         # Store mg_cfg for id_map access
         self._mg_cfg = mg_cfg
 
@@ -482,7 +481,8 @@ class LLMPromptBuilder:
 
         return directions
 
-    def _build_directional_awareness_section(self, directions: dict[str, str]) -> str:
+    @staticmethod
+    def _build_directional_awareness_section(directions: dict[str, str]) -> str:
         """Build the directional awareness section for the prompt.
 
         Args:
@@ -500,7 +500,8 @@ class LLMPromptBuilder:
                 lines.append(f"  {direction}: {status} - can move")
         return "\n".join(lines)
 
-    def _get_direction_name(self, dx: int, dy: int) -> str:
+    @staticmethod
+    def _get_direction_name(dx: int, dy: int) -> str:
         """Get human-readable direction name from offset.
 
         Args:
@@ -530,7 +531,8 @@ class LLMPromptBuilder:
             return f"{vertical}-{horizontal}"
         return vertical or horizontal
 
-    def _extract_inventory(self, obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
+    @staticmethod
+    def _extract_inventory(obs: AgentObservation, agent_x: int, agent_y: int) -> dict[str, int]:
         """Extract inventory from tokens at agent's position.
 
         Args:
@@ -550,7 +552,8 @@ class LLMPromptBuilder:
                     inventory[resource] = token.value
         return inventory
 
-    def _build_inventory_section(self, inventory: dict[str, int]) -> str:
+    @staticmethod
+    def _build_inventory_section(inventory: dict[str, int]) -> str:
         """Build the inventory section for the prompt.
 
         Args:
