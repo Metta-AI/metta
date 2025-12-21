@@ -28,6 +28,13 @@ from .pathfinding import is_traversable as path_is_traversable
 from .pathfinding import is_within_bounds as path_is_within_bounds
 from .pathfinding_fast import PathCache, compute_goal_cells_fast
 from .types import CellType, ExtractorInfo, ObjectState, ParsedObservation
+
+# Import refactored managers
+from .exploration import ExplorationManager
+from .energy import EnergyManager
+from .resources import ResourceManager
+from .navigation import NavigationManager
+from .state_tracker import StateTracker
 from .utils import (
     change_vibe_action,
     is_adjacent,
@@ -212,6 +219,10 @@ class HarvestState:
     charger_info: dict[tuple[int, int], ChargerInfo] = field(default_factory=dict)
     current_recharge_target: Optional[tuple[int, int]] = None  # Which charger we're currently trying to reach
 
+    # DEAD-END AVOIDANCE: Remember positions where we got stuck with nothing useful
+    # Once explored and found empty, mark as dead-end and never return
+    dead_end_positions: set[tuple[int, int]] = field(default_factory=set)
+
     # POSITION-BASED STUCK DETECTION: Track recent positions to detect being stuck at a location
     position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
     forced_exploration_direction: Optional[str] = None  # Force exploration in this direction when badly stuck
@@ -270,6 +281,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         fh.setFormatter(formatter)
         self._logger.addHandler(fh)
         self._logger.info(f"=== HarvestPolicy Agent {agent_id} initialized ===")
+
+        # Initialize managers (refactored architecture)
+        self._tag_names = policy_env_info.tags  # Get tag names for observation parsing
+        self.exploration = ExplorationManager(self._obs_hr, self._obs_wr, self._tag_names)
+        self.energy = EnergyManager()
+        self.resources = ResourceManager()
+        self.navigation = NavigationManager(self._logger)
+        self.state_tracker = StateTracker(self._obs_hr, self._obs_wr, self._tag_names, self._logger)
 
     def initial_agent_state(self) -> HarvestState:
         """Initialize state for the agent."""
@@ -1057,41 +1076,15 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         """
         from .utils import find_direction_to_object_from_obs
 
-        # PRIORITY -1: STUCK RECOVERY - Try all directions to escape dead-end
-        # If agent is stuck ≥5 steps, it's likely in a dead-end/narrow corridor
-        # Solution: Try all 4 directions in priority order (prefer toward charger)
-        if state.consecutive_failed_moves >= 5:
-            self._logger.warning(f"  GATHER: STUCK ({state.consecutive_failed_moves} fails) - trying all directions to escape")
+        # PRIORITY -1: STUCK RECOVERY - Use navigation manager
+        if self.navigation.is_stuck(state, threshold=5):
+            # Mark dead-end using exploration manager
+            num_marked = self.exploration.mark_dead_end(state)
+            self._logger.warning(f"  GATHER: Marked {num_marked} dead-end positions")
 
-            import random
-            all_dirs = ["north", "south", "east", "west"]
-
-            # If we have charger, prioritize direction toward it
-            if state.discovered_chargers:
-                nearest_charger = self._find_nearest_charger(state)
-                dr = nearest_charger[0] - state.row
-                dc = nearest_charger[1] - state.col
-
-                # Determine preferred direction (toward charger)
-                if abs(dr) > abs(dc):
-                    preferred = "south" if dr > 0 else "north"
-                else:
-                    preferred = "west" if dc < 0 else "east"
-
-                # Reorder: preferred first, then others random
-                all_dirs.remove(preferred)
-                random.shuffle(all_dirs)
-                all_dirs.insert(0, preferred)
-
-            else:
-                # No charger - just shuffle randomly
-                random.shuffle(all_dirs)
-
-            # Rotate through directions each step to try different ones
-            # Use step_count to pick different direction each time
-            direction_index = state.step_count % 4
-            direction = all_dirs[direction_index]
-            self._logger.info(f"  STUCK RECOVERY: Trying {direction} (rotation {direction_index}/4)")
+            # Get recovery direction from navigation manager
+            nearest_charger = self._find_nearest_charger(state) if state.discovered_chargers else None
+            direction = self.navigation.handle_stuck_recovery(state, nearest_charger)
             return self._actions.move.Move(direction)
 
         # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
@@ -2021,6 +2014,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Calculate target position
             dr, dc = dir_offsets[direction]
             target_r, target_c = state.row + dr, state.col + dc
+
+            # DEAD-END AVOIDANCE: Never re-enter marked dead-ends
+            if (target_r, target_c) in state.dead_end_positions:
+                self._logger.debug(f"  EXPLORE: Direction {direction} leads to dead-end at {(target_r, target_c)} - skipping")
+                continue  # Skip this direction entirely
 
             # ENERGY SAFETY CHECK: Don't explore too far from charger
             if state.discovered_chargers:
