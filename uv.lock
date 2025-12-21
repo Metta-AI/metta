@@ -2246,7 +2246,7 @@ requires-dist = [
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
-    { name = "metta-sweep", editable = "adaptive" },
+    { name = "metta-sweep", editable = "sweep" },
     { name = "ninja", specifier = ">=1.11.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
@@ -2498,7 +2498,7 @@ requires-dist = [
 [[package]]
 name = "metta-sweep"
 version = "0.1.0"
-source = { editable = "adaptive" }
+source = { editable = "sweep" }
 dependencies = [
     { name = "metta-app-backend" },
     { name = "metta-common" },

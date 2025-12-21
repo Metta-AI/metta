@@ -148,7 +148,7 @@ default-groups = ["interactive", "dev"]
 [tool.uv.workspace]
 members = [
   "agent",
-  "adaptive",
+  "sweep",
   "app_backend",
   "common",
   "packages/codebot",
