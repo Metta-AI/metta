@@ -174,7 +174,6 @@ class CMPO(Loss):
             raise ValueError("Environment observation space must define shape for CMPO.")
         self.obs_shape = tuple(int(dim) for dim in obs_space.shape)
         self.obs_dim = int(torch.tensor(self.obs_shape).prod().item())
-
         action_space = env.single_action_space
         if not isinstance(action_space, gym_spaces.Discrete):
             raise NotImplementedError("CMPO currently supports only discrete action spaces.")
@@ -183,9 +182,6 @@ class CMPO(Loss):
         self.world_model = WorldModelEnsemble(cfg.world_model, self.obs_dim, self.action_dim).to(device)
         self.world_model_opt = torch.optim.Adam(self.world_model.parameters(), lr=cfg.world_model.learning_rate)
         self.transition_buffer = TransitionBuffer(cfg.world_model.buffer_size)
-
-        if hasattr(self.policy, "critic_quantiles"):
-            raise NotImplementedError("CMPO requires a scalar value head; quantile critics are not supported.")
 
         self.prior_model: Optional[Policy] = None
         if cfg.prior_ema_decay is not None:
@@ -314,10 +310,7 @@ class CMPO(Loss):
         log_pi = policy_td["full_log_probs"].reshape(pi_cmpo.shape)
         actor_loss = -(pi_cmpo.detach() * log_pi).sum(dim=-1).mean()
 
-        value_pred = policy_td["values"]
-        if value_pred.dim() != 2:
-            raise RuntimeError(f"CMPO expected scalar values with shape [B, T]; got {tuple(value_pred.shape)}")
-        value_pred = value_pred.reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
+        value_pred = policy_td["values"].reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
         v_target = (pi_cmpo.detach() * q_values).sum(dim=-1)
         value_loss = 0.5 * F.mse_loss(value_pred, v_target)
 
@@ -404,15 +397,10 @@ class CMPO(Loss):
         model.reset_memory()
         with torch.no_grad():
             td = model.forward(td, action=dummy_actions)
-        values = td["values"]
-        if values.dim() != 1:
-            raise RuntimeError(f"CMPO expected scalar values with shape [B]; got {tuple(values.shape)}")
-        return values.view(-1)
+        return td["values"].reshape(batch)
 
     def _flatten_obs(self, obs: Tensor) -> Tensor:
-        obs_f = obs.to(dtype=torch.float32)
-        if obs.dtype == torch.uint8:
-            obs_f = obs_f / 255.0
+        obs_f = obs.to(dtype=torch.float32) / 255.0
         return obs_f.view(obs.shape[0], -1)
 
     def _unflatten_obs(self, obs_flat: Tensor) -> Tensor:
