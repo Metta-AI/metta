@@ -604,6 +604,7 @@ class CMPO(Loss):
 
     def _simulate_rollout(self, state: Tensor, obs: Tensor, max_length: int) -> TensorDict | None:
         device = state.device
+        self.policy.reset_memory()
         values: list[Tensor] = []
         rewards: list[Tensor] = []
         extrinsic: list[Tensor] = []
@@ -714,41 +715,171 @@ class CMPO(Loss):
             },
             batch_size=(segments * traj_len,),
         )
+        self.policy.reset_memory()
         policy_td = self.policy.forward(policy_input, action=flat_actions)
         model_batch.set("policy_td", policy_td.reshape(segments, traj_len))
         return model_batch
+
+    def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
+        logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+        return logratio.exp()
+
+    def _compute_ppo_losses(
+        self,
+        *,
+        new_logprob: Tensor,
+        old_logprob: Tensor,
+        entropy: Tensor,
+        new_values: Tensor,
+        old_values: Tensor,
+        returns: Tensor,
+        advantages: Tensor,
+        ratio: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        pg_loss1 = -advantages * ratio
+        pg_loss2 = -advantages * torch.clamp(ratio, 1 - self.cfg.clip_coef, 1 + self.cfg.clip_coef)
+        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+        entropy_loss = entropy.mean()
+
+        if self.cfg.clip_vloss:
+            v_loss_unclipped = (new_values - returns) ** 2
+            vf_clip_coef = self.cfg.vf_clip_coef
+            v_clipped = old_values + torch.clamp(new_values - old_values, -vf_clip_coef, vf_clip_coef)
+            v_loss_clipped = (v_clipped - returns) ** 2
+            v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+        else:
+            v_loss = 0.5 * ((new_values - returns) ** 2).mean()
+
+        with torch.no_grad():
+            logratio = new_logprob - old_logprob
+            approx_kl = ((ratio - 1) - logratio).mean()
+            clipfrac = ((ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
+
+        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+
+    def _track(self, key: str, value: Tensor) -> None:
+        self.loss_tracker[key].append(float(value.item()))
+
+    def _process_minibatch_update(
+        self,
+        minibatch: TensorDict,
+        policy_td: TensorDict,
+        indices: Tensor,
+        prio_weights: Tensor,
+        advantages: Tensor,
+    ) -> Tensor:
+        old_logprob = minibatch["act_log_prob"]
+        new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+        entropy = policy_td["entropy"]
+
+        old_values = minibatch["values"]
+        new_values = policy_td["values"].view(old_values.shape)
+        values_for_adv = old_values
+        new_values_for_loss = new_values
+        if hasattr(self.policy, "critic_quantiles"):
+            values_for_adv = old_values.mean(dim=-1)
+            new_values_for_loss = new_values.mean(dim=-1)
+
+        ratio = self._importance_ratio(new_logprob, old_logprob)
+
+        adv_cfg = self.trainer_cfg.advantage
+        vtrace_adv = compute_advantage(
+            values_for_adv,
+            minibatch["rewards"],
+            minibatch["dones"],
+            ratio,
+            advantages.clone(),
+            adv_cfg.gamma,
+            adv_cfg.gae_lambda,
+            self.device,
+            adv_cfg.vtrace_rho_clip,
+            adv_cfg.vtrace_c_clip,
+        )
+        vtrace_adv = normalize_advantage_distributed(vtrace_adv, self.cfg.norm_adv)
+        vtrace_adv = prio_weights * vtrace_adv
+
+        returns = advantages + values_for_adv
+
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self._compute_ppo_losses(
+            new_logprob=new_logprob,
+            old_logprob=old_logprob,
+            entropy=entropy,
+            new_values=new_values_for_loss,
+            old_values=values_for_adv,
+            returns=returns,
+            advantages=vtrace_adv,
+            ratio=ratio,
+        )
+        v_loss = v_loss * self.cfg.vf_coef
+
+        update_td = TensorDict(
+            {
+                "ratio": ratio.detach(),
+                "values": new_values.view(old_values.shape).detach(),
+            },
+            batch_size=minibatch.batch_size,
+        )
+        self.replay.update(indices, update_td)
+
+        self._track("policy_loss", pg_loss)
+        self._track("value_loss", v_loss)
+        self._track("entropy", entropy_loss)
+        self._track("approx_kl", approx_kl)
+        self._track("clipfrac", clipfrac)
+        self._track("importance", ratio.mean())
+        self._track("current_logprobs", new_logprob.mean())
+
+        loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss
+        loss = add_dummy_loss_for_unused_params(
+            loss,
+            td=policy_td,
+            used_keys=["act_log_prob", "entropy", "values"],
+        )
+        return loss
 
     def _process_model_batch(self, model_batch: TensorDict) -> Tensor:
         policy_td: TensorDict = model_batch["policy_td"]
         old_logprob = model_batch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
-        newvalue = policy_td["values"]
+        new_values = policy_td["values"]
 
-        importance = self._importance_ratio(new_logprob, old_logprob)
-        adv = compute_advantage(
-            model_batch["values"],
+        values_for_adv = model_batch["values"]
+        new_values_for_loss = new_values
+        if hasattr(self.policy, "critic_quantiles"):
+            values_for_adv = values_for_adv.mean(dim=-1)
+            new_values_for_loss = new_values_for_loss.mean(dim=-1)
+
+        ratio = self._importance_ratio(new_logprob, old_logprob)
+        adv_cfg = self.trainer_cfg.advantage
+        vtrace_adv = compute_advantage(
+            values_for_adv,
             model_batch["rewards"],
             model_batch["dones"],
-            importance,
-            model_batch["advantages"],
-            self.loss_cfg.gamma,
-            self.loss_cfg.gae_lambda,
-            self.loss_cfg.vtrace.rho_clip,
-            self.loss_cfg.vtrace.c_clip,
+            ratio,
+            model_batch["advantages"].clone(),
+            adv_cfg.gamma,
+            adv_cfg.gae_lambda,
             self.device,
+            adv_cfg.vtrace_rho_clip,
+            adv_cfg.vtrace_c_clip,
         )
-        adv = normalize_advantage_distributed(adv, self.loss_cfg.norm_adv)
+        vtrace_adv = normalize_advantage_distributed(vtrace_adv, self.cfg.norm_adv)
 
-        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self.compute_ppo_losses(
-            model_batch,
-            new_logprob,
-            entropy,
-            newvalue,
-            importance,
-            adv,
+        returns = model_batch["advantages"] + values_for_adv
+
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = self._compute_ppo_losses(
+            new_logprob=new_logprob,
+            old_logprob=old_logprob,
+            entropy=entropy,
+            new_values=new_values_for_loss,
+            old_values=values_for_adv,
+            returns=returns,
+            advantages=vtrace_adv,
+            ratio=ratio,
         )
-        loss = pg_loss - self.loss_cfg.ent_coef * entropy_loss + v_loss * self.loss_cfg.vf_coef
+        loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss * self.cfg.vf_coef
 
         self._track("model_policy_loss", pg_loss)
         self._track("model_value_loss", v_loss)
@@ -762,7 +893,10 @@ class CMPO(Loss):
     # ------------------------------------------------------------------
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
-            self.policy.forward(td)
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         env_slice = context.training_env_id
         if env_slice is None:
@@ -839,6 +973,13 @@ class CMPO(Loss):
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
         stop_update_epoch = False
+        if mb_idx > 0 and self.cfg.target_kl is not None:
+            if self.loss_tracker["approx_kl"]:
+                avg_kl = sum(self.loss_tracker["approx_kl"]) / len(self.loss_tracker["approx_kl"])
+            else:
+                avg_kl = 0.0
+            if avg_kl > self.cfg.target_kl:
+                stop_update_epoch = True
 
         if mb_idx == 0:
             model_error = self._train_world_model()
@@ -846,24 +987,22 @@ class CMPO(Loss):
             self._update_curiosity_weight(model_error)
             self.scheduler.update(model_error)
             self._generate_model_rollouts()
-            self.advantages, self.anneal_beta = self._on_first_mb(context)
 
-        minibatch, indices, prio_weights = self._sample_minibatch(
-            advantages=self.advantages,
-            prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
-            prio_beta=self.anneal_beta,
-        )
+        minibatch = shared_loss_data["sampled_mb"]
+        if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
+            return self._zero(), shared_loss_data, stop_update_epoch
 
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-        policy_td = self._prepare_policy_input(minibatch)
-        shared_loss_data["policy_td"] = policy_td
+        policy_td = shared_loss_data["policy_td"]
+        indices = shared_loss_data["indices"][:, 0]
+        prio_weights = shared_loss_data["prio_weights"]
+        advantages = shared_loss_data["advantages"]
 
         real_loss = self._process_minibatch_update(
             minibatch=minibatch,
             policy_td=policy_td,
             indices=indices,
             prio_weights=prio_weights,
+            advantages=advantages,
         )
 
         model_ratio = self.scheduler.current_ratio
@@ -876,13 +1015,3 @@ class CMPO(Loss):
 
         total_loss = (1 - model_ratio) * real_loss + model_ratio * model_loss
         return total_loss, shared_loss_data, stop_update_epoch
-
-    def _prepare_policy_input(self, minibatch: TensorDict) -> TensorDict:
-        policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        B, TT = policy_td.batch_size
-        policy_td = policy_td.reshape(B * TT)
-        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
-        return policy_td.reshape(B, TT)
