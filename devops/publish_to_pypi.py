@@ -67,7 +67,7 @@ def update_dependency_versions(
     old_version: str,
     new_version: str,
     dry_run: bool = False,
-    skip_path: Path = None,
+    skip_path: Path,
 ) -> list[Path]:
     """
     Update all references to the package version in other pyproject.toml files.
@@ -85,7 +85,7 @@ def update_dependency_versions(
 
     for pyproject_file in pyproject_files:
         # Skip the package's own pyproject.toml
-        if skip_path and pyproject_file == skip_path:
+        if pyproject_file == skip_path:
             continue
 
         content = pyproject_file.read_text()
@@ -136,7 +136,7 @@ def update_dependency_versions(
     return updated_files
 
 
-def run_command(cmd: list[str], cwd: Path = None) -> None:
+def run_command(cmd: list[str], cwd: Path) -> None:
     """Run a command and handle errors."""
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
