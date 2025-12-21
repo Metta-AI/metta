@@ -5,11 +5,8 @@ import re
 import sys
 
 
-def find_repo_root(start_path=None):
+def find_repo_root(start_path: str):
     """Find the repository root by looking for common repo indicators."""
-    if start_path is None:
-        start_path = os.getcwd()
-
     current_path = os.path.abspath(start_path)
 
     # Look for common repository indicators

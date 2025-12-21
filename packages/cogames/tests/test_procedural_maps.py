@@ -156,7 +156,7 @@ CornerBundle = Literal["extractors", "none", "custom"]
 CrossBundle = Literal["none", "extractors", "custom"]
 
 
-def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None, cross_distance: int = 4):
+def _build_base_hub_only(*, corner_bundle: str, cross_bundle: str, cross_distance: int = 4):
     cfg = MapGen.Config(
         width=21,
         height=21,
@@ -164,8 +164,8 @@ def _build_base_hub_only(*, corner_bundle: str | None, cross_bundle: str | None,
         instance=BaseHub.Config(
             spawn_count=0,
             include_inner_wall=False,
-            corner_bundle=cast(CornerBundle, corner_bundle or "extractors"),
-            cross_bundle=cast(CrossBundle, cross_bundle or "none"),
+            corner_bundle=cast(CornerBundle, corner_bundle),
+            cross_bundle=cast(CrossBundle, cross_bundle),
             cross_distance=cross_distance,
         ),
     )
