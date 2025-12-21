@@ -8,9 +8,9 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
+from mettagrid.policy.architecture_spec import architecture_from_spec, architecture_spec_from_value
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.architecture_spec import architecture_from_spec, architecture_spec_from_value
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
