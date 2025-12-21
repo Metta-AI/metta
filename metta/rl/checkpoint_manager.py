@@ -9,9 +9,8 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
+from mettagrid.util.checkpoint_dir import upload_checkpoint_dir, write_checkpoint_dir
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -81,18 +80,22 @@ class CheckpointManager:
         return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
+        bundle = write_checkpoint_dir(
+            base_dir=self.checkpoint_dir,
+            run_name=self.run_name,
+            epoch=epoch,
+            architecture=architecture,
+            state_dict=state_dict,
+        )
 
         if self._remote_prefix:
-            remote_uri = save_mpt(f"{self.output_uri}/{filename}", architecture=architecture, state_dict=state_dict)
-            logger.debug("Policy checkpoint saved remotely to %s", remote_uri)
-            return remote_uri
+            remote_bundle = upload_checkpoint_dir(bundle, self.output_uri)
+            logger.debug("Policy checkpoint saved remotely to %s", remote_bundle.dir_uri)
+            return remote_bundle.dir_uri
 
-        logger.debug("Policy checkpoint saved locally to %s", local_uri)
-        return local_uri
+        logger.debug("Policy checkpoint saved locally to %s", bundle.dir_uri)
+        return bundle.dir_uri
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -154,7 +157,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-
-
-# Here temporarily for backwards-compatibility but we will move it
-CheckpointPolicy = MptPolicy
