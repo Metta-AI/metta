@@ -250,7 +250,7 @@ def analyze_init_file(file_path: Path, package_root: Path) -> InitAnalysis:
 
         # Detect if this is a public package or internal module
         # Public packages: packages/mettagrid, packages/cortex, etc.
-        # Internal modules: metta/rl, metta/sim, etc.
+        # Internal modules: metta/rl, sim/src/metta/sim, etc.
         is_public_package = "packages" in relative.parts
 
         # Determine recommendation based on package type and lazy loading status

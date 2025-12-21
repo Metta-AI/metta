@@ -1,5 +1,4 @@
-# metta/sim/simulation_config.py
-
+# sim/src/metta/sim/simulation_config.py
 
 from pydantic import Field
 
