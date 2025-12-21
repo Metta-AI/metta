@@ -70,12 +70,12 @@ class LLMPromptBuilder:
     """
 
     def __init__(
-            self,
-            policy_env_info: PolicyEnvInterface,
-            context_window_size: int = 20,
-            mg_cfg: MettaGridConfig | None = None,
-            agent_id: int = 0,
-            verbose: bool = False,
+        self,
+        policy_env_info: PolicyEnvInterface,
+        context_window_size: int = 20,
+        mg_cfg: MettaGridConfig | None = None,
+        agent_id: int = 0,
+        verbose: bool = False,
     ):
         """Initialize prompt builder.
 
@@ -106,8 +106,8 @@ class LLMPromptBuilder:
                     print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
             else:
                 if self._verbose:
-                    print(
-                        f"[LLMPromptBuilder] No chest vibe transfers found. chest_config={chest_config}, has vibe_transfers={hasattr(chest_config, 'vibe_transfers') if chest_config else 'N/A'}")
+                    has_vibe = hasattr(chest_config, "vibe_transfers") if chest_config else "N/A"
+                    print(f"[LLMPromptBuilder] No chest vibe transfers. config={chest_config}, has={has_vibe}")
         else:
             if self._verbose:
                 print("[LLMPromptBuilder] No mg_cfg provided, chest vibe transfers will be empty")
@@ -195,8 +195,18 @@ class LLMPromptBuilder:
         for protocol in self._policy_env_info.assembler_protocols:
             # Format inputs
             input_parts = []
-            for resource in ["carbon", "oxygen", "germanium", "silicon", "energy", "heart", "decoder", "modulator",
-                             "resonator", "scrambler"]:
+            for resource in [
+                "carbon",
+                "oxygen",
+                "germanium",
+                "silicon",
+                "energy",
+                "heart",
+                "decoder",
+                "modulator",
+                "resonator",
+                "scrambler",
+            ]:
                 amount = protocol.input_resources.get(resource, 0)
                 if amount > 0:
                     input_parts.append(f"{amount} {resource}")
@@ -331,17 +341,16 @@ class LLMPromptBuilder:
         # Load template and substitute variables
         template = _load_prompt_template("full_prompt")
         return (
-            template
-            .replace("{{BASIC_INFO}}", self.basic_info_prompt())
+            template.replace("{{BASIC_INFO}}", self.basic_info_prompt())
             .replace("{{OBSERVABLE}}", self.observable_prompt(obs, include_actions=True))
             .replace("{{AGENT_ID}}", str(self._agent_id))
             .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
         )
 
     def context_prompt(
-            self,
-            obs: AgentObservation,
-            force_basic_info: bool = False,
+        self,
+        obs: AgentObservation,
+        force_basic_info: bool = False,
     ) -> tuple[str, bool]:
         """Build prompt with smart context window management.
 
@@ -374,16 +383,18 @@ class LLMPromptBuilder:
             # Build common actions list
             common_actions = ["noop", "move_north", "move_south", "move_west", "move_east"]
             # Add vibe actions for resources/hearts
-            vibe_actions = [name for name in self._policy_env_info.action_names if
-                            name.startswith("change_vibe_") and any(
-                                x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])]
+            vibe_actions = [
+                name
+                for name in self._policy_env_info.action_names
+                if name.startswith("change_vibe_")
+                and any(x in name for x in ["heart", "carbon", "oxygen", "silicon", "germanium", "default"])
+            ]
             action_list = common_actions + vibe_actions[:10]  # Limit to top 10 vibe actions
 
             # Load template and substitute variables
             template = _load_prompt_template("dynamic_prompt")
             prompt = (
-                template
-                .replace("{{OBSERVABLE}}", self.observable_prompt(obs))
+                template.replace("{{OBSERVABLE}}", self.observable_prompt(obs))
                 .replace("{{ACTIONS}}", ", ".join(action_list[:8]) + ", ...")
                 .replace("{{AGENT_ID}}", str(self._agent_id))
                 .replace("{{ROLE_ASSIGNMENT}}", self._get_role_assignment())
@@ -447,11 +458,13 @@ class LLMPromptBuilder:
             if token.feature.name == "tag" and token.value < len(self._policy_env_info.tags):
                 tag_name = self._policy_env_info.tags[token.value]
 
-            spatial_grid[(x, y)].append({
-                "feature": token.feature.name,
-                "value": token.value,
-                "tag": tag_name,
-            })
+            spatial_grid[(x, y)].append(
+                {
+                    "feature": token.feature.name,
+                    "value": token.value,
+                    "tag": tag_name,
+                }
+            )
 
         directions = {}
         checks = [
@@ -573,16 +586,26 @@ class LLMPromptBuilder:
         """
         essential = ["noop", "move_north", "move_south", "move_east", "move_west"]
         # Add resource-related vibes
-        for vibe in ["heart_a", "heart_b", "carbon_a", "carbon_b", "oxygen_a", "oxygen_b",
-                     "germanium_a", "germanium_b", "silicon_a", "silicon_b", "gear", "default"]:
+        for vibe in [
+            "heart_a",
+            "heart_b",
+            "carbon_a",
+            "carbon_b",
+            "oxygen_a",
+            "oxygen_b",
+            "germanium_a",
+            "germanium_b",
+            "silicon_a",
+            "silicon_b",
+            "gear",
+            "default",
+        ]:
             action_name = f"change_vibe_{vibe}"
             if action_name in self._policy_env_info.action_names:
                 essential.append(action_name)
         return essential
 
-    def _extract_visible_objects_with_coords(
-            self, obs: AgentObservation, agent_x: int, agent_y: int
-    ) -> list[dict]:
+    def _extract_visible_objects_with_coords(self, obs: AgentObservation, agent_x: int, agent_y: int) -> list[dict]:
         """Extract all visible objects with their absolute coordinates and properties.
 
         Args:
@@ -671,16 +694,19 @@ class LLMPromptBuilder:
         agent_x = self._policy_env_info.obs_width // 2
         agent_y = self._policy_env_info.obs_height // 2
 
-        lines = [f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
-                 "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)", ""]
+        lines = [
+            f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
+            "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)",
+            "",
+        ]
 
         for obj in objects:
             # Calculate absolute position from relative
-            abs_x = obj['x'] + agent_x
-            abs_y = obj['y'] + agent_y
+            abs_x = obj["x"] + agent_x
+            abs_y = obj["y"] + agent_y
 
             # Calculate direction from agent
-            direction = self._get_direction_name(obj['x'], obj['y'])
+            direction = self._get_direction_name(obj["x"], obj["y"])
 
             # Format: "assembler at (7, 5) - EAST"
             line = f"  {obj['name']} at ({abs_x},{abs_y}) - {direction}"
@@ -741,7 +767,7 @@ class LLMPromptBuilder:
 
     @staticmethod
     def _bfs_first_move(
-            start: tuple[int, int],
+        start: tuple[int, int],
         target: tuple[int, int],
         blocked: set[tuple[int, int]],
         grid_width: int,
@@ -829,9 +855,13 @@ class LLMPromptBuilder:
 
         # Important objects to pathfind to
         important_objects = {
-            "charger", "assembler", "chest",
-            "carbon_extractor", "oxygen_extractor",
-            "germanium_extractor", "silicon_extractor",
+            "charger",
+            "assembler",
+            "chest",
+            "carbon_extractor",
+            "oxygen_extractor",
+            "germanium_extractor",
+            "silicon_extractor",
         }
 
         # Build wall map
