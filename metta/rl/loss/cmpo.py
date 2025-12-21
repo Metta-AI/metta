@@ -1,11 +1,4 @@
-"""Curiosity Model Policy Optimization loss implementation.
-
-This module replaces the previous clip-mirror surrogate with a faithful
-implementation of Curiosity Model Policy Optimization (CMPO). CMPO augments
-policy-gradient updates with a learned world-model, a curiosity module that
-distinguishes positive and negative novelty, and adaptive scheduling of model
-and environment data.
-"""
+"""Curiosity Model Policy Optimization (CMPO) loss."""
 
 from __future__ import annotations
 
@@ -31,7 +24,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params
+from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
 from mettagrid.base_config import Config
 
 
@@ -679,19 +672,8 @@ class CMPO(Loss):
         if model_batch is None:
             return None
 
-        traj_len = model_batch.batch_size[1]
-        flat_actions = model_batch["actions"].reshape(segments * traj_len, -1)
-        policy_input = TensorDict(
-            {
-                "env_obs": model_batch["env_obs"].reshape(segments * traj_len, *self.obs_shape),
-                "batch": torch.full((segments * traj_len,), segments, dtype=torch.long, device=device),
-                "bptt": torch.full((segments * traj_len,), traj_len, dtype=torch.long, device=device),
-            },
-            batch_size=(segments * traj_len,),
-        )
-        self.policy.reset_memory()
-        policy_td = self.policy.forward(policy_input, action=flat_actions)
-        model_batch.set("policy_td", policy_td.reshape(segments, traj_len))
+        policy_td = forward_policy_for_training(self.policy, model_batch, self.policy_experience_spec)
+        model_batch.set("policy_td", policy_td)
         return model_batch
 
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
@@ -744,6 +726,7 @@ class CMPO(Loss):
         prio_weights: Optional[Tensor] = None,
         update_indices: Optional[Tensor] = None,
         prefix: str = "",
+        track_importance: bool = True,
     ) -> Tensor:
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
@@ -800,15 +783,16 @@ class CMPO(Loss):
             )
             self.replay.update(update_indices, update_td)
 
-        metrics = {
+        metrics: dict[str, Tensor] = {
             "policy_loss": pg_loss,
             "value_loss": v_loss,
             "entropy": entropy_loss,
             "approx_kl": approx_kl,
             "clipfrac": clipfrac,
-            "importance": ratio.mean(),
-            "current_logprobs": new_logprob.mean(),
         }
+        if track_importance:
+            metrics["importance"] = ratio.mean()
+            metrics["current_logprobs"] = new_logprob.mean()
         for key, value in metrics.items():
             name = f"{prefix}{key}" if prefix else key
             self._track(name, value)
@@ -842,6 +826,7 @@ class CMPO(Loss):
             model_batch["policy_td"],
             model_batch["advantages"],
             prefix="model_",
+            track_importance=False,
         )
 
     # ------------------------------------------------------------------
