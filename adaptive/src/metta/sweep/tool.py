@@ -7,9 +7,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+from cogweb.cogweb_client import CogwebClient
 from pydantic import Field
 
-from cogweb.cogweb_client import CogwebClient
 from metta.adaptive import AdaptiveConfig, AdaptiveController
 from metta.adaptive.dispatcher import LocalDispatcher, SkypilotDispatcher
 from metta.adaptive.stores import WandbStore
@@ -32,6 +32,7 @@ def _auto_wandb_config(run: str | None = None) -> WandbConfig:
             cfg.data_dir = f"./train_dir/{run}"
         return cfg
     return auto_wandb_config(run=run)
+
 
 logger = logging.getLogger(__name__)
 
