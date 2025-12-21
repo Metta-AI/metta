@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-adaptive"
+version = "0.1.0"
+description = "Adaptive orchestration and sweep utilities for Metta"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
+dependencies = [
+  "metta-app-backend",
+  "metta-common",
+  "mettagrid",
+  "numpy>=2",
+  "pydantic>=2.12.2",
+  "pyro-ppl>=1.9.1",
+  "python-dateutil>=2.9.0",
+  "tenacity>=9.0.0",
+  "torch==2.9.0",
+  "wandb>=0.23.0",
+]
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.401",
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "ruff>=0.11.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+include = [
+  "metta.adaptive",
+  "metta.adaptive.*",
+  "metta.sweep",
+  "metta.sweep.*",
+  "cogweb",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.adaptive", "metta.sweep", "cogweb"]
+
+[tool.uv.sources]
+metta-app-backend = { workspace = true }
+metta-common = { workspace = true }
+mettagrid = { workspace = true }
