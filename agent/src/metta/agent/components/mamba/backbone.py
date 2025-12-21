@@ -19,10 +19,8 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .wrapper import MambaConfig as _WrapperConfigType
-    from .wrapper import MambaWrapperModel as _WrapperModelType
 else:
     _WrapperConfigType = Any
-    _WrapperModelType = Any
 
 _WRAPPER_TYPES: Optional[Tuple[type, type]] = None
 

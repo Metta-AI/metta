@@ -77,22 +77,3 @@ async def execute_query_and_log(
     """
     async with timed_query(con, query, params, description) as cursor:
         return await cursor.fetchall()
-
-
-async def execute_single_row_query_and_log(
-    con: AsyncConnection, query: Query, params: Tuple[Any, ...] = (), description: str = ""
-) -> TupleRow | None:
-    """
-    Execute an async query with timing and logging, returning the first result.
-
-    Args:
-        con: Async database connection
-        query: SQL query string
-        params: Query parameters
-        description: Optional description for the query
-
-    Returns:
-        First query result (fetchone())
-    """
-    async with timed_query(con, query, params, description) as cursor:
-        return await cursor.fetchone()
