@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -33,6 +33,14 @@ class TeacherConfig(Config):
     # Match mainline BC defaults: start at 20% teacher-led, anneal to 0.
     teacher_led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
     student_led_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Optional per-mode overrides applied to the selected teacher loss config.
+    #
+    # Example CLI usage:
+    #   teacher.mode=eer_kickstarter teacher.policy_uri="s3://..." teacher.kwargs.r_lambda=0.25
+    #
+    # NOTE: This is applied inside apply_teacher_phase() so scheduled annealing rules
+    # (e.g. r_lambda -> 0) start from the overridden value.
+    kwargs: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def enabled(self) -> bool:
@@ -107,6 +115,7 @@ def apply_teacher_phase(
     if teacher_cfg.mode == "sliced_cloner":
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
+        _apply_teacher_kwargs(loss_cfg=slicer, teacher_cfg=teacher_cfg)
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
@@ -126,6 +135,7 @@ def apply_teacher_phase(
         grow. PPO critic won't update weights because vf_coef is 0.0. PPO actor is disabled."""
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
+        _apply_teacher_kwargs(loss_cfg=slicer, teacher_cfg=teacher_cfg)
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
@@ -145,6 +155,7 @@ def apply_teacher_phase(
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
+        _apply_teacher_kwargs(loss_cfg=supervisor, teacher_cfg=teacher_cfg)
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("supervisor")
@@ -168,6 +179,7 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
+        _apply_teacher_kwargs(loss_cfg=sliced_kick, teacher_cfg=teacher_cfg)
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
@@ -187,6 +199,7 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         eer_kick = losses.eer_kickstarter
         eer_kick.enabled = True
+        _apply_teacher_kwargs(loss_cfg=eer_kick, teacher_cfg=teacher_cfg)
         eer_kick.teacher_uri = teacher_cfg.policy_uri
 
         _gate_loss("eer_kickstarter")
@@ -232,6 +245,7 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         ks = losses.kickstarter
         ks.enabled = True
+        _apply_teacher_kwargs(loss_cfg=ks, teacher_cfg=teacher_cfg)
         ks.teacher_uri = teacher_cfg.policy_uri
         ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
@@ -268,6 +282,7 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         logit = losses.logit_kickstarter
         logit.enabled = True
+        _apply_teacher_kwargs(loss_cfg=logit, teacher_cfg=teacher_cfg)
         logit.teacher_uri = teacher_cfg.policy_uri
         logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
@@ -304,6 +319,7 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         eer_cl = losses.eer_cloner
         eer_cl.enabled = True
+        _apply_teacher_kwargs(loss_cfg=eer_cl, teacher_cfg=teacher_cfg)
 
         _gate_loss("eer_cloner")
         _gate_critic_after_teacher()
@@ -339,3 +355,19 @@ def apply_teacher_phase(
 def _require_policy_uri(cfg: TeacherConfig) -> None:
     if not cfg.policy_uri:
         raise ValueError(f"TeacherConfig.mode='{cfg.mode}' requires policy_uri to be set.")
+
+
+def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> None:
+    """Apply teacher.kwargs overrides onto a concrete loss config.
+
+    This is intentionally applied during apply_teacher_phase() so any scheduled
+    HyperUpdateRules use the overridden start values.
+    """
+
+    if not teacher_cfg.kwargs:
+        return
+    for key, value in teacher_cfg.kwargs.items():
+        try:
+            loss_cfg.override(key, value)
+        except Exception as e:  # noqa: BLE001 - surface as a user-facing config error
+            raise ValueError(f"Invalid teacher.kwargs override for mode='{teacher_cfg.mode}': {key}={value!r}") from e
