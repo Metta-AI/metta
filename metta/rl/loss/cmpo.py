@@ -140,7 +140,7 @@ class TransitionBuffer:
     def __len__(self) -> int:
         return len(self._buffer)
 
-    def sample(self, batch_size: int, device: torch.device) -> TensorDict | None:
+    def sample(self, batch_size: int, device: torch.device) -> Optional[TensorDict]:
         if not self._buffer:
             return None
         actual = min(batch_size, len(self._buffer))
@@ -184,16 +184,16 @@ class CMPO(Loss):
         self.world_model_opt = torch.optim.Adam(self.world_model.parameters(), lr=cfg.world_model.learning_rate)
         self.transition_buffer = TransitionBuffer(cfg.world_model.buffer_size)
 
-        self.prior_model: Policy | None = None
+        self.prior_model: Optional[Policy] = None
         if cfg.prior_ema_decay is not None:
             self.prior_model = copy.deepcopy(self.policy).to(device)
             for param in self.prior_model.parameters():
                 param.requires_grad = False
 
-        self._prev_obs: Tensor | None = None
-        self._prev_action_enc: Tensor | None = None
-        self._prev_done: Tensor | None = None
-        self._has_prev: Tensor | None = None
+        self._prev_obs: Optional[Tensor] = None
+        self._prev_action_enc: Optional[Tensor] = None
+        self._prev_done: Optional[Tensor] = None
+        self._has_prev: Optional[Tensor] = None
 
     def attach_replay_buffer(self, experience: Experience) -> None:  # type: ignore[override]
         super().attach_replay_buffer(experience)
@@ -337,9 +337,7 @@ class CMPO(Loss):
         if decay is None:
             return
         with torch.no_grad():
-            for prior_param, online_param in zip(
-                self.prior_model.parameters(), self.policy.parameters(), strict=False
-            ):
+            for prior_param, online_param in zip(self.prior_model.parameters(), self.policy.parameters(), strict=False):
                 prior_param.data = decay * prior_param.data + (1 - decay) * online_param.data
             for prior_buf, online_buf in zip(self.prior_model.buffers(), self.policy.buffers(), strict=False):
                 prior_buf.copy_(online_buf)
