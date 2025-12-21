@@ -5,7 +5,7 @@ from typing import Any, Mapping
 
 import torch
 
-from mettagrid.policy.checkpoint_policy import CheckpointDir, CheckpointPolicy, WEIGHTS_FILENAME
+from mettagrid.policy.checkpoint_policy import WEIGHTS_FILENAME, CheckpointDir, CheckpointPolicy
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
