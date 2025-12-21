@@ -99,20 +99,11 @@ class EERKickstarter(Loss):
             # --- Reward Shaping ---
             # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
             # We use cached teacher probs from the previous step.
-
             env_slice = context.training_env_id
+            indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
 
-            # Handle slice or direct indexing
-            if isinstance(env_slice, slice):
-                indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
-            else:
-                indices = env_slice
-
-            # Only shape rewards if we have valid history for these agents
             valid_mask = self.has_last_probs[indices]
-
             if valid_mask.any():
-                # Get relevant cached probs: (batch, n_actions)
                 last_probs = self.last_teacher_log_probs[indices]
 
                 # Get actions taken at t-1: (batch,)
@@ -125,8 +116,6 @@ class EERKickstarter(Loss):
                 intrinsic_reward = last_probs.gather(1, last_actions.unsqueeze(1)).squeeze(1)
 
                 # Add to rewards in place (modifies the buffer view)
-                # Note: We multiply by valid_mask to ensure we don't shape rewards for the very first step
-                # where we don't have previous teacher probs.
                 td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
 
             # Update cache for next step
@@ -134,7 +123,6 @@ class EERKickstarter(Loss):
             self.has_last_probs[indices] = True
 
         # Store experience
-        env_slice = context.training_env_id
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
@@ -148,30 +136,20 @@ class EERKickstarter(Loss):
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
 
-        # Note: Rewards are already modified in the buffer during rollout,
-        # so GAE computed in CoreTrainingLoop uses the shaped rewards.
-        # We do NOT re-compute advantages here.
-
-        # Action loss (cross entropy): Minimize KL(pi_student || pi_teacher)
-        # Equivalent to maximizing sum(pi_student * log(pi_teacher))
-        # So loss is NEGATIVE of that sum.
         student_full_log_probs = student_td["full_log_probs"]
         teacher_full_log_probs = minibatch["teacher_full_log_probs"]
-
-        # We add a negative sign because we want to MINIMIZE the loss,
-        # but maximizing likelihood means maximizing the sum.
         ks_action_loss = -(student_full_log_probs.exp() * teacher_full_log_probs).sum(dim=-1).mean()
 
-        # Value loss (Auxiliary task to make student value predict teacher value)
-        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
-        student_value = student_td["values"].to(dtype=torch.float32)
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        # # Value loss
+        # teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
+        # student_value = student_td["values"].to(dtype=torch.float32)
+        # ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
-        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        loss = ks_action_loss * self.cfg.action_loss_coef  # + ks_value_loss * self.cfg.value_loss_coef
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
+        # self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        # self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False

@@ -150,17 +150,17 @@ class SlicedKickstarter(Loss):
             (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
         )
 
-        # value loss
-        teacher_value = minibatch["teacher_values"].detach()
-        student_value = student_td["values"]
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        # # value loss
+        # teacher_value = minibatch["teacher_values"].detach()
+        # student_value = student_td["values"]
+        # ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
 
-        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        loss = ks_action_loss * self.cfg.action_loss_coef  # + ks_value_loss * self.cfg.value_loss_coef
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
+        # self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        # self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
         self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
         self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
