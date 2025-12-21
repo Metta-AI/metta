@@ -15,6 +15,7 @@ members = [
     "metta",
     "metta-agent",
     "metta-app-backend",
+    "metta-cogworks",
     "metta-common",
     "metta-pr-similarity-mcp",
     "mettagrid",
@@ -2121,6 +2122,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "metta-agent" },
     { name = "metta-app-backend" },
+    { name = "metta-cogworks" },
     { name = "metta-common" },
     { name = "ninja" },
     { name = "numpy" },
@@ -2243,6 +2245,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
+    { name = "metta-cogworks", editable = "cogworks" },
     { name = "metta-common", editable = "common" },
     { name = "ninja", specifier = ">=1.11.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2429,6 +2432,45 @@ dev = [
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.11.13" },
+]
+
+[[package]]
+name = "metta-cogworks"
+version = "0.1.0"
+source = { editable = "cogworks" }
+dependencies = [
+    { name = "mettagrid" },
+    { name = "numpy" },
+    { name = "pufferlib-core" },
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "pufferlib-core", editable = "packages/pufferlib-core" },
+    { name = "pydantic", specifier = ">=2.12.2" },
+    { name = "typing-extensions", specifier = ">=4.12.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-cov", specifier = ">=6.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "ruff", specifier = ">=0.11.13" },
