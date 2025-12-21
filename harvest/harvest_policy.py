@@ -115,6 +115,9 @@ class HarvestState:
     consecutive_failed_moves: int = 0
     last_successful_move_step: int = 0
 
+    # Single-use tracking - remember which extractors we've exhausted
+    used_extractors: set[tuple[int, int]] = field(default_factory=set)  # Positions of depleted extractors
+
     # Stuck recovery - cycle through directions when stuck
     stuck_direction_idx: int = 0
     stuck_recovery_active: bool = False
@@ -173,8 +176,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         self._protocol_output_prefix = "protocol_output:"
 
         # Energy thresholds
-        self._recharge_low = 35
-        self._recharge_high = 85
+        self._recharge_critical = 10  # STOP ALL non-recharge activity
+        self._recharge_low = 50  # Start looking for charger (increased from 35)
+        self._recharge_high = 90  # Stay charging until well-charged (increased from 85)
 
     def initial_agent_state(self) -> HarvestState:
         """Initialize state for the agent."""
@@ -262,7 +266,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # This ensures we don't abandon a productive quadrant prematurely
         steps_in_quadrant = state.step_count - state.quadrant_start_step
         no_recent_progress = state.step_count - state.last_exploration_progress_step > state.steps_per_quadrant // 2
-        if steps_in_quadrant > state.steps_per_quadrant and no_recent_progress:
+
+        # CRITICAL FIX for quadrant_buildings: Force quadrant rotation to ensure coverage
+        # Reduce time per quadrant for better coverage on quadrant-specific missions
+        max_steps_per_quadrant = min(state.steps_per_quadrant, 200)  # Cap at 200 steps/quadrant
+        if steps_in_quadrant > max_steps_per_quadrant and no_recent_progress:
             state.exploration_quadrant = (state.exploration_quadrant + 1) % 4
             state.quadrant_start_step = state.step_count
 
@@ -663,14 +671,23 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         extractor.clipped = obj_state.clipped > 0
         extractor.remaining_uses = obj_state.remaining_uses
 
+        # CRITICAL FIX for single_use_swarm: Mark depleted extractors
+        if obj_state.remaining_uses == 0:
+            state.used_extractors.add(pos)
+
     def _update_phase(self, state: HarvestState) -> None:
         """Update phase based on current state."""
-        # Priority 1: Recharge if energy low
+        # Priority 1: CRITICAL energy - MUST recharge immediately
+        if state.energy < self._recharge_critical:
+            state.phase = HarvestPhase.RECHARGE
+            return
+
+        # Priority 2: Low energy - start recharging
         if state.energy < self._recharge_low:
             state.phase = HarvestPhase.RECHARGE
             return
 
-        # Stay in recharge until energy restored
+        # Stay in recharge until energy well-restored
         if state.phase == HarvestPhase.RECHARGE and state.energy < self._recharge_high:
             return
 
@@ -1015,7 +1032,24 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._navigate_to_station(state, "chest")
 
     def _do_recharge(self, state: HarvestState) -> Action:
-        """Recharge at the charger."""
+        """Recharge at the charger.
+
+        CRITICAL FIX for energy_starved missions:
+        - If energy CRITICAL (< 10), only move if charger is visible/adjacent
+        - Otherwise noop to conserve energy and avoid death
+        """
+        # CRITICAL ENERGY: Only move if charger is very close
+        if state.energy < self._recharge_critical:
+            # Check if charger visible in current observation
+            charger_direction = self._find_station_direction_in_obs(state, "charger")
+            if charger_direction is not None:
+                return self._actions.move.Move(charger_direction)
+
+            # Charger not visible - STOP MOVING to conserve energy
+            # Better to noop and hope charger appears than waste last energy
+            return self._actions.noop.Noop()
+
+        # Normal energy: navigate normally to charger
         return self._navigate_to_station(state, "charger")
 
     def _calculate_deficits(self, state: HarvestState) -> dict[str, int]:
@@ -1043,7 +1077,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _find_nearest_extractor(self, state: HarvestState, resource_type: str) -> Optional[ExtractorInfo]:
         """Find the nearest available extractor of a given type."""
         extractors = state.extractors.get(resource_type, [])
-        available = [e for e in extractors if not e.clipped and e.remaining_uses > 0]
+        available = [
+            e for e in extractors
+            if not e.clipped
+            and e.remaining_uses > 0
+            and e.position not in state.used_extractors  # CRITICAL: Skip depleted extractors
+        ]
 
         if not available:
             return None
@@ -1210,13 +1249,29 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if nav_direction is not None:
                 return self._actions.move.Move(nav_direction)
 
-        # Priority 3: Use frontier-based exploration (guarantees coverage on large maps)
+        # Priority 3: Navigate to current exploration quadrant target
+        # CRITICAL for quadrant_buildings missions
+        quadrant_target = self._get_quadrant_target(state)
+        if quadrant_target not in state.explored_cells:
+            action = self._move_towards(state, quadrant_target, reach_adjacent=False)
+            if action.name != "noop":
+                return action
+
+        # Priority 4: Use frontier-based exploration (guarantees coverage on large maps)
         frontier_targets = self._find_frontier_targets(state)
         if frontier_targets:
-            # CRITICAL: On large maps, pick FARTHEST frontier to avoid local loops
-            # This ensures we systematically explore outward instead of retracing
+            # CRITICAL: On large maps, pick FARTHEST frontier in current quadrant
+            # This ensures we systematically explore the current quadrant
             is_large_map = state.observed_map_extent > 50
             if is_large_map:
+                # Filter frontiers to current quadrant, or use all if none in quadrant
+                quadrant_frontiers = [
+                    t for t in frontier_targets
+                    if self._is_in_current_quadrant(state, t)
+                ]
+                if quadrant_frontiers:
+                    frontier_targets = quadrant_frontiers
+
                 # Farthest frontier - maximizes exploration coverage
                 target = max(frontier_targets, key=lambda t: abs(t[0] - state.row) + abs(t[1] - state.col))
             else:
@@ -1294,6 +1349,40 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     break
 
         return frontiers
+
+    def _get_quadrant_target(self, state: HarvestState) -> tuple[int, int]:
+        """Get target position in the current exploration quadrant.
+
+        CRITICAL for quadrant_buildings missions - ensures systematic coverage.
+        """
+        center = state.map_height // 2
+        offset = state.map_height // 4  # Quarter of map size
+
+        # Quadrant 0: NorthEast, 1: SouthEast, 2: SouthWest, 3: NorthWest
+        if state.exploration_quadrant == 0:  # NE
+            return (center - offset, center + offset)
+        elif state.exploration_quadrant == 1:  # SE
+            return (center + offset, center + offset)
+        elif state.exploration_quadrant == 2:  # SW
+            return (center + offset, center - offset)
+        else:  # NW
+            return (center - offset, center - offset)
+
+    def _is_in_current_quadrant(self, state: HarvestState, pos: tuple[int, int]) -> bool:
+        """Check if position is in the current exploration quadrant."""
+        r, c = pos
+        center = state.map_height // 2
+
+        # Quadrant 0: NE (north=top=negative, east=right=positive)
+        # Quadrant 1: SE, 2: SW, 3: NW
+        if state.exploration_quadrant == 0:  # NE
+            return r < center and c >= center
+        elif state.exploration_quadrant == 1:  # SE
+            return r >= center and c >= center
+        elif state.exploration_quadrant == 2:  # SW
+            return r >= center and c < center
+        else:  # NW
+            return r < center and c < center
 
 
 class HarvestPolicy(MultiAgentPolicy):
