@@ -22,7 +22,7 @@ def get_observation(
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
-        o, r, d, t, info, env_id, mask = vecenv.recv()
+        o, r, d, t, ta, info, env_id, mask = vecenv.recv()
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)
 

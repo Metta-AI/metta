@@ -1,15 +1,34 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 import torch
+from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from mettagrid.base_config import Config
+
+if TYPE_CHECKING:
+    from metta.rl.trainer_config import TrainerConfig
+
+
+class LossConfig(Config):
+    enabled: bool = Field(default=True)
+
+    def create(
+        self,
+        policy: Policy,
+        trainer_cfg: "TrainerConfig",
+        env: TrainingEnvironment,
+        device: torch.device,
+        instance_name: str,
+    ) -> "Loss":
+        raise NotImplementedError("Subclasses must implement create method")
 
 
 @dataclass(slots=True)
@@ -17,11 +36,11 @@ class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses."""
 
     policy: Policy
-    trainer_cfg: Any
+    trainer_cfg: "TrainerConfig"
     env: TrainingEnvironment
     device: torch.device
     instance_name: str
-    loss_cfg: Any
+    cfg: LossConfig
 
     policy_experience_spec: Composite | None = None
     replay: Experience | None = None
@@ -29,14 +48,6 @@ class Loss:
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
 
-    rollout_start_epoch: int = 0
-    rollout_end_epoch: float = float("inf")
-    train_start_epoch: int = 0
-    train_end_epoch: float = float("inf")
-    rollout_cycle_length: int | None = None
-    rollout_active_in_cycle: list[int] | None = None
-    train_cycle_length: int | None = None
-    train_active_in_cycle: list[int] | None = None
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -44,7 +55,6 @@ class Loss:
         self.loss_tracker = defaultdict(list)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
-        self._configure_schedule()
 
     def attach_context(self, context: ComponentContext) -> None:
         """Register the shared trainer context for this loss instance."""
@@ -64,7 +74,7 @@ class Loss:
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: ComponentContext | None = None) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
@@ -76,7 +86,7 @@ class Loss:
     def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
         """Rollout step executed while experience buffer requests more data."""
         ctx = self._ensure_context(context)
-        if not self._should_run("rollout", ctx.epoch):
+        if not self._loss_gate_allows("rollout", ctx):
             return
         if ctx.training_env_id is None:
             raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
@@ -94,7 +104,7 @@ class Loss:
     ) -> tuple[Tensor, TensorDict, bool]:
         """Training step executed while scheduler allows it."""
         ctx = self._ensure_context(context)
-        if not self._should_run("train", ctx.epoch):
+        if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
         return self.run_train(shared_loss_data, ctx, mb_idx)
 
@@ -120,38 +130,16 @@ class Loss:
         self._ensure_context(context)
 
     # Scheduling helpers
-    def _should_run(self, phase: str, epoch: int) -> bool:
-        start = getattr(self, f"{phase}_start_epoch")
-        end = getattr(self, f"{phase}_end_epoch")
-        if not (start <= epoch < end):
-            return False
-
-        cycle_length = getattr(self, f"{phase}_cycle_length")
-        active = getattr(self, f"{phase}_active_in_cycle") or []
-        if not cycle_length or not active:
+    def _loss_gate_allows(self, phase: str, context: ComponentContext) -> bool:
+        gates = getattr(context, "loss_run_gates", None)
+        if not gates:
             return True
-
-        # Epoch is 0-indexed; schedule uses 1-indexed values
-        epoch_in_cycle = (epoch % cycle_length) + 1
-        return epoch_in_cycle in active
+        entry = gates.get(self.instance_name) or gates.get(self.__class__.__name__.lower())
+        if not entry:
+            return True
+        return bool(entry.get(phase, True))
 
     # End scheduling helpers
-
-    def _configure_schedule(self) -> None:
-        """Helper for initializing variables used in scheduling logic."""
-        schedule_cfg = {}  # TODO: support self.loss_cfg.schedule when available
-
-        rollout_cfg = schedule_cfg.get("rollout") or {}
-        self.rollout_start_epoch = rollout_cfg.get("begin_at_epoch", 0)
-        self.rollout_end_epoch = rollout_cfg.get("end_at_epoch", float("inf"))
-        self.rollout_cycle_length = rollout_cfg.get("cycle_length")
-        self.rollout_active_in_cycle = rollout_cfg.get("active_in_cycle")
-
-        train_cfg = schedule_cfg.get("train") or {}
-        self.train_start_epoch = train_cfg.get("begin_at_epoch", 0)
-        self.train_end_epoch = train_cfg.get("end_at_epoch", float("inf"))
-        self.train_cycle_length = train_cfg.get("cycle_length")
-        self.train_active_in_cycle = train_cfg.get("active_in_cycle")
 
     # Utility helpers
 

@@ -1,5 +1,4 @@
-import netrc
-import os
+import logging
 import re
 import time
 from io import StringIO, TextIOBase
@@ -9,13 +8,9 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-import wandb
-from sky.server.common import RequestId, get_server_url
+from sky.server.common import RequestId
 
-import gitta as git
-from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.util.git_repo import REPO_SLUG
-from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
+logger = logging.getLogger(__name__)
 
 
 def get_devops_skypilot_dir() -> Path:
@@ -27,172 +22,6 @@ def get_jobs_controller_name() -> str:
     if len(job_clusters) == 0:
         raise ValueError("No job controller cluster found, is it running?")
     return job_clusters[0]["name"]
-
-
-def launch_task(task: sky.Task) -> str:
-    request_id = sky.jobs.launch(task)
-
-    print(green(f"Submitted sky.jobs.launch request: {request_id}"))
-
-    short_request_id = request_id.split("-")[0]
-
-    print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
-    dashboard_url = get_server_url() + "/dashboard/jobs"
-    print(f"- Or, visit: {yellow(dashboard_url)}")
-
-    return request_id
-
-
-def check_git_state(commit_hash: str) -> str | None:
-    error_lines = []
-
-    has_changes, status_output = git.has_unstaged_changes()
-    if has_changes:
-        error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
-        error_lines.append("Options:")
-        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
-        error_lines.append("  - Stash: git stash")
-        error_lines.append("\nDebug:\n" + status_output)
-        return "\n".join(error_lines)
-
-    if not git.is_commit_pushed(commit_hash):
-        commit_display = commit_hash[:8]
-        error_lines.append(
-            red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
-        )
-        error_lines.append("Options:")
-        error_lines.append("  - Push: git push")
-        return "\n".join(error_lines)
-
-    return None
-
-
-def display_job_summary(
-    job_name: str,
-    cmd: str,
-    task_args: list[str],
-    commit_hash: str,
-    git_ref: str | None = None,
-    timeout_hours: float | None = None,
-    task: sky.Task | None = None,
-    **kwargs,
-) -> None:
-    """Display a summary of the job that will be launched."""
-    divider_length = 60
-    divider = blue("=" * divider_length)
-
-    print(f"\n{divider}")
-    print(bold(blue("Job details:")))
-    print(f"{divider}")
-
-    print(f"{bold('Name:')} {yellow(job_name)}")
-
-    # Extract resource info from task if provided
-    if task:
-        if task.resources:
-            resource = list(task.resources)[0]  # Get first resource option
-
-            # GPU info
-            if hasattr(resource, "accelerators") and resource.accelerators:
-                gpu_info = []
-                for gpu_type, count in resource.accelerators.items():
-                    gpu_info.append(f"{count}x {gpu_type}")
-                print(f"{bold('GPUs:')} {yellow(', '.join(gpu_info))}")
-
-            # CPU info
-            if hasattr(resource, "cpus") and resource.cpus:
-                print(f"{bold('CPUs:')} {yellow(str(resource.cpus))}")
-
-            # Spot instance info
-            if hasattr(resource, "use_spot"):
-                spot_status = "Yes" if resource.use_spot else "No"
-                print(f"{bold('Spot Instances:')} {yellow(spot_status)}")
-
-        # Node count
-        if task.num_nodes and task.num_nodes > 1:
-            print(f"{bold('Nodes:')} {yellow(str(task.num_nodes))}")
-
-    # Display any additional job details from kwargs (excluding 'task')
-    for key, value in kwargs.items():
-        if value is not None and key != "task":
-            # Convert snake_case to Title Case for display
-            display_key = key.replace("_", " ").title()
-            print(f"{bold(display_key + ':')} {yellow(str(value))}")
-
-    # Display timeout information with prominence
-    if timeout_hours:
-        timeout_mins = int(timeout_hours * 60)
-        hours = timeout_mins // 60
-        mins = timeout_mins % 60
-
-        if hours > 0:
-            if mins == 0:
-                timeout_str = f"{hours}h"
-            else:
-                timeout_str = f"{hours}h {mins}m"
-        else:
-            timeout_str = f"{mins}m"
-
-        print(f"{bold('Auto-termination:')} {yellow(timeout_str)}")
-    else:
-        print(f"{bold('Auto-termination:')} {yellow('None')}")
-
-    if git_ref:
-        print(f"{bold('Git Reference:')} {yellow(git_ref)}")
-
-    print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
-
-    commit_message = git.get_commit_message(commit_hash)
-    if commit_message:
-        first_line = commit_message.split("\n")[0]
-        print(f"{bold('Commit Message:')} {yellow(first_line)}")
-
-    pr_info = git.get_matched_pr(commit_hash, REPO_SLUG)
-    if pr_info:
-        pr_number, pr_title = pr_info
-        first_line = pr_title.split("\n")[0]
-        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
-    else:
-        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
-
-    print(blue("-" * divider_length))
-    print(f"\n{bold('Command:')} {yellow(cmd)}")
-
-    if task_args:
-        print(bold("Task Arguments:"))
-        for i, arg in enumerate(task_args):
-            if "=" in arg:
-                key, value = arg.split("=", 1)
-                print(f"  {i + 1}. {yellow(key)}={cyan(value)}")
-            else:
-                print(f"  {i + 1}. {yellow(arg)}")
-
-    print(f"\n{divider}")
-
-
-def set_task_secrets(task: sky.Task) -> None:
-    """Write job secrets to task envs."""
-    # Note: we can't mount these with `file_mounts` because of skypilot bug with service accounts.
-    # Also, copying the entire `.netrc` is too much (it could contain other credentials).
-
-    wandb_password = netrc.netrc(os.path.expanduser("~/.netrc")).hosts["api.wandb.ai"][2]
-    if not wandb_password:
-        raise ValueError("Failed to get wandb password, run 'metta install' to fix")
-
-    observatory_token = get_machine_token("https://api.observatory.softmax-research.net")
-    if not observatory_token:
-        observatory_token = ""  # we don't have a token in CI
-
-    if not wandb.api.api_key:
-        raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
-
-    task.update_secrets(
-        dict(
-            WANDB_API_KEY=wandb.api.api_key,
-            WANDB_PASSWORD=wandb_password,
-            OBSERVATORY_TOKEN=observatory_token,
-        )
-    )
 
 
 def get_request_id_from_launch_output(output: str) -> str | None:
@@ -229,8 +58,8 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
     job_data = {}
 
     try:
-        # Get job queue with all users' jobs
-        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True))
+        # Get job queue filtered to only the requested job IDs (more efficient than fetching all jobs)
+        job_records = sky.get(sky.jobs.queue(refresh=True, all_users=True, job_ids=job_ids))
 
         # Create a mapping for quick lookup
         jobs_map = {job["job_id"]: job for job in job_records}
@@ -240,7 +69,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                 job = jobs_map[job_id]
 
                 # Calculate time ago
-                submitted_timestamp = job.get("submitted_at", time.time())
+                submitted_timestamp = job.get("submitted_at") or time.time()
                 time_diff = time.time() - submitted_timestamp
 
                 if time_diff < 60:
@@ -251,7 +80,7 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
                     time_ago = f"{int(time_diff / 3600)} hours ago"
 
                 # Format duration
-                duration = job.get("job_duration", 0)
+                duration = job.get("job_duration") or 0
                 if duration:
                     duration_str = f"{int(duration)}s" if duration < 60 else f"{int(duration / 60)}m"
                 else:
@@ -267,11 +96,14 @@ def check_job_statuses(job_ids: list[int]) -> dict[int, dict[str, str]]:
             else:
                 job_data[job_id] = {"status": "UNKNOWN", "name": "", "submitted": "", "duration": "", "raw_line": ""}
 
-    except sky.exceptions.ClusterNotUpError:
-        # Jobs controller not up
+    except sky.exceptions.ClusterNotUpError as e:
+        # Jobs controller not up - treat as temporary API issue
+        logger.warning(f"SkyPilot API error: {e}")
         for job_id in job_ids:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": "Jobs controller not up"}
     except Exception as e:
+        # API/network errors - will timeout after error_timeout_s if persistent
+        logger.warning(f"SkyPilot API error: {e}")
         for job_id in job_ids:
             job_data[job_id] = {"status": "ERROR", "raw_line": "", "error": str(e)}
 

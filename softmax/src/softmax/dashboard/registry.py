@@ -36,7 +36,7 @@ def collect_metrics() -> dict[str, float]:
         try:
             value = metric_goal()
         except Exception as e:
-            logger.error(f"Error collecting metric {metric_key}: {e}")
+            logger.error(f"Error collecting metric {metric_key}: {e}", exc_info=True)
             continue
         if value is None:
             continue

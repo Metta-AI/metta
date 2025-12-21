@@ -42,7 +42,7 @@ class TestNonInteractiveOutputVerification(BaseMettaSetupTest):
         """Test that installation output contains no interactive prompts."""
         self._create_test_config(UserType.EXTERNAL)
 
-        result = self._run_metta_command(["install", "core"])
+        result = self._run_metta_command(["install", "uv"])
         self.assertEqual(result.returncode, 0, f"Install failed: {result.stderr}")
 
         # Should not contain interactive prompts in output
@@ -64,7 +64,7 @@ class TestNonInteractiveEnvironmentHandling(BaseMettaSetupTest):
 
         self._create_test_config(UserType.EXTERNAL)
 
-        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "--non-interactive", "core"]
+        cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "--non-interactive", "uv"]
         result = subprocess.run(
             cmd,
             cwd=self.repo_root,

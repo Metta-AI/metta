@@ -1,0 +1,146 @@
+name: "Daily Stable Release"
+
+on:
+  schedule:
+    # Run daily at 2:00 AM UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional: Version number (overrides auto-continue behavior)"
+        required: false
+        type: string
+      skip_commit_match:
+        description: "Skip verification that current commit matches RC tag"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  stable-release:
+    runs-on: ubuntu-8core
+    permissions:
+      contents: write # Needed to create tags and push to stable branch
+      issues: write # Needed for Asana integration (if used)
+      id-token: write # Needed for AWS OIDC authentication
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for git operations
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: testing
+
+      - name: Setup Bazel caching
+        run: |
+          # Bazel's default ~/.cache/bazel contains internal state with symlinks,
+          # lock files, and files with future timestamps (2035) that cause
+          # "File exists" errors when actions/cache tries to extract them.
+          #
+          # Using --disk_cache and --repository_cache directories avoids these
+          # issues by caching only reusable artifacts:
+          # - Build outputs (disk_cache)
+          # - Downloaded external dependencies (repository_cache)
+
+          echo "build --disk_cache=$HOME/.bazel-disk-cache" >> packages/mettagrid/.bazelrc
+          echo "build --repository_cache=$HOME/.bazel-repo-cache" >> packages/mettagrid/.bazelrc
+
+          mkdir -p $HOME/.bazel-disk-cache
+          mkdir -p $HOME/.bazel-repo-cache
+
+      - name: Cache Bazel build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bazel-disk-cache
+            ~/.bazel-repo-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('packages/mettagrid/MODULE.bazel', 'packages/mettagrid/.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            bazel-${{ runner.os }}-
+
+      - name: Cache PufferLib clone
+        uses: actions/cache@v4
+        with:
+          path: ~/pufferlib-cache
+          key: pufferlib-clone-${{ runner.os }}-${{ hashFiles('**/test_pufferlib_integration.py') }}
+          restore-keys: |
+            pufferlib-clone-${{ runner.os }}-
+
+      - name: Set PufferLib cache path
+        run: |
+          echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
+          mkdir -p $HOME/pufferlib-cache
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Weights & Biases credentials
+        run: |
+          echo "machine api.wandb.ai" > $HOME/.netrc
+          echo "login user" >> $HOME/.netrc
+          echo "password ${{ secrets.WANDB_API_KEY }}" >> $HOME/.netrc
+          chmod 600 $HOME/.netrc
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+
+      - name: Set up Observatory credentials
+        run: |
+          mkdir -p $HOME/.metta
+          echo "${{ secrets.OBSERVATORY_TOKEN }}" > $HOME/.metta/observatory_token
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: us-east-1
+          role-duration-seconds: 36000
+
+      - name: Configure SkyPilot API server
+        run: |
+          sky api login -e https://skypilot-api.softmax-research.net --token ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Check and stash uncommitted changes
+        run: |
+          echo "Checking git status before stable release..."
+          git status
+
+          if [ -n "$(git status --porcelain)" ]; then
+            echo ""
+            echo "Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
+            git stash push -m "GitHub Actions: Auto-stash before stable release"
+            echo "Changes stashed successfully"
+          else
+            echo "Working tree is clean"
+          fi
+
+      - name: Run stable release process
+        id: release
+        run: ./devops/stable/cli.py
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          OBSERVATORY_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
+          SKYPILOT_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}
+          ASANA_PROJECT_ID: ${{ secrets.ASANA_BUGS_PROJECT_ID }}
+
+      - name: Send Discord notification
+        if: always()
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
+          content-file: devops/stable/state/discord_summary.txt
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-logs
+          path: devops/stable/state/logs/
+          retention-days: 30

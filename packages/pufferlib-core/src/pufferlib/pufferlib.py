@@ -22,6 +22,11 @@ def set_buffers(env, buf=None):
         env.rewards = np.zeros(env.num_agents, dtype=np.float32)
         env.terminals = np.zeros(env.num_agents, dtype=bool)
         env.truncations = np.zeros(env.num_agents, dtype=bool)
+        if isinstance(env.single_action_space, pufferlib.spaces.Box):
+            teacher_dtype = env.single_action_space.dtype
+        else:
+            teacher_dtype = np.int32
+        env.teacher_actions = np.zeros(env.num_agents, dtype=teacher_dtype)
         env.masks = np.ones(env.num_agents, dtype=bool)
 
         # TODO: Major kerfuffle on inferring action space dtype. This needs some asserts?
@@ -35,6 +40,7 @@ def set_buffers(env, buf=None):
         env.rewards = buf["rewards"]
         env.terminals = buf["terminals"]
         env.truncations = buf["truncations"]
+        env.teacher_actions = buf["teacher_actions"]
         env.masks = buf["masks"]
         env.actions = buf["actions"]
 
@@ -62,6 +68,11 @@ class PufferEnv:
             and not isinstance(self.single_action_space, pufferlib.spaces.Box)
         ):
             raise APIUsageError("Native action_space must be a Discrete, MultiDiscrete, or Box")
+
+        # Gymnasium-style vector envs expect `metadata` to always be present
+        # (they copy it from a dummy env before spawning workers).
+        base_metadata = getattr(self, "metadata", None) or {"render_modes": []}
+        self.metadata = dict(base_metadata)
 
         set_buffers(self, buf)
 

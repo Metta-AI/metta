@@ -28,6 +28,36 @@ resource "aws_ecr_lifecycle_policy" "metta" {
   })
 }
 
+# Create shared ECR repository for all cronjobs (dashboard metrics, PR similarity cache, etc.)
+resource "aws_ecr_repository" "cronjobs" {
+  name                 = "metta-cronjobs"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# Add lifecycle policy to clean up old cronjob images
+resource "aws_ecr_lifecycle_policy" "cronjobs" {
+  repository = aws_ecr_repository.cronjobs.name
+
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep last 30 images across all cronjobs"
+      selection = {
+        tagStatus   = "any"
+        countType   = "imageCountMoreThan"
+        countNumber = 30
+      }
+      action = {
+        type = "expire"
+      }
+    }]
+  })
+}
+
 # Replicate to other regions
 data "aws_caller_identity" "current" {}
 

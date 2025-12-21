@@ -3,11 +3,13 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.advantage import compute_advantage
+from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.utils import forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ class CoreTrainingLoop:
             loss.on_rollout_start(context)
 
         # Get buffer for storing experience
-        buffer_step = self.experience.buffer[self.experience.ep_indices, self.experience.ep_lengths - 1]
+        buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
 
         total_steps = 0
@@ -90,37 +92,45 @@ class CoreTrainingLoop:
 
         while not self.experience.ready_for_training:
             # Get observation from environment
-            o, r, d, t, info, training_env_id, _, num_steps = env.get_observations()
+            with context.stopwatch("_rollout.env_wait"):
+                o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
             last_env_id = training_env_id
-
             # Prepare data for policy
-            td = buffer_step[training_env_id].clone()
-            target_device = td.device
-            td["env_obs"] = o.to(device=target_device, non_blocking=True)
+            with context.stopwatch("_rollout.td_prep"):
+                td = buffer_step[training_env_id].clone()
+                target_device = td.device
+                td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-            td["rewards"] = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = r.to(device=target_device, non_blocking=True)
 
-            # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
-            # MPS has two bugs:
-            # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
-            # 2. non_blocking=True causes race conditions with uninitialized data
-            # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
-            if target_device.type == "mps":
-                td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-            else:
-                # On CUDA/CPU, combined conversion is safe and faster
-                td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-            td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
-            self.add_last_action_to_td(td, env)
+                # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
+                # MPS has two bugs:
+                # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
+                # 2. non_blocking=True causes race conditions with uninitialized data
+                # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
+                if target_device.type == "mps":
+                    td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                    td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                else:
+                    # On CUDA/CPU, combined conversion is safe and faster
+                    td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                    td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
+                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
+                # Row-aligned state: provide row slot id and position within row
+                row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
+                t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
+                td["row_id"] = row_ids
+                td["t_in_row"] = t_in_row
+                self.add_last_action_to_td(td, env)
 
-            self._ensure_rollout_metadata(td)
+                self._ensure_rollout_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
-            context.training_env_id = training_env_id
-            for loss in self.losses.values():
-                loss.rollout(td, context)
+            with context.stopwatch("_rollout.inference"):
+                context.training_env_id = training_env_id
+                for loss in self.losses.values():
+                    loss.rollout(td, context)
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
@@ -148,13 +158,14 @@ class CoreTrainingLoop:
                     actions_column.shape,
                     tuple(td["actions"].shape),
                 )
-                logger.error(msg)
+                logger.error(msg, exc_info=True)
                 raise RuntimeError(msg)
 
             target_buffer.copy_(actions_column)
 
             # Ship actions to the environment
-            env.send_actions(td["actions"].cpu().numpy())
+            with context.stopwatch("_rollout.send"):
+                env.send_actions(td["actions"].cpu().numpy())
 
             infos_list: list[dict[str, Any]] = list(info) if info else []
             if infos_list:
@@ -223,13 +234,6 @@ class CoreTrainingLoop:
         training_env_id = context.training_env_id
         assert training_env_id is not None, "Training environment ID is required"
 
-        # Initialize shared loss data
-        shared_loss_mb_data = self.experience.give_me_empty_md_td()
-        for loss_name in self.losses.keys():
-            shared_loss_mb_data[loss_name] = self.experience.give_me_empty_md_td()
-
-        # Reset loss tracking
-        shared_loss_mb_data.zero_()
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
@@ -238,6 +242,24 @@ class CoreTrainingLoop:
         epochs_trained = 0
 
         for _ in range(update_epochs):
+            if "values" in self.experience.buffer.keys():
+                advantages = compute_advantage(
+                    self.experience.buffer["values"],
+                    self.experience.buffer["rewards"],
+                    self.experience.buffer["dones"],
+                    torch.ones_like(self.experience.buffer["values"]),
+                    torch.zeros_like(self.experience.buffer["values"], device=self.device),
+                    self.context.config.advantage.gamma,
+                    self.context.config.advantage.gae_lambda,
+                    self.device,
+                    self.context.config.advantage.vtrace_rho_clip,
+                    self.context.config.advantage.vtrace_c_clip,
+                )
+            else:
+                # Value-free setups still need a tensor shaped like the buffer for sampling.
+                advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
+            self.experience.buffer["advantages_full"] = advantages
+
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
@@ -245,6 +267,20 @@ class CoreTrainingLoop:
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
+
+                shared_loss_mb_data = self.experience.sample(
+                    mb_idx=mb_idx,
+                    epoch=context.epoch,
+                    total_timesteps=context.config.total_timesteps,
+                    batch_size=context.config.batch_size,
+                    advantages=advantages,
+                )
+                if mb_idx == 0:
+                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
+
+                policy_td = shared_loss_mb_data["sampled_mb"]
+                policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
+                shared_loss_mb_data["policy_td"] = policy_td
 
                 for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
@@ -264,8 +300,8 @@ class CoreTrainingLoop:
                     # Get max_grad_norm from first loss that has it
                     actual_max_grad_norm = max_grad_norm
                     for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.loss_cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.loss_cfg.max_grad_norm
+                        if hasattr(loss_obj.cfg, "max_grad_norm"):
+                            actual_max_grad_norm = loss_obj.cfg.max_grad_norm
                             break
 
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
@@ -293,14 +329,14 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: ComponentContext) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the start of each epoch.
 
         Args:
             context: Shared trainer context providing epoch state
         """
         for loss in self.losses.values():
-            loss.on_new_training_run(context)
+            loss.on_epoch_start(context)
 
     def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
         env_ids = td["training_env_ids"]

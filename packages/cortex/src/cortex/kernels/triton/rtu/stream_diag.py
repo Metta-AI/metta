@@ -3,16 +3,12 @@ from __future__ import annotations
 from typing import Optional, Tuple
 
 import torch
+import triton as _triton  # type: ignore  # noqa: F401
 from torch.autograd import Function
 
-try:
-    import triton as _triton  # type: ignore  # noqa: F401
-
-    _TRITON_AVAILABLE = True
-except Exception:  # pragma: no cover
-    _TRITON_AVAILABLE = False
-
 from .utils import hillis_steele_segmented_inplace, scan_step_block_segmented
+
+_TRITON_AVAILABLE = True
 
 
 def _act_and_deriv(z: torch.Tensor, activation: str) -> tuple[torch.Tensor, torch.Tensor]:

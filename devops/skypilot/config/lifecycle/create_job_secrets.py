@@ -4,10 +4,12 @@ import argparse
 import os
 import subprocess
 
+from metta.common.auth.auth_config_reader_writer import observatory_auth_config
+
 
 def main():
     """
-    Create ~/.netrc and ~/.metta/observatory_tokens.yaml files with the given credentials.
+    Create ~/.netrc and ~/.metta/config.yaml files with the given credentials.
 
     We pass the secrets to the job via environment variables, but we need to create the files for the job to use them.
     """
@@ -29,14 +31,12 @@ def main():
             os.chmod(os.path.expanduser("~/.netrc"), 0o600)  # Restrict to owner read/write only
 
     if args.observatory_token:
-        if os.path.exists(os.path.expanduser("~/.metta/observatory_tokens.yaml")):
-            print("~/.metta/observatory_tokens.yaml already exists")
+        if os.path.exists(os.path.expanduser("~/.metta/config.yaml")):
+            print("~/.metta/config.yaml already exists")
         else:
             os.makedirs(os.path.expanduser("~/.metta"), exist_ok=True)
-            with open(os.path.expanduser("~/.metta/observatory_tokens.yaml"), "w") as f:
-                f.write(f"https://api.observatory.softmax-research.net: {args.observatory_token}\n")
-                f.write(f"https://observatory.softmax-research.net/api: {args.observatory_token}\n")
-            print("~/.metta/observatory_tokens.yaml created")
+
+        observatory_auth_config.save_token(args.observatory_token, "https://api.observatory.softmax-research.net")
 
 
 if __name__ == "__main__":

@@ -1,42 +1,18 @@
-# Observatory FE
+# Observatory
 
-This is the FE for the app deployed at https://observatory.softmax-research.net/ Talks to the server in `/app_backend` -
-see instructions on how to run it in `/app_backend/README.md`
-
-## Setup
-
-Ensure Observatory is installed through the Metta setup tool:
-
-```bash
-# From the metta root directory
-metta install nodejs
-```
+Frontend for https://observatory.softmax-research.net/
 
 ## Development
 
-1. If you need to manually install dependencies:
+**Frontend only (against prod API):**
 
-   ```bash
-   pnpm install
-   ```
+```bash
+metta observatory frontend --backend [prod|local]
+```
 
-2. Start the development server:
+## Production
 
-   ```bash
-   pnpm run dev
-   ```
+Deployed to EKS via Helm chart at `devops/charts/observatory/`.
 
-   or
-
-   ```bash
-   metta local observatory [--backend {prod, local}]
-   ```
-
-3. Open your browser to the URL shown in the terminal (typically http://localhost:5173)
-
-## Production Build
-
-1. Build the app:
-   ```bash
-   pnpm run build
-   ```
+- Host: `observatory.softmax-research.net`
+- Image built by `.github/workflows/build-observatory-image.yml`

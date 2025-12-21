@@ -1,7 +1,8 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # dependencies = [
+#   "asana>=5.2.2",
 #   "requests>=2.31.0",
 #   "vcrpy>=6.0.0",
 #   "pyyaml>=6.0.0"
@@ -141,21 +142,10 @@ def getenv_or_bust(key: str) -> str:
 
 
 """
-asana task assignment (asana owner) should be the PR author or PR assignee dep who is responsible at this time
-    - as a story, we say that the PR author is doing the coding, the PR assignee is doing the admin behind the PR
-    - we switch from author <=> assignee while the review process is ongoing
-    -   specifically we look at the last event
-    -      (an event is either a passing or failing review or a review_requested)
-    -    if there is no event, there has been no review, so the assignee has work to do and is the asana owner
-    -    if the last event is a review (whether passing or failing the PR), the PR author is the asana owner
-    -    if the last event is a review_request (meaning the author requested re-review), goes back to the assignee
-    - note that this is only for active PRs
-    -   if the PR is closed or merged (ie not open), or is a draft, the PR author is the asana owner
-    - simplifying this logic:
-    -   asana designee is github designee when last_event is None or review_requested
-    - ideally we would want to incorporate mergeability
-    -   if the PR cannot be synced because of a merge issue with the PR destination this would go to the PR author.
-    -     however, this is not easy to implement because mergeability is computed async and there is no hook
+Asana task assignment strategy:
+    - The main Asana task is always assigned to the PR author
+    - When reviews are requested or re-requested, we create/reopen subtasks assigned to each reviewer
+    - This keeps the PR owner responsible for the overall task while distributing review work via subtasks
 """
 if __name__ == "__main__":
     import traceback
@@ -198,13 +188,8 @@ if __name__ == "__main__":
                 asana_token,
             )
 
-            asana_assignee_is_github_assignee = not (pr.last_event) or pr.last_event["type"] == "review_requested"
-            designated_pr_assignee = next((a for a in sorted(pr.assignees) if a != pr.author), pr.author)
-            asana_assignee_github_name = designated_pr_assignee if asana_assignee_is_github_assignee else pr.author
-
-            asana_assignee = (
-                mapping.github_login_to_asana_email.get(asana_assignee_github_name) if pr.assignees else None
-            )
+            # Always assign the main Asana task to the PR author
+            asana_assignee = mapping.github_login_to_asana_email.get(pr.author)
             asana_collaborators = [
                 mapping.github_login_to_asana_email[login]
                 for login in pr.github_logins
@@ -243,6 +228,31 @@ if __name__ == "__main__":
 
             review_comments = [e for e in pr.events if e["type"] == "review"]
             asana_task.synchronize_comments_in_asana(review_comments)
+
+            # Synchronize review subtasks based on PR state
+            if pr.is_open:
+                # PR is open - sync subtasks for requested reviewers
+                asana_task.synchronize_review_subtasks(
+                    pr.requested_reviewers,
+                    mapping.github_login_to_asana_email,
+                    pr_number,
+                    pr.author,
+                    pr.title,
+                    github_url,
+                )
+
+                # Mark review subtasks as complete for reviewers who have submitted reviews
+                # but are NOT currently in requested_reviewers (i.e., not re-requested)
+                for review in review_comments:
+                    reviewer_login = review.get("user")
+                    if reviewer_login and reviewer_login not in pr.requested_reviewers:
+                        asana_task.complete_review_subtask_for_reviewer(
+                            reviewer_login,
+                            mapping.github_login_to_asana_email,
+                        )
+            else:
+                # PR is closed or merged - close all review subtasks
+                asana_task.close_all_review_subtasks()
 
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as f:

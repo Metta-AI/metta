@@ -8,7 +8,7 @@ cogames_root = Path(__file__).parent.parent
 
 
 def test_missions_list_command():
-    """Test that 'cogames missions' lists all available missions."""
+    """Test that 'cogames missions' lists only top-level missions."""
     result = subprocess.run(
         ["uv", "run", "cogames", "missions"],
         cwd=cogames_root,
@@ -21,15 +21,18 @@ def test_missions_list_command():
 
     # Check that the output contains expected content
     output = result.stdout
-    assert "training_facility_1" in output
-    assert "Agents" in output
+    assert "training_facility" in output
+    # Only the table (pre-help section) should avoid listing sub-missions
+    table_only = output.split("To set", 1)[0]
+    assert "training_facility.harvest" not in table_only
+    assert "Cogs" in output
     assert "Map Size" in output
 
 
 def test_missions_describe_command():
     """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "-m", "training_facility_1"],
+        ["uv", "run", "cogames", "missions", "-m", "training_facility"],
         cwd=cogames_root,
         capture_output=True,
         text=True,
@@ -40,10 +43,26 @@ def test_missions_describe_command():
 
     # Check that the output contains expected game details
     output = result.stdout
-    assert "training_facility_1" in output
+    assert "training_facility" in output
     assert "Mission Configuration:" in output
     assert "Number of agents:" in output
     assert "Available Actions:" in output
+
+
+def test_missions_list_for_specific_site():
+    """Test that a positional site argument lists only that site's missions."""
+    result = subprocess.run(
+        ["uv", "run", "cogames", "missions", "training_facility"],
+        cwd=cogames_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, f"Command failed with stderr: {result.stderr}"
+
+    output = result.stdout
+    assert "training_facility.harvest" in output
 
 
 def test_missions_nonexistent_mission():
@@ -79,7 +98,7 @@ def test_missions_help_command():
     output = result.stdout
     assert "missions" in output
     assert "play" in output
-    assert "train" in output
+    assert "tutorial" in output
 
 
 def test_make_mission_command():
@@ -89,6 +108,8 @@ def test_make_mission_command():
 
     try:
         # Run make-game and write to temp file
+        # Note: Don't set width/height or agents since training_facility uses an AsciiMapBuilder
+        # with fixed dimensions and spawn points
         result = subprocess.run(
             [
                 "uv",
@@ -96,11 +117,7 @@ def test_make_mission_command():
                 "cogames",
                 "make-mission",
                 "-m",
-                "random",
-                "--width",
-                "100",
-                "--height",
-                "100",
+                "training_facility",
                 "--output",
                 str(tmp_path),
             ],

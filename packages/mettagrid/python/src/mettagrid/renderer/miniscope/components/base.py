@@ -1,13 +1,17 @@
 """Base component class for miniscope renderer."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from rich.console import Console
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+
+if TYPE_CHECKING:
+    from mettagrid.simulator import Simulation
+else:
+    Simulation = object  # Fallback placeholder for runtime
 
 
 class MiniscopeComponent(ABC):
@@ -15,7 +19,7 @@ class MiniscopeComponent(ABC):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: "Simulation",
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -26,7 +30,7 @@ class MiniscopeComponent(ABC):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        self._env = env
+        self._sim = sim
         self._state = state
         self._panels = panels
         self._panel: Optional[MiniscopePanel] = None
@@ -35,26 +39,29 @@ class MiniscopeComponent(ABC):
         self._console = Console()
 
     @property
-    def env(self) -> MettaGridEnv:
+    def env(self) -> "Simulation":
         """Get the environment."""
-        return self._env
+        return self._sim
 
     @property
     def state(self) -> MiniscopeState:
-        """Get the state."""
+        """Return the shared renderer state."""
         return self._state
 
     @property
     def panels(self) -> PanelLayout:
-        """Get the panel layout."""
+        """Return the panel layout registry."""
         return self._panels
 
-    def _set_panel(self, panel: MiniscopePanel) -> None:
+    def _set_panel(self, panel: Optional[MiniscopePanel]) -> None:
         """Set the panel for this component and update dimensions.
 
         Args:
             panel: The panel to use for this component
         """
+        if panel is None:
+            raise ValueError(f"{self.__class__.__name__} requires a configured panel")
+
         self._panel = panel
         self._width = panel.width
         self._height = panel.height
@@ -74,14 +81,7 @@ class MiniscopeComponent(ABC):
         return [line[:width].ljust(width) for line in lines]
 
     def handle_input(self, ch: str) -> bool:
-        """Handle user input for this component.
-
-        Args:
-            ch: The character input from the user
-
-        Returns:
-            True if the input was handled by this component, False otherwise
-        """
+        """Handle user input for this component."""
         return False
 
     @abstractmethod

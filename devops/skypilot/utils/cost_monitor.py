@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # dependencies = [
 #     "skypilot",
 #     "requests",
@@ -45,7 +45,7 @@ def get_instance_cost(instance_type: str, region: str, zone: str | None = None, 
         cloud = sky.clouds.AWS()
         return cloud.instance_type_to_hourly_cost(instance_type, use_spot=use_spot, region=region, zone=zone)
     except Exception as e:
-        logger.error(f"Error calculating hourly cost for {instance_type}: {e}")
+        logger.error(f"Error calculating hourly cost for {instance_type}: {e}", exc_info=True)
         return None
 
 
@@ -163,7 +163,7 @@ def main():
         print(total_hourly_cost)
         return 0
     except Exception as e:
-        logger.error(f"Failed to get cost information: {e}")
+        logger.error(f"Failed to get cost information: {e}", exc_info=True)
         return 1
 
 

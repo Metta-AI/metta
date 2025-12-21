@@ -319,3 +319,125 @@ class DyckDataset(Dataset):
             start_idx=n_train + n_val,
         )
         return train, val, test
+
+
+################################################################################
+# 4. Majority‑HeadPad (all signal in head; tail is PAD)
+################################################################################
+
+
+class MajorityHeadPadDataset(Dataset):
+    """Majority task where all non‑zero events are restricted to the head.
+
+    - Sequence length = ``length``.
+    - The final ``tail_pad_len`` steps are PAD=0.
+    - The first ``length - tail_pad_len`` steps contain ±1 events drawn like MajorityDataset.
+    - Label is the majority over the entire sequence (equivalently the head only).
+
+    This construction makes the last ``tail_pad_len`` steps uninformative. If you
+    train with chunking at ``chunk_size == tail_pad_len`` and cut RTU traces at the
+    last chunk boundary, local per‑timestep grads at the last chunk will not be
+    able to update the input map or dynamics parameters (no x_t signal), so training
+    relies on cross‑boundary corrections. Disabling traces should collapse accuracy
+    toward chance.
+    """
+
+    PAD, POS, NEG = 0, 1, 2
+
+    def __init__(
+        self,
+        num_samples: int,
+        length: int,
+        tail_pad_len: int,
+        *,
+        nonzero_prob: float = 0.3,
+        seed: int = 0,
+        start_idx: int = 0,
+        end_idx: Optional[int] = None,
+    ) -> None:
+        super().__init__()
+        assert 0 < tail_pad_len < length, "tail_pad_len must be in (0, length)"
+        self.num_samples, self.length = num_samples, length
+        self.tail_pad_len = tail_pad_len
+        self.nonzero_prob = nonzero_prob
+        self.seed = seed
+
+        seqs, labels = self._generate_all(num_samples, length, tail_pad_len, nonzero_prob, seed)
+        end_idx = num_samples if end_idx is None else end_idx
+        self._seqs = seqs[start_idx:end_idx]
+        self._labels = labels[start_idx:end_idx]
+        self.ids = list(range(start_idx, end_idx))
+
+    @staticmethod
+    def _generate_all(
+        num_samples: int, length: int, tail_pad_len: int, nonzero_prob: float, seed: int
+    ) -> Tuple[List[torch.Tensor], torch.Tensor]:
+        seqs: List[torch.Tensor] = []
+        labels: List[int] = []
+        head_len = length - tail_pad_len
+        gen = torch.Generator().manual_seed(seed)
+        for _ in range(num_samples):
+            # Head events
+            mask_head = torch.rand(head_len, generator=gen) < nonzero_prob
+            signs_head = torch.where(
+                torch.rand(head_len, generator=gen) < 0.5,
+                MajorityHeadPadDataset.NEG,
+                MajorityHeadPadDataset.POS,
+            )
+            head = torch.where(mask_head, signs_head, MajorityHeadPadDataset.PAD)
+            tail = torch.zeros(tail_pad_len, dtype=torch.long)
+            seq = torch.cat([head, tail], dim=0)
+            pos_cnt = (seq == MajorityHeadPadDataset.POS).sum().item()
+            neg_cnt = (seq == MajorityHeadPadDataset.NEG).sum().item()
+            label = int(pos_cnt > neg_cnt)
+            seqs.append(seq.long())
+            labels.append(label)
+        labels_tensor = torch.tensor(labels, dtype=torch.long)
+        return seqs, labels_tensor
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return len(self._seqs)
+
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore[override]
+        return self._seqs[idx], self._labels[idx]
+
+    @classmethod
+    def splits(
+        cls,
+        num_samples: int,
+        length: int,
+        tail_pad_len: int,
+        *,
+        train_frac: float = 0.8,
+        val_frac: float = 0.1,
+        nonzero_prob: float = 0.3,
+        seed: int = 0,
+    ) -> Tuple["MajorityHeadPadDataset", "MajorityHeadPadDataset", "MajorityHeadPadDataset"]:
+        n_train, n_val, _ = _split_sizes(num_samples, train_frac, val_frac)
+        train = cls(
+            num_samples,
+            length,
+            tail_pad_len,
+            nonzero_prob=nonzero_prob,
+            seed=seed,
+            start_idx=0,
+            end_idx=n_train,
+        )
+        val = cls(
+            num_samples,
+            length,
+            tail_pad_len,
+            nonzero_prob=nonzero_prob,
+            seed=seed,
+            start_idx=n_train,
+            end_idx=n_train + n_val,
+        )
+        test = cls(
+            num_samples,
+            length,
+            tail_pad_len,
+            nonzero_prob=nonzero_prob,
+            seed=seed,
+            start_idx=n_train + n_val,
+        )
+        return train, val, test

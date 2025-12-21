@@ -9,13 +9,13 @@ def format_grid_object_base(grid_object: dict) -> dict:
     """Format the base properties common to all grid objects."""
     update_object = {}
     update_object["id"] = grid_object["id"]
-    update_object["type_id"] = grid_object["type_id"]
+    update_object["type_name"] = grid_object["type_name"]
     update_object["location"] = grid_object["location"]
+    # Note, orientation no longer exists. It might in (old) replays, but we should be able to deprecate this.
     update_object["orientation"] = grid_object.get("orientation", 0)
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
-    update_object["is_swappable"] = grid_object.get("is_swappable", False)
     return update_object
 
 
@@ -56,6 +56,8 @@ def format_agent_properties(
     update_object["is_frozen"] = grid_object.get("is_frozen", False)
     update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
     update_object["group_id"] = grid_object["group_id"]
+    update_object["vibe_id"] = grid_object.get("vibe", 0)
+    update_object["vibe"] = grid_object.get("vibe", 0)  # Alias for vibe_id
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
@@ -81,13 +83,15 @@ def format_assembler_properties(grid_object: dict, update_object: dict) -> None:
     update_object["max_uses"] = grid_object.get("max_uses", 0)
     update_object["allow_partial_usage"] = grid_object.get("allow_partial_usage", False)
 
-    update_object["recipes"] = []
-    for recipe in grid_object.get("recipes", []):
-        update_recipe = {}
-        update_recipe["inputs"] = list(recipe.get("inputs", {}).items())
-        update_recipe["outputs"] = list(recipe.get("outputs", {}).items())
-        update_recipe["cooldown"] = recipe["cooldown"]
-        update_object["recipes"].append(update_recipe)
+    update_object["protocols"] = []
+    for protocol in grid_object.get("protocols", []):
+        update_protocol = {}
+        update_protocol["minAgents"] = protocol.get("min_agents", 0)
+        update_protocol["vibes"] = protocol.get("vibes", [])
+        update_protocol["inputs"] = list(protocol.get("inputs", {}).items())
+        update_protocol["outputs"] = list(protocol.get("outputs", {}).items())
+        update_protocol["cooldown"] = protocol.get("cooldown", 0)
+        update_object["protocols"].append(update_protocol)
 
 
 def format_grid_object(
@@ -103,11 +107,11 @@ def format_grid_object(
     assert isinstance(grid_object["id"], int), (
         f"Expected grid_object['id'] to be an integer, got {type(grid_object['id'])}"
     )
-    assert isinstance(grid_object["type_id"], int), (
-        f"Expected grid_object['type_id'] to be an integer, got {type(grid_object['type_id'])}"
+    assert isinstance(grid_object["type_name"], str), (
+        f"Expected grid_object['type_name'] to be a string, got {type(grid_object['type_name'])}"
     )
-    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 3, (
-        f"Expected location to be tuple/list of 3 elements, got {type(grid_object['location'])}"
+    assert isinstance(grid_object["location"], (tuple, list)) and len(grid_object["location"]) == 2, (
+        f"Expected location to be tuple/list of 2 elements, got {type(grid_object['location'])}"
     )
     assert all(isinstance(coord, (int, float)) for coord in grid_object["location"]), (
         "Expected all location coordinates to be numbers"
@@ -136,7 +140,7 @@ def format_grid_object(
     elif "input_resources" in grid_object:
         format_converter_properties(grid_object, update_object)
 
-    elif "recipes" in grid_object:
+    elif "protocols" in grid_object:
         format_assembler_properties(grid_object, update_object)
 
     return update_object

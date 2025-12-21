@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 import numpy as np
-import torch
 from pydantic import ConfigDict, Field
 
 from mettagrid.base_config import Config
@@ -15,6 +14,9 @@ from mettagrid.base_config import Config
 def guess_device() -> str:
     if platform.system() == "Darwin":
         return "mps"
+
+    import torch  # Lazy import: torch is heavy and not needed at module load time
+
     if not torch.cuda.is_available():
         return "cpu"
 
@@ -43,7 +45,6 @@ class SystemConfig(Config):
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
     data_dir: Path = Field(default_factory=guess_data_dir)
-    remote_prefix: str | None = Field(default=None)
     local_only: bool = Field(default=False)
     nccl_timeout: timedelta = Field(default=timedelta(minutes=10))
 
@@ -58,6 +59,8 @@ def seed_everything(system_cfg: SystemConfig):
     # Despite these efforts, we still don't get deterministic behavior. But presumably
     # this is better than nothing.
     # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+    import torch  # Lazy import: torch is heavy and not needed at module load time
+
     rank = int(os.environ.get("RANK", 0))
 
     seed = system_cfg.seed

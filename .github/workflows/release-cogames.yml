@@ -38,8 +38,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
       - name: Install build tooling
         run: python -m pip install --upgrade pip build twine
       - name: Build distributions

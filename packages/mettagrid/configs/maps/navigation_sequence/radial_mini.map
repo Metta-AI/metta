@@ -1,4 +1,4 @@
-type: mettagrid.map_builder.ascii.AsciiMapBuilder
+type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config
 map_data: |-
   ######################
   n...#####...###....m.#
@@ -11,10 +11,10 @@ map_data: |-
   ###.....##..####....##
   #....#####..######._##
   ######################
-char_to_name_map:
+char_to_map_name:
   "#": wall
   "n": generator_red
   ".": empty
   "m": mine_red
   "@": agent.agent
-  "_": altar
+  "_": assembler

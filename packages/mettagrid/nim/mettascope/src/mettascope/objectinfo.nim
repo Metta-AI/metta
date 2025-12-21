@@ -1,133 +1,243 @@
 import
-  std/[os, json, tables],
-  fidget2,
+  std/[os, json, algorithm, tables, sets, strutils, strformat],
+  vmath, silky, windy,
   common, panels, replays
 
-find "/UI/Main/**/ObjectInfo/OpenConfig":
-  onClick:
-    if selection.isNil:
-      return
-    let text =
-      if replay.isNil or replay.mgConfig.isNil:
-        "No replay config found."
-      else:
-        let typeName = replay.typeNames[selection.typeId]
-        if typeName == "agent":
-          let agentConfig = replay.mgConfig["game"]["agent"]
-          agentConfig.pretty
-        else:
-          if "game" notin replay.mgConfig or "objects" notin replay.mgConfig["game"]:
-            "No object config found."
-          elif typeName notin replay.mgConfig["game"]["objects"]:
-            "Object config not found for type: " & typeName
-          else:
-            let objConfig = replay.mgConfig["game"]["objects"][typeName]
-            objConfig.pretty
-    if not existsDir("tmp"):
-      createDir("tmp")
-    let typeName = replay.typeNames[selection.typeId]
-    writeFile("tmp/" & typeName & "_config.json", text)
-    when defined(windows):
-      discard execShellCmd("notepad tmp/" & typeName & "_config.json")
-    elif defined(macosx):
-      discard execShellCmd("open -a TextEdit tmp/" & typeName & "_config.json")
-    else:
-      discard execShellCmd("xdg-open tmp/" & typeName & "_config.json")
+const InventoryScale = 0.5f
 
-proc updateObjectInfo*() =
-  ## Updates the object info panel to display the current selection.
-  if selection.isNil:
+type
+  ResourceLimitGroup* = object
+    name*: string
+    limit*: int
+    resources*: seq[string]
+    modifiers*: Table[string, int]
+
+proc parseResourceLimits(mgConfig: JsonNode): seq[ResourceLimitGroup] =
+  ## Parse resource_limits from the agent config.
+  result = @[]
+  if mgConfig.isNil:
     return
+  if "game" notin mgConfig or "agent" notin mgConfig["game"]:
+    return
+  let agentConfig = mgConfig["game"]["agent"]
+  if "resource_limits" notin agentConfig:
+    return
+  let resourceLimits = agentConfig["resource_limits"]
+  for groupName, groupConfig in resourceLimits.pairs:
+    var group = ResourceLimitGroup(name: groupName)
+    if "limit" in groupConfig:
+      group.limit = groupConfig["limit"].getInt
+    if "resources" in groupConfig:
+      for r in groupConfig["resources"]:
+        group.resources.add(r.getStr)
+    if "modifiers" in groupConfig:
+      group.modifiers = initTable[string, int]()
+      for k, v in groupConfig["modifiers"].pairs:
+        group.modifiers[k] = v.getInt
+    result.add(group)
 
-  let x = panels.objectInfoTemplate.copy()
+proc computeEffectiveLimit(group: ResourceLimitGroup, inventory: seq[ItemAmount], itemNames: seq[string]): int =
+  ## Compute effective limit based on base limit + modifiers from inventory.
+  result = group.limit
+  for modItem, bonus in group.modifiers.pairs:
+    for itemAmount in inventory:
+      if itemAmount.itemId >= 0 and itemAmount.itemId < itemNames.len:
+        if itemNames[itemAmount.itemId] == modItem:
+          result += bonus * itemAmount.count
 
-  let
-    params = x.find("Params")
-    param = x.find("Params/Param").copy()
-    inventoryArea = x.find("InventoryArea")
-    inventory = x.find("InventoryArea/Inventory")
-    item = x.find("InventoryArea/Inventory/Item").copy()
-    recipeArea = x.find("RecipeArea")
-    recipe = x.find("RecipeArea/Recipe").copy()
-    recipeInput = recipe.find("Inputs")
-    recipeOutput = recipe.find("Outputs")
-
-  params.removeChildren()
-  inventory.removeChildren()
-  recipeArea.removeChildren()
-  recipeInput.removeChildren()
-  recipeOutput.removeChildren()
-
-  proc addParam(name: string, value: string) =
-    let p = param.copy()
-    p.find("**/Name").text = name
-    p.find("**/Value").text = value
-    params.addChild(p)
-
-  addParam("Type", replay.typeNames[selection.typeId])
-
-  if selection.isAgent:
-    addParam("Agent ID", $selection.agentId)
-    addParam("Reward", $selection.totalReward.at)
-
-  if selection.cooldownRemaining.at > 0:
-    addParam("Cooldown Remaining", $selection.cooldownRemaining.at)
-  if selection.cooldownDuration > 0:
-    addParam("Cooldown Duration", $selection.cooldownDuration)
-  if selection.isClipped.at:
-    addParam("Is Clipped", $selection.isClipped.at)
-  if selection.isClipImmune.at:
-    addParam("Is Clip Immune", $selection.isClipImmune.at)
-  if selection.usesCount.at > 0:
-    addParam("Uses Count", $selection.usesCount.at)
-  if selection.maxUses > 0:
-    addParam("Max Uses", $selection.maxUses)
-  if selection.allowPartialUsage:
-    addParam("Allow Partial Usage", $selection.allowPartialUsage)
-
-  proc addResource(area: Node, itemAmount: ItemAmount) =
-    let i = item.copy()
-    i.find("**/Image").fills[0].imageRef = "../../" & replay.itemImages[itemAmount.itemId]
-    i.find("**/Amount").text = $itemAmount.count
-    area.addChild(i)
-
-  proc addRecipe(recipeInfo: RecipeInfo) =
-    var recipeNode = recipe.copy()
-    for resource in recipeInfo.inputs:
-      recipeNode.find("**/Inputs").addResource(resource)
-    for resource in recipeInfo.outputs:
-      recipeNode.find("**/Outputs").addResource(resource)
-    recipeArea.addChild(recipeNode)
-
-  if selection.inventory.at.len == 0:
-    inventoryArea.remove()
+proc getItemName(itemAmount: ItemAmount): string =
+  ## Safely resolve an item name from the replay data.
+  if replay.isNil:
+    return "item#" & $itemAmount.itemId
+  if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
+    replay.itemNames[itemAmount.itemId]
   else:
-    for itemAmount in selection.inventory.at:
-      inventory.addResource(itemAmount)
+    "item#" & $itemAmount.itemId
 
-  if selection.inputResources.len > 0 or selection.outputResources.len > 0:
-    var recipeInfo = RecipeInfo()
-    recipeInfo.inputs = selection.inputResources
-    recipeInfo.outputs = selection.outputResources
-    addRecipe(recipeInfo)
+proc formatItem(itemAmount: ItemAmount): string =
+  ## Render a compact "name x count" string.
+  let name = getItemName(itemAmount)
+  name & " x" & $itemAmount.count
 
-  var mergedRecipes: Table[string, RecipeInfo]
-  for recipe in selection.recipes:
-    let key = $recipe.inputs & "->" & $recipe.outputs
-    mergedRecipes[key] = recipe
+proc showItem(itemAmount: ItemAmount) =
+  icon("resources/" & replay.config.game.resourceNames[itemAmount.itemId])
+  text("x" & $itemAmount.count)
 
-  for recipe in mergedRecipes.values:
-    addRecipe(recipe)
+proc getHeartCount(outputs: seq[ItemAmount]): int =
+  ## Returns total hearts produced by this protocol.
+  let heartId = replay.itemNames.find("heart")
+  if heartId == -1:
+    return 0
+  for output in outputs:
+    if output.itemId == heartId:
+      return output.count
+  return 0
 
-  if mergedRecipes.len == 0 and
-    selection.inputResources.len == 0 and
-    selection.outputResources.len == 0:
-      recipeArea.remove()
+proc protocolCmp(a, b: Protocol): int =
+  ## Sort protocols: heart-producing ones first (most hearts first), then others.
+  let
+    aHearts = getHeartCount(a.outputs)
+    bHearts = getHeartCount(b.outputs)
+  if aHearts > 0 and bHearts == 0:
+    return -1
+  if aHearts == 0 and bHearts > 0:
+    return 1
+  cmp(bHearts, aHearts)
 
-  x.position = vec2(0, 0)
-  objectInfoPanel.node.removeChildren()
-  objectInfoPanel.node.addChild(x)
+proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
+  ## Draws the object info panel using silky widgets.
+  frame(frameId, contentPos, contentSize):
+    if selection.isNil:
+      text("No selection")
+      return
+
+    if replay.isNil:
+      text("Replay not loaded")
+      return
+
+    let cur = selection
+
+    button("Open Config"):
+      if cur.isNil:
+        return
+      let cfgText =
+        if replay.isNil or replay.mgConfig.isNil:
+          "No replay config found."
+        else:
+          let typeName = cur.typeName
+          if typeName == "agent":
+            let agentConfig = replay.mgConfig["game"]["agent"]
+            agentConfig.pretty
+          else:
+            if "game" notin replay.mgConfig or "objects" notin replay.mgConfig["game"]:
+              "No object config found."
+            elif typeName notin replay.mgConfig["game"]["objects"]:
+              "Object config not found for type: " & typeName
+            else:
+              let objConfig = replay.mgConfig["game"]["objects"][typeName]
+              objConfig.pretty
+      openTempTextFile(cur.typeName & "_config.json", cfgText)
+
+    # Basic identity
+    h1text(cur.typeName)
+    text(&"  Object ID: {cur.id}")
+
+    if cur.isAgent:
+      # Agent-specific info.
+      let reward = cur.totalReward.at
+      text(&"  Agent ID: {cur.agentId}")
+      text(&"  Total reward: {formatFloat(reward, ffDecimal, 2)}")
+      let vibeId = cur.vibeId.at
+      if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
+        let vibeName = getVibeName(vibeId)
+        text("  Vibe: " & vibeName)
+    else:
+      # Assembler-specific info.
+      let cooldown = cur.cooldownRemaining.at
+      if cooldown > 0:
+        text(&"  Cooldown remaining: {cooldown}")
+      if cur.cooldownDuration > 0:
+        text(&"  Cooldown duration: {cur.cooldownDuration}")
+      if cur.isClipped.at:
+        text("  Is clipped")
+      if cur.isClipImmune.at:
+        text("  Clip immune")
+      if cur.usesCount.at > 0:
+        text(&"  Uses: {cur.usesCount.at}" &
+          (if cur.maxUses > 0: "/" & $cur.maxUses else: ""))
+      elif cur.maxUses > 0:
+        text(&"  Max uses: {cur.maxUses}")
+      if cur.allowPartialUsage:
+        text("  Allows partial usage")
+
+    sk.advance(vec2(0, theme.spacing.float32))
+
+    let currentInventory = cur.inventory.at
+    text("Inventory")
+    if currentInventory.len == 0:
+      text("  Empty")
+    else:
+      if cur.isAgent:
+        let resourceLimitGroups = parseResourceLimits(replay.mgConfig)
+
+        var itemByName = initTable[string, ItemAmount]()
+        for itemAmount in currentInventory:
+          if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
+            itemByName[replay.itemNames[itemAmount.itemId]] = itemAmount
+
+        var shownItems = initOrderedSet[string]()
+
+        for group in resourceLimitGroups:
+          var usedAmount = 0
+          var groupItems: seq[ItemAmount] = @[]
+          for resourceName in group.resources:
+            if resourceName in itemByName:
+              let itemAmount = itemByName[resourceName]
+              usedAmount += itemAmount.count
+              groupItems.add(itemAmount)
+              shownItems.incl(resourceName)
+
+          if groupItems.len > 0:
+            let effectiveLimit = computeEffectiveLimit(group, currentInventory, replay.itemNames)
+            text(&"  {group.name}: {usedAmount}/{effectiveLimit}")
+            for itemAmount in groupItems:
+              if itemAmount.itemId != replay.itemNames.find("energy"):
+                text("    " & formatItem(itemAmount))
+
+        var ungroupedItems: seq[ItemAmount] = @[]
+        for itemAmount in currentInventory:
+          if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
+            let itemName = replay.itemNames[itemAmount.itemId]
+            if itemName notin shownItems:
+              ungroupedItems.add(itemAmount)
+
+        if ungroupedItems.len > 0:
+          text("  Other:")
+          for itemAmount in ungroupedItems:
+            text("    " & formatItem(itemAmount))
+      else:
+        for itemAmount in currentInventory:
+          text("  " & formatItem(itemAmount))
+
+    sk.advance(vec2(0, theme.spacing.float32))
+
+    # Protocols
+    if cur.protocols.len > 0:
+      text("Protocols")
+      var sortedProtocols = cur.protocols
+      sortedProtocols.sort(protocolCmp)
+
+      for protocol in sortedProtocols:
+        let protocol = protocol
+        group(vec2(4, 4), LeftToRight):
+          if protocol.vibes.len > 0:
+            #var vibeLine = "  Vibes: "
+            # Group the vibes by type.
+            var vibeGroups: Table[string, int]
+            for vibe in protocol.vibes:
+              let vibeName = getVibeName(vibe)
+              if vibeName notin vibeGroups:
+                vibeGroups[vibeName] = 1
+              else:
+                vibeGroups[vibeName] = vibeGroups[vibeName] + 1
+            for vibeName, numVibes in vibeGroups:
+              icon("vibe/" & vibeName)
+              text("x" & $numVibes)
+
+            icon("ui/add")
+
+          if protocol.inputs.len > 0:
+            for i, resource in protocol.inputs:
+              icon("resources/" & replay.config.game.resourceNames[resource.itemId])
+              text("x" & $resource.count)
+
+            icon("ui/right-arrow")
+
+          if protocol.outputs.len > 0:
+            for i, resource in protocol.outputs:
+              icon("resources/" & replay.config.game.resourceNames[resource.itemId])
+              text("x" & $resource.count)
+
 
 proc selectObject*(obj: Entity) =
   selection = obj
-  updateObjectInfo()

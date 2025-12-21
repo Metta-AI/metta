@@ -8,8 +8,9 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss
 from metta.rl.loss.cmpo import CMPOConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 try:
     from gymnasium import spaces as gym_spaces
@@ -20,8 +21,12 @@ except ImportError:  # pragma: no cover - fallback for legacy gym installs
 class DummyPolicy(Policy):
     """Minimal policy implementation for exercising loss utilities."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+        if policy_env_info is None:
+            from mettagrid.config.mettagrid_config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self._linear = torch.nn.Linear(1, 1)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
@@ -32,7 +37,7 @@ class DummyPolicy(Policy):
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return Composite(values=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32))
 
-    def initialize_to_environment(self, game_rules, device: torch.device) -> None:  # noqa: D401
+    def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         return None
 
     @property
@@ -87,9 +92,13 @@ def test_cmpo_config_initializes_world_model() -> None:
         single_action_space=gym_spaces.Discrete(6),
         single_observation_space=gym_spaces.Box(low=0, high=255, shape=(4, 4, 3), dtype=np.uint8),
     )
-    trainer_cfg = SimpleNamespace(total_timesteps=1024, batch_size=64)
+    trainer_cfg = SimpleNamespace(
+        total_timesteps=1024,
+        batch_size=64,
+        advantage=SimpleNamespace(gamma=0.99, gae_lambda=0.95, vtrace_rho_clip=1.0, vtrace_c_clip=1.0),
+    )
 
-    cmpo_loss = cfg.create(DummyPolicy(), trainer_cfg, env, torch.device("cpu"), "cmpo", cfg)
+    cmpo_loss = cfg.create(DummyPolicy(), trainer_cfg, env, torch.device("cpu"), "cmpo")
 
     assert cmpo_loss.obs_dim == 4 * 4 * 3
     assert cmpo_loss.action_dim == 6

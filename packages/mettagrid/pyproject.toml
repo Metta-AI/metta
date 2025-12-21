@@ -1,10 +1,10 @@
 [build-system]
 requires = [
-  "setuptools>=61.0",
-  "wheel",
-  "numpy>=2",
-  "pybind11==2.10.4",
-  "setuptools_scm>=8",
+  "setuptools==80.9.0",
+  "wheel==0.45.1",
+  "numpy==2.3.3",
+  "pybind11==3.0.1",
+  "setuptools_scm==8.1.0",
 ]
 build-backend = "bazel_build"
 backend-path = ["."]
@@ -14,18 +14,11 @@ name = "mettagrid" # Do not change! Has to be 'mettagrid' for our PyPi package
 dynamic = ["version"]
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = ">=3.11,<3.13"
-license = "MIT"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
-keywords = [
-  "gridworld",
-  "minigrid",
-  "rl",
-  "reinforcement-learning",
-  "environment",
-  "gym",
-]
+keywords = ["gridworld", "minigrid", "rl", "reinforcement-learning", "environment", "gym"]
 dependencies = [
   "boto3>=1.38.32",
   "botocore>=1.38.29",
@@ -37,7 +30,8 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
+testing = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0", "freezegun>=1.5.0"]
+dev = [{ include-group = "testing" }]
 
 [tool.bazel]
 # Bazel build configuration
@@ -48,7 +42,7 @@ build.config = "opt" # or "dbg" for debug builds
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 testpaths = ["tests", "benchmarks"]
-pythonpath = ["python/src", "cpp/src"]
+pythonpath = ["python/src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
@@ -66,22 +60,17 @@ cache-keys = [
   { file = "cpp/**/*.{cpp,hpp}" },
   { file = "nim/mettascope/src/**/*.{nim,nims}" },
   { file = "nim/mettascope/bindings/bindings.nim" },
+  { file = "nim/mettascope/nimby.lock" },
+  { file = "bazel_build.py" },
   { file = "nim/mettascope/mettascope.nimble" },
 ]
 
 [tool.setuptools.packages.find]
-where = ["python/src", "cpp/src"]
+where = ["python/src"]
 include = ["mettagrid", "mettagrid.*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = [
-  "py.typed",
-  "*.so",
-  "*.pyi",
-  "*.pyd",
-  "*.dylib",
-  "nim/mettascope/**/*",
-]
+"mettagrid" = ["py.typed", "*.so", "*.pyi", "*.pyd", "*.dylib", "nim/mettascope/**/*"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
@@ -98,14 +87,5 @@ version_scheme = "no-guess-dev"
 local_scheme = "node-and-date"
 root = "../.."
 fallback_version = "0.0.0"
-
-[tool.setuptools_scm.scm.git]
-describe_command = [
-  "git",
-  "describe",
-  "--dirty",
-  "--tags",
-  "--long",
-  "--match",
-  "mettagrid-v*",
-]
+# Provide a specific git command to be used in order to find the correct versioning tags
+git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "mettagrid-v*"]

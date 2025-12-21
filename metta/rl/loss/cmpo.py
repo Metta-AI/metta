@@ -18,9 +18,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite, UnboundedContinuous
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 try:  # Prefer gymnasium but fall back to gym if needed.
     from gymnasium import spaces as gym_spaces
@@ -29,8 +29,9 @@ except ImportError:  # pragma: no cover - fallback for older envs.
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss.ppo import PPO, PPOConfig
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.utils import add_dummy_loss_for_unused_params
 from mettagrid.base_config import Config
 
 
@@ -120,8 +121,19 @@ class SyntheticBufferConfig(Config):
     horizon: int = Field(default=5, ge=1)
 
 
-class CMPOConfig(PPOConfig):
+class CMPOConfig(LossConfig):
     """Full CMPO configuration."""
+
+    # PPO-style hyperparameters
+    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
+    ent_coef: float = Field(default=0.027574, ge=0)
+    norm_adv: bool = True
+    target_kl: float | None = None
+
+    # Value loss settings
+    vf_clip_coef: float = Field(default=0.1, ge=0)
+    vf_coef: float = Field(default=0.753832, ge=0)
+    clip_vloss: bool = True
 
     world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
     curiosity: CuriosityConfig = Field(default_factory=CuriosityConfig)
@@ -136,7 +148,6 @@ class CMPOConfig(PPOConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Config,
     ) -> "CMPO":
         return CMPO(
             policy=policy,
@@ -144,7 +155,7 @@ class CMPOConfig(PPOConfig):
             env=env,
             device=device,
             instance_name=instance_name,
-            loss_config=loss_config,
+            cfg=self,
         )
 
 
@@ -314,7 +325,7 @@ class ModelRolloutBuffer:
         return stacked
 
 
-class CMPO(PPO):
+class CMPO(Loss):
     """Curiosity Model Policy Optimization loss."""
 
     def __init__(
@@ -324,10 +335,16 @@ class CMPO(PPO):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: CMPOConfig,
+        cfg: CMPOConfig,
     ) -> None:
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
-        self.loss_cfg: CMPOConfig
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
+        self.cfg: CMPOConfig = cfg
+
+        if hasattr(self.policy, "burn_in_steps"):
+            self.burn_in_steps = self.policy.burn_in_steps
+        else:
+            self.burn_in_steps = 0
+        self.burn_in_steps_iter = 0
 
         obs_space = env.single_observation_space
         if not hasattr(obs_space, "shape"):
@@ -355,24 +372,22 @@ class CMPO(PPO):
         else:  # pragma: no cover - other spaces currently unsupported.
             raise NotImplementedError(f"Unsupported action space for CMPO: {action_space}")
 
-        self.world_model = WorldModelEnsemble(loss_config.world_model, self.obs_dim, self.action_dim).to(device)
-        self.world_model_opt = torch.optim.Adam(self.world_model.parameters(), lr=loss_config.world_model.learning_rate)
+        self.world_model = WorldModelEnsemble(cfg.world_model, self.obs_dim, self.action_dim).to(device)
+        self.world_model_opt = torch.optim.Adam(self.world_model.parameters(), lr=cfg.world_model.learning_rate)
 
         self.curiosity_module = CuriosityModule(
             state_dim=self.obs_dim,
             action_dim=self.action_dim,
-            cfg=loss_config.curiosity,
+            cfg=cfg.curiosity,
             discrete_actions=discrete_actions,
         ).to(device)
-        self.curiosity_opt = torch.optim.Adam(
-            self.curiosity_module.parameters(), lr=loss_config.curiosity.learning_rate
-        )
+        self.curiosity_opt = torch.optim.Adam(self.curiosity_module.parameters(), lr=cfg.curiosity.learning_rate)
 
-        self.transition_buffer = TransitionBuffer(loss_config.world_model.buffer_size)
-        self.model_buffer = ModelRolloutBuffer(loss_config.synthetic_buffer.capacity)
-        self.scheduler = AdaptiveBufferScheduler(loss_config.scheduler)
+        self.transition_buffer = TransitionBuffer(cfg.world_model.buffer_size)
+        self.model_buffer = ModelRolloutBuffer(cfg.synthetic_buffer.capacity)
+        self.scheduler = AdaptiveBufferScheduler(cfg.scheduler)
 
-        self.curiosity_weight = loss_config.curiosity.weight_initial
+        self.curiosity_weight = cfg.curiosity.weight_initial
         self._last_model_error = 1.0
 
         self._prev_obs: Tensor | None = None
@@ -404,11 +419,25 @@ class CMPO(PPO):
         self._has_prev = torch.zeros((segments,), dtype=torch.bool, device=device)
 
     def get_experience_spec(self) -> Composite:
-        base = super().get_experience_spec()
+        action_space = self.env.single_action_space
+        if isinstance(action_space, gym_spaces.Discrete):
+            action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
+        else:
+            action_spec = UnboundedContinuous(
+                shape=torch.Size(tuple(int(dim) for dim in action_space.shape)),
+                dtype=torch.float32,
+            )
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
-        base["intrinsic_rewards"] = scalar_f32
-        base["extrinsic_rewards"] = scalar_f32
-        return base
+        return Composite(
+            actions=action_spec,
+            values=scalar_f32,
+            rewards=scalar_f32,
+            dones=scalar_f32,
+            truncateds=scalar_f32,
+            act_log_prob=scalar_f32,
+            intrinsic_rewards=scalar_f32,
+            extrinsic_rewards=scalar_f32,
+        )
 
     # ------------------------------------------------------------------
     # Helper utilities
@@ -448,7 +477,7 @@ class CMPO(PPO):
         pred_next: Tensor,
         pred_reward: Tensor,
     ) -> Tensor:
-        cfg = self.loss_cfg.curiosity
+        cfg = self.cfg.curiosity
         with torch.no_grad():
             feature = self.curiosity_module.encode(state)
             next_feature = self.curiosity_module.encode(next_state)
@@ -469,8 +498,8 @@ class CMPO(PPO):
         return intrinsic
 
     def _update_curiosity_weight(self, model_error: float) -> None:
-        cfg = self.loss_cfg.curiosity
-        if model_error < self.loss_cfg.scheduler.target_model_error:
+        cfg = self.cfg.curiosity
+        if model_error < self.cfg.scheduler.target_model_error:
             self.curiosity_weight = min(cfg.weight_max, self.curiosity_weight + cfg.adjustment_rate)
         else:
             self.curiosity_weight = max(cfg.weight_min, self.curiosity_weight - cfg.adjustment_rate)
@@ -479,7 +508,7 @@ class CMPO(PPO):
     # Training helpers
     # ------------------------------------------------------------------
     def _train_world_model(self) -> float:
-        cfg = self.loss_cfg.world_model
+        cfg = self.cfg.world_model
         if len(self.transition_buffer) < cfg.warmup_transitions:
             return self._last_model_error
 
@@ -514,8 +543,8 @@ class CMPO(PPO):
         return avg_loss
 
     def _train_curiosity_model(self) -> None:
-        cfg = self.loss_cfg.curiosity
-        if len(self.transition_buffer) < self.loss_cfg.world_model.warmup_transitions:
+        cfg = self.cfg.curiosity
+        if len(self.transition_buffer) < self.cfg.world_model.warmup_transitions:
             return
 
         for _ in range(cfg.train_steps):
@@ -549,8 +578,8 @@ class CMPO(PPO):
             self.loss_tracker["curiosity_inverse_loss"].append(float(action_loss.item()))
 
     def _generate_model_rollouts(self) -> None:
-        cfg = self.loss_cfg.model_rollouts
-        if len(self.transition_buffer) < self.loss_cfg.world_model.warmup_transitions:
+        cfg = self.cfg.model_rollouts
+        if len(self.transition_buffer) < self.cfg.world_model.warmup_transitions:
             return
 
         starts = self.transition_buffer.sample(cfg.batch_size, self.device)
@@ -614,19 +643,17 @@ class CMPO(PPO):
             state_uncertainty = state_var.mean(dim=-1)
             reward_uncertainty = reward_var.squeeze(-1)
             intrinsic_reward = self.curiosity_weight * (
-                self.loss_cfg.curiosity.positive_coef * state_uncertainty
-                - self.loss_cfg.curiosity.negative_coef * reward_uncertainty
+                self.cfg.curiosity.positive_coef * state_uncertainty
+                - self.cfg.curiosity.negative_coef * reward_uncertainty
             )
-            intrinsic_reward = intrinsic_reward.clamp(
-                -self.loss_cfg.curiosity.reward_clip, self.loss_cfg.curiosity.reward_clip
-            )
+            intrinsic_reward = intrinsic_reward.clamp(-self.cfg.curiosity.reward_clip, self.cfg.curiosity.reward_clip)
             total_reward = pred_reward + intrinsic_reward
             rewards.append(total_reward.squeeze(0))
             extrinsic.append(pred_reward.squeeze(0))
             intrinsic.append(intrinsic_reward.squeeze(0))
             dones_list.append(done_flag.squeeze(0))
 
-            if reward_var.mean().item() > self.loss_cfg.model_rollouts.termination_variance_threshold:
+            if reward_var.mean().item() > self.cfg.model_rollouts.termination_variance_threshold:
                 break
 
             current_state = next_state
@@ -652,21 +679,22 @@ class CMPO(PPO):
             batch_size=(traj_len,),
         )
 
-        advantage = torch.zeros_like(traj["values"])
-        advantage = compute_advantage(
+        advantages = torch.zeros_like(traj["values"])
+        adv_cfg = self.trainer_cfg.advantage
+        advantages = compute_advantage(
             traj["values"],
             traj["rewards"],
             traj["dones"],
             torch.ones_like(traj["values"]),
-            advantage,
-            self.loss_cfg.gamma,
-            self.loss_cfg.gae_lambda,
-            self.loss_cfg.vtrace.rho_clip,
-            self.loss_cfg.vtrace.c_clip,
-            device,
+            advantages,
+            adv_cfg.gamma,
+            adv_cfg.gae_lambda,
+            self.device,
+            adv_cfg.vtrace_rho_clip,
+            adv_cfg.vtrace_c_clip,
         )
-        traj.set("advantages", advantage)
-        traj.set("returns", advantage + traj["values"])
+        traj.set("advantages", advantages)
+        traj.set("returns", advantages + traj["values"])
         return traj.detach()
 
     def _sample_model_batch(self, segments: int, device: torch.device) -> TensorDict | None:

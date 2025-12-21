@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import torch
-
-try:
-    import triton  # type: ignore
-    import triton.language as tl  # type: ignore
-except Exception:  # pragma: no cover
-    triton = None  # type: ignore
-    tl = None  # type: ignore
+import triton  # type: ignore
+import triton.language as tl  # type: ignore
 
 
 @triton.jit

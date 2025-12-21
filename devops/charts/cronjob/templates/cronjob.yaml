@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "cronjob.fullname" . }}
+  labels:
+    {{- include "cronjob.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backoffLimit }}
+      template:
+        metadata:
+          labels:
+            {{- include "cronjob.selectorLabels" . | nindent 12 }}
+        spec:
+        
+          serviceAccountName: {{ include "cronjob.serviceAccountName" . }}
+          restartPolicy: {{ .Values.restartPolicy }}
+          containers:
+          - name: {{ .Chart.Name }}
+            image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            # Command comes from Dockerfile CMD
+            env:
+            # Datadog configuration
+            - name: DD_ENV
+              value: {{ .Values.datadog.env | quote }}
+            - name: DD_SERVICE
+              value: {{ .Values.datadog.service | quote }}
+            - name: DD_VERSION
+              value: {{ .Values.image.tag | quote }}
+            - name: DD_SITE
+              value: {{ .Values.datadog.site | quote }}
+            # Secrets are fetched from AWS Secrets Manager at runtime via the serviceAccount IAM role
+            resources:
+              {{- toYaml .Values.resources | nindent 14 }}

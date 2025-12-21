@@ -6,7 +6,7 @@ import torch
 from cortex.kernels.pytorch.mlstm import mlstm_chunkwise_simple
 from cortex.kernels.triton.mlstm import mlstm_chunkwise_triton
 
-from packages.cortex.benchmarks.common import (
+from .common import (
     BenchmarkCase,
     BenchmarkDefinition,
     BenchmarkSettings,
@@ -82,19 +82,16 @@ def _run_case(case: BenchmarkCase, settings: BenchmarkSettings) -> Dict[str, obj
             chunk_size=chunk_size,
         )
 
-    try:
-        output_tr, triton_time = measure_callable(
-            run_triton,
-            warmup=settings.warmup,
-            iterations=settings.iterations,
-            synchronize=True,
-        )
-        results["triton_ms"] = triton_time * 1000.0
-        if triton_time > 0:
-            results["speedup"] = pytorch_time / triton_time
-        results["max_diff"] = torch.max(torch.abs(output_pt - output_tr)).item()
-    except Exception as exc:  # pragma: no cover - defensive
-        results["error"] = str(exc)
+    output_tr, triton_time = measure_callable(
+        run_triton,
+        warmup=settings.warmup,
+        iterations=settings.iterations,
+        synchronize=True,
+    )
+    results["triton_ms"] = triton_time * 1000.0
+    if triton_time > 0:
+        results["speedup"] = pytorch_time / triton_time
+    results["max_diff"] = torch.max(torch.abs(output_pt - output_tr)).item()
 
     return results
 

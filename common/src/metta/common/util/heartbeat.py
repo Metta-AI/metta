@@ -15,5 +15,5 @@ def record_heartbeat() -> None:
         Path(heartbeat_file_path).parent.mkdir(parents=True, exist_ok=True)
         Path(heartbeat_file_path).touch()
     except Exception as e:
-        logger.error(f"Failed to record heartbeat at {heartbeat_file_path}: {e}")
+        logger.error(f"Failed to record heartbeat at {heartbeat_file_path}: {e}", exc_info=True)
         raise

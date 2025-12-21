@@ -12,7 +12,6 @@ from cortex.cells.base import MemoryCell
 from cortex.cells.registry import register_cell
 from cortex.config import LSTMCellConfig
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
-from cortex.kernels.triton.lstm import lstm_sequence_triton
 from cortex.types import MaybeState, ResetMask, Tensor
 from cortex.utils import select_backend
 
@@ -37,6 +36,15 @@ class LSTMCell(MemoryCell):
             dropout=0.0,
             proj_size=0,
         )
+
+        # Align initialization with agent LSTM defaults for training parity:
+        # - Orthogonal weights
+        # - Biases initialized to 1.0
+        for name, param in self.net.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1.0)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1.0)
 
     @property
     def out_hidden_size(self) -> int:
@@ -96,15 +104,17 @@ class LSTMCell(MemoryCell):
             "resets": resets_bt,
         }
 
-        allow_triton = (
-            x_seq.is_cuda
-            and x_seq.dtype in (torch.float32, torch.float16, torch.bfloat16)
-            and self.net.weight_ih_l0.shape[1] == self.cfg.hidden_size
-            and self._hidden_size_power_of_two
-        )
+        # allow_triton = (
+        #     x_seq.is_cuda
+        #     and x_seq.dtype in (torch.float32, torch.float16, torch.bfloat16)
+        #     and self.net.weight_ih_l0.shape[1] == self.cfg.hidden_size
+        #     and self._hidden_size_power_of_two
+        # )
+        # Currently the triton route is disabled until we have faster implementation available.
+        allow_triton = False
 
         backend_fn = select_backend(
-            triton_fn=lstm_sequence_triton if allow_triton else None,
+            triton_fn="cortex.kernels.triton.lstm:lstm_sequence_triton" if allow_triton else None,
             pytorch_fn=lstm_sequence_pytorch,
             tensor=x_seq,
             allow_triton=allow_triton,

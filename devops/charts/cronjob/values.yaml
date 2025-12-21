@@ -1,0 +1,45 @@
+# Default values for cronjob chart
+# These can be overridden by specific cronjob values files
+
+schedule: "*/15 * * * *"  # Default: run every 15 minutes
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: "metta-cronjobs"  # Shared ECR repo for all cronjobs (tags differentiate)
+  pullPolicy: Always
+  tag: "latest"
+
+# Note: Commands are defined in Dockerfile CMD, not in Helm values
+
+serviceAccount:
+  create: false  # Shared service account is provisioned centrally (Terraform)
+  name: standard-service-account  # Default shared ServiceAccount in monitoring namespace
+  annotations: {}
+
+# Note: All cronjobs share a single ServiceAccount: standard-service-account (IAM role arn:aws:iam::751442549699:role/standard-service-account)
+# Set serviceAccount.create=true only for ad-hoc use cases where you need the chart to create a per-release ServiceAccount.
+
+# Note: RBAC is always enabled for all cronjobs (see templates/rbac.yaml)
+# All cronjobs get broad read-only cluster permissions for simplicity.
+
+# Datadog metric tagging
+datadog:
+  env: "production"
+  service: ""  # Should be set by specific cronjob values
+  site: "datadoghq.com"
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 2Gi
+  limits:
+    cpu: 500m
+    memory: 2Gi
+
+# CronJob configuration
+successfulJobsHistoryLimit: 3
+failedJobsHistoryLimit: 3
+concurrencyPolicy: Forbid  # Don't allow concurrent executions
+restartPolicy: OnFailure
+backoffLimit: 3

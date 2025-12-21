@@ -14,7 +14,7 @@ import wandb
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import ComponentContext, TrainerComponent
 from metta.rl.utils import should_run
-from metta.utils.file import http_url, is_public_uri, write_file
+from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class TorchProfileSession:
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
         if self._profile_filename_base is None:
-            logger.error("Profiler filename unset; skipping save")
+            logger.error("Profiler filename unset; skipping save", exc_info=True)
             return
 
         output_filename_json = f"{self._profile_filename_base}.json"

@@ -6,34 +6,33 @@
 
 #include <memory>
 
-#include "objects/recipe.hpp"
+#include "objects/protocol.hpp"
 
 struct ClipperConfig {
-  std::vector<std::shared_ptr<Recipe>> unclipping_recipes;
-  float length_scale;
-  float cutoff_distance;
-  float clip_rate;
+  std::vector<std::shared_ptr<Protocol>> unclipping_protocols;
+  GridCoord length_scale;
+  uint32_t scaled_cutoff_distance;
+  uint32_t clip_period;
 
-  ClipperConfig(std::vector<std::shared_ptr<Recipe>> recipe_ptrs, float length_scale, float cutoff_distance, float clip_rate)
-      : unclipping_recipes(std::move(recipe_ptrs)),
+  ClipperConfig(std::vector<std::shared_ptr<Protocol>> protocol_ptrs = {},
+                GridCoord length_scale = 0u,
+                uint32_t scaled_cutoff_distance = 3,
+                uint32_t clip_period = 0)
+      : unclipping_protocols(std::move(protocol_ptrs)),
         length_scale(length_scale),
-        cutoff_distance(cutoff_distance),
-        clip_rate(clip_rate) {}
+        scaled_cutoff_distance(scaled_cutoff_distance),
+        clip_period(clip_period) {}
 };
 
 namespace py = pybind11;
 
 inline void bind_clipper_config(py::module& m) {
   py::class_<ClipperConfig, std::shared_ptr<ClipperConfig>>(m, "ClipperConfig")
-      .def(py::init<std::vector<std::shared_ptr<Recipe>>, float, float, float>(),
-           py::arg("unclipping_recipes"),
-           py::arg("length_scale"),
-           py::arg("cutoff_distance"),
-           py::arg("clip_rate"))
-      .def_readwrite("unclipping_recipes", &ClipperConfig::unclipping_recipes)
+      .def(py::init<>())
+      .def_readwrite("unclipping_protocols", &ClipperConfig::unclipping_protocols)
       .def_readwrite("length_scale", &ClipperConfig::length_scale)
-      .def_readwrite("cutoff_distance", &ClipperConfig::cutoff_distance)
-      .def_readwrite("clip_rate", &ClipperConfig::clip_rate);
+      .def_readwrite("scaled_cutoff_distance", &ClipperConfig::scaled_cutoff_distance)
+      .def_readwrite("clip_period", &ClipperConfig::clip_period);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_CLIPPER_CONFIG_HPP_

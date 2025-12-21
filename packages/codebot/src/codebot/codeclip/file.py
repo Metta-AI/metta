@@ -412,7 +412,7 @@ def _load_file(
         logger.warning(f"Skipping file {path} due to UnicodeDecodeError")
         return None
     except Exception as e:
-        logger.error(f"Error reading {path}: {e}")
+        logger.error(f"Error reading {path}: {e}", exc_info=True)
         return None
 
 

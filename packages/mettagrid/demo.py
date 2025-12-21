@@ -5,7 +5,7 @@ Demo showing how to create an MettaGridConfig and build a game map using the map
 """
 
 from mettagrid.config.mettagrid_config import ActionConfig, ActionsConfig, MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
     mg_config.game.num_agents = 24
 
     mg_config.game.map_builder = RandomMapBuilder.Config(
-        agents=24, width=10, height=10, objects={"wall": 10, "altar": 1}, border_width=1, border_object="wall"
+        agents=24, width=10, height=10, objects={"wall": 10, "assembler": 1}, border_width=1, border_object="wall"
     )
 
     mg_config.game.actions = ActionsConfig(

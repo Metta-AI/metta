@@ -1,0 +1,68 @@
+name: Validate pyproject.toml
+
+on:
+  pull_request:
+    paths:
+      - "**/pyproject.toml"
+      - ".github/scripts/validate_pyproject.py"
+      - ".github/workflows/validate-pyproject.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/pyproject.toml"
+      - ".github/scripts/validate_pyproject.py"
+
+jobs:
+  validate-pyproject:
+    name: Validate pyproject.toml files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Validate pyproject.toml files
+        run: |
+          echo "🔍 Validating pyproject.toml files..."
+          uv run .github/scripts/validate_pyproject.py
+
+      - name: Generate report on failure
+        if: failure()
+        run: |
+          echo "## pyproject.toml Validation Failed" > validation_report.md
+          echo "" >> validation_report.md
+          echo "Some pyproject.toml files have validation errors." >> validation_report.md
+          echo "" >> validation_report.md
+          echo "### Validation Rules" >> validation_report.md
+          echo "" >> validation_report.md
+          echo "#### Build System" >> validation_report.md
+          echo "- All dependencies in \`[build-system] requires\` must use exact version syntax (\`==\`)" >> validation_report.md
+          echo "" >> validation_report.md
+          echo "**Example:**" >> validation_report.md
+          echo '```toml' >> validation_report.md
+          echo '[build-system]' >> validation_report.md
+          echo 'requires = ["setuptools==80.9.0", "wheel==0.45.1"]' >> validation_report.md
+          echo '```' >> validation_report.md
+          echo "" >> validation_report.md
+          echo "#### PEP 621 Compliance" >> validation_report.md
+          echo "- License field must use table format: \`license = { text = \"MIT\" }\`" >> validation_report.md
+          echo "- Fields cannot be both static and in \`dynamic\` list" >> validation_report.md
+          echo "- The \`name\` field cannot be in \`dynamic\` list" >> validation_report.md
+          echo "- Use \`[project.scripts]\` not \`[project.entry-points.console_scripts]\`" >> validation_report.md
+          echo "" >> validation_report.md
+          echo "### Resources" >> validation_report.md
+          echo "- Build system exact versions: See PR #3352" >> validation_report.md
+          echo "- PEP 621 specification: https://peps.python.org/pep-0621/" >> validation_report.md
+
+          cat validation_report.md
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: validation_report.md
+          retention-days: 30

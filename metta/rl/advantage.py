@@ -2,6 +2,7 @@
 
 import importlib
 from contextlib import nullcontext
+from typing import Optional
 
 import einops
 import torch
@@ -23,14 +24,16 @@ def compute_advantage(
     advantages: Tensor,
     gamma: float,
     gae_lambda: float,
-    vtrace_rho_clip: float,
-    vtrace_c_clip: float,
     device: torch.device,
+    vtrace_rho_clip: Optional[float] = 1.0,
+    vtrace_c_clip: Optional[float] = 1.0,
 ) -> Tensor:
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 
     # Move tensors to device and compute advantage
-    if str(device) == "mps":
+    # for mps (macbook pro)
+    # for rocm (amd gpu) - pytorch has hip version
+    if str(device) == "mps" or torch.version.hip is not None:
         return mps.advantage(
             values, rewards, dones, importance_sampling_ratio, vtrace_rho_clip, vtrace_c_clip, gamma, gae_lambda, device
         )

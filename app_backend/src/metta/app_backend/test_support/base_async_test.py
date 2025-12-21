@@ -1,5 +1,6 @@
 """Base class for tests requiring function-scoped async fixtures."""
 
+import asyncio
 from typing import AsyncGenerator
 
 import pytest
@@ -30,8 +31,8 @@ class BaseAsyncTest:
         if repo._pool is not None:
             try:
                 await repo._pool.close()
-            except RuntimeError:
-                # Event loop might be closed, ignore
+            except (RuntimeError, asyncio.CancelledError):
+                # Event loop might be closed or tasks cancelled, ignore
                 pass
 
     @pytest.fixture(scope="function")

@@ -15,7 +15,6 @@ import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
-from einops import rearrange
 from torch import Tensor
 from torch.amp import custom_bwd, custom_fwd
 from triton import OutOfResources
@@ -940,13 +939,13 @@ def _lstm_forward(
     NS, B_eff, NH, DH = inputs.states_initial.shape
     _, T, NGI, _, _ = inputs.Wx.shape
 
-    states_k = rearrange(inputs.states_initial, "ns b nh dh -> nh ns b dh").contiguous()
-    Wx_k = rearrange(inputs.Wx, "b t ngi nh dh -> nh t ngi b dh").contiguous()
-    R_k = rearrange(R, "ngr nh dhout dhin -> nh ngr dhin dhout").contiguous()
-    b_k = rearrange(b, "ngi nh dh -> nh ngi dh").contiguous()
+    states_k = inputs.states_initial.permute(2, 0, 1, 3).contiguous()  # nh, ns, b, dh
+    Wx_k = inputs.Wx.permute(3, 1, 2, 0, 4).contiguous()  # nh, t, ngi, b, dh
+    R_k = R.permute(1, 0, 3, 2).contiguous()  # nh, ngr, dhin, dhout
+    b_k = b.permute(1, 0, 2).contiguous()  # nh, ngi, dh
 
     if inputs.resets is not None:
-        resets_k = rearrange(inputs.resets, "b t -> 1 t b").contiguous()
+        resets_k = inputs.resets.permute(1, 0).unsqueeze(0).contiguous()  # 1, t, b
     else:
         resets_k = torch.empty(1, 1, 1, device=states_initial.device, dtype=states_initial.dtype)
 
@@ -987,13 +986,13 @@ def _lstm_forward(
         MATMUL_K_TILE=_MATMUL_K_TILE,
     )
 
-    states_out = rearrange(states_all, "nh t ns b dh -> t ns b nh dh")
+    states_out = states_all.permute(1, 2, 3, 0, 4)
     if not output_gates_and_states_initial:
         states_out = states_out[:, :, : inputs.true_batch, :, :]
         last_state = states_out[-1]
         return (states_out[1:], last_state), None
 
-    gates_out = rearrange(gates_all, "nh t ngi b dh -> t ngi b nh dh")
+    gates_out = gates_all.permute(1, 2, 3, 0, 4)
 
     states_pre = states_out[:-1]
     c_prev = states_pre[:, 1, :, :, :]
@@ -1041,15 +1040,15 @@ def _lstm_backward(
                 [resets_eff, torch.zeros(pad, resets_eff.shape[1], dtype=reset_mask.dtype, device=device)],
                 dim=0,
             )
-        resets_k = rearrange(resets_eff, "b t -> 1 t b").contiguous()
+        resets_k = resets_eff.permute(1, 0).unsqueeze(0).contiguous()
     else:
         resets_k = torch.empty(1, 1, 1, device=device, dtype=dtype)
 
-    R_k = rearrange(R, "ngr nh dhout dhin -> nh ngr dhout dhin").contiguous()
-    delta_all_k = rearrange(delta_states_all_outside, "t ns b nh dh -> nh t ns b dh").contiguous()
-    delta_last_k = rearrange(delta_states_last_outside, "ns b nh dh -> nh ns b dh").contiguous()
-    states_all_k = rearrange(states_all, "t ns b nh dh -> nh t ns b dh").contiguous()
-    gates_all_k = rearrange(gates_all, "t ngi b nh dh -> nh t ngi b dh").contiguous()
+    R_k = R.permute(1, 0, 2, 3).contiguous()  # nh, ngr, dhout, dhin
+    delta_all_k = delta_states_all_outside.permute(3, 0, 1, 2, 4).contiguous()  # nh, t, ns, b, dh
+    delta_last_k = delta_states_last_outside.permute(2, 0, 1, 3).contiguous()  # nh, ns, b, dh
+    states_all_k = states_all.permute(3, 0, 1, 2, 4).contiguous()  # nh, t, ns, b, dh
+    gates_all_k = gates_all.permute(3, 0, 1, 2, 4).contiguous()  # nh, t, ngi, b, dh
 
     siz_B = _BATCH_TILE_SIZE
     num_blocks = triton.cdiv(B_eff, siz_B)
@@ -1087,12 +1086,12 @@ def _lstm_backward(
         num_stages=1,
     )
 
-    delta_states_initial = rearrange(delta_states_initial, "nh ns b dh -> ns b nh dh")[:, :true_batch, :, :]
-    delta_Wx = rearrange(delta_Wx, "nh t ngi b dh -> b t ngi nh dh")[:true_batch]
+    delta_states_initial = delta_states_initial.permute(1, 2, 0, 3)[:, :true_batch, :, :]
+    delta_Wx = delta_Wx.permute(3, 1, 2, 0, 4)[:true_batch]
     delta_R = delta_R.sum(0)
-    delta_R = rearrange(delta_R, "nh ngr dhout dhin -> ngr nh dhout dhin")
+    delta_R = delta_R.permute(1, 0, 2, 3)
     delta_b = delta_b.sum(0)
-    delta_b = rearrange(delta_b, "nh ngi dh -> ngi nh dh")
+    delta_b = delta_b.permute(1, 0, 2)
 
     return delta_states_initial, delta_Wx, delta_R, delta_b
 

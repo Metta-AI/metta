@@ -1,0 +1,152 @@
+# Tribal Village Environment
+
+Multi-agent RL environment built in Nim with PufferLib integration. Features 60 agents across 12 teams competing for
+resources while fighting off hostile tumors.
+
+<img width="2742" height="1628" alt="image" src="https://github.com/user-attachments/assets/a5992e9d-abdd-4d8b-ab83-efabd90e2bd5" />
+
+## Quick Start
+
+**Setup**
+
+```bash
+# Install Nim via nimby
+#   macOS ARM: nimby-macOS-ARM64
+#   macOS x64: nimby-macOS-X64
+#   Linux x64: nimby-Linux-X64
+curl -L https://github.com/treeform/nimby/releases/download/0.1.11/nimby-macOS-ARM64 -o /tmp/nimby && chmod +x /tmp/nimby
+/tmp/nimby use 2.2.6
+nimby sync -g nimby.lock  # install Nim deps into ~/.nimby/pkgs and write nim.cfg
+# Make the Python package importable from anywhere (editable install)
+uv pip install -e packages/tribal_village
+```
+
+**Standalone Game**
+
+```bash
+nim r -d:release tribal_village.nim
+```
+
+**Play via CLI (wraps build + launch)**
+
+```bash
+# GUI render (launches Nim viewer)
+uv run --project packages/tribal_village tribal-village play --render gui
+
+# Text-only render with random actions for a short run
+uv run --project packages/tribal_village tribal-village play --render ansi --steps 50
+```
+
+**PufferLib Training**
+
+```bash
+# Ensure the shared library is up to date
+uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"
+# Launch a quick sanity check (works from any directory once installed)
+python -c "from tribal_village_env import TribalVillageEnv; env = TribalVillageEnv()"
+
+# Run CoGames trainer without installing globally (uses local checkout)
+uv run --project packages/cogames --with ./packages/tribal_village \
+  cogames train-tribal -p class=tribal --steps 1000000 --parallel-envs 8 --num-workers 4 --log-outputs
+```
+
+> Prefer avoiding a global editable install? Use `uv run --project packages/tribal_village python -c "..."` to execute
+> one-off commands against this package with its local dependencies instead.
+
+## Configuration
+
+The Python environment accepts a config dictionary to customize the Nim simulation:
+
+```python
+config = {
+    'max_steps': 1000,          # Episode length
+    'ore_per_battery': 1,       # Ore needed to craft battery
+    'batteries_per_heart': 1,   # Batteries needed for heart at assembler
+    'enable_combat': True,      # Enable tumor spawning and combat
+    'tumor_spawn_rate': 0.1,   # Tumor spawn frequency (lower = slower spawns)
+    'tumor_damage': 1,         # Damage tumors deal to agents
+    'heart_reward': 1.0,        # Reward for heart crafting
+    'ore_reward': 0.1,          # Reward for mining ore
+    'battery_reward': 0.8,      # Reward for crafting batteries
+    'wood_reward': 0.0,         # Reward for chopping wood
+    'water_reward': 0.0,        # Reward for collecting water
+    'wheat_reward': 0.0,        # Reward for harvesting wheat
+    'spear_reward': 0.0,        # Reward for crafting spears
+    'armor_reward': 0.0,        # Reward for crafting armor
+    'food_reward': 0.0,         # Reward for crafting bread
+    'cloth_reward': 0.0,        # Reward for crafting lanterns
+    'tumor_kill_reward': 0.0,  # Reward for clearing tumors
+    'survival_penalty': 0.0,    # Penalty per step (negative)
+    'death_penalty': 0.0        # Penalty for agent death (negative)
+}
+env = TribalVillageEnv(config=config)
+```
+
+## Game Overview
+
+**Map**: 192x108 grid with procedural terrain (rivers, wheat fields, tree groves) **Agents**: 60 agents in 12 teams of
+5, each with specialized AI roles **Resources**: ore, batteries, water, wheat, wood, spear, lantern, armor, bread
+**Threats**: Autonomous tumors that spawn and expand across the map
+
+### Core Gameplay Loop
+
+1. **Gather** resources (mine ore, harvest wheat, chop wood, collect water)
+2. **Craft** items using specialized buildings (forge spears, weave lanterns, etc.)
+3. **Cooperate** within teams and compete across teams
+4. **Defend** against tumors using crafted spears
+
+## Controls
+
+**Agent Selection**: Click agents to view inventory overlay in top-left **Movement**: Arrow keys/WASD for cardinal, QEZC
+for diagonal **Actions**: U (use/craft), P (special action) **Global**: Space (pause), +/- (speed), Mouse (pan/zoom)
+
+## Technical Details
+
+### Observation Space
+
+21 layers, 11x11 grid per agent:
+
+- **Layer 0**: Team-aware agent presence (1=team0, 2=team1, 3=team2, 255=Tumor)
+- **Layers 1-9**: Agent orientation + inventories (ore, battery, water, wheat, wood, spear, lantern, armor)
+- **Layers 10-18**: Buildings (walls, mines, converters, assemblers) + status
+- **Layers 19-20**: Environmental effects + bread inventory
+
+### Action Space
+
+Multi-discrete `[move_direction, action_type]`:
+
+- **Movement**: 8 directions (N/S/E/W + diagonals)
+- **Actions**: Move, attack, use/craft, give items, plant lanterns
+
+### Architecture
+
+- **Nim backend**: High-performance simulation and rendering
+- **Python wrapper**: PufferLib-compatible interface for all 60 agents
+- **Zero-copy communication**: Direct pointer passing for efficiency
+- **Web ready**: Emscripten support for WASM deployment
+
+## Build
+
+- Native shared library for Python:
+  `uv run --project packages/tribal_village python -c "from tribal_village_env.build import ensure_nim_library_current; ensure_nim_library_current()"`
+- Native desktop viewer: `nim r -d:release tribal_village.nim`
+- WebAssembly demo (requires Emscripten on PATH):\
+  `nim c --app:gui --threads:off --gc:arc --exceptions:goto --os:linux --cpu:wasm32 --cc:clang --nimcache:build/web/nimcache --listCmd -d:release -d:emscripten -d:nimNoDevRandom -d:nimNoGetRandom -d:nimNoSysrand --passL:"--shell-file=scripts/shell_minimal.html" --passL:"--preload-file data" --passL:"-sUSE_GLFW=3" --passL:"-sUSE_WEBGL2=1" --passL:"-sASYNCIFY" --passL:"-sALLOW_MEMORY_GROWTH" --passL:"-sINITIAL_MEMORY=512MB" --passL:"-sFULL_ES3=1" --passL:"-sGL_ENABLE_GET_PROC_ADDRESS=1" --passL:"-sERROR_ON_UNDEFINED_SYMBOLS=0" -o:build/web/tribal_village.html tribal_village.nim`\
+  - Outputs to `build/web/tribal_village.html`; serve via `python -m http.server 8000`
+
+### PufferLib Rendering
+
+- Python bindings default to `render_mode="rgb_array"` and stream full-map RGB frames via Nim.
+- Adjust `render_scale` in the env config (default 4) to control output resolution.
+- Set `render_mode="ansi"` for lightweight terminal output.
+
+## Files
+
+**Core**: `tribal_village.nim` (main), `src/environment.nim` (simulation), `src/ai.nim` (built-in agents) **Rendering**:
+`src/renderer.nim`, `src/ui.nim`, `src/controls.nim` **Integration**: `src/tribal_village_interface.nim` (C interface),
+`tribal_village_env/` (Python wrapper) **Build**: `nimby.lock`, `tribal_village.nimble`
+
+## Dependencies
+
+**Nim**: 2.2.4+ with boxy, windy, vmath, chroma packages **Python**: 3.8+ with gymnasium, numpy, pufferlib **System**:
+OpenGL for rendering

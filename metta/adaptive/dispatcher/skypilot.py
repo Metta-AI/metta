@@ -32,8 +32,7 @@ class SkypilotDispatcher(Dispatcher):
     def _dispatch_skypilot(self, job: JobDefinition, display_id: str) -> str:
         cmd_parts = [
             SKYPILOT_LAUNCH_PATH,
-            "--no-spot",
-            "--heartbeat-timeout=10000",
+            "--heartbeat-timeout-seconds=10000",
         ]
 
         if job.gpus and job.gpus > 0:
@@ -68,21 +67,21 @@ class SkypilotDispatcher(Dispatcher):
                     log("Skypilot launch %s for %s:\n%s", label, display_id, stream)
 
             if process.returncode != 0:
-                error_msg = f"Skypilot launch failed with return code {process.returncode}"
+                error_msg = f"Skypilot launch failed with return code {process.returncode}: {' '.join(cmd_parts)}"
                 if stderr:
                     error_msg = f"{error_msg}: {stderr}"
-                logger.error("Failed to launch %s on Skypilot: %s", display_id, error_msg)
+                logger.error("Failed to launch %s on Skypilot: %s", display_id, error_msg, exc_info=True)
                 raise RuntimeError(error_msg)
 
             logger.info("Successfully launched %s on Skypilot", display_id)
             return dispatch_id
 
         except subprocess.TimeoutExpired as exc:
-            logger.error("Skypilot launch timed out for %s", job.run_id)
+            logger.error("Skypilot launch timed out for %s", job.run_id, exc_info=True)
             process.kill()
             raise RuntimeError(f"Skypilot launch timed out after 5 minutes for {job.run_id}") from exc
         except Exception as exc:  # pragma: no cover - surface the underlying error
-            logger.error("Failed to launch Skypilot job %s: %s", job.run_id, exc)
+            logger.error("Failed to launch Skypilot job %s: %s", job.run_id, exc, exc_info=True)
             raise
 
     def check_local_processes(self) -> int:

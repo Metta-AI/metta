@@ -31,11 +31,24 @@ PYTHON_PACKAGE_DIR = PROJECT_ROOT / "python" / "src" / "mettagrid"
 METTASCOPE_PACKAGE_DIR = PYTHON_PACKAGE_DIR / "nim" / "mettascope"
 
 
+def cmd(cmd: str) -> None:
+    """Run a command and raise an error if it fails."""
+    print(f"Running: {cmd}")
+    result = subprocess.run(cmd.split(), cwd=METTASCOPE_DIR, capture_output=True, text=True)
+    print(result.stderr, file=sys.stderr)
+    print(result.stdout, file=sys.stderr)
+    if result.returncode != 0:
+        raise RuntimeError(f"Mettascope build failed: {cmd}")
+
+
 def _run_bazel_build() -> None:
     """Run Bazel build to compile the C++ extension."""
     # Check if bazel is available
     if shutil.which("bazel") is None:
-        raise RuntimeError("Bazel is required to build mettagrid. Please install Bazel: https://bazel.build/install")
+        raise RuntimeError(
+            "Bazel is required to build mettagrid. "
+            "Run 'uv run python -m metta.setup.components.system_packages.bootstrap' to install it."
+        )
 
     # Determine build configuration from environment
     debug = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
@@ -141,10 +154,10 @@ def _nim_artifacts_up_to_date() -> bool:
     existing_outputs = {
         generated_dir / name
         for name in (
-            "mettascope2.py",
-            "libmettascope2.dylib",
-            "libmettascope2.so",
-            "libmettascope2.dll",
+            "mettascope.py",
+            "libmettascope.dylib",
+            "libmettascope.so",
+            "libmettascope.dll",
         )
         if (generated_dir / name).exists()
     }
@@ -161,7 +174,7 @@ def _nim_artifacts_up_to_date() -> bool:
     return oldest_output_mtime >= latest_source_mtime
 
 
-def _sync_mettascope_package_data() -> None:
+def _copy_mettascope_python_bindings() -> None:
     """Ensure Nim artifacts are vendored inside the Python package."""
 
     destination_root = METTASCOPE_PACKAGE_DIR
@@ -178,38 +191,27 @@ def _sync_mettascope_package_data() -> None:
     )
 
 
-def _run_mettascope_build() -> None:
+def _run_mettascope_build(copy_bindings: bool = False) -> None:
     """Build Nim artifacts when cache misses."""
 
     if _nim_artifacts_up_to_date():
         print("Skipping Nim build; artifacts up to date.")
-        _sync_mettascope_package_data()
+        if not copy_bindings:
+            _copy_mettascope_python_bindings()
         return
 
-    # Check if nim and nimble are available
-    if shutil.which("nim") is None:
-        print("Warning: Nim compiler not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        raise RuntimeError("Nim compiler not found")
-
-    if shutil.which("nimble") is None:
-        print("Warning: Nimble package manager not found. Skipping mettascope build.")
-        print("To build mettascope, install Nim: https://nim-lang.org/install.html")
-        raise RuntimeError("Nimble package manager not found")
+    for x in ["nim", "nimby"]:
+        if shutil.which(x) is None:
+            raise RuntimeError(f"{x} not found! Install from https://github.com/treeform/nimby.")
 
     print(f"Building mettascope from {METTASCOPE_DIR}")
 
-    # Run the build script
-    for cmd in ["update", "install", "bindings"]:
-        result = subprocess.run(["nimble", cmd, "-y"], cwd=METTASCOPE_DIR, capture_output=True, text=True)
-        print(result.stderr, file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
-        if result.returncode != 0:
-            print(f"Warning: Mettascope build failed. {cmd} failed. STDERR:", file=sys.stderr)
-            print(f"Mettascope build {cmd} STDOUT:", file=sys.stderr)
-            raise RuntimeError("Mettascope build failed")
+    cmd("nimby sync -g nimby.lock")
+    cmd("nim c bindings/bindings.nim")
+
     print("Successfully built mettascope")
-    _sync_mettascope_package_data()
+    if not copy_bindings:
+        _copy_mettascope_python_bindings()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
@@ -229,7 +231,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     """Build an editable install, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
-    _run_mettascope_build()
+    _run_mettascope_build(copy_bindings=True)  # Editable installs use source directly
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
 

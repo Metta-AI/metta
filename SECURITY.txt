@@ -1,0 +1,5 @@
+# Security policy for Metta-AI
+Contact: mailto:security@stem.ai
+Preferred-Languages: en
+# We acknowledge reports within 72 hours and aim to resolve verified issues quickly.
+# We do not operate a paid bug bounty program at this time.

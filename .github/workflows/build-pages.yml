@@ -1,10 +1,8 @@
-name: "Build (and sometimes Deploy) to GitHub Pages"
+name: "Build and Deploy to WASM Mettascope"
 on:
   push:
     paths: &site_paths
-      - "mettascope/**"
       - "packages/mettagrid/nim/mettascope/**"
-      - "observatory/**"
       - ".github/workflows/**"
   pull_request:
     paths: *site_paths
@@ -27,71 +25,46 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Get all history to ensure we don't hit caching issues
-
-      - uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "minimal"
+          install-mode: "testing"
 
-      - name: Install Mettascope
+      - name: Install Mettascope Dependencies
         run: |
-          ./mettascope/install.sh
+          cd ..
+          nimby sync -g metta/packages/mettagrid/nim/mettascope/nimby.lock
+          nimby list
+          cat nim.cfg
+
+      - name: Cache nimby dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimby
+          key: nimby-deps-${{ hashFiles('metta/packages/mettagrid/nim/mettascope/nimby.lock') }}-${{ runner.os }}
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 4.0.19
+          actions-cache-folder: "emsdk-cache"
 
-      - name: Build mettascope2
+      - name: Build mettascope
         run: |
           cd packages/mettagrid/nim/mettascope
-          nimble install -y
-          nimble deps --tree
           cd ../../../..
           mkdir -p packages/mettagrid/nim/mettascope/dist
           nim c -d:emscripten packages/mettagrid/nim/mettascope/src/mettascope.nim
           ls -la packages/mettagrid/nim/mettascope/dist
-
-      - name: Build Observatory
-        run: |
-          cd observatory
-          pnpm install
-          pnpm run build
-
-      - name: Debug Output
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "=== UV Environment ==="
-          which uv
-          uv --version
-
-          echo "=== Directory Structure ==="
-          echo "Current directory: $(pwd)"
-          ls -la
-
-          echo "=== Player Directory ==="
-          cd mettascope
-          echo "Player directory: $(pwd)"
-          ls -la
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Create deployment directory
         run: |
-          mkdir -p deploy/observatory
-          mkdir -p deploy/mettascope2
-          cp -r mettascope/* deploy/
-          cp -r observatory/dist/* deploy/observatory/
-          cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope2/
+          mkdir -p deploy/mettascope
+          cp -r packages/mettagrid/nim/mettascope/dist/* deploy/mettascope/
 
       - name: Upload artifact
         # Only upload artifact for main branch

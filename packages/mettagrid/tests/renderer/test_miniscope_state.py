@@ -49,10 +49,9 @@ class TestMiniscopeState:
         assert state.map_width == 0
 
         # Check shared data
-        assert state.object_type_names is None
         assert state.resource_names is None
         assert state.symbol_map is None
-        assert state.glyphs is None
+        assert state.vibes is None
 
     def test_is_running(self):
         """Test is_running method for different playback states."""
@@ -123,9 +122,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(9.0)  # 6.0 * 1.5
 
         # Test max limit
-        state.fps = 50.0
+        state.fps = 400.0
         state.increase_speed()
-        assert state.fps == 60.0  # Max is 60
+        assert state.fps == 600.0  # Max is 600
 
         # Decrease speed
         state.fps = 6.0
@@ -133,9 +132,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(4.0)  # 6.0 / 1.5
 
         # Test min limit
-        state.fps = 0.6
+        state.fps = 0.015
         state.decrease_speed()
-        assert state.fps == 0.5  # Min is 0.5
+        assert state.fps == 0.01  # Min is 0.01
 
     def test_get_frame_delay(self):
         """Test get_frame_delay method."""
@@ -154,37 +153,31 @@ class TestMiniscopeState:
         state.fps = 0
         assert state.get_frame_delay() == 0.25  # Default
 
-    def test_cycle_mode(self):
-        """Test cycle_mode method."""
+    def test_set_mode(self):
+        """Set render mode directly without cycling."""
         state = MiniscopeState()
 
-        # Start in FOLLOW
-        assert state.mode == RenderMode.FOLLOW
-
-        # Cycle to PAN
-        state.cycle_mode()
+        # Follow is default; switching to PAN and SELECT works directly
+        state.set_mode(RenderMode.PAN)
         assert state.mode == RenderMode.PAN
 
-        # Cycle to SELECT
-        state.cycle_mode()
+        state.set_mode(RenderMode.SELECT)
         assert state.mode == RenderMode.SELECT
 
-        # Cycle back to FOLLOW
-        state.cycle_mode()
-        assert state.mode == RenderMode.FOLLOW
+        # Trying to set helper modes should be ignored
+        state.set_mode(RenderMode.VIBE_PICKER)
+        assert state.mode == RenderMode.SELECT
 
-        # GLYPH_PICKER is not in the cycle
-        state.mode = RenderMode.GLYPH_PICKER
-        state.cycle_mode()
-        assert state.mode == RenderMode.GLYPH_PICKER  # No change from GLYPH_PICKER
+        state.set_mode(RenderMode.HELP)
+        assert state.mode == RenderMode.SELECT
 
-    def test_enter_glyph_picker(self):
-        """Test enter_glyph_picker method."""
+    def test_enter_vibe_picker(self):
+        """Test enter_vibe_picker method."""
         state = MiniscopeState()
 
         state.mode = RenderMode.FOLLOW
-        state.enter_glyph_picker()
-        assert state.mode == RenderMode.GLYPH_PICKER
+        state.enter_vibe_picker()
+        assert state.mode == RenderMode.VIBE_PICKER
 
     def test_toggle_manual_control(self):
         """Test toggle_manual_control method."""

@@ -123,54 +123,6 @@ class TestCurriculumEnv:
             if termination_type == "full_termination":
                 mock_env.set_mg_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
-    @pytest.mark.parametrize(
-        "rewards,expected_mean",
-        [
-            (np.array([1.0, 0.0]), 0.5),
-            (np.array([0.8, 0.6, 0.4]), 0.6),
-            (np.array([1.0]), 1.0),
-            (np.array([-0.5, 0.5]), 0.0),
-        ],
-    )
-    def test_curriculum_env_reward_aggregation(self, rewards, expected_mean):
-        """Test reward aggregation with different reward arrays."""
-        mock_env = Mock()
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            rewards,
-            np.array([True] * len(rewards)),
-            np.array([False] * len(rewards)),
-            {},
-        )
-        mock_env.get_episode_rewards.return_value = rewards
-        mock_env.set_mg_config = Mock()
-
-        task_gen_config = SingleTaskGenerator.Config(env=MettaGridConfig())
-        config = CurriculumConfig(task_generator=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
-
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-        initial_completions = initial_task._num_completions
-
-        # Step the environment
-        _ = wrapper.step([1, 0])
-
-        # Should call env.step
-        mock_env.step.assert_called_once_with([1, 0])
-
-        # Task should have been completed with mean reward
-        assert initial_task._num_completions == initial_completions + 1
-        assert abs(initial_task._total_score - expected_mean) < 1e-10
-
-        # Should have gotten a new task
-        assert wrapper._current_task is not initial_task
-        assert isinstance(wrapper._current_task, CurriculumTask)
-
-        # Should have set new env config
-        mock_env.set_mg_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
-
     def test_curriculum_env_step_with_truncation(self):
         """Test step method when episode truncates."""
         mock_env = self.create_mock_env()

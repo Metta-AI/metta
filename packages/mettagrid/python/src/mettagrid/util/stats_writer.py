@@ -46,3 +46,24 @@ class StatsWriter(ABC):
     def close(self) -> None:
         """Close any open connections or resources."""
         raise NotImplementedError
+
+
+class NoopStatsWriter(StatsWriter):
+    """No-op StatsWriter implementation for testing."""
+
+    def __init__(self, dir: Path | None = None):
+        super().__init__(dir or Path("/tmp"))
+
+    def record_episode(
+        self,
+        attributes: Dict[str, str],
+        agent_metrics: Dict[int, Dict[str, float]],
+        agent_groups: Dict[int, int],
+        step_count: int,
+        replay_url: str | None,
+        created_at: datetime.datetime,
+    ) -> int:
+        return 0
+
+    def close(self) -> None:
+        pass

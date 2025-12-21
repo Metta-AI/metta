@@ -32,6 +32,8 @@ resource "aws_iam_policy" "observatory_s3" {
         Resource = [
           "arn:aws:s3:::softmax-public",
           "arn:aws:s3:::softmax-public/*",
+          "arn:aws:s3:::observatory-private",
+          "arn:aws:s3:::observatory-private/*",
         ]
       }
     ]
