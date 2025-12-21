@@ -214,6 +214,7 @@ class HarvestState:
 
     # POSITION-BASED STUCK DETECTION: Track recent positions to detect being stuck at a location
     position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
+    forced_exploration_direction: Optional[str] = None  # Force exploration in this direction when badly stuck
 
 
 # Resource to vibe mapping for extracting resources
@@ -335,36 +336,27 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Update position based on last action - but verify move success first!
         self._update_position_with_verification(state, obs)
 
-        # Observation-based stuck detection (more reliable than landmark verification)
-        # Hash the observation to detect if view has changed
-        # Include inventory and energy to detect progress even in static environments
-        obs_hash = hash((
-            # Object positions (walls, extractors, etc.)
-            tuple(
-                (tok.location, tok.feature.name, tok.value)
-                for tok in obs.tokens
-                if tok.feature.name == "tag"
-            ),
-            # Inventory state (to detect resource gathering progress)
-            state.carbon, state.oxygen, state.germanium, state.silicon, state.hearts,
-            # Energy state (bucketized heavily to avoid hash changes from charger fluctuations)
-            # Use //30 so standing on chargers doesn't reset stuck detection
-            state.energy // 30,
-        ))
-        if obs_hash == state.prev_obs_hash:
-            state.same_observation_count += 1
-        else:
-            state.same_observation_count = 0
-            state.prev_obs_hash = obs_hash
-            # Observation changed - reset consecutive_failed_moves since we moved
-            state.consecutive_failed_moves = 0
-            # Don't exit stuck recovery based on observation alone
-            # Only exit when we see actual exploration progress (explored_cells grows)
+        # POSITION-BASED STUCK DETECTION (critical fix for energy_starved)
+        # Problem: Observation hash changes when energy/inventory changes, resetting consecutive_failed_moves
+        # Solution: Track position history - if agent hasn't moved in N steps, it's stuck
+        current_pos = (state.row, state.col)
+        state.position_history.append(current_pos)
+        if len(state.position_history) > 10:
+            state.position_history.pop(0)  # Keep last 10 positions
 
-        # If observation hasn't changed for many steps, we're REALLY stuck
-        # Increased threshold from 5 to 8 since improved hash reduces false positives
-        if state.same_observation_count >= 8:
-            state.stuck_recovery_active = True
+        # Count how many recent positions are the same as current position
+        same_position_count = sum(1 for pos in state.position_history if pos == current_pos)
+
+        # If stuck at same position for 5+ steps, set consecutive_failed_moves to match
+        # This properly detects stuck state even when energy/inventory changes
+        if same_position_count >= 5:
+            # Agent is stuck at this position - use max to avoid overwriting higher counts
+            state.consecutive_failed_moves = max(state.consecutive_failed_moves, same_position_count)
+            self._logger.debug(f"  STUCK DETECTED: same position for {same_position_count} steps (consecutive_fails={state.consecutive_failed_moves})")
+
+        else:
+            # Agent is moving - reset counter
+            state.consecutive_failed_moves = 0
 
         # Rotate quadrant based on progress, not just time
         # Only rotate if we're not making exploration progress AND time limit exceeded
@@ -1065,34 +1057,42 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         """
         from .utils import find_direction_to_object_from_obs
 
-        # PRIORITY -1: STUCK RECOVERY - Check this FIRST before any other logic
-        # If agent is stuck, trigger recovery immediately instead of continuing failed navigation
-        stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 10
-        if state.consecutive_failed_moves >= stuck_threshold and state.discovered_chargers:
-            self._logger.info(f"  GATHER: STUCK ({state.consecutive_failed_moves} fails >= {stuck_threshold}), triggering stuck recovery")
-            # Navigate to nearest charger to reset
-            nearest_charger = self._find_nearest_charger(state)
-            dr = nearest_charger[0] - state.row
-            dc = nearest_charger[1] - state.col
+        # PRIORITY -1: STUCK RECOVERY - Try all directions to escape dead-end
+        # If agent is stuck ≥5 steps, it's likely in a dead-end/narrow corridor
+        # Solution: Try all 4 directions in priority order (prefer toward charger)
+        if state.consecutive_failed_moves >= 5:
+            self._logger.warning(f"  GATHER: STUCK ({state.consecutive_failed_moves} fails) - trying all directions to escape")
 
-            # Pick direction that reduces distance most
-            if abs(dr) > abs(dc):
-                direction = "north" if dr < 0 else "south"
+            import random
+            all_dirs = ["north", "south", "east", "west"]
+
+            # If we have charger, prioritize direction toward it
+            if state.discovered_chargers:
+                nearest_charger = self._find_nearest_charger(state)
+                dr = nearest_charger[0] - state.row
+                dc = nearest_charger[1] - state.col
+
+                # Determine preferred direction (toward charger)
+                if abs(dr) > abs(dc):
+                    preferred = "south" if dr > 0 else "north"
+                else:
+                    preferred = "west" if dc < 0 else "east"
+
+                # Reorder: preferred first, then others random
+                all_dirs.remove(preferred)
+                random.shuffle(all_dirs)
+                all_dirs.insert(0, preferred)
+
             else:
-                direction = "east" if dc > 0 else "west"
+                # No charger - just shuffle randomly
+                random.shuffle(all_dirs)
 
-            if self._is_direction_clear_in_obs(state, direction):
-                return self._actions.move.Move(direction)
-
-            # Try alternative directions if primary blocked
-            alt_directions = ["north", "south", "east", "west"]
-            alt_directions.remove(direction)
-            for alt_dir in alt_directions:
-                if self._is_direction_clear_in_obs(state, alt_dir):
-                    return self._actions.move.Move(alt_dir)
-
-            # All directions blocked - use observation-only exploration as last resort
-            return self._explore_observation_only(state)
+            # Rotate through directions each step to try different ones
+            # Use step_count to pick different direction each time
+            direction_index = state.step_count % 4
+            direction = all_dirs[direction_index]
+            self._logger.info(f"  STUCK RECOVERY: Trying {direction} (rotation {direction_index}/4)")
+            return self._actions.move.Move(direction)
 
         # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
         if not state.found_initial_charger:
@@ -1116,6 +1116,110 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Not visible - explore to find charger
             self._logger.debug(f"  GATHER: No charger visible, exploring to find one")
             return self._explore_observation_only(state)
+
+        # PRIORITY 0.5: ENERGY SAFETY - if we're too far from charger, navigate back BEFORE gathering
+        # This prevents getting trapped in dead-ends far from chargers
+        if state.discovered_chargers:
+            nearest_charger = min(
+                state.discovered_chargers,
+                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+            )
+            dist_to_charger = abs(nearest_charger[0] - state.row) + abs(nearest_charger[1] - state.col)
+            safety_margin = 10
+
+            # Use same logic as exploration: aggressive when many chargers
+            num_chargers = len(state.discovered_chargers)
+            if num_chargers >= 5:
+                max_safe_distance = max(10, (state.energy - safety_margin) // 1.5)
+            else:
+                max_safe_distance = max(5, (state.energy - safety_margin) // 2)
+
+            if dist_to_charger > max_safe_distance:
+                self._logger.info(f"  GATHER: TOO FAR from charger ({dist_to_charger} > {max_safe_distance}, energy={state.energy}), navigating back for safety")
+
+                # ESCAPE NARROW CORRIDORS: If stuck (many failed moves), backtrack aggressively
+                # to escape narrow corridors and reach areas where lateral exploration is possible
+                if state.consecutive_failed_moves >= 5:
+                    self._logger.info(f"  GATHER: STUCK in corridor ({state.consecutive_failed_moves} fails), aggressive backtrack to charger")
+                    # Go straight to charger to escape the corridor
+                    dr = nearest_charger[0] - state.row
+                    dc = nearest_charger[1] - state.col
+                    direction = "north" if abs(dr) > abs(dc) and dr < 0 else \
+                               "south" if abs(dr) > abs(dc) and dr > 0 else \
+                               "east" if dc > 0 else "west"
+
+                    if self._is_direction_clear_in_obs(state, direction):
+                        return self._actions.move.Move(direction)
+
+                    # Primary blocked - try alternatives
+                    for alt_dir in ["north", "south", "east", "west"]:
+                        if alt_dir != direction and self._is_direction_clear_in_obs(state, alt_dir):
+                            return self._actions.move.Move(alt_dir)
+
+                    return self._actions.noop.Noop()
+
+                # LATERAL BACKTRACKING: Not stuck yet - try lateral exploration while moving closer
+                dr = nearest_charger[0] - state.row
+                dc = nearest_charger[1] - state.col
+
+                # Prioritize LATERAL movement (perpendicular to charger direction) to explore more area
+                # Only every 4th step should we move directly toward charger
+                if state.step_count % 4 != 0:
+                    # Lateral exploration phase - try perpendicular directions first
+                    if abs(dr) > abs(dc):
+                        # Charger is mostly vertical - explore horizontally
+                        lateral_dirs = ["east", "west"]
+                        primary_dir = "north" if dr < 0 else "south"
+                    else:
+                        # Charger is mostly horizontal - explore vertically
+                        lateral_dirs = ["north", "south"]
+                        primary_dir = "east" if dc > 0 else "west"
+
+                    # Try lateral directions first (for area coverage)
+                    for lat_dir in lateral_dirs:
+                        if self._is_direction_clear_in_obs(state, lat_dir):
+                            # Check if this lateral move keeps us within safe distance
+                            deltas = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+                            ddr, ddc = deltas[lat_dir]
+                            new_r, new_c = state.row + ddr, state.col + ddc
+                            new_dist = abs(nearest_charger[0] - new_r) + abs(nearest_charger[1] - new_c)
+
+                            if new_dist <= max_safe_distance + 2:  # Allow slight overshoot for exploration
+                                self._logger.info(f"  GATHER: LATERAL backtrack {lat_dir} (exploring while returning)")
+                                return self._actions.move.Move(lat_dir)
+
+                    # Lateral directions didn't work - fall through to direct navigation
+                    self._logger.debug(f"  GATHER: Lateral backtrack failed, using direct navigation")
+
+                # Direct navigation toward charger (every 4th step or when lateral fails)
+                direction = "north" if abs(dr) > abs(dc) and dr < 0 else \
+                           "south" if abs(dr) > abs(dc) and dr > 0 else \
+                           "east" if dc > 0 else "west"
+
+                if self._is_direction_clear_in_obs(state, direction):
+                    self._logger.info(f"  GATHER: Moving {direction} toward charger at {nearest_charger}")
+                    return self._actions.move.Move(direction)
+
+                # Try alternative directions sorted by distance reduction
+                alt_directions = ["north", "south", "east", "west"]
+                alt_directions.remove(direction)
+
+                def dist_after_move(d):
+                    deltas = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+                    ddr, ddc = deltas[d]
+                    new_r, new_c = state.row + ddr, state.col + ddc
+                    return abs(nearest_charger[0] - new_r) + abs(nearest_charger[1] - new_c)
+
+                alt_directions.sort(key=dist_after_move)
+
+                for alt_dir in alt_directions:
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.info(f"  GATHER: Primary blocked, trying {alt_dir}")
+                        return self._actions.move.Move(alt_dir)
+
+                # All blocked - use noop
+                self._logger.warning(f"  GATHER: TOO FAR but all directions blocked! Using noop")
+                return self._actions.noop.Noop()
 
         # PRIORITY 1: After finding charger, GO TO IT if energy is actually LOW
         # Only navigate to charger when below recharge_low, not when below recharge_high
@@ -1612,6 +1716,32 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             self._logger.debug(f"  RECHARGE: Navigating to charger at {target_charger} (current pos=({state.row},{state.col}), dr={dr}, dc={dc})")
 
+            # CRITICAL: Check for stuck status FIRST - BACKTRACK to escape dead-end
+            # When stuck in RECHARGE, agent is trying to reach charger but trapped
+            # Solution: Try alternative route by moving perpendicular to stuck direction
+            if state.consecutive_failed_moves >= 5:
+                self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails) - trying alternative route")
+
+                # Try perpendicular directions to find alternate path to charger
+                if abs(dr) > abs(dc):
+                    # Primarily moving vertically - try horizontal alternatives
+                    alt_directions = ["east", "west", "south" if dr > 0 else "north"]
+                else:
+                    # Primarily moving horizontally - try vertical alternatives
+                    alt_directions = ["north", "south", "west" if dc < 0 else "east"]
+
+                import random
+                random.shuffle(alt_directions)
+
+                for alt_dir in alt_directions:
+                    self._logger.info(f"  STUCK RECOVERY: Trying alternative route {alt_dir}")
+                    return self._actions.move.Move(alt_dir)
+
+                # All alternatives tried - just pick random
+                desperation_dir = random.choice(["north", "south", "east", "west"])
+                self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir}")
+                return self._actions.move.Move(desperation_dir)
+
             # Pick direction that reduces distance most
             if abs(dr) > abs(dc):
                 # Vertical movement more important
@@ -1625,19 +1755,30 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.debug(f"  RECHARGE: Moving {direction} toward charger at {target_charger}")
                 return self._actions.move.Move(direction)
 
-            # Try perpendicular direction
-            alt_directions = []
-            if abs(dr) > abs(dc):
-                # Was trying vertical, try horizontal
-                alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+            # Primary direction blocked - try perpendicular alternatives
+            # (stuck recovery above handles >= 5 failures case)
+            if False:  # Disabled - dead code, stuck recovery handles this now
+                self._logger.info(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails), trying all directions to escape")
+                alt_directions = ["north", "south", "east", "west"]
+                alt_directions.remove(direction)  # Remove primary direction
+                for alt_dir in alt_directions:
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.info(f"  RECHARGE: Trying {alt_dir} to escape stuck state")
+                        return self._actions.move.Move(alt_dir)
             else:
-                # Was trying horizontal, try vertical
-                alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+                # Not stuck yet - try perpendicular directions only
+                alt_directions = []
+                if abs(dr) > abs(dc):
+                    # Was trying vertical, try horizontal
+                    alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+                else:
+                    # Was trying horizontal, try vertical
+                    alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
 
-            for alt_dir in alt_directions:
-                if self._is_direction_clear_in_obs(state, alt_dir):
-                    self._logger.debug(f"  RECHARGE: Primary direction blocked, trying {alt_dir}")
-                    return self._actions.move.Move(alt_dir)
+                for alt_dir in alt_directions:
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.debug(f"  RECHARGE: Primary direction blocked, trying {alt_dir}")
+                        return self._actions.move.Move(alt_dir)
 
         # All directions blocked or no chargers - explore to find one
         self._logger.debug(f"  RECHARGE: Can't navigate to charger, exploring (have {len(state.discovered_chargers)} discovered)")
@@ -1830,10 +1971,46 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _explore_observation_only(self, state: HarvestState) -> Action:
         """Explore using ONLY observation-based movement (no pathfinding).
 
-        This is safer for initial exploration when we haven't found key landmarks yet.
-        Prefers directions that lead to unexplored cells.
+        ENERGY-AWARE EXPLORATION: Only explores within safe radius of chargers.
+        Uses breadth-first strategy to avoid dead-end traps.
         """
+        # FORCED EXPLORATION: When badly stuck, force movement in specific direction
+        if state.forced_exploration_direction:
+            forced_dir = state.forced_exploration_direction
+            if self._is_direction_clear_in_obs(state, forced_dir):
+                self._logger.info(f"  EXPLORE: Using forced direction {forced_dir} to escape stuck state")
+                return self._actions.move.Move(forced_dir)
+            else:
+                # Forced direction blocked, clear it and proceed with normal exploration
+                self._logger.info(f"  EXPLORE: Forced direction {forced_dir} blocked, trying alternatives")
+                state.forced_exploration_direction = None
+
         dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+
+        # ENERGY SAFETY: Calculate safe exploration radius
+        # Rule: Never go farther than (energy - safety_margin) / 2 from nearest charger
+        # Division by 2 because we need energy to get there AND back
+        # BUT: If there are MANY chargers (like energy_starved), be more aggressive
+        safety_margin = 10  # Always keep 10 energy as buffer
+        nearest_charger_dist = float('inf')
+
+        if state.discovered_chargers:
+            nearest_charger = min(
+                state.discovered_chargers,
+                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+            )
+            nearest_charger_dist = abs(nearest_charger[0] - state.row) + abs(nearest_charger[1] - state.col)
+
+        # Calculate safe exploration radius (how far we can go from current position)
+        # When there are many chargers (5+), use more aggressive exploration
+        num_chargers = len(state.discovered_chargers)
+        if num_chargers >= 5:
+            # Lots of chargers - can explore farther safely
+            max_safe_distance_from_charger = max(10, (state.energy - safety_margin) // 1.5)
+            self._logger.debug(f"  EXPLORE: Many chargers ({num_chargers}), using aggressive radius {max_safe_distance_from_charger}")
+        else:
+            # Few chargers - be conservative
+            max_safe_distance_from_charger = max(5, (state.energy - safety_margin) // 2)
 
         # Check which directions are clear AND score them by exploration value
         direction_scores = []
@@ -1845,11 +2022,52 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             dr, dc = dir_offsets[direction]
             target_r, target_c = state.row + dr, state.col + dc
 
-            # Score based on whether target has been explored
-            if (target_r, target_c) in state.explored_cells:
-                score = 0  # Already explored - low priority
+            # ENERGY SAFETY CHECK: Don't explore too far from charger
+            if state.discovered_chargers:
+                # Calculate distance from nearest charger to target position
+                dist_to_charger = abs(nearest_charger[0] - target_r) + abs(nearest_charger[1] - target_c)
+
+                # If moving this direction would take us too far from charger, PENALIZE it heavily
+                if dist_to_charger > max_safe_distance_from_charger:
+                    # Too far from charger - very low priority (but not zero, in case we're already far)
+                    score = -100 + dist_to_charger  # Prefer directions that move us BACK toward charger
+                    self._logger.debug(f"  EXPLORE: Direction {direction} too far from charger ({dist_to_charger} > {max_safe_distance_from_charger}), penalizing")
+                else:
+                    # Within safe radius - score normally
+                    if (target_r, target_c) in state.explored_cells:
+                        score = 0  # Already explored - low priority
+                    else:
+                        score = 10  # Unexplored - high priority
+
+                    # SPIRAL EXPLORATION: Alternate between horizontal and vertical movement
+                    # This prevents getting stuck in linear corridors
+                    # CRITICAL: If we're near charger/start position, STRONGLY prefer east/west to escape corridors
+                    near_charger = dist_to_charger < 10
+                    if near_charger:
+                        # Near charger - explore laterally to discover new areas
+                        if direction in ["east", "west"]:
+                            score += 20  # Very strong boost for lateral exploration
+                            self._logger.info(f"  EXPLORE: Near charger, strongly boosting lateral {direction}")
+                    elif state.step_count % 20 < 10:
+                        # Horizontal sweep phase - prefer east/west
+                        if direction in ["east", "west"]:
+                            score += 5  # Boost horizontal directions
+                            self._logger.debug(f"  EXPLORE: Horizontal sweep phase, boosting {direction}")
+                    else:
+                        # Vertical sweep phase - prefer north/south
+                        if direction in ["north", "south"]:
+                            score += 5  # Boost vertical directions
+                            self._logger.debug(f"  EXPLORE: Vertical sweep phase, boosting {direction}")
+
+                    # BREADTH-FIRST: Slightly prefer directions that keep us closer to charger
+                    # This encourages expanding circles rather than deep exploration
+                    score -= dist_to_charger * 0.1
             else:
-                score = 10  # Unexplored - high priority
+                # No charger discovered yet - explore freely
+                if (target_r, target_c) in state.explored_cells:
+                    score = 0  # Already explored - low priority
+                else:
+                    score = 10  # Unexplored - high priority
 
             # Add small random component to avoid getting stuck in patterns
             score += (state.step_count + ord(direction[0])) % 5
@@ -1857,8 +2075,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             direction_scores.append((direction, score))
 
         if not direction_scores:
-            # Completely surrounded - try noop (might be on charger)
-            return self._actions.noop.Noop()
+            # Completely surrounded in observation - all directions appear blocked
+            # DESPERATION MODE: When stuck for 10+ steps, try moves anyway (observation might be wrong)
+            if state.consecutive_failed_moves >= 10:
+                # Rotate through directions to systematically try escaping
+                all_dirs = ["north", "south", "east", "west"]
+                desperation_idx = state.step_count % 4
+                desperation_dir = all_dirs[desperation_idx]
+                self._logger.warning(f"  EXPLORE: DESPERATION MODE - all directions blocked, trying {desperation_dir} anyway (stuck {state.consecutive_failed_moves} steps)")
+                return self._actions.move.Move(desperation_dir)
+            else:
+                # Not stuck long enough - try noop (might be on charger)
+                return self._actions.noop.Noop()
 
         # Pick highest-scoring direction (prefer unexplored)
         best_direction = max(direction_scores, key=lambda x: x[1])[0]
