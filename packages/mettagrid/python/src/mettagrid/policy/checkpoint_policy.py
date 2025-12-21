@@ -12,7 +12,6 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.architecture_spec import architecture_from_spec, architecture_spec_from_value
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.checkpoint_io import prepare_state_dict_for_save
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 WEIGHTS_FILENAME = "weights.safetensors"
@@ -20,6 +19,28 @@ WEIGHTS_FILENAME = "weights.safetensors"
 
 def _join_uri(base: str, child: str) -> str:
     return f"{base.rstrip('/')}/{child}"
+
+
+def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Prepare state dict for safetensors: detach, move to CPU, handle shared storage."""
+    result: dict[str, torch.Tensor] = {}
+    seen_storage: dict[int, str] = {}
+
+    for key, tensor in state_dict.items():
+        if not isinstance(tensor, torch.Tensor):
+            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
+
+        value = tensor.detach().cpu()
+        data_ptr = value.data_ptr()
+
+        if data_ptr in seen_storage:
+            value = value.clone()
+        else:
+            seen_storage[data_ptr] = key
+
+        result[key] = value
+
+    return result
 
 
 def _resolve_policy_data_path(policy_data_path: Path) -> Path:
