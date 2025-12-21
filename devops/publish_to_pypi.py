@@ -66,8 +66,8 @@ def update_dependency_versions(
     package_name: str,
     old_version: str,
     new_version: str,
-    dry_run: bool = False,
     skip_path: Path,
+    dry_run: bool = False,
 ) -> list[Path]:
     """
     Update all references to the package version in other pyproject.toml files.
@@ -247,7 +247,12 @@ def main():
         if old_version and old_version != new_version:
             print(f"\n🔄 Updating {args.package_name} version references from {old_version} to {new_version}...")
             updated_files = update_dependency_versions(
-                project_root, args.package_name, old_version, new_version, args.dry_run, skip_path=pyproject_path
+                project_root,
+                args.package_name,
+                old_version,
+                new_version,
+                pyproject_path,
+                args.dry_run,
             )
             if updated_files:
                 print(f"✓ Updated {len(updated_files)} file(s)")
