@@ -710,7 +710,7 @@ class CMPO(Loss):
         policy_input = TensorDict(
             {
                 "env_obs": model_batch["env_obs"].reshape(segments * traj_len, *self.obs_shape),
-                "batch": torch.full((segments * traj_len,), traj_len, dtype=torch.long, device=device),
+                "batch": torch.full((segments * traj_len,), segments, dtype=torch.long, device=device),
                 "bptt": torch.full((segments * traj_len,), traj_len, dtype=torch.long, device=device),
             },
             batch_size=(segments * traj_len,),
@@ -879,7 +879,8 @@ class CMPO(Loss):
             advantages=vtrace_adv,
             ratio=ratio,
         )
-        loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss * self.cfg.vf_coef
+        v_loss = v_loss * self.cfg.vf_coef
+        loss = pg_loss - self.cfg.ent_coef * entropy_loss + v_loss
 
         self._track("model_policy_loss", pg_loss)
         self._track("model_value_loss", v_loss)
