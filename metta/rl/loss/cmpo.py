@@ -184,6 +184,9 @@ class CMPO(Loss):
         self.world_model_opt = torch.optim.Adam(self.world_model.parameters(), lr=cfg.world_model.learning_rate)
         self.transition_buffer = TransitionBuffer(cfg.world_model.buffer_size)
 
+        if hasattr(self.policy, "critic_quantiles"):
+            raise NotImplementedError("CMPO requires a scalar value head; quantile critics are not supported.")
+
         self.prior_model: Optional[Policy] = None
         if cfg.prior_ema_decay is not None:
             self.prior_model = copy.deepcopy(self.policy).to(device)
@@ -240,17 +243,17 @@ class CMPO(Loss):
             mask = self._has_prev[env_slice]
             prev_states = self._prev_obs[env_slice][mask]
             prev_actions_enc = self._prev_action_enc[env_slice][mask]
-            prev_dones = self._prev_done[env_slice][mask].float()
 
             current_states = obs_flat[mask]
             current_rewards = rewards[mask]
+            current_dones = terminals[mask].float()
 
             self.transition_buffer.add_batch(
                 states=prev_states.detach(),
                 actions_enc=prev_actions_enc.detach(),
                 rewards=current_rewards.detach(),
                 next_states=current_states.detach(),
-                dones=prev_dones.detach(),
+                dones=current_dones.detach(),
             )
 
         if self.burn_in_steps_iter < self.burn_in_steps:
@@ -311,7 +314,10 @@ class CMPO(Loss):
         log_pi = policy_td["full_log_probs"].reshape(pi_cmpo.shape)
         actor_loss = -(pi_cmpo.detach() * log_pi).sum(dim=-1).mean()
 
-        value_pred = policy_td["values"].reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
+        value_pred = policy_td["values"]
+        if value_pred.dim() != 2:
+            raise RuntimeError(f"CMPO expected scalar values with shape [B, T]; got {tuple(value_pred.shape)}")
+        value_pred = value_pred.reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
         v_target = (pi_cmpo.detach() * q_values).sum(dim=-1)
         value_loss = 0.5 * F.mse_loss(value_pred, v_target)
 
@@ -398,7 +404,10 @@ class CMPO(Loss):
         model.reset_memory()
         with torch.no_grad():
             td = model.forward(td, action=dummy_actions)
-        return td["values"].view(-1)
+        values = td["values"]
+        if values.dim() != 1:
+            raise RuntimeError(f"CMPO expected scalar values with shape [B]; got {tuple(values.shape)}")
+        return values.view(-1)
 
     def _flatten_obs(self, obs: Tensor) -> Tensor:
         obs_f = obs.to(dtype=torch.float32)
