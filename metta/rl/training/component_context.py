@@ -61,7 +61,7 @@ class ComponentContext:
     def __init__(
         self,
         *,
-        state: Optional[TrainerState],
+        state: TrainerState,
         policy: Policy,
         env: TrainingEnvironment,
         experience: Experience,
@@ -72,7 +72,7 @@ class ComponentContext:
         run_name: Optional[str] = None,
         curriculum: Optional["Curriculum"] = None,
     ) -> None:
-        self.state = state or TrainerState()
+        self.state = state
         self.policy = policy
         self.env = env
         self.experience = experience
