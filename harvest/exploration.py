@@ -2,13 +2,14 @@
 
 Handles corridor detection, dead-end avoidance, and breadth-first exploration.
 """
+from __future__ import annotations
+
 import random
 from typing import Optional, TYPE_CHECKING
 
-from .types import HarvestState
-
 if TYPE_CHECKING:
     from .map import MapManager, MapCellType
+    from .harvest_policy import HarvestState
 
 
 class ExplorationManager:

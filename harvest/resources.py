@@ -2,9 +2,12 @@
 
 Handles resource tracking, deficit calculation, and extractor discovery.
 """
-from typing import Optional
+from __future__ import annotations
 
-from .types import HarvestState
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .harvest_policy import HarvestState
 
 
 class ResourceManager:

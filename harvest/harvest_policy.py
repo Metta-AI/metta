@@ -1881,11 +1881,13 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             )
             if extractor_pos:
                 # Create ExtractorInfo from position
-                # Note: We don't track remaining_uses in MapManager, so we assume it's available
+                # Note: MapManager doesn't track detailed extractor state
                 return ExtractorInfo(
                     position=extractor_pos,
                     resource_type=resource_type,
-                    remaining_uses=1,  # Assume available
+                    last_seen_step=state.step_count,
+                    times_used=0,
+                    cooldown_remaining=0,
                     clipped=False
                 )
 

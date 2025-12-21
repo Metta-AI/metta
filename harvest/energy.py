@@ -2,9 +2,12 @@
 
 Handles charger tracking, energy safety, and recharge decisions.
 """
-from typing import Optional
+from __future__ import annotations
 
-from .types import HarvestState, ChargerInfo
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .harvest_policy import HarvestState, ChargerInfo
 
 
 class EnergyManager:

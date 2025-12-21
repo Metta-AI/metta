@@ -2,7 +2,12 @@
 
 Handles observation processing, position tracking, and object discovery.
 """
-from .types import HarvestState, ChargerInfo
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .harvest_policy import HarvestState, ChargerInfo
 
 
 class StateTracker:

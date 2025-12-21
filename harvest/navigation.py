@@ -2,10 +2,13 @@
 
 Handles movement, stuck detection, and recovery.
 """
-import random
-from typing import Optional
+from __future__ import annotations
 
-from .types import HarvestState
+import random
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .harvest_policy import HarvestState
 
 
 class NavigationManager:
