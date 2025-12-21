@@ -109,6 +109,7 @@ class HarvestState:
 
     # Move verification - store multiple landmarks for robust verification
     prev_landmarks: list[tuple[tuple[int, int], int]] = field(default_factory=list)  # [(obs_pos, tag_id), ...]
+    prev_energy: Optional[int] = None  # Previous step's energy for move verification
 
     # Drift detection - track consecutive failed moves
     consecutive_failed_moves: int = 0
@@ -228,10 +229,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Observation-based stuck detection (more reliable than landmark verification)
         # Hash the observation to detect if view has changed
-        obs_hash = hash(tuple(
-            (tok.location, tok.feature.name, tok.value)
-            for tok in obs.tokens
-            if tok.feature.name == "tag"  # Only hash object positions
+        # Include inventory and energy to detect progress even in static environments
+        obs_hash = hash((
+            # Object positions (walls, extractors, etc.)
+            tuple(
+                (tok.location, tok.feature.name, tok.value)
+                for tok in obs.tokens
+                if tok.feature.name == "tag"
+            ),
+            # Inventory state (to detect resource gathering progress)
+            state.carbon, state.oxygen, state.germanium, state.silicon, state.hearts,
+            # Energy state (bucketized to avoid hash changes from small fluctuations)
+            state.energy // 10,
         ))
         if obs_hash == state.prev_obs_hash:
             state.same_observation_count += 1
@@ -244,12 +253,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Only exit when we see actual exploration progress (explored_cells grows)
 
         # If observation hasn't changed for many steps, we're REALLY stuck
-        if state.same_observation_count >= 5:
+        # Increased threshold from 5 to 8 since improved hash reduces false positives
+        if state.same_observation_count >= 8:
             state.stuck_recovery_active = True
 
-        # ALWAYS rotate quadrant based on step count for systematic coverage
-        # This ensures we explore all directions regardless of stuck recovery status
-        if state.step_count - state.quadrant_start_step > state.steps_per_quadrant:
+        # Rotate quadrant based on progress, not just time
+        # Only rotate if we're not making exploration progress AND time limit exceeded
+        # This ensures we don't abandon a productive quadrant prematurely
+        steps_in_quadrant = state.step_count - state.quadrant_start_step
+        no_recent_progress = state.step_count - state.last_exploration_progress_step > state.steps_per_quadrant // 2
+        if steps_in_quadrant > state.steps_per_quadrant and no_recent_progress:
             state.exploration_quadrant = (state.exploration_quadrant + 1) % 4
             state.quadrant_start_step = state.step_count
 
@@ -300,11 +313,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.cached_path = None
             state.cached_path_target = None
 
-        # IMPROVED: Don't reset position aggressively
-        # Only clear map if we're REALLY stuck for a very long time AND many failed moves
-        if (state.step_count - state.last_exploration_progress_step > 300 and
-            state.consecutive_failed_moves >= 10):
-            # Very aggressive fallback: position might be heavily drifted
+        # EMERGENCY FALLBACK: Reset position only in extreme cases
+        # With energy-based verification, position drift should be rare
+        # Only trigger this if stuck for a VERY long time with MANY failed moves
+        # Increased threshold from 300 to 500 steps since energy verification reduces drift
+        if (state.step_count - state.last_exploration_progress_step > 500 and
+            state.consecutive_failed_moves >= 20):
+            # Nuclear option: position might be corrupted despite energy verification
+            # This should rarely trigger with the new verification system
             # Reset position but keep stations since they're critical anchors
             map_center = state.map_height // 2
             state.row = map_center
@@ -362,16 +378,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         - After the move, we check if the landmark shifted by the expected amount
         - If not, the move failed and we don't update position
         """
-        # If last action wasn't a move, just clear flags
+        # If last action wasn't a move, just clear flags and store current energy
         if not state.last_action or not state.last_action.name.startswith("move_"):
             state.using_object_this_step = False
             self._store_landmarks(state, obs)
+            state.prev_energy = state.energy  # Store for next step's verification
             return
 
         # If we were using an object, position doesn't change
         if state.using_object_this_step:
             state.using_object_this_step = False
             self._store_landmarks(state, obs)
+            state.prev_energy = state.energy  # Store for next step's verification
             return
 
         # Get expected movement delta
@@ -399,17 +417,27 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         else:
             # Track failed moves for drift detection
             state.consecutive_failed_moves += 1
+
+            # CRITICAL FIX: Mark the target cell as OBSTACLE to learn from failures
+            # This prevents repeatedly trying invalid moves to the same cell
+            target_r, target_c = state.row + dr, state.col + dc
+            if path_is_within_bounds(state, target_r, target_c):
+                state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
+                # Remove from explored cells since it's blocked
+                state.explored_cells.discard((target_r, target_c))
+
             # If too many consecutive failed moves, invalidate cached paths
             # This suggests position drift - our map may be out of sync
             if state.consecutive_failed_moves >= 5:
                 state.cached_path = None
                 state.cached_path_target = None
 
-        # Store new landmark for next step
+        # Store new landmark and energy for next step's verification
         self._store_landmarks(state, obs)
+        state.prev_energy = state.energy
 
     def _verify_move_success(self, state: HarvestState, obs: AgentObservation, dr: int, dc: int) -> bool:
-        """Verify if the last move succeeded using multiple landmarks.
+        """Verify if the last move succeeded using multiple methods.
 
         Uses consensus from multiple landmarks. Only confirms move if at least one
         landmark verifies it. Denies move if any landmark contradicts it.
@@ -418,8 +446,25 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         This is because our movement and their apparent movement are in same direction.
         If we move north, the world shifts south relative to us, so landmark_row increases.
         """
+        # Method 1: Energy-based verification (most reliable!)
+        # Moving costs 1 energy. If energy didn't decrease, move MUST have failed.
+        if state.prev_energy is not None:
+            expected_energy = state.prev_energy - 1
+            if state.energy == state.prev_energy:
+                # Energy didn't decrease → move failed (hit wall or invalid)
+                return False
+            elif state.energy == expected_energy:
+                # Energy decreased as expected → move likely succeeded
+                # Continue with landmark verification for additional confidence
+                pass
+            # Note: If energy decreased but not by exactly 1, something else happened
+            # (e.g., recharging, energy drain). Continue to landmark verification.
+
+        # Method 2: Landmark-based verification
         if not state.prev_landmarks:
-            # No previous landmarks - can't verify, be conservative (assume move succeeded)
+            # No previous landmarks - can't verify with this method
+            # If we had energy verification above, we already handled it
+            # Otherwise, be conservative (assume move succeeded to avoid over-correction)
             return True
 
         verified_count = 0
@@ -475,8 +520,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if visible_static_objects >= 2:
             return True
 
-        # Sparse environment - assume success but flag for extra verification
-        return True
+        # Sparse environment - can't verify, assume FAILURE to prevent position drift
+        # Better to incorrectly reject a valid move than corrupt position tracking
+        return False
 
     def _store_landmarks(self, state: HarvestState, obs: AgentObservation) -> None:
         """Store multiple stable landmarks from current observation for move verification.
@@ -521,14 +567,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if state.row < 0:
             return
 
-        # Mark all observed cells as FREE initially and track as explored
+        # Mark all observed cells as FREE (but preserve learned obstacles!)
+        # CRITICAL: Don't overwrite cells we've learned are obstacles from failed moves
         center = state.map_height // 2  # Our starting position in internal map
         for obs_r in range(2 * self._obs_hr + 1):
             for obs_c in range(2 * self._obs_wr + 1):
                 r = obs_r - self._obs_hr + state.row
                 c = obs_c - self._obs_wr + state.col
                 if 0 <= r < state.map_height and 0 <= c < state.map_width:
-                    state.occupancy[r][c] = CellType.FREE.value
+                    # Only mark as FREE if we haven't learned it's an obstacle
+                    if state.occupancy[r][c] != CellType.OBSTACLE.value:
+                        state.occupancy[r][c] = CellType.FREE.value
                     state.explored_cells.add((r, c))
                     # Track map extent from starting position
                     extent = max(abs(r - center), abs(c - center))
@@ -1164,9 +1213,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Priority 3: Use frontier-based exploration (guarantees coverage on large maps)
         frontier_targets = self._find_frontier_targets(state)
         if frontier_targets:
-            # Pick nearest frontier cell
-            nearest = min(frontier_targets, key=lambda t: abs(t[0] - state.row) + abs(t[1] - state.col))
-            action = self._move_towards(state, nearest, reach_adjacent=False)
+            # CRITICAL: On large maps, pick FARTHEST frontier to avoid local loops
+            # This ensures we systematically explore outward instead of retracing
+            is_large_map = state.observed_map_extent > 50
+            if is_large_map:
+                # Farthest frontier - maximizes exploration coverage
+                target = max(frontier_targets, key=lambda t: abs(t[0] - state.row) + abs(t[1] - state.col))
+            else:
+                # Small maps: nearest is fine
+                target = min(frontier_targets, key=lambda t: abs(t[0] - state.row) + abs(t[1] - state.col))
+
+            action = self._move_towards(state, target, reach_adjacent=False)
             if action.name != "noop":
                 return action
 
