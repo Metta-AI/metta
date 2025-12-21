@@ -17,6 +17,7 @@ members = [
     "metta-app-backend",
     "metta-common",
     "metta-pr-similarity-mcp",
+    "metta-sim",
     "mettagrid",
     "pufferlib-core",
     "softmax",
@@ -2122,6 +2123,7 @@ dependencies = [
     { name = "metta-agent" },
     { name = "metta-app-backend" },
     { name = "metta-common" },
+    { name = "metta-sim" },
     { name = "ninja" },
     { name = "numpy" },
     { name = "nvidia-ml-py" },
@@ -2244,6 +2246,7 @@ requires-dist = [
     { name = "metta-agent", editable = "agent" },
     { name = "metta-app-backend", editable = "app_backend" },
     { name = "metta-common", editable = "common" },
+    { name = "metta-sim", editable = "sim" },
     { name = "ninja", specifier = ">=1.11.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "nvidia-ml-py" },
@@ -2490,6 +2493,47 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.46.0" },
     { name = "mcp", specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=1.24.0" },
+]
+
+[[package]]
+name = "metta-sim"
+version = "0.1.0"
+source = { editable = "sim" }
+dependencies = [
+    { name = "metta-app-backend" },
+    { name = "metta-common" },
+    { name = "mettagrid" },
+    { name = "pydantic" },
+    { name = "rich" },
+    { name = "wandb" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "metta-app-backend", editable = "app_backend" },
+    { name = "metta-common", editable = "common" },
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "pydantic", specifier = ">=2.12.2" },
+    { name = "rich", specifier = ">=13.9.4" },
+    { name = "wandb", specifier = ">=0.23.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.11.13" },
 ]
 
 [[package]]
