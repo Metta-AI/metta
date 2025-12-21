@@ -66,7 +66,7 @@ def apply_teacher_phase(
     total_steps = teacher_cfg.steps or default_steps
     losses = trainer_cfg.losses
 
-    def _gate_loss(name: str, end_at_step: int | None = total_steps) -> None:
+    def _gate_loss(name: str, end_at_step: int = total_steps) -> None:
         if end_at_step:
             scheduler_run_gates.extend(
                 [
