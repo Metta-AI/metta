@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn.functional as F
@@ -171,7 +171,7 @@ class SLCheckpointedKickstarter(Loss):
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
-    def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
+    def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
         policy_env_info = getattr(self.env, "policy_env_info", None)

@@ -178,10 +178,6 @@ def https_remote_url(url: str) -> str:
     return url
 
 
-# Prefer ``https_remote_url``; keep ``canonical_remote_url`` for backwards compatibility.
-canonical_remote_url = https_remote_url
-
-
 def get_remote_url(remote: str = "origin") -> str | None:
     """Get the URL of a remote repository."""
     try:

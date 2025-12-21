@@ -325,26 +325,6 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def list_all_recipes(console: Console) -> None:
-    """List all available recipes and their tools."""
-    console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
-
-    recipes = recipe_registry.get_all()
-
-    if not recipes:
-        console.print("[yellow]No recipes found.[/yellow]")
-        return
-
-    for recipe in sorted(recipes, key=lambda r: r.module_name):
-        maker_names = recipe.get_all_tool_maker_names()
-
-        if maker_names:
-            console.print(f"[bold]{recipe.short_name}[/bold]")
-            for maker_name in sorted(maker_names):
-                console.print(f"  └─ {maker_name}")
-            console.print()
-
-
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
     # Try to load recipe (handles both short and full paths)

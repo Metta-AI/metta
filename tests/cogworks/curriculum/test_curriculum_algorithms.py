@@ -29,11 +29,11 @@ def _register_task(algorithm: LearningProgressAlgorithm, task_id: int) -> int:
 def _create_tasks(
     algorithm: LearningProgressAlgorithm,
     count: int,
-    rng: random.Random | None = None,
+    rng: random.Random,
 ) -> list[int]:
     task_ids: list[int] = []
-    for index in range(count):
-        task_id = rng.randint(0, 1_000_000) if rng is not None else index
+    for _index in range(count):
+        task_id = rng.randint(0, 1_000_000)
         task_ids.append(_register_task(algorithm, task_id))
     return task_ids
 

@@ -22,7 +22,6 @@ from .filter import filter_repo
 # Git operations
 from .git import (
     add_remote,
-    canonical_remote_url,
     diff,
     fetch,
     find_root,
@@ -120,7 +119,6 @@ __all__ = [
     "is_commit_pushed",
     "resolve_git_ref",
     "https_remote_url",
-    "canonical_remote_url",  # Backwards compatibility alias
     "get_remote_url",
     "get_all_remotes",
     "is_repo_match",

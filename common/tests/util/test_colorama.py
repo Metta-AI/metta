@@ -2,17 +2,7 @@
 
 from colorama import Fore, Style
 
-from metta.common.util.text_styles import (
-    blue,
-    bold,
-    colorize,
-    cyan,
-    green,
-    magenta,
-    red,
-    use_colors,
-    yellow,
-)
+from metta.common.util.text_styles import blue, bold, colorize, cyan, green, red, use_colors, yellow
 
 
 class TestColoramaUtils:
@@ -73,13 +63,6 @@ class TestColoramaUtils:
         expected = f"{Fore.BLUE}{text}{Style.RESET_ALL}"
         assert result == expected
 
-    def test_magenta_function(self):
-        """Test magenta color function."""
-        text = "magenta message"
-        result = magenta(text)
-        expected = f"{Fore.MAGENTA}{text}{Style.RESET_ALL}"
-        assert result == expected
-
     def test_bold_function(self):
         """Test bold style function."""
         text = "bold message"
@@ -111,7 +94,6 @@ class TestColoramaUtils:
         assert yellow(empty_text) == f"{Fore.YELLOW}{empty_text}{Style.RESET_ALL}"
         assert cyan(empty_text) == f"{Fore.CYAN}{empty_text}{Style.RESET_ALL}"
         assert blue(empty_text) == f"{Fore.BLUE}{empty_text}{Style.RESET_ALL}"
-        assert magenta(empty_text) == f"{Fore.MAGENTA}{empty_text}{Style.RESET_ALL}"
         assert bold(empty_text) == f"{Style.BRIGHT}{empty_text}{Style.RESET_ALL}"
 
     def test_color_functions_with_special_characters(self):
@@ -148,7 +130,6 @@ class TestColoramaUtils:
         assert yellow(text) == text
         assert cyan(text) == text
         assert blue(text) == text
-        assert magenta(text) == text
         assert bold(text) == text
 
     def test_use_colors_toggle(self):
