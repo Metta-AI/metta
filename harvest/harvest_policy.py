@@ -77,6 +77,11 @@ class HarvestState:
         default_factory=lambda: {"assembler": None, "chest": None, "charger": None}
     )
 
+    # CRITICAL: Track ALL discovered chargers for intelligent energy management
+    # This allows the agent to use the nearest charger instead of always going to the first one found
+    discovered_chargers: list[tuple[int, int]] = field(default_factory=list)
+    found_initial_charger: bool = False  # True once we've found at least one charger
+
     # Heart crafting recipe (discovered from assembler)
     heart_recipe: Optional[dict[str, int]] = None
 
@@ -177,7 +182,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Energy thresholds
         self._recharge_critical = 10  # STOP ALL non-recharge activity
-        self._recharge_low = 20  # Enter dedicated recharge phase when very low
+        self._recharge_low = 35  # Enter dedicated recharge phase (enough to reach charger)
         self._recharge_high = 99  # Charge to full (nearly 100) for energy-starved missions
 
     def initial_agent_state(self) -> HarvestState:
@@ -624,6 +629,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             for station_name in ("assembler", "chest", "charger"):
                 if is_station(obj_name, station_name):
                     state.occupancy[r][c] = CellType.OBSTACLE.value
+
+                    # Special handling for chargers: track ALL of them
+                    if station_name == "charger":
+                        if pos not in state.discovered_chargers:
+                            state.discovered_chargers.append(pos)
+                            state.found_initial_charger = True
+
+                    # Also store in stations dict (first one found of each type)
                     if state.stations.get(station_name) is None:
                         state.stations[station_name] = pos
                         # Pre-compute distance map for this station
@@ -676,7 +689,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.used_extractors.add(pos)
 
     def _update_phase(self, state: HarvestState) -> None:
-        """Update phase based on current state."""
+        """Update phase based on current state.
+
+        CRITICAL: Prioritize finding charger before gathering resources.
+        This ensures energy safety on energy-starved missions.
+        """
         # Priority 1: CRITICAL energy - MUST recharge immediately
         if state.energy < self._recharge_critical:
             state.phase = HarvestPhase.RECHARGE
@@ -701,7 +718,15 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.phase = HarvestPhase.ASSEMBLE
             return
 
-        # Priority 5: Gather resources
+        # Priority 5: FIND CHARGER FIRST before gathering
+        # This is critical for energy-starved missions
+        # Once we have at least one charger, we can safely gather resources
+        if not state.found_initial_charger:
+            state.phase = HarvestPhase.GATHER  # Use GATHER phase for exploration
+            # The gather phase will be modified to prioritize charger finding
+            return
+
+        # Priority 6: Gather resources (only after charger found)
         state.phase = HarvestPhase.GATHER
 
     def _can_assemble(self, state: HarvestState) -> bool:
@@ -770,12 +795,34 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_gather(self, state: HarvestState) -> Action:
         """Gather resources using hybrid observation + map-based navigation.
 
-        Dynamically prioritizes resources based on:
+        CRITICAL: If no charger found yet, prioritize finding one!
+        This ensures energy safety before starting resource gathering.
+
+        Otherwise, dynamically prioritize resources based on:
         1. Largest deficit (need more of this)
         2. Germanium gets slight priority (longest cooldown)
         3. Opportunistic charging if energy low and charger visible
         """
         from .utils import find_direction_to_object_from_obs
+
+        # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
+        if not state.found_initial_charger:
+            # Check if charger visible in observation
+            result = self._find_station_direction_in_obs(state, "charger")
+            if result is not None:
+                charger_direction, _ = result
+                if self._is_direction_clear_in_obs(state, charger_direction):
+                    return self._actions.move.Move(charger_direction)
+
+            # Check if charger adjacent
+            adj_charger = self._find_station_adjacent_in_obs(state, "charger")
+            if adj_charger is not None:
+                state.using_object_this_step = True
+                return self._actions.move.Move(adj_charger)
+
+            # Not visible - explore to find charger
+            # Use aggressive exploration to find charger quickly
+            return self._explore(state)
 
         # OPPORTUNISTIC CHARGING: If energy getting low and charger visible, use it
         # This prevents entering dedicated RECHARGE phase and oscillating to charger
@@ -787,13 +834,21 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 state.using_object_this_step = True
                 return self._actions.move.Move(adj_charger)
 
-            # If energy very low (< 30), actively navigate to visible charger
+            # If energy very low (< 30), actively navigate to nearest known charger
             if state.energy < 30:
+                # First check if charger visible in observation
                 result = self._find_station_direction_in_obs(state, "charger")
                 if result is not None:
                     charger_direction, _ = result
                     if self._is_direction_clear_in_obs(state, charger_direction):
                         return self._actions.move.Move(charger_direction)
+
+                # Not visible but we have discovered chargers - navigate to nearest
+                if state.discovered_chargers:
+                    nearest_charger = self._find_nearest_charger(state)
+                    action = self._move_towards(state, nearest_charger, reach_adjacent=True)
+                    if action.name != "noop":
+                        return action
 
         # Find which resources we still need
         deficits = self._calculate_deficits(state)
@@ -1053,10 +1108,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_recharge(self, state: HarvestState) -> Action:
         """Recharge at the charger.
 
-        CRITICAL FIX for energy_starved missions:
-        - If energy CRITICAL (< 10), navigate to charger if known
-        - Avoid exploration/gathering that would waste energy
-        - Only noop if truly stuck (no known charger)
+        CRITICAL: Uses nearest charger from discovered_chargers list for efficiency.
+        This prevents long navigation to the first charger when a closer one exists.
         """
         # CRITICAL ENERGY: Prioritize survival
         if state.energy < self._recharge_critical:
@@ -1066,26 +1119,38 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 charger_direction, _ = result  # Unpack tuple (direction, cooldown)
                 return self._actions.move.Move(charger_direction)
 
-            # Not visible but we know where a charger is - navigate to it
-            if state.stations.get("charger") is not None:
-                return self._navigate_to_station(state, "charger")
+            # Not visible but we have discovered chargers - navigate to nearest
+            if state.discovered_chargers:
+                nearest_charger = self._find_nearest_charger(state)
+                return self._move_towards(state, nearest_charger, reach_adjacent=True)
 
-            # Truly desperate: no known charger
-            # Explore cautiously to find one (1 move at a time)
-            frontiers = self._get_frontier_cells(state)
-            if frontiers:
-                # Pick nearest frontier to minimize energy cost
-                nearest = min(frontiers, key=lambda f: abs(f[0] - state.row) + abs(f[1] - state.col))
-                path = self._find_path(state, state.row, state.col, nearest[0], nearest[1])
-                if path and len(path) > 1:
-                    dr, dc = path[1][0] - path[0][0], path[1][1] - path[0][1]
-                    return self._actions.move.Move(self._direction_from_delta(dr, dc))
-
-            # Absolutely stuck - noop
+            # Truly desperate: no known charger, energy critical
+            # DON'T explore blindly - that will kill us
+            # Instead, noop and hope for energy from solar cells or other sources
+            # On most missions, standing still generates 1 energy/turn from solar
             return self._actions.noop.Noop()
 
-        # Normal/low energy: navigate normally to charger
+        # Normal/low energy: navigate to nearest charger
+        if state.discovered_chargers:
+            nearest_charger = self._find_nearest_charger(state)
+            return self._move_towards(state, nearest_charger, reach_adjacent=True)
+
+        # No charger found yet - try to find one using observation
         return self._navigate_to_station(state, "charger")
+
+    def _find_nearest_charger(self, state: HarvestState) -> tuple[int, int]:
+        """Find the nearest charger from the list of discovered chargers.
+
+        Uses Manhattan distance from current position.
+        """
+        if not state.discovered_chargers:
+            # Fallback to first charger in stations dict
+            return state.stations.get("charger", (state.row, state.col))
+
+        return min(
+            state.discovered_chargers,
+            key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+        )
 
     def _calculate_deficits(self, state: HarvestState) -> dict[str, int]:
         """Calculate how many more resources we need."""
