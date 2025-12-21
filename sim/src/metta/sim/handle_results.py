@@ -12,13 +12,13 @@ from rich.table import Table
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.log_config import get_console, should_use_rich_console
-from metta.common.wandb.context import WandbRun
-from metta.common.wandb.rl import (
+from metta.common.wandb import (
     POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
+from metta.common.wandb.context import WandbRun
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
