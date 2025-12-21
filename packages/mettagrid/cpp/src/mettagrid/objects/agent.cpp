@@ -42,7 +42,7 @@ Agent::Agent(GridCoord r,
     }
   }
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
+  GridObject::init(config, GridLocation(r, c));
 }
 
 void Agent::init(RewardType* reward_ptr) {
@@ -205,7 +205,7 @@ bool Agent::onUse(Agent& actor, ActionArg arg) {
   return any_transfer_occurred;
 }
 
-std::vector<PartialObservationToken> Agent::obs_features() const {
+std::vector<PartialObservationToken> Agent::obs_features(unsigned int /*observer_agent_id*/) const {
   if (!this->obs_encoder) {
     throw std::runtime_error("Observation encoder not set for agent");
   }

@@ -1,7 +1,10 @@
+import pytest
+
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.simulator import Simulation
 
 
+@pytest.mark.skip(reason="vibe_transfers on agents has been removed - Transfer action no longer exists")
 class TestAgentResourceSharing:
     """Test agent resource sharing functionality when agents use each other."""
 

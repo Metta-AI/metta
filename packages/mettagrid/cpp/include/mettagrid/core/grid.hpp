@@ -2,6 +2,7 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_HPP_
 
 #include <algorithm>
+#include <cstdlib>
 #include <memory>
 #include <unordered_map>
 #include <vector>

@@ -4,12 +4,17 @@ This test verifies that agents share resources based on their current vibe:
 - Agents transfer resources according to vibe_transfers configuration
 - vibe_transfers maps vibe names to resource names and amounts
 - If vibe doesn't have configured transfers, no sharing occurs
+
+NOTE: This functionality has been removed - Transfer action no longer exists.
 """
+
+import pytest
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.simulator import Simulation
 
 
+@pytest.mark.skip(reason="vibe_transfers on agents has been removed - Transfer action no longer exists")
 class TestVibeBasedSharing:
     """Test vibe-based resource sharing when agents use each other."""
 

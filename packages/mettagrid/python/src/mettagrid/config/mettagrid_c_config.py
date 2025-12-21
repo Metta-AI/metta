@@ -16,7 +16,6 @@ from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
-from mettagrid.mettagrid_c import BuildActionConfig as CppBuildActionConfig
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
@@ -28,9 +27,6 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
-from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
-from mettagrid.mettagrid_c import VibeBuildEffect as CppVibeBuildEffect
-from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -513,26 +509,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
     action_params["vibe_bonus"] = {vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items()}
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
-    # Process transfer - vibes are derived from vibe_transfers keys in C++
-    transfer_cfg = actions_config.transfer
-    vibe_transfers_cpp = {}
-    seen_vibes: set[str] = set()
-    for vt in transfer_cfg.vibe_transfers:
-        if vt.vibe not in vibe_name_to_id:
-            raise ValueError(f"Unknown vibe name '{vt.vibe}' in transfer.vibe_transfers")
-        if vt.vibe in seen_vibes:
-            raise ValueError(f"Duplicate vibe name '{vt.vibe}' in transfer.vibe_transfers")
-        seen_vibes.add(vt.vibe)
-        vibe_id = vibe_name_to_id[vt.vibe]
-        target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
-        actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
-        vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
-    actions_cpp_params["transfer"] = CppTransferActionConfig(
-        required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
-        vibe_transfers=vibe_transfers_cpp,
-        enabled=transfer_cfg.enabled,
-    )
-
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
     # Use vibes length if explicitly set, otherwise fall back to number_of_vibes
@@ -545,39 +521,6 @@ def convert_to_cpp_game_config(game_config: GameConfig):
     else:
         action_params["number_of_vibes"] = 0
     actions_cpp_params["change_vibe"] = CppChangeVibeActionConfig(**action_params)
-
-    # Process build - collect build configs from all objects that have a build field
-    vibe_builds: dict[int, CppVibeBuildEffect] = {}
-    build_vibes: list[int] = []
-    for object_type, object_config in game_config.objects.items():
-        if isinstance(object_config, WallConfig) and object_config.build is not None:
-            build_cfg = object_config.build
-            # Validate vibe name exists
-            if build_cfg.vibe not in vibe_name_to_id:
-                raise ValueError(f"Unknown vibe name '{build_cfg.vibe}' in build config for '{object_type}'")
-            vibe_id = vibe_name_to_id[build_cfg.vibe]
-            # Validate and convert resource costs
-            cost_cpp: dict[int, int] = {}
-            for resource_name, amount in build_cfg.cost.items():
-                if resource_name not in resource_name_to_id:
-                    raise ValueError(
-                        f"Unknown resource '{resource_name}' in build config cost for '{object_type}'. "
-                        f"Available resources: {list(resource_name_to_id.keys())}"
-                    )
-                cost_cpp[resource_name_to_id[resource_name]] = int(amount)
-            # Create VibeBuildEffect
-            vibe_builds[vibe_id] = CppVibeBuildEffect(cost_cpp, object_type)
-            build_vibes.append(vibe_id)
-
-    # Only add build action if there are any build configs
-    if vibe_builds:
-        actions_cpp_params["build"] = CppBuildActionConfig(
-            required_resources={},
-            consumed_resources={},
-            vibe_builds=vibe_builds,
-            enabled=True,
-            vibes=build_vibes,
-        )
 
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params

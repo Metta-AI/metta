@@ -266,7 +266,7 @@ public:
         allow_partial_usage(cfg.allow_partial_usage),
         chest_search_distance(cfg.chest_search_distance),
         clipper_ptr(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg, GridLocation(r, c));
   }
   virtual ~Assembler() = default;
 
@@ -499,7 +499,8 @@ public:
     return true;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(
+      unsigned int /*observer_agent_id*/ = UINT_MAX) const override {
     std::vector<PartialObservationToken> features;
 
     unsigned int remaining = std::min(cooldown_remaining(), 255u);

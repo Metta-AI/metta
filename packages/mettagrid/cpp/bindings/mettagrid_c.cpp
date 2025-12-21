@@ -14,13 +14,10 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
-#include "actions/build.hpp"
-#include "actions/build_config.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
-#include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
@@ -85,14 +82,9 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  init_action_handlers();
+  init_action_handlers(_game_config);
 
   _init_grid(_game_config, map);
-
-  // Set runtime context for Build handler (needs obs_encoder and agents count)
-  if (_build_handler) {
-    _build_handler->set_runtime_context(&current_step, _obs_encoder.get(), num_agents);
-  }
 
   // Pre-compute goal_obs tokens for each agent
   if (_global_obs_config.goal_obs) {
@@ -259,11 +251,11 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   _compute_observations(executed_actions);
 }
 
-void MettaGrid::init_action_handlers() {
+void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _max_action_priority = 0;
 
   // Noop
-  auto noop = std::make_unique<Noop>(*_game_config.actions.at("noop"));
+  auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
   noop->init(_grid.get(), &_rng);
   if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
   for (const auto& action : noop->actions()) {
@@ -272,72 +264,39 @@ void MettaGrid::init_action_handlers() {
   _action_handler_impl.push_back(std::move(noop));
 
   // Move
-  auto move_config = std::static_pointer_cast<const MoveActionConfig>(_game_config.actions.at("move"));
-  auto move = std::make_unique<Move>(*move_config, &_game_config);
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &game_config);
   move->init(_grid.get(), &_rng);
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
   }
-  // Capture the raw pointer to pass to other handlers
-  Move* move_ptr = move.get();
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
-  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(_game_config.actions.at("attack"));
-  auto attack = std::make_unique<Attack>(*attack_config, &_game_config);
-  attack->init(_grid.get(), &_rng);
-  if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
-  for (const auto& action : attack->actions()) {
-    _action_handlers.push_back(action);
-  }
-
-  // Transfer
-  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(_game_config.actions.at("transfer"));
-  auto transfer = std::make_unique<Transfer>(*transfer_config, &_game_config);
-  transfer->init(_grid.get(), &_rng);
-  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
-  for (const auto& action : transfer->actions()) {
-    _action_handlers.push_back(action);
-  }
-
-  // Build (creates objects at previous location after successful move)
-  _build_handler = nullptr;
-  std::unique_ptr<Build> build;
-  if (_game_config.actions.find("build") != _game_config.actions.end()) {
-    auto build_config = std::static_pointer_cast<const BuildActionConfig>(_game_config.actions.at("build"));
-    build = std::make_unique<Build>(*build_config, &_game_config, _stats.get());
-    build->init(_grid.get(), &_rng);
-    if (build->priority > _max_action_priority) _max_action_priority = build->priority;
-    // Build doesn't create standalone actions - it's triggered by move
-    _build_handler = build.get();
-  }
-
-  // Register vibe-triggered action handlers with Move
-  std::unordered_map<std::string, ActionHandler*> handlers;
-  handlers["attack"] = attack.get();
-  handlers["transfer"] = transfer.get();
-  if (build) {
-    handlers["build"] = build.get();
-  }
-  move_ptr->set_action_handlers(handlers);
-
-  _action_handler_impl.push_back(std::move(attack));
-  _action_handler_impl.push_back(std::move(transfer));
-  if (build) {
-    _action_handler_impl.push_back(std::move(build));
+  if (game_config.actions.find("attack") != game_config.actions.end()) {
+    auto attack_config = std::static_pointer_cast<const AttackActionConfig>(game_config.actions.at("attack"));
+    auto attack = std::make_unique<Attack>(*attack_config, &game_config);
+    attack->init(_grid.get(), &_rng);
+    if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
+    for (const auto& action : attack->actions()) {
+      _action_handlers.push_back(action);
+    }
+    _action_handler_impl.push_back(std::move(attack));
   }
 
   // ChangeVibe
-  auto change_vibe_config =
-      std::static_pointer_cast<const ChangeVibeActionConfig>(_game_config.actions.at("change_vibe"));
-  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &_game_config);
-  change_vibe->init(_grid.get(), &_rng);
-  if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
-  for (const auto& action : change_vibe->actions()) {
-    _action_handlers.push_back(action);
+  if (game_config.actions.find("change_vibe") != game_config.actions.end()) {
+    auto change_vibe_config =
+        std::static_pointer_cast<const ChangeVibeActionConfig>(game_config.actions.at("change_vibe"));
+    auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &game_config);
+    change_vibe->init(_grid.get(), &_rng);
+    if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
+    for (const auto& action : change_vibe->actions()) {
+      _action_handlers.push_back(action);
+    }
+    _action_handler_impl.push_back(std::move(change_vibe));
   }
-  _action_handler_impl.push_back(std::move(change_vibe));
 }
 
 void MettaGrid::add_agent(Agent* agent) {
@@ -1091,10 +1050,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
-  bind_vibe_transfer_effect(m);
-  bind_transfer_action_config(m);
-  bind_vibe_build_effect(m);
-  bind_build_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

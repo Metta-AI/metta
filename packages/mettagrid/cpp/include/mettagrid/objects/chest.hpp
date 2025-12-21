@@ -79,7 +79,7 @@ public:
         vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg, GridLocation(r, c));
     // Set initial inventory for all configured resources (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
@@ -123,7 +123,8 @@ private:
     return false;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(
+      unsigned int /*observer_agent_id*/ = UINT_MAX) const override {
     if (!this->obs_encoder) {
       throw std::runtime_error("Observation encoder not set for chest");
     }

@@ -118,8 +118,11 @@ public:
 
   // Returns the number of tokens that were available to write. This will be the number of tokens actually
   // written if there was enough space -- or a greater number if there was not enough space.
-  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, ObservationType location) {
-    return append_tokens_if_room_available(tokens, obj->obs_features(), location);
+  size_t encode_tokens(const GridObject* obj,
+                       ObservationTokens tokens,
+                       ObservationType location,
+                       unsigned int observer_agent_id = UINT_MAX) {
+    return append_tokens_if_room_available(tokens, obj->obs_features(observer_agent_id), location);
   }
 
   size_t get_resource_count() const {
