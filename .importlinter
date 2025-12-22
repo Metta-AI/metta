@@ -1,0 +1,48 @@
+[importlinter]
+root_packages =
+    metta
+    cogames
+    mettagrid
+include_external_packages = False
+
+# Modules higher in the list can import from modules lower in the list, not vice versa
+[importlinter:contract:metta-layers]
+name = Metta module layers
+type = layers
+layers =
+    metta.tools
+    metta.gridworks
+    metta.setup
+    metta.sim
+    metta.rl
+    metta.sweep
+    metta.cogworks
+    metta.adaptive
+    metta.map
+    metta.utils
+    metta.common
+# Known violations to fix over time (remove as they get fixed)
+ignore_imports =
+    metta.setup.** -> metta.tools.**
+    metta.sweep.** -> metta.tools.**
+    metta.gridworks.** -> metta.tools.**
+    metta.rl.** -> metta.tools.**
+    metta.rl.** -> metta.sim.**
+    metta.utils.** -> metta.adaptive.**
+
+[importlinter:contract:cogames-independence]
+name = cogames cannot import from metta
+type = forbidden
+source_modules =
+    cogames
+forbidden_modules =
+    metta
+
+[importlinter:contract:mettagrid-independence]
+name = mettagrid cannot import from metta or cogames
+type = forbidden
+source_modules =
+    mettagrid
+forbidden_modules =
+    metta
+    cogames
