@@ -48,8 +48,8 @@ runs:
           type=sha,priority=999,suffix=${{ inputs.suffix }}
           type=raw,value=latest${{ inputs.suffix }},enable={{is_default_branch}}
 
-    #- name: Set up Docker Buildx
-    #  uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Build and push Docker image
       id: push
@@ -61,5 +61,5 @@ runs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         # GitHub cache is too slow and has 10Gb limit so they aren't very useful
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        # cache-from: type=gha
+        # cache-to: type=gha,mode=max
