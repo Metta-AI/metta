@@ -57,7 +57,6 @@ class EERCloner(Loss):
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
-
         env_slice = self._training_env_id(context)
 
         # --- Reward Shaping ---

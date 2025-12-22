@@ -12,10 +12,6 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
-<<<<<<< HEAD
-=======
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
@@ -82,21 +78,7 @@ class SLCheckpointedKickstarter(Loss):
         self._epochs_per_checkpoint = self.cfg.epochs_per_checkpoint
         self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
-<<<<<<< HEAD
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
-=======
-
-        policy_env_info = getattr(self.env, "policy_env_info", None)
-        if policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
-        self.teacher_policy = CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            teacher_spec,
-            device_override=str(self.device),
-        ).wrapped_policy
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
@@ -181,25 +163,12 @@ class SLCheckpointedKickstarter(Loss):
     def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
-<<<<<<< HEAD
         self.teacher_policy = load_teacher_policy(
             self.env,
             policy_uri=new_uri,
             device=self.device,
             error="Environment metadata is required to reload teacher policy",
         )
-=======
-        policy_env_info = getattr(self.env, "policy_env_info", None)
-        if policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to reload teacher policy")
-
-        teacher_spec = policy_spec_from_uri(new_uri, device=str(self.device))
-        self.teacher_policy = CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            teacher_spec,
-            device_override=str(self.device),
-        ).wrapped_policy
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

@@ -11,11 +11,6 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
-<<<<<<< HEAD
-=======
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -60,21 +55,7 @@ class SlicedKickstarter(Loss):
         cfg: "SlicedKickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-<<<<<<< HEAD
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
-=======
-
-        base_policy_env_info = getattr(self.env, "policy_env_info", None)
-        if base_policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
-        self.teacher_policy = CheckpointPolicy.from_policy_spec(
-            base_policy_env_info,
-            teacher_spec,
-            device_override=str(self.device),
-        ).wrapped_policy
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape

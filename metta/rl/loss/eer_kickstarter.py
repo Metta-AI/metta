@@ -10,11 +10,6 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
-<<<<<<< HEAD
-=======
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -59,7 +54,6 @@ class EERKickstarter(Loss):
         cfg: "EERKickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-<<<<<<< HEAD
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
         # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
         # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).
@@ -68,18 +62,14 @@ class EERKickstarter(Loss):
         num_actions = self.env.single_action_space.n
         self.last_teacher_log_probs = torch.zeros((num_agents, num_actions), device=self.device)
         self.has_last_probs = torch.zeros(num_agents, dtype=torch.bool, device=self.device)
-=======
 
-        policy_env_info = getattr(self.env, "policy_env_info", None)
-        if policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
-        self.teacher_policy = CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            teacher_spec,
-            device_override=str(self.device),
-        ).wrapped_policy
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
+        # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
+        # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).
+        # So we must use the cached pi(S_{t-1}) to shape R_t.
+        num_agents = self.env.total_parallel_agents
+        num_actions = self.env.single_action_space.n
+        self.last_teacher_log_probs = torch.zeros((num_agents, num_actions), device=self.device)
+        self.has_last_probs = torch.zeros(num_agents, dtype=torch.bool, device=self.device)
 
     def get_experience_spec(self) -> Composite:
         act_space = self.env.single_action_space
