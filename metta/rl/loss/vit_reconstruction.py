@@ -154,8 +154,6 @@ class ViTReconstructionLoss(Loss):
     Reconstructs the input sparse observations from the latent representation.
     """
 
-    policy_output_keys_static = {"obs_shim_tokens", "obs_latent_attn"}
-
     def __init__(
         self,
         policy: Policy,
@@ -168,6 +166,9 @@ class ViTReconstructionLoss(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.cfg: ViTReconstructionLossConfig = cfg  # type: ignore
         self.decoder = None
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"obs_shim_tokens", "obs_latent_attn"}
 
     def _init_decoder(self, latent_dim: int, context: ComponentContext) -> None:
         # 1. Derive num_attribute_classes from environment

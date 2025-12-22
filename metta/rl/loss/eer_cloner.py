@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
@@ -31,8 +31,6 @@ class EERClonerConfig(LossConfig):
 
 
 class EERCloner(Loss):
-    policy_output_keys_static = {"full_log_probs"}
-
     def __init__(
         self,
         policy: Policy,
@@ -56,6 +54,9 @@ class EERCloner(Loss):
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs"}
 
     def run_train(
         self,

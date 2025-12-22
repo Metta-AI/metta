@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, ClassVar, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 import torch
 from pydantic import Field
@@ -34,8 +34,6 @@ class LossConfig(Config):
 @dataclass(slots=True)
 class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses."""
-
-    policy_output_keys_static: ClassVar[Optional[set[str]]] = None
 
     policy: Policy
     trainer_cfg: "TrainerConfig"
