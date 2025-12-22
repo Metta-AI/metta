@@ -13,5 +13,5 @@ datadog:
 evalScheduler:
   enabled: false
 
-jobRunner:
-  enabled: true
+reconciler:
+  enabled: false

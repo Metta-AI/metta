@@ -24,9 +24,9 @@ class Kind:
     environment_values_file: Path | None
     context: str
 
-    def _check_namespace_exists(self) -> bool:
+    def _check_namespace_exists(self, namespace: str) -> bool:
         result = subprocess.run(
-            ["kubectl", "get", "namespace", self.namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            ["kubectl", "get", "namespace", namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         return result.returncode == 0
 
@@ -193,11 +193,11 @@ class KindLocal(Kind):
     environment_values_file: Path | None = repo_root / "devops/charts/orchestrator/environments/kind.yaml"
     context = f"kind-{cluster_name}"
 
-    def _create_namespace(self) -> None:
-        result = subprocess.run(["kubectl", "create", "namespace", self.namespace], check=True)
+    def _create_namespace(self, namespace: str) -> None:
+        result = subprocess.run(["kubectl", "create", "namespace", namespace], check=True)
         if result.returncode != 0:
-            error(f"Failed to create namespace {self.namespace}")
-            raise Exception(f"Failed to create namespace {self.namespace}")
+            error(f"Failed to create namespace {namespace}")
+            raise Exception(f"Failed to create namespace {namespace}")
 
     def _maybe_load_secrets(self) -> None:
         wandb_api_key = self._get_wandb_api_key()
@@ -237,9 +237,13 @@ class KindLocal(Kind):
         self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
         success("Kind cluster ready")
 
-        if not self._check_namespace_exists():
-            self._create_namespace()
+        if not self._check_namespace_exists(self.namespace):
+            self._create_namespace(self.namespace)
         success(f"{self.namespace} ready")
+
+        if not self._check_namespace_exists("jobs"):
+            self._create_namespace("jobs")
+        success("jobs namespace ready")
 
 
 class EksProd(Kind):

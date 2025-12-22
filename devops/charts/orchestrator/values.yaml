@@ -55,9 +55,8 @@ evalScheduler:
     env: "production"
     service: "leaderboard-eval-scheduler"
 
-jobRunner:
+reconciler:
   enabled: false
-  replicaCount: 1
   resources:
     requests:
       cpu: 100m

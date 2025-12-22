@@ -1,13 +1,18 @@
+import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.database import get_session
+from metta.app_backend.job_runner.dispatcher import dispatch_job
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
+
+logger = logging.getLogger(__name__)
 
 VALID_TRANSITIONS = {
     JobStatus.pending: {JobStatus.dispatched},
@@ -25,11 +30,49 @@ def create_job_router() -> APIRouter:
         if not jobs:
             return []
 
-        db_jobs = [JobRequest(**j.model_dump(), user_id=user) for j in jobs]
+        # Create all jobs in db as pending
+        db_jobs = []
         async with get_session() as session:
-            session.add_all(db_jobs)
+            for job_create in jobs:
+                db_job = JobRequest(**job_create.model_dump(), user_id=user)
+                session.add(db_job)
+                db_jobs.append(db_job)
             await session.commit()
-            return [j.id for j in db_jobs]
+            # Capture IDs before session closes
+            job_data = [(j.id, j) for j in db_jobs]
+
+        class _DispatchResult(BaseModel):
+            k8s_job_name: str | None = None
+            error: str | None = None
+            time: datetime
+
+        # Dispatch each job (outside DB session)
+        dispatch_results: dict[UUID, _DispatchResult] = {}
+        for job_id, db_job in job_data:
+            try:
+                dispatch_results[job_id] = _DispatchResult(k8s_job_name=dispatch_job(db_job), time=datetime.now(UTC))
+            except Exception as e:
+                logger.error(f"Failed to dispatch job {job_id}: {e}", exc_info=True)
+                dispatch_results[job_id] = _DispatchResult(error=str(e), time=datetime.now(UTC))
+
+        # Update DB with dispatch results
+        async with get_session() as session:
+            query = await session.execute(select(JobRequest).where(col(JobRequest.id).in_(dispatch_results.keys())))
+            job_requests = list(query.scalars().all())
+            for job_request in job_requests:
+                result = dispatch_results.get(job_request.id)
+                if not result:
+                    logger.error(f"Job {job_request.id} not found in dispatch results")
+                    continue
+                if result.k8s_job_name:
+                    job_request.status = JobStatus.dispatched
+                    job_request.worker = result.k8s_job_name
+                    job_request.dispatched_at = result.time
+                else:
+                    job_request.status = JobStatus.failed
+                    job_request.error = result.error
+            await session.commit()
+            return [job_request.id for job_request in job_requests]
 
     @router.get("")
     @timed_http_handler

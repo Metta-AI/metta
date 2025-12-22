@@ -1,43 +1,37 @@
-{{- if .Values.jobRunner.enabled }}
+{{- if .Values.reconciler.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "orchestrator.fullname" . }}-job-runner
+  name: {{ include "orchestrator.fullname" . }}-reconciler
   labels:
     {{- include "orchestrator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: job-runner
+    app.kubernetes.io/component: reconciler
 spec:
-  replicas: {{ .Values.jobRunner.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "orchestrator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: job-runner
+      app.kubernetes.io/component: reconciler
   template:
     metadata:
       labels:
         {{- include "orchestrator.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: job-runner
+        app.kubernetes.io/component: reconciler
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:
-      - name: job-runner
+      - name: reconciler
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["kopf", "run", "-m", "metta.app_backend.job_runner.episode_job_operator", "--standalone"]
+        command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.reconciler"]
         env:
         - name: BACKEND_URL
           value: {{ .Values.env.BACKEND_URL | quote }}
-        - name: KUBERNETES_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: DOCKER_IMAGE
-          value: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         - name: MACHINE_TOKEN
           valueFrom:
             secretKeyRef:
               name: {{ .Values.secrets.machineToken }}
               key: token
         resources:
-          {{- toYaml .Values.jobRunner.resources | nindent 10 }}
+          {{- toYaml .Values.reconciler.resources | nindent 10 }}
 {{- end }}
