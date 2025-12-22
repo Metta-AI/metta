@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     LOGIN_SERVICE_URL: str = "https://softmax.com"
     RUN_MIGRATIONS: bool = Field(default=False, description="Run migrations on startup")
+    GITHUB_WEBHOOK_SECRET: str | None = None
+    ASANA_PAT: str | None = None
+    ASANA_WORKSPACE_GID: str | None = None
+    ASANA_PROJECT_GID: str | None = None
 
 
 settings = Settings()

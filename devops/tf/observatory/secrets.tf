@@ -28,5 +28,9 @@ resource "kubernetes_secret" "observatory_backend_env" {
     ANTHROPIC_API_KEY = data.aws_secretsmanager_secret_version.anthropic_api_key_version.secret_string
     # bypass for token auth in app_backend, allows softmax.com -> observatory communication
     OBSERVATORY_AUTH_SECRET = random_password.auth_secret.result
+    GITHUB_WEBHOOK_SECRET = var.github_webhook_secret
+    ASANA_PAT             = var.asana_pat
+    ASANA_WORKSPACE_GID   = var.asana_workspace_gid
+    ASANA_PROJECT_GID     = var.asana_project_gid
   }
 }
