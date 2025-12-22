@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -10,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Callable, Literal, Protocol
 
 import wandb
 from pydantic import BaseModel, Field
@@ -264,11 +265,15 @@ class Runner:
 
         if job.is_remote:
             self._print(f"[{job.name}] Launching remote: {' '.join(job.cmd)}")
-            launch_future = self._executor.submit(_run_remote_launch, job.cmd, Path(job.logs_path))
+            launch_future = self._executor.submit(
+                _run_remote_launch, job.name, job.cmd, Path(job.logs_path), self._print
+            )
             self._handles[job.name] = _RemoteHandle(launch_future=launch_future)
         else:
             self._print(f"[{job.name}] Starting: {' '.join(job.cmd)}")
-            future = self._executor.submit(_run_local_cmd, job.cmd, Path(job.logs_path), job.timeout_s)
+            future = self._executor.submit(
+                _run_local_cmd, job.name, job.cmd, Path(job.logs_path), job.timeout_s, self._print
+            )
             self._handles[job.name] = _LocalHandle(future=future)
 
     def _drain_completed_futures(self) -> None:
@@ -426,23 +431,35 @@ class Runner:
         self._print("")
 
 
-def _run_local_cmd(cmd: list[str], log_path: Path, timeout_s: int) -> int:
+def _run_local_cmd(name: str, cmd: list[str], log_path: Path, timeout_s: int, print_fn: Callable[[str], None]) -> int:
     with open(log_path, "w") as log_file:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        start_time = time.monotonic()
         try:
-            proc = subprocess.run(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                text=True,
-                timeout=timeout_s,
-                check=False,
-            )
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                log_file.write(line)
+                print_fn(f"[{name}] {line.rstrip()}")
+
+                if time.monotonic() - start_time > timeout_s:
+                    proc.kill()
+                    return 124
+
+            proc.wait()
             return int(proc.returncode)
-        except subprocess.TimeoutExpired:
-            return 124
+        except Exception:
+            proc.kill()
+            raise
 
 
-def _run_remote_launch(cmd: list[str], log_path: Path) -> str | None:
+def _run_remote_launch(name: str, cmd: list[str], log_path: Path, print_fn: Callable[[str], None]) -> str | None:
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -457,6 +474,8 @@ def _run_remote_launch(cmd: list[str], log_path: Path) -> str | None:
         last_flush = time.monotonic()
         for line in proc.stdout:
             log_file.write(line)
+            print_fn(f"[{name}] {line.rstrip()}")
+
             now = time.monotonic()
             if now - last_flush >= 0.5:
                 log_file.flush()

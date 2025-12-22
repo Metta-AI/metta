@@ -381,8 +381,9 @@ class TrainTool(Tool):
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
-            return StatsClient.create(stats_server_uri=self.stats_server_uri)
-
+            client = StatsClient.create(stats_server_uri=self.stats_server_uri)
+            logger.info("Stats client initialized (backend: %s)", self.stats_server_uri)
+            return client
         except Exception as exc:
             logger.error("Failed to initialize stats client", exc_info=True)
             return None
