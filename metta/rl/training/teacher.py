@@ -99,7 +99,7 @@ def apply_teacher_phase(
                 )
             )
 
-    if teacher_cfg.mode in {"sliced_cloner", "supervisor", "eer_cloner"}:
+    if teacher_cfg.mode in {"sliced_cloner", "sliced_cloner_no_ppo", "supervisor", "eer_cloner"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
