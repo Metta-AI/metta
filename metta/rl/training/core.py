@@ -283,11 +283,9 @@ class CoreTrainingLoop:
                 shared_loss_mb_data["policy_td"] = policy_td
 
                 used_keys: set[str] = set()
-                for loss_obj in self.losses.values():
+                for _loss_name, loss_obj in self.losses.items():
                     if loss_obj._loss_gate_allows("train", context):
                         used_keys.update(loss_obj.policy_output_keys(policy_td))
-
-                for _loss_name, loss_obj in self.losses.items():
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
                         shared_loss_mb_data, context, mb_idx
                     )
@@ -301,9 +299,7 @@ class CoreTrainingLoop:
                 # Ensure all policy outputs participate in the graph even if some heads
                 # aren't used by the active losses (e.g., BC-only runs). This avoids
                 # DDP unused-parameter errors without relying on find_unused_parameters.
-                total_loss = add_dummy_loss_for_unused_params(
-                    total_loss, td=policy_td, used_keys=list(used_keys)
-                )
+                total_loss = add_dummy_loss_for_unused_params(total_loss, td=policy_td, used_keys=used_keys)
 
                 total_loss.backward()
 

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import einops
 import torch
@@ -32,8 +32,7 @@ class DynamicsConfig(LossConfig):
 class Dynamics(Loss):
     """The dynamics term in the Muesli loss."""
 
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"returns_pred", "reward_pred"}
+    policy_output_keys_static = {"returns_pred", "reward_pred"}
 
     # Loss calls this method
     def run_train(

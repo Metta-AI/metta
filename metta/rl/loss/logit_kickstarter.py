@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn.functional as F
@@ -39,6 +39,8 @@ class LogitKickstarterConfig(LossConfig):
 
 class LogitKickstarter(Loss):
     """This also injects the teacher's logits into the student's observations."""
+
+    policy_output_keys_static = {"logits", "values"}
 
     __slots__ = (
         "teacher_policy",
@@ -99,9 +101,6 @@ class LogitKickstarter(Loss):
         if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
             td["actions"] = teacher_actions
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"logits", "values"}
 
     def run_train(
         self,

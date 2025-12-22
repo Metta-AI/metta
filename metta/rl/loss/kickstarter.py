@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn.functional as F
@@ -41,6 +41,8 @@ class Kickstarter(Loss):
     """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
     value against the student's using a KL divergence and MSE loss respectively.
     """
+
+    policy_output_keys_static = {"logits", "values"}
 
     __slots__ = ("teacher_policy",)
 
@@ -94,9 +96,6 @@ class Kickstarter(Loss):
         if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
             td["actions"] = teacher_actions
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"logits", "values"}
 
     def run_train(
         self,

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -31,6 +31,8 @@ class PPOCriticConfig(LossConfig):
 
 class PPOCritic(Loss):
     """PPO value loss."""
+
+    policy_output_keys_static = {"values"}
 
     __slots__ = (
         "burn_in_steps",
@@ -84,9 +86,6 @@ class PPOCritic(Loss):
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"values"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int

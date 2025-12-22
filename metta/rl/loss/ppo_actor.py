@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -40,6 +40,8 @@ class PPOActorConfig(LossConfig):
 class PPOActor(Loss):
     """PPO actor loss."""
 
+    policy_output_keys_static = {"act_log_prob", "entropy"}
+
     __slots__ = ()
 
     def __init__(
@@ -55,9 +57,6 @@ class PPOActor(Loss):
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
