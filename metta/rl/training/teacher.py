@@ -99,7 +99,7 @@ def apply_teacher_phase(
                 )
             )
 
-    if teacher_cfg.mode in {"sliced_cloner", "supervisor", "eer_cloner"}:
+    if teacher_cfg.mode in {"sliced_cloner", "sliced_cloner_no_ppo", "supervisor", "eer_cloner"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
@@ -146,21 +146,13 @@ def apply_teacher_phase(
         supervisor.enabled = True
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
-        _gate_loss("supervisor")
-        _gate_critic_after_teacher()
-        _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
-        if total_steps:
-            scheduler_rules.append(
-                ScheduleRule(
-                    target_path="losses.supervisor.action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=supervisor.action_loss_coef,
-                    end_value=0.0,
-                    start_agent_step=total_steps // 2,
-                    end_agent_step=total_steps,
-                )
-            )
+        # Legacy BC behavior: stay in pure-supervisor mode for the whole run.
+        # Do not gate off the supervisor or re-enable PPO later.
+        losses.ppo_actor.enabled = False
+        losses.ppo_critic.enabled = False
+        losses.quantile_ppo_critic.enabled = False
+        scheduler_run_gates.clear()
+        scheduler_rules.clear()
 
     elif teacher_cfg.mode == "sliced_kickstarter":
         _require_policy_uri(teacher_cfg)
