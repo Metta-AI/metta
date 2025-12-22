@@ -186,21 +186,20 @@ class ExplorationManager:
         state: HarvestState,
         map_manager: 'MapManager'
     ) -> Optional[tuple[int, int]]:
-        """Find nearest UNKNOWN cell adjacent to explored FREE cells.
+        """Find nearest explored cell adjacent to UNKNOWN territory.
 
-        This targets the boundary between explored and unexplored territory,
-        enabling efficient systematic exploration instead of random wandering.
+        CRITICAL: Returns the EXPLORED cell next to the frontier, NOT the UNKNOWN cell.
+        This ensures pathfinding works because the target is traversable.
 
-        A "frontier cell" is an UNKNOWN cell that has at least one explored
-        (non-UNKNOWN, non-WALL) neighbor. These cells represent the edge of
-        what we've discovered.
+        A "frontier cell" here is an EXPLORED, TRAVERSABLE cell that has at least one
+        UNKNOWN neighbor. These cells represent where we can stand and see new territory.
 
         Args:
             state: Current agent state
             map_manager: MapManager with complete map grid
 
         Returns:
-            Position of nearest frontier cell, or None if none found.
+            Position of nearest frontier cell (explored), or None if none found.
         """
         from .map import MapCellType
 
@@ -217,18 +216,19 @@ class ExplorationManager:
 
         for r in range(start_r, end_r):
             for c in range(start_c, end_c):
-                # Must be unknown
-                if map_manager.grid[r][c] != MapCellType.UNKNOWN:
+                # FIXED: Must be EXPLORED and TRAVERSABLE (not unknown, not wall)
+                cell_type = map_manager.grid[r][c]
+                if cell_type in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END):
                     continue
 
-                # Check if adjacent to any explored, non-wall cell
+                # Check if adjacent to any UNKNOWN cell (this is the frontier!)
                 is_frontier = False
                 for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nr, nc = r + dr, c + dc
                     if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
                         neighbor_type = map_manager.grid[nr][nc]
-                        # Adjacent to explored area (not unknown, not wall)
-                        if neighbor_type not in (MapCellType.UNKNOWN, MapCellType.WALL):
+                        # Adjacent to unexplored area
+                        if neighbor_type == MapCellType.UNKNOWN:
                             is_frontier = True
                             break
 
