@@ -4,6 +4,7 @@ from cogames.cogs_vs_clips.mission import Site
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
 TRAINING_FACILITY = Site(
@@ -42,9 +43,13 @@ MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
     map_builder=MapGen.Config(
-        width=100,
-        height=100,
-        instance=MachinaArena.Config(spawn_count=20),
+        width=88,
+        height=88,
+        border_width=1,
+        instance=MachinaArena.Config(
+            spawn_count=20,
+            asteroid_mask=AsteroidMask.Config(radius_scale=1.2, shape_power=10.0, jagged_prob=0.9, jagged_depth=10),
+        ),
     ),
     min_cogs=1,
     max_cogs=20,

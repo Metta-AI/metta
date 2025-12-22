@@ -21,6 +21,7 @@ from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask, AsteroidMaskConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
@@ -66,6 +67,9 @@ class MachinaArenaConfig(SceneConfig):
         cross_bundle="none",
         cross_distance=7,
     )
+
+    # Optional asteroid-shaped boundary mask.
+    asteroid_mask: AsteroidMaskConfig | None = None
 
     #### Layers ####
 
@@ -160,72 +164,90 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         dungeon_count = max(int(dungeon_count), _min_count_for_fraction(cfg.max_dungeon_zone_fraction))
 
         # Candidates
-        def _make_biome_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
+        def _make_biome_candidates(
+            weights: dict[str, float] | None,
+        ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
             defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
             w = {**defaults, **(weights or {})}
-            cands: list[RandomSceneCandidate] = []
-            if w.get("none", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=NopConfig(), weight=w["none"]))
-            if w.get("caves", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=w["caves"]))
-            if w.get("forest", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeForestConfig(), weight=w["forest"]))
-            if w.get("desert", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=w["desert"]))
-            if w.get("city", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=w["city"]))
-            if w.get("plains", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=BiomePlainsConfig(), weight=w["plains"]))
-            return cands
+            uniques: list[SceneConfig] = []
+            weighted: list[RandomSceneCandidate] = []
 
-        def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
+            def _add(name: str, scene_cfg: SceneConfig) -> None:
+                weight = float(w.get(name, 0.0))
+                if weight <= 0:
+                    return
+                uniques.append(scene_cfg)
+                weighted.append(RandomSceneCandidate(scene=scene_cfg, weight=weight))
+
+            none_weight = float(w.get("none", 0.0))
+            if none_weight > 0:
+                weighted.append(RandomSceneCandidate(scene=NopConfig(), weight=none_weight))
+            _add("caves", BiomeCavesConfig())
+            _add("forest", BiomeForestConfig())
+            _add("desert", BiomeDesertConfig())
+            _add("city", BiomeCityConfig())
+            _add("plains", BiomePlainsConfig())
+            return uniques, weighted
+
+        def _make_dungeon_candidates(
+            weights: dict[str, float] | None,
+        ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
             defaults = {"bsp": 0.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
-            cands: list[RandomSceneCandidate] = []
-            if w.get("none", 0) > 0:
-                cands.append(RandomSceneCandidate(scene=NopConfig(), weight=w["none"]))
-            if w.get("bsp", 0) > 0:
-                cands.append(
-                    RandomSceneCandidate(
-                        scene=BSPConfig(
-                            rooms=4,
-                            min_room_size=6,
-                            min_room_size_ratio=0.35,
-                            max_room_size_ratio=0.75,
+            uniques: list[SceneConfig] = []
+            weighted: list[RandomSceneCandidate] = []
+
+            def _add(name: str, scene_cfg: SceneConfig) -> None:
+                weight = float(w.get(name, 0.0))
+                if weight <= 0:
+                    return
+                uniques.append(scene_cfg)
+                weighted.append(RandomSceneCandidate(scene=scene_cfg, weight=weight))
+
+            none_weight = float(w.get("none", 0.0))
+            if none_weight > 0:
+                weighted.append(RandomSceneCandidate(scene=NopConfig(), weight=none_weight))
+
+            _add(
+                "bsp",
+                BSPConfig(
+                    rooms=4,
+                    min_room_size=6,
+                    min_room_size_ratio=0.35,
+                    max_room_size_ratio=0.75,
+                ),
+            )
+
+            maze_weight = float(w.get("maze", 0.0))
+            if maze_weight > 0:
+                maze_scene = RandomScene.Config(
+                    candidates=[
+                        RandomSceneCandidate(
+                            scene=MazeConfig(
+                                algorithm="dfs",
+                                room_size=IntConstantDistribution(value=2),
+                                wall_size=IntConstantDistribution(value=1),
+                            ),
+                            weight=0.6,
                         ),
-                        weight=w["bsp"],
-                    )
-                )
-            if w.get("maze", 0) > 0:
-                maze_weight = w["maze"]
-                cands.append(
-                    RandomSceneCandidate(
-                        scene=MazeConfig(
-                            algorithm="dfs",
-                            room_size=IntConstantDistribution(value=2),
-                            wall_size=IntConstantDistribution(value=1),
+                        RandomSceneCandidate(
+                            scene=MazeConfig(
+                                algorithm="kruskal",
+                                room_size=IntConstantDistribution(value=2),
+                                wall_size=IntConstantDistribution(value=1),
+                            ),
+                            weight=0.4,
                         ),
-                        weight=maze_weight * 0.6,
-                    )
+                    ]
                 )
-                cands.append(
-                    RandomSceneCandidate(
-                        scene=MazeConfig(
-                            algorithm="kruskal",
-                            room_size=IntConstantDistribution(value=2),
-                            wall_size=IntConstantDistribution(value=1),
-                        ),
-                        weight=maze_weight * 0.4,
-                    )
-                )
-            if w.get("radial", 0) > 0:
-                cands.append(
-                    RandomSceneCandidate(
-                        scene=RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True),
-                        weight=w["radial"],
-                    )
-                )
-            return cands
+                uniques.append(maze_scene)
+                weighted.append(RandomSceneCandidate(scene=maze_scene, weight=maze_weight))
+
+            _add(
+                "radial",
+                RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True),
+            )
+            return uniques, weighted
 
         biome_max_w = max(10, int(min(self.width * cfg.max_biome_zone_fraction, self.width // 2)))
         biome_max_h = max(10, int(min(self.height * cfg.max_biome_zone_fraction, self.height // 2)))
@@ -248,54 +270,97 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             )
 
         biome_layer: ChildrenAction | None = None
-        biome_cands = _make_biome_candidates(cfg.biome_weights)
-        if biome_cands:
-            biome_fill_count = int(biome_count * 1.2)
-            biome_layer = ChildrenAction(
-                scene=BSPLayout.Config(
-                    area_count=biome_count,
-                    children=[
-                        ChildrenAction(
-                            scene=_wrap_in_layout(
-                                RandomScene.Config(candidates=biome_cands),
-                                tag="biome.zone",
-                                max_w=biome_max_w,
-                                max_h=biome_max_h,
-                            ),
-                            where=AreaWhere(tags=["zone"]),
-                            order_by="random",
-                            limit=biome_fill_count,
-                        )
-                    ],
-                ),
-                where="full",
-            )
+        biome_uniques, biome_cands = _make_biome_candidates(cfg.biome_weights)
+        if biome_uniques or biome_cands:
+            biome_count = max(int(biome_count), len(biome_uniques))
+            biome_fill_count = int(round(biome_count * 0.75))
+            biome_children: list[ChildrenAction] = []
+            for scene_cfg in biome_uniques:
+                biome_children.append(
+                    ChildrenAction(
+                        scene=_wrap_in_layout(scene_cfg, tag="biome.zone", max_w=biome_max_w, max_h=biome_max_h),
+                        where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=1,
+                        lock="biome.zone",
+                    )
+                )
+
+            extra_biomes = biome_fill_count - len(biome_uniques)
+            if extra_biomes > 0 and biome_cands:
+                biome_children.append(
+                    ChildrenAction(
+                        scene=_wrap_in_layout(
+                            RandomScene.Config(candidates=biome_cands),
+                            tag="biome.zone",
+                            max_w=biome_max_w,
+                            max_h=biome_max_h,
+                        ),
+                        where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=extra_biomes,
+                        lock="biome.zone",
+                    )
+                )
+
+            if biome_children:
+                biome_layer = ChildrenAction(
+                    scene=BSPLayout.Config(
+                        area_count=biome_count,
+                        children=biome_children,
+                    ),
+                    where="full",
+                )
 
         dungeon_layer: ChildrenAction | None = None
-        dungeon_cands = _make_dungeon_candidates(cfg.dungeon_weights)
-        if dungeon_cands:
+        dungeon_uniques, dungeon_cands = _make_dungeon_candidates(cfg.dungeon_weights)
+        if dungeon_uniques or dungeon_cands:
+            dungeon_count = max(int(dungeon_count), len(dungeon_uniques))
             dungeon_fill_count = max(1, int(dungeon_count * 0.5))
-            dungeon_layer = ChildrenAction(
-                scene=BSPLayout.Config(
-                    area_count=dungeon_count,
-                    children=[
-                        ChildrenAction(
-                            scene=_wrap_in_layout(
-                                RandomSceneConfig(candidates=dungeon_cands),
-                                tag="dungeon.zone",
-                                max_w=dungeon_max_w,
-                                max_h=dungeon_max_h,
-                            ),
-                            where=AreaWhere(tags=["zone"]),
-                            order_by="random",
-                            limit=dungeon_fill_count,
-                        )
-                    ],
-                ),
-                where="full",
-                order_by="first",
-                limit=1,
-            )
+            dungeon_children: list[ChildrenAction] = []
+            for scene_cfg in dungeon_uniques:
+                dungeon_children.append(
+                    ChildrenAction(
+                        scene=_wrap_in_layout(
+                            scene_cfg,
+                            tag="dungeon.zone",
+                            max_w=dungeon_max_w,
+                            max_h=dungeon_max_h,
+                        ),
+                        where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=1,
+                        lock="dungeon.zone",
+                    )
+                )
+
+            extra_dungeons = dungeon_fill_count - len(dungeon_uniques)
+            if extra_dungeons > 0 and dungeon_cands:
+                dungeon_children.append(
+                    ChildrenAction(
+                        scene=_wrap_in_layout(
+                            RandomSceneConfig(candidates=dungeon_cands),
+                            tag="dungeon.zone",
+                            max_w=dungeon_max_w,
+                            max_h=dungeon_max_h,
+                        ),
+                        where=AreaWhere(tags=["zone"]),
+                        order_by="random",
+                        limit=extra_dungeons,
+                        lock="dungeon.zone",
+                    )
+                )
+
+            if dungeon_children:
+                dungeon_layer = ChildrenAction(
+                    scene=BSPLayout.Config(
+                        area_count=dungeon_count,
+                        children=dungeon_children,
+                    ),
+                    where="full",
+                    order_by="first",
+                    limit=1,
+                )
 
         children: list[ChildrenAction] = []
 
@@ -306,6 +371,9 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             children.append(biome_layer)
         if dungeon_layer is not None:
             children.append(dungeon_layer)
+
+        if cfg.asteroid_mask is not None:
+            children.append(ChildrenAction(scene=cfg.asteroid_mask, where="full"))
 
         # Resources
         children.append(
