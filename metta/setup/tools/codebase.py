@@ -43,7 +43,7 @@ def _generate_mermaid(folders: list[str]) -> str:
         lower = short_names[folders[i + 1]]
         lines.append(f"    {upper} --> {lower}")
 
-    lines.append("```")
+    lines.append("```\n")
     return "\n".join(lines)
 
 
@@ -67,7 +67,7 @@ def generate_folder_diagram(
     if MARKER_START not in content:
         typer.echo(f"Marker '{MARKER_START}' not found in README.md")
         typer.echo("Add the following to README.md where you want the diagram:")
-        typer.echo(f"\n{MARKER_START}\n{MARKER_END}\n")
+        typer.echo(f"\n{MARKER_START}\n{MARKER_END}")
         raise typer.Exit(1)
 
     pattern = re.compile(
@@ -75,7 +75,7 @@ def generate_folder_diagram(
         re.DOTALL,
     )
 
-    replacement = f"{MARKER_START}\n{mermaid}\n{MARKER_END}"
+    replacement = f"{MARKER_START}\n\n{mermaid}\n{MARKER_END}"
     new_content = pattern.sub(replacement, content)
 
     if new_content != content:
