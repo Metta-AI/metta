@@ -97,7 +97,7 @@ testing = [
   "pyright>=1.1.401",
   "freezegun>=1.5.5",
 ]
-lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
+lint = ["cpplint>=2.0.2", "import-linter>=2.1", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",
