@@ -17,7 +17,6 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import (
     get_checkpoint_metadata,
@@ -134,9 +133,16 @@ class TestCheckpointManagerFlows:
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         spec = policy_spec_from_uri(latest)
-        policy = initialize_or_load_policy(env_info, spec)
-        if isinstance(policy, CheckpointPolicy):
-            policy = policy.wrapped_policy
+        architecture_spec = spec.init_kwargs.get("architecture_spec")
+        assert architecture_spec, "policy_spec missing architecture_spec"
+        policy = CheckpointPolicy(
+            env_info,
+            architecture_spec=architecture_spec,
+            device=spec.init_kwargs.get("device", "cpu"),
+        )
+        assert spec.data_path, "policy_spec missing data_path"
+        policy.load_policy_data(spec.data_path)
+        policy = policy.wrapped_policy
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
