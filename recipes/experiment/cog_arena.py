@@ -160,7 +160,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 consumed_resources={"energy": 3},
             ),
             noop=NoopActionConfig(),
-            change_vibe=ChangeVibeActionConfig(number_of_vibes=len(vibes), vibes=vibes),
+            change_vibe=ChangeVibeActionConfig(vibes=vibes),
             attack=AttackActionConfig(
                 consumed_resources={"energy": 7},
                 defense_resources={"energy": 0},

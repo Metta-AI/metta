@@ -198,7 +198,7 @@ def make_training_env(
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
-    if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
+    if change_vibe_action is not None and len(change_vibe_action.vibes) <= 1:
         allowed_vibes = env.game.vibe_names or ["default"]
         env.game.vibe_names = list(allowed_vibes)
 

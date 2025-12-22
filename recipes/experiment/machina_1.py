@@ -37,13 +37,12 @@ def train(
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
-    full_vibes = [v.name for v in vibes.VIBES]
     env_cfg = tt.training_env.curriculum.task_generator.env
-    env_cfg.game.vibe_names = full_vibes
+    env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
-        change_vibe.number_of_vibes = len(full_vibes)
-    if env_cfg.game.agent.initial_vibe >= len(full_vibes):
+        change_vibe.vibes = list(vibes.VIBES)
+    if env_cfg.game.agent.initial_vibe >= len(vibes.VIBES):
         env_cfg.game.agent.initial_vibe = 0
 
     eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)

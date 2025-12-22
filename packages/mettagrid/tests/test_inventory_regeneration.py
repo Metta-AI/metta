@@ -26,7 +26,6 @@ class TestVibeDependentRegeneration:
         cfg.game.agent.inventory.initial = {"energy": 0}
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100  # Ensure we have enough vibes
 
         sim = Simulation(cfg)
 
@@ -79,7 +78,6 @@ class TestVibeDependentRegeneration:
         cfg.game.agent.inventory.initial = {"energy": 0}
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100
 
         sim = Simulation(cfg)
 
@@ -124,7 +122,6 @@ class TestVibeDependentRegeneration:
         cfg.game.agent.inventory.initial = {"energy": 0}
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100
 
         sim = Simulation(cfg)
 
