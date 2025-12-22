@@ -2375,6 +2375,7 @@ version = "0.1.0"
 source = { editable = "app_backend" }
 dependencies = [
     { name = "aioboto3" },
+    { name = "asana" },
     { name = "boto3" },
     { name = "ddtrace" },
     { name = "duckdb" },
@@ -2406,6 +2407,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aioboto3", specifier = ">=13.2.0" },
+    { name = "asana", specifier = ">=5.2.2" },
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "duckdb", specifier = ">=1.3.0" },
