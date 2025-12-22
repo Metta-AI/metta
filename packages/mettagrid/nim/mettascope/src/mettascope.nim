@@ -4,17 +4,27 @@ import
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
   footer, timeline, minimap, header, replayloader]
 
-when isMainModule:
-  # Build the atlas.
+proc ensureUiAtlas() =
+  let atlasPng = rootDir / "dist/atlas.png"
+  let atlasJson = rootDir / "dist/atlas.json"
+  if fileExists(atlasPng) and fileExists(atlasJson):
+    if "_white_tile_" in readFile(atlasJson):
+      return
+
+  if not dirExists(rootDir / "dist"):
+    createDir(rootDir / "dist")
+
   var builder = newAtlasBuilder(1024, 4)
   builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
   builder.addDir(rootDir / "data/ui/", rootDir / "data/")
   builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
   builder.addDir(rootDir / "data/resources/", rootDir / "data/")
-  # builder.addDir(rootDir / "data/agents/", rootDir / "data/")
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-  builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  builder.write(atlasPng, atlasJson)
+
+when isMainModule:
+  ensureUiAtlas()
 
   window = newWindow(
     "MettaScope",
@@ -201,6 +211,7 @@ proc initMettascope*() =
 
   initPanels()
 
+  ensureUiAtlas()
   sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
   bxy = newBoxy()
 
