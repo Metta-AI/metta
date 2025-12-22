@@ -21,7 +21,7 @@ class EERKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    r_lambda: float = Field(default=0.1, ge=0)  # scale the teacher log likelihoods that are added to rewards
+    r_lambda: float = Field(default=0.01, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     def create(
         self,
@@ -140,16 +140,20 @@ class EERKickstarter(Loss):
         teacher_full_log_probs = minibatch["teacher_full_log_probs"]
         ks_action_loss = -(student_full_log_probs.exp() * teacher_full_log_probs).sum(dim=-1).mean()
 
-        # # Value loss
-        # teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
-        # student_value = student_td["values"].to(dtype=torch.float32)
-        # ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        # Value loss
+        teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).detach()
+        student_value = student_td["values"].to(dtype=torch.float32)
+        ks_value_loss_vec = (teacher_value.detach() - student_value) ** 2
+        ks_value_loss = ks_value_loss_vec.mean()
 
-        loss = ks_action_loss * self.cfg.action_loss_coef  # + ks_value_loss * self.cfg.value_loss_coef
+        shared_loss_data["ks_val_loss_vec"] = ks_value_loss_vec
 
+        loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+
+        # track losses for plotting
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        # self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
+        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        # self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False

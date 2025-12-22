@@ -20,7 +20,7 @@ TeacherMode = Literal[
     "eer_cloner",
 ]
 
-DEFAULT_TEACHER_STEPS = 1_500_000_000
+DEFAULT_TEACHER_STEPS = 1_000_000_000
 
 
 class TeacherConfig(Config):
