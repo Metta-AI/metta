@@ -81,7 +81,7 @@ class BaseHub(Scene[BaseHubConfig]):
             grid[:, 0] = "wall"
             grid[:, -1] = "wall"
 
-            gate_half = 1
+            gate_half = 2
             # top/bottom gates
             grid[0, cx - gate_half : cx + gate_half + 1] = "empty"
             grid[1, cx - gate_half : cx + gate_half + 1] = "empty"
@@ -172,10 +172,10 @@ class BaseHub(Scene[BaseHubConfig]):
         h, w = self.height, self.width
         cfg = self.config
 
-        corridor_width = 3
+        corridor_width = 5
         half = corridor_width // 2
 
-        # Carve plus-shaped corridors that meet each gate with 3-tile width
+        # Carve plus-shaped corridors that meet each gate with corridor_width tiles
         x0 = max(1, cx - half)
         x1 = min(w - 1, cx + half + 1)
         y0 = max(1, cy - half)
@@ -316,7 +316,7 @@ class BaseHub(Scene[BaseHubConfig]):
         self._ensure_clearance(building_positions)
 
         perimeter_radius = core_radius + 1
-        self._build_tight_perimeter(cx, cy, perimeter_radius, gate_half=1)
+        self._build_tight_perimeter(cx, cy, perimeter_radius, gate_half=2)
 
         # Spawn pads: ensure at least spawn_count if provided, otherwise place 4 near the perimeter
         desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
@@ -396,7 +396,7 @@ class BaseHub(Scene[BaseHubConfig]):
         grid = self.grid
         h, w = self.height, self.width
 
-        width = 3  # corridor thickness
+        width = 5
         leg = max(3, min(h, w) // 3)  # leg length based on base size
 
         def carve_rect(x0: int, y0: int, cw: int, ch: int):
