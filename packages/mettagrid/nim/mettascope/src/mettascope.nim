@@ -14,7 +14,7 @@ when isMainModule:
   # builder.addDir(rootDir / "data/agents/", rootDir / "data/")
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-  builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  builder.write(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
 
   window = newWindow(
     "MettaScope",
@@ -201,7 +201,7 @@ proc initMettascope*() =
 
   initPanels()
 
-  sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  sk = newSilky(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
   bxy = newBoxy()
 
   ## Initialize the world map zoom info.
