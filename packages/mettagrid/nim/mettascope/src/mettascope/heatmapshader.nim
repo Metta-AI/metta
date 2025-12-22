@@ -23,9 +23,9 @@ proc heatmapVert*(fragmentWorldPos: var Vec2) =
 
 proc heatmapFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
   ## Sample heatmap texture and convert to thermal colors.
-  # Get integer tile coordinates.
-  let tileX = floor(fragmentWorldPos.x + 0.5)
-  let tileY = floor(fragmentWorldPos.y + 0.5)
+  # Get integer tile coordinates, clamped to valid range.
+  let tileX = clamp(floor(fragmentWorldPos.x + 0.5), 0.0, uMapSize.x - 1.0)
+  let tileY = clamp(floor(fragmentWorldPos.y + 0.5), 0.0, uMapSize.y - 1.0)
   # Sample at texel center: (tile + 0.5) / size.
   let heatmapCoord = vec2((tileX + 0.5) / uMapSize.x, (tileY + 0.5) / uMapSize.y)
   let heatSample = texture(heatmapTexture, heatmapCoord)
@@ -120,6 +120,8 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
   # Upload to texture.
   glActiveTexture(GL_TEXTURE0)
   glBindTexture(GL_TEXTURE_2D, hs.texture)
+  # Set alignment to 1 for tightly packed data (no padding between rows)
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
   glTexImage2D(
     GL_TEXTURE_2D,
     0,
