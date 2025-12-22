@@ -1,5 +1,5 @@
 # metta/rl/loss/contrastive.py
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from tensordict import TensorDict
@@ -13,6 +13,8 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 
 class ContrastiveLoss(Loss):
     """Contrastive loss for representation learning."""
+
+    _EMBEDDING_CANDIDATES = ("encoder_output", "encoded_obs", "core", "hidden_state", "features")
 
     __slots__ = (
         "temperature",
@@ -57,6 +59,17 @@ class ContrastiveLoss(Loss):
             # Add any additional data needed for contrastive learning
             # e.g., positive/negative pairs, augmentations, etc.
         )
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        if self.embedding_key is not None:
+            return {self.embedding_key}
+        if policy_td is None:
+            return {"values"}
+        policy_keys = policy_td.keys(True)
+        for candidate in self._EMBEDDING_CANDIDATES:
+            if candidate in policy_keys:
+                return {candidate}
+        return {"values"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -120,7 +133,7 @@ class ContrastiveLoss(Loss):
             return policy_td[self.embedding_key]
 
         # Try different possible embedding sources in order of preference
-        for candidate in ("encoder_output", "encoded_obs", "core", "hidden_state", "features"):
+        for candidate in self._EMBEDDING_CANDIDATES:
             if candidate in policy_td.keys(True):
                 return policy_td[candidate]
 
