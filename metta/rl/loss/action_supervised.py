@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any, Optional
 
-import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
@@ -48,11 +47,7 @@ class ActionSupervised(Loss):
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
-        act_space = self.env.single_action_space
-        if np.issubdtype(act_space.dtype, np.integer):
-            action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
-        else:
-            action_spec = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
 
         return Composite(
             actions=action_spec,
