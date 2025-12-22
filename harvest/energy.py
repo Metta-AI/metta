@@ -32,17 +32,17 @@ class EnergyManager:
         # Map size awareness: larger maps need larger exploration radius
         map_size = max(state.map_height, state.map_width)
         if map_size > 200:
-            # Large maps (500x500, etc.) - very aggressive
-            base_min_radius = 30
-            distance_factor = 1.2 if num_chargers >= 5 else 1.5
+            # Large maps (500x500, etc.) - VERY aggressive for wide coverage
+            base_min_radius = 50  # Increased from 30
+            distance_factor = 1.0 if num_chargers >= 5 else 1.2  # More aggressive
         elif map_size > 100:
             # Medium-large maps (200x200) - moderately aggressive
-            base_min_radius = 20
-            distance_factor = 1.5 if num_chargers >= 5 else 1.8
+            base_min_radius = 30  # Increased from 20
+            distance_factor = 1.2 if num_chargers >= 5 else 1.5
         elif map_size > 50:
             # Medium maps (100x100) - slightly aggressive
-            base_min_radius = 15
-            distance_factor = 1.5 if num_chargers >= 5 else 2.0
+            base_min_radius = 20  # Increased from 15
+            distance_factor = 1.5 if num_chargers >= 5 else 1.8
         else:
             # Small maps (13x13, etc.) - conservative
             base_min_radius = 5

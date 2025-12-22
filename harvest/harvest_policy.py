@@ -1749,14 +1749,23 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 import random
                 random.shuffle(alt_directions)
 
+                # CRITICAL FIX: Check if direction is clear before moving!
                 for alt_dir in alt_directions:
-                    self._logger.info(f"  STUCK RECOVERY: Trying alternative route {alt_dir}")
-                    return self._actions.move.Move(alt_dir)
+                    if self._is_direction_clear_in_obs(state, alt_dir):
+                        self._logger.info(f"  STUCK RECOVERY: Trying alternative route {alt_dir}")
+                        return self._actions.move.Move(alt_dir)
 
-                # All alternatives tried - just pick random
-                desperation_dir = random.choice(["north", "south", "east", "west"])
-                self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir}")
-                return self._actions.move.Move(desperation_dir)
+                # All alternatives blocked - try ANY clear direction
+                all_dirs = ["north", "south", "east", "west"]
+                random.shuffle(all_dirs)
+                for desperation_dir in all_dirs:
+                    if self._is_direction_clear_in_obs(state, desperation_dir):
+                        self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir}")
+                        return self._actions.move.Move(desperation_dir)
+
+                # Completely stuck - noop
+                self._logger.error(f"  STUCK RECOVERY: COMPLETELY BLOCKED - using noop")
+                return self._actions.noop.Noop()
 
             # Use MapManager pathfinding for intelligent navigation to charger
             direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=False)
