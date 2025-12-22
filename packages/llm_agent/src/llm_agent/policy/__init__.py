@@ -3,11 +3,11 @@
 This module is auto-discovered by mettagrid.policy.loader for policy registration.
 """
 
-from llm_agent.policy.llm_policy import (
-    LLMAgentPolicy,
+from llm_agent.policy.llm_agent_policy import LLMAgentPolicy
+from llm_agent.policy.llm_multi_agent_policy import LLMMultiAgentPolicy
+from llm_agent.policy.llm_provider_policies import (
     LLMClaudeMultiAgentPolicy,
     LLMGPTMultiAgentPolicy,
-    LLMMultiAgentPolicy,
     LLMOllamaMultiAgentPolicy,
 )
 
