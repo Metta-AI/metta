@@ -384,7 +384,7 @@ class TrainTool(Tool):
             return StatsClient.create(stats_server_uri=self.stats_server_uri)
 
         except Exception as exc:
-            logger.warning("Failed to initialize stats client: %s", exc)
+            logger.error("Failed to initialize stats client", exc_info=True)
             return None
 
     def _build_wandb_manager(self, distributed_helper: DistributedHelper):

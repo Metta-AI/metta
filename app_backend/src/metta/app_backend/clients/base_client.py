@@ -1,5 +1,6 @@
 from typing import Type, TypeVar
 
+import os
 import httpx
 from pydantic import BaseModel
 
@@ -25,6 +26,11 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
     """
     if not stats_server_uri:
         return None
+
+    # Check environment variable first
+    env_token = os.environ.get("METTA_MACHINE_TOKEN")
+    if env_token:
+        return env_token
 
     # Use the same authenticator pattern as the login script
     token = observatory_auth_config.load_token(stats_server_uri)
