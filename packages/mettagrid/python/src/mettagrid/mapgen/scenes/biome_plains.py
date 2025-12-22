@@ -45,15 +45,6 @@ class BiomePlains(Scene[BiomePlainsConfig]):
         if anchors.size == 0:
             return
 
-        offsets_cache: dict[int, np.ndarray] = {}
-        for radius in range(min_radius, max_radius + 1):
-            if radius == 0:
-                offsets_cache[radius] = np.array([[0, 0]], dtype=int)
-                continue
-            dy, dx = np.meshgrid(np.arange(-radius, radius + 1), np.arange(-radius, radius + 1), indexing="ij")
-            mask = (dx * dx + dy * dy) <= radius * radius
-            offsets_cache[radius] = np.stack([dx[mask], dy[mask]], axis=1).astype(int)
-
         for cx, cy in anchors:
             radius = int(self.rng.integers(min_radius, max_radius + 1)) if max_radius > 0 else 0
             if radius == 0:
