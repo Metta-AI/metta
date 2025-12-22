@@ -105,15 +105,15 @@ class EvaluateTool(Tool):
         )
         primary_policy_version = policy_versions[0]
 
-        if primary_policy_version and stats_client:
+        if stats_client:
             policy_version_ids = [str(pv.id) for pv in policy_versions if pv]
-            if not all(policy_version_ids) or len(policy_version_ids) != len(policy_uris):
-                raise ValueError("All policy URIs must specify a policy registered in the stats server")
-            observatory_writer = ObservatoryWriter(
-                stats_client=stats_client,
-                policy_version_ids=policy_version_ids,
-                primary_policy_version_id=str(primary_policy_version.id),
-            )
+            # Only create writer if we resolved IDs for ALL policies
+            if len(policy_version_ids) == len(policy_uris):
+                observatory_writer = ObservatoryWriter(
+                    stats_client=stats_client,
+                    policy_version_ids=policy_version_ids,
+                    primary_policy_version_id=str(primary_policy_version.id) if primary_policy_version else None,
+                )
 
         if self.push_metrics_to_wandb:
             if not primary_policy_version:

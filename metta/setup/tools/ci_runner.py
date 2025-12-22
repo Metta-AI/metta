@@ -94,18 +94,12 @@ def _run_command(cmd: Sequence[str], description: str, *, verbose: bool = False)
             cmd,
             cwd=get_repo_root(),
             check=True,
-            capture_output=not verbose,
             text=True,
         )
         success(f"{description} passed")
         return True
-    except subprocess.CalledProcessError as exc:
+    except subprocess.CalledProcessError:
         error(f"{description} failed")
-        if not verbose:
-            if exc.stdout:
-                console.print(exc.stdout, markup=False)
-            if exc.stderr:
-                console.print(exc.stderr, markup=False)
         return False
 
 

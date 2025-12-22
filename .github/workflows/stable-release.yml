@@ -125,6 +125,7 @@ jobs:
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           OBSERVATORY_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
+          METTA_MACHINE_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
           SKYPILOT_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}

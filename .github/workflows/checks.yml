@@ -184,7 +184,7 @@ jobs:
           install-mode: "testing"
 
       - name: Run linting and formatting
-        run: uv run python .github/scripts/run_ci_stage.py lint
+        run: uv run metta ci --stage lint
 
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
@@ -263,13 +263,13 @@ jobs:
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
+          uv run metta ci --stage python-tests-and-benchmarks -- "${ARGS[@]}"
 
       - name: Python type checking
         shell: bash
         run: |
           set -eo pipefail
-          uv run python .github/scripts/run_ci_stage.py pyright
+          uv run metta ci --stage pyright
 
   recipe-tests:
     name: "Tests - Recipes"
@@ -292,7 +292,7 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          uv run python .github/scripts/run_ci_stage.py recipe-tests --non-interactive
+          uv run metta ci --stage recipe-tests --no-interactive
 
   cpp-tests:
     name: "Tests - C++ and Nim"
@@ -346,15 +346,15 @@ jobs:
 
       - name: Run C++ tests
         id: mettagrid-cpp-tests
-        run: uv run python .github/scripts/run_ci_stage.py cpp-tests
+        run: uv run metta ci --stage cpp-tests
 
       - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
+        run: uv run metta ci --stage cpp-benchmarks
 
       - name: Run Nim tests
         id: mettagrid-nim-tests
-        run: uv run python .github/scripts/run_ci_stage.py nim-tests
+        run: uv run metta ci --stage nim-tests
 
   tests-summary:
     name: "Tests"

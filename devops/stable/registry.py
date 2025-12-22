@@ -185,6 +185,11 @@ def specs_to_jobs(specs: list[JobSpec], prefix: str) -> list[Job]:
             ]
         else:
             cmd = ["uv", "run", "./tools/run.py", tool_path]
+
+        from metta.common.util.constants import PROD_STATS_SERVER_URI
+
+        cmd.append(f"stats_server_uri={PROD_STATS_SERVER_URI}")
+
         if return_type is TrainTool:
             cmd.append(f"run={job_name}")
 

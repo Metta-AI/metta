@@ -206,10 +206,7 @@ def run(
             "--timeout=100",
             "--timeout-method=thread",
             "--disable-warnings",
-            "--color=no",
             "-q",
-            "-o",
-            "console_output_style=count",
         ]
 
         # Apply benchmark filtering for CI mode
