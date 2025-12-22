@@ -1102,7 +1102,20 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Get recovery direction from navigation manager
             nearest_charger = self._find_nearest_charger(state) if state.discovered_chargers else None
             direction = self.navigation.handle_stuck_recovery(state, nearest_charger)
-            return self._actions.move.Move(direction)
+
+            # CRITICAL: Check if direction is actually clear before moving!
+            if self._is_direction_clear_in_obs(state, direction):
+                return self._actions.move.Move(direction)
+
+            # Stuck recovery direction is blocked - try ANY clear direction
+            for alt_dir in ["north", "south", "east", "west"]:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    self._logger.warning(f"  GATHER: Stuck recovery blocked, trying {alt_dir}")
+                    return self._actions.move.Move(alt_dir)
+
+            # Completely surrounded - noop
+            self._logger.error(f"  GATHER: Completely surrounded by walls - using noop")
+            return self._actions.noop.Noop()
 
         # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
         if not state.found_initial_charger:
