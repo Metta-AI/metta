@@ -287,7 +287,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         self._tag_names = policy_env_info.tags  # Get tag names for observation parsing
         self.exploration = ExplorationManager(self._obs_hr, self._obs_wr, self._tag_names)
         self.energy = EnergyManager()
-        self.resources = ResourceManager()
+        self.resources = ResourceManager(self._logger)
         self.navigation = NavigationManager(self._logger)
         self.state_tracker = StateTracker(self._obs_hr, self._obs_wr, self._tag_names, self._logger)
         self.map_manager: Optional[MapManager] = None  # Initialized on first step (needs map dimensions)

@@ -21,6 +21,14 @@ class ResourceManager:
         "silicon": 30,
     }
 
+    def __init__(self, logger):
+        """Initialize resource manager.
+
+        Args:
+            logger: Logger instance
+        """
+        self._logger = logger
+
     def calculate_deficits(self, state: HarvestState) -> dict[str, int]:
         """Calculate what resources are still needed.
 
@@ -135,6 +143,9 @@ class ResourceManager:
         extractor_attr = f"{resource_type}_extractors"
         all_extractors = getattr(map_manager, extractor_attr, set())
 
+        map_instance = getattr(map_manager, '_instance_id', 'unknown')
+        self._logger.debug(f"Step {state.step_count}: EXTRACTOR SEARCH: {resource_type} - found {len(all_extractors)} in MapManager instance {map_instance}, {len(state.used_extractors)} used")
+
         # Filter out used extractors
         available = [
             pos for pos in all_extractors
@@ -142,11 +153,14 @@ class ResourceManager:
         ]
 
         if not available:
+            self._logger.debug(f"Step {state.step_count}: EXTRACTOR SEARCH: No available {resource_type} extractors (all {len(all_extractors)} are used)")
             return None
 
         # Return nearest using Manhattan distance
         current = (state.row, state.col)
-        return min(
+        nearest = min(
             available,
             key=lambda pos: abs(pos[0] - current[0]) + abs(pos[1] - current[1])
         )
+        self._logger.debug(f"Step {state.step_count}: EXTRACTOR SEARCH: Found {len(available)} available {resource_type} extractors, nearest at {nearest}")
+        return nearest

@@ -53,6 +53,10 @@ class MapManager:
         self._tag_names = tag_names
         self._logger = logger
 
+        # DEBUG: Log instance ID
+        self._instance_id = id(self)
+        logger.info(f"  MAP INIT: Created MapManager instance {self._instance_id}")
+
         # Initialize map grid - all cells start as UNKNOWN
         self.grid: list[list[MapCellType]] = [
             [MapCellType.UNKNOWN for _ in range(map_width)]
@@ -160,7 +164,7 @@ class MapManager:
             self.grid[row][col] = MapCellType.SILICON_EXTRACTOR
             if pos not in self.silicon_extractors:
                 self.silicon_extractors.add(pos)
-                self._logger.info(f"  MAP: Silicon extractor at {pos}")
+                self._logger.info(f"  MAP: Silicon extractor at {pos} (instance {self._instance_id}, total={len(self.silicon_extractors)})")
 
     def _mark_visible_cells_as_explored(self, state: HarvestState):
         """Mark all cells in observation window as explored (if not already marked).
