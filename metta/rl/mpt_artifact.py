@@ -46,7 +46,7 @@ class MptArtifact:
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(torch_device)
 
-        missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
+        missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=False)
         if strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
