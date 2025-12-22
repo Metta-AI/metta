@@ -760,7 +760,7 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
 
   agentControls()
 
-  if zoomInfo.zoom < 2:
+  if zoomInfo.zoom < 7:
     drawWorldMini()
   else:
     drawWorldMain()
