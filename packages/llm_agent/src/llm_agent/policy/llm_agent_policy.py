@@ -1,31 +1,29 @@
-"""LLM-based per-agent policy for MettaGrid."""
+"""LLM-based per-agent policy base class for MettaGrid."""
 
-import os
 import random
-from typing import Literal
+from abc import ABC, abstractmethod
 
 from llm_agent.action_parser import parse_action
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.exploration_tracker import ExplorationTracker
-from llm_agent.providers import (
-    ensure_ollama_model,
-    select_anthropic_model,
-    select_openai_model,
-)
 from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
 
 
-class LLMAgentPolicy(AgentPolicy):
-    """Per-agent LLM policy that queries GPT or Claude for action selection."""
+class LLMAgentPolicy(AgentPolicy, ABC):
+    """Base per-agent LLM policy that queries an LLM for action selection.
+
+    Subclasses must implement:
+    - _init_client(): Initialize the LLM client
+    - _call(): Make the actual LLM API call
+    """
 
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        provider: Literal["openai", "anthropic", "ollama"] = "openai",
-        model: str | None = None,
+        model: str,
         temperature: float = 0.7,
         verbose: bool = False,
         context_window_size: int = 20,
@@ -35,7 +33,7 @@ class LLMAgentPolicy(AgentPolicy):
         agent_id: int = 0,
     ):
         super().__init__(policy_env_info)
-        self.provider = provider
+        self.model = model
         self.temperature = temperature
         self.verbose = verbose
         self.agent_id = agent_id
@@ -48,7 +46,20 @@ class LLMAgentPolicy(AgentPolicy):
         self._init_tracking_state()
         self._init_prompt_builder(policy_env_info, context_window_size, mg_cfg)
         self._check_assembler_variant(mg_cfg)
-        self._init_llm_client(model)
+        self._init_client()
+
+    @abstractmethod
+    def _init_client(self) -> None:
+        """Initialize the LLM client. Must be implemented by subclasses."""
+        pass
+
+    @abstractmethod
+    def _call(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
+        """Make LLM API call and return (response, input_tokens, output_tokens).
+
+        Must be implemented by subclasses.
+        """
+        pass
 
     def _init_tracking_state(self) -> None:
         """Initialize all tracking-related state variables."""
@@ -91,30 +102,6 @@ class LLMAgentPolicy(AgentPolicy):
 
         chest_dist = assembler_cfg.chest_search_distance
         self._assembler_draws_from_chests = chest_dist > 0
-
-    def _init_llm_client(self, model: str | None) -> None:
-        """Initialize the LLM client based on provider."""
-        self.client = None
-        self.anthropic_client = None
-        self.ollama_client = None
-
-        if self.provider == "openai":
-            from openai import OpenAI
-
-            self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            self.model = model or select_openai_model()
-        elif self.provider == "anthropic":
-            from anthropic import Anthropic
-
-            self.anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-            self.model = model or select_anthropic_model()
-        elif self.provider == "ollama":
-            from openai import OpenAI
-
-            self.model = ensure_ollama_model(model)
-            self.ollama_client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-        else:
-            raise ValueError(f"Unknown provider: {self.provider}")
 
     def _add_to_messages(self, role: str, content: str) -> None:
         """Add a message to conversation history and prune if needed.
@@ -253,33 +240,10 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         self._debug_summary_actions = []
 
     def _call_debug_summary_llm(self, prompt: str) -> str:
-        """Call LLM for debug summary generation."""
+        """Call LLM for debug summary generation. Uses the same _call() as main policy."""
         messages = [{"role": "user", "content": prompt}]
-
-        if self.provider == "openai" and self.client:
-            response = self.client.chat.completions.create(
-                model=self.model, messages=messages, max_tokens=150, temperature=0.3
-            )
-            return response.choices[0].message.content or "No summary generated"
-
-        if self.provider == "anthropic" and self.anthropic_client:
-            from anthropic.types import TextBlock
-
-            response = self.anthropic_client.messages.create(
-                model=self.model, messages=messages, max_tokens=150, temperature=0.3
-            )
-            for block in response.content:
-                if isinstance(block, TextBlock):
-                    return block.text
-            return "No summary generated"
-
-        if self.provider == "ollama" and self.ollama_client:
-            response = self.ollama_client.chat.completions.create(
-                model=self.model, messages=messages, max_tokens=150, temperature=0.3
-            )
-            return response.choices[0].message.content or "No summary generated"
-
-        return "No summary generated"
+        response, _, _ = self._call(messages)
+        return response or "No summary generated"
 
     def _write_debug_summary_to_file(
         self, summary_info: dict, inv_str: str, energy: int, action_summary: str, summary_text: str
@@ -519,65 +483,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         return user_prompt
 
-    def _call_openai(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        """Call OpenAI API and return (response, input_tokens, output_tokens)."""
-        is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
-        params = {
-            "model": self.model,
-            "messages": messages,
-            "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
-            "max_tokens": None if is_gpt5_or_o1 else 150,
-            "temperature": None if is_gpt5_or_o1 else self.temperature,
-        }
-        params = {k: v for k, v in params.items() if v is not None}
-
-        response = self.client.chat.completions.create(**params)
-        raw = response.choices[0].message.content or "noop"
-        usage = response.usage
-        return raw, usage.prompt_tokens if usage else 0, usage.completion_tokens if usage else 0
-
-    def _call_ollama(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        """Call Ollama API and return (response, input_tokens, output_tokens)."""
-        response = self.ollama_client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=150,
-        )
-
-        message = response.choices[0].message
-        raw = message.content or ""
-
-        if not raw and hasattr(message, "reasoning") and message.reasoning:
-            raw = message.reasoning
-
-        if not raw:
-            print(f"[ERROR] Ollama empty response for Agent {self.agent_id}")
-            raw = "noop"
-
-        usage = response.usage
-        return raw, usage.prompt_tokens if usage else 0, usage.completion_tokens if usage else 0
-
-    def _call_anthropic(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        """Call Anthropic API and return (response, input_tokens, output_tokens)."""
-        from anthropic.types import TextBlock
-
-        response = self.anthropic_client.messages.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=150,
-        )
-
-        raw = "noop"
-        for block in response.content:
-            if isinstance(block, TextBlock):
-                raw = block.text
-                break
-
-        usage = response.usage
-        return raw, usage.input_tokens, usage.output_tokens
-
     def _call_llm(self, user_prompt: str) -> str:
         """Call the LLM and return the response text."""
         if self.verbose:
@@ -594,12 +499,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             }
         )
 
-        if self.provider == "openai":
-            raw_response, input_tokens, output_tokens = self._call_openai(messages)
-        elif self.provider == "anthropic":
-            raw_response, input_tokens, output_tokens = self._call_anthropic(messages)
-        else:
-            raw_response, input_tokens, output_tokens = self._call_ollama(messages)
+        raw_response, input_tokens, output_tokens = self._call(messages)
 
         print(f"[LLM Agent {self.agent_id}] {raw_response}")
 
