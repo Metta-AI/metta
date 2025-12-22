@@ -7,7 +7,7 @@ name = "llm_agent"
 description = "LLM-based agents for MettaGrid environments"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = ["mettagrid", "openai>=1.102.0", "anthropic>=0.64.0"]
+dependencies = ["mettagrid", "cogames", "openai>=1.102.0", "anthropic>=0.64.0"]
 dynamic = ["version"]
 
 [tool.setuptools.packages.find]
@@ -37,3 +37,4 @@ source = ["llm_agent"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
+cogames = { workspace = true }

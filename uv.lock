@@ -1944,6 +1944,7 @@ name = "llm-agent"
 source = { editable = "packages/llm_agent" }
 dependencies = [
     { name = "anthropic" },
+    { name = "cogames" },
     { name = "mettagrid" },
     { name = "openai" },
 ]
@@ -1951,6 +1952,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.64.0" },
+    { name = "cogames", editable = "packages/cogames" },
     { name = "mettagrid", editable = "packages/mettagrid" },
     { name = "openai", specifier = ">=1.102.0" },
 ]
