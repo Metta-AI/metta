@@ -81,7 +81,7 @@ class CheckpointManager:
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        bundle = write_checkpoint_dir(
+        checkpoint_dir = write_checkpoint_dir(
             base_dir=self.checkpoint_dir,
             run_name=self.run_name,
             epoch=epoch,
@@ -90,12 +90,13 @@ class CheckpointManager:
         )
 
         if self._remote_prefix:
-            remote_bundle = upload_checkpoint_dir(bundle, self.output_uri)
-            logger.debug("Policy checkpoint saved remotely to %s", remote_bundle.dir_uri)
-            return remote_bundle.dir_uri
+            remote_dir = upload_checkpoint_dir(checkpoint_dir, self.output_uri)
+            logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
+            return remote_dir
 
-        logger.debug("Policy checkpoint saved locally to %s", bundle.dir_uri)
-        return bundle.dir_uri
+        local_uri = checkpoint_dir.as_uri()
+        logger.debug("Policy checkpoint saved locally to %s", local_uri)
+        return local_uri
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

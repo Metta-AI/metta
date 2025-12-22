@@ -72,7 +72,7 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
+                normalized_uri = resolve_checkpoint_dir(candidate_uri)
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
@@ -111,7 +111,7 @@ class Checkpointer(TrainerComponent):
             policy = initialize_or_load_policy(policy_env_info, spec, device_override=str(load_device))
             if isinstance(policy, CheckpointPolicy):
                 policy = policy.wrapped_policy
-            self._latest_policy_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
+            self._latest_policy_uri = resolve_checkpoint_dir(candidate_uri)
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 

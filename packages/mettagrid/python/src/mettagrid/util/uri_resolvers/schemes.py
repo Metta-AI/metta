@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterable, Literal, overload
+from typing import Literal, overload
 from urllib.parse import unquote, urlparse
 
 import boto3
@@ -15,7 +15,6 @@ from mettagrid.util.uri_resolvers.base import (
     ParsedScheme,
     S3ParsedScheme,
     SchemeResolver,
-    _extract_run_and_epoch,
 )
 
 
@@ -29,7 +28,6 @@ class FileSchemeResolver(SchemeResolver):
       - relative/path/to/run:v5   (bare path, no scheme)
       - ~/path/to/run:v5          (expands ~)
       - /path/to/checkpoints:latest (resolves to highest epoch checkpoint dir)
-      - /path/to/run:v5/policy_spec.json
     """
 
     @property
@@ -58,16 +56,17 @@ class FileSchemeResolver(SchemeResolver):
         if not parsed.local_path.is_dir():
             return None
 
-        # If the directory itself is a checkpoint dir, treat it as the latest.
-        if (parsed.local_path / "policy_spec.json").exists():
-            return parsed.local_path.as_uri()
-
-        candidates: list[tuple[str, str]] = []
+        best: tuple[int, str] | None = None
         for entry in parsed.local_path.iterdir():
-            if entry.is_dir():
-                if (entry / "policy_spec.json").exists():
-                    candidates.append((entry.name, entry.resolve().as_uri()))
-        return _select_latest_checkpoint_uri(candidates)
+            if not entry.is_dir():
+                continue
+            if not (entry / "policy_spec.json").exists():
+                continue
+            uri = entry.as_uri()
+            info = self.parse(uri).checkpoint_info
+            if info and (best is None or info[1] > best[0]):
+                best = (info[1], uri)
+        return best[1] if best else None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -81,16 +80,10 @@ class FileSchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if parsed.local_path.is_dir():
-            if (parsed.local_path / "policy_spec.json").exists():
-                return parsed.canonical
+        if not uri.endswith(".mpt"):
             latest = self._get_latest_checkpoint_uri(parsed)
             if latest:
                 return latest
-        elif parsed.local_path.is_file():
-            if parsed.local_path.name == "policy_spec.json":
-                return parsed.canonical
-            raise ValueError("Only policy_spec.json or directories containing it are supported")
 
         return parsed.canonical
 
@@ -130,18 +123,15 @@ class S3SchemeResolver(SchemeResolver):
         response = s3_client.list_objects_v2(Bucket=parsed.bucket, Prefix=prefix)
         if response["KeyCount"] == 0:
             return None
-        candidates: list[tuple[str, str]] = []
+        best: tuple[int, str] | None = None
         for obj in response["Contents"]:
-            key = obj["Key"]
-            if not key.endswith("policy_spec.json"):
+            if not obj["Key"].endswith("policy_spec.json"):
                 continue
-            parts = key.split("/")
-            if len(parts) < 2:
-                continue
-            dir_path = "/".join(parts[:-1])  # full directory path to the checkpoint
-            run_dir = parts[-2]
-            candidates.append((run_dir, f"s3://{parsed.bucket}/{dir_path}"))
-        return _select_latest_checkpoint_uri(candidates)
+            uri = f"s3://{parsed.bucket}/{obj['Key']}"
+            info = self.parse(uri).checkpoint_info
+            if info and (best is None or info[1] > best[0]):
+                best = (info[1], uri)
+        return best[1] if best else None
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
         if uri.endswith(":latest"):
@@ -155,24 +145,12 @@ class S3SchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        latest = self._get_latest_checkpoint_uri(parsed)
-        if latest:
-            return latest
+        if not uri.endswith(".mpt"):
+            latest = self._get_latest_checkpoint_uri(parsed)
+            if latest:
+                return latest
+
         return parsed.canonical
-
-
-def _select_latest_checkpoint_uri(candidates: Iterable[tuple[str, str]]) -> str | None:
-    best_epoch: int | None = None
-    best_uri: str | None = None
-    for run_dir, uri in candidates:
-        info = _extract_run_and_epoch(run_dir)
-        if not info:
-            continue
-        epoch = info[1]
-        if best_epoch is None or epoch > best_epoch:
-            best_epoch = epoch
-            best_uri = uri
-    return best_uri
 
 
 class HttpSchemeResolver(SchemeResolver):

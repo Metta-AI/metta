@@ -162,9 +162,9 @@ class Evaluator(TrainerComponent):
             return None
 
         checkpoint_dir = resolve_checkpoint_dir(checkpoint_uri)
-        submission_path = checkpoint_dir.submission_zip_uri
+        submission_path = f"{checkpoint_dir.rstrip('/')}/submission.zip"
 
-        spec_bytes = read(checkpoint_dir.policy_spec_uri)
+        spec_bytes = read(f"{checkpoint_dir.rstrip('/')}/{POLICY_SPEC_FILENAME}")
         submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
         data_path = submission_spec.data_path
         data_bytes = None
@@ -173,7 +173,7 @@ class Evaluator(TrainerComponent):
                 data_path = Path(data_path).name
                 submission_spec.data_path = data_path
                 spec_bytes = submission_spec.model_dump_json().encode("utf-8")
-            data_uri = f"{checkpoint_dir.dir_uri.rstrip('/')}/{data_path.lstrip('/')}"
+            data_uri = f"{checkpoint_dir.rstrip('/')}/{data_path.lstrip('/')}"
             data_bytes = read(data_uri)
 
         zip_data = self._create_submission_zip(policy_spec_bytes=spec_bytes, data_path=data_path, data_bytes=data_bytes)

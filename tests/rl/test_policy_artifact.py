@@ -12,15 +12,9 @@ from metta.agent.components.cortex import CortexTD
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.mpt_artifact import save_mpt
-from metta.rl.mpt_policy import MptPolicy
 from mettagrid.base_config import Config
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt, save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.checkpoint_dir import write_checkpoint_dir
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 
 class DummyActionComponentConfig(Config):
@@ -68,6 +62,7 @@ class ActionTestPolicy(Policy):
 
             policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
         super().__init__(policy_env_info)
+        # Use a large embedding table to accommodate the full action set (includes all vibes).
         config = ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=4, num_embeddings=196)
         self.components = nn.ModuleDict({"action_embedding": ActionEmbedding(config)})
         self._device = torch.device("cpu")
@@ -93,76 +88,34 @@ def _policy_env_info() -> PolicyEnvInterface:
     return PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
 
 
-def test_save_and_load_checkpoint_bundle(tmp_path: Path) -> None:
+def test_artifact_instantiate() -> None:
     policy_env_info = _policy_env_info()
     architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    bundle = write_checkpoint_dir(
-        base_dir=tmp_path,
-        run_name="run",
-        epoch=1,
-        architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
 
-    assert bundle.local_dir is not None
-    spec_on_disk = SubmissionPolicySpec.model_validate_json((bundle.local_dir / POLICY_SPEC_FILENAME).read_text())
-    assert spec_on_disk.data_path == "weights.safetensors"
-    assert bundle.dir_uri.startswith("file://")
-
-    spec = policy_spec_from_uri(bundle.dir_uri)
-    loaded = initialize_or_load_policy(policy_env_info, spec)
-    assert isinstance(loaded, CheckpointPolicy)
-    assert isinstance(loaded.wrapped_policy, DummyPolicy)
+    instantiated = artifact.instantiate(policy_env_info, "cpu")
+    assert isinstance(instantiated, DummyPolicy)
+    assert instantiated.device.type == "cpu"
 
 
-def test_safetensors_checkpoint_with_fast_core(tmp_path: Path) -> None:
+def test_save_and_load_weights_and_architecture(tmp_path: Path) -> None:
     policy_env_info = _policy_env_info()
-
-    architecture = FastConfig()
-    policy = architecture.make_policy(policy_env_info)
-    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
-
-    bundle = write_checkpoint_dir(
-        base_dir=tmp_path,
-        run_name="run",
-        epoch=1,
-        architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
-
-    spec = policy_spec_from_uri(bundle.dir_uri)
-    loaded = initialize_or_load_policy(policy_env_info, spec)
-    assert isinstance(loaded, CheckpointPolicy)
-    assert hasattr(loaded.wrapped_policy, "core")
-    assert isinstance(loaded.wrapped_policy.core, CortexTD)
-
-
-def test_checkpoint_reinitializes_environment_dependent_buffers(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    architecture = ActionTestArchitecture()
-
-    # Save state before env init so env-derived buffers are empty in the checkpoint.
+    architecture = DummyPolicyArchitecture()
     policy = architecture.make_policy(policy_env_info)
 
-    bundle = write_checkpoint_dir(
-        base_dir=tmp_path,
-        run_name="run",
-        epoch=1,
-        architecture=architecture,
-        state_dict=policy.state_dict(),
-    )
+    artifact_path = tmp_path / "artifact.mpt"
+    save_mpt(artifact_path, architecture=architecture, state_dict=policy.state_dict())
 
-    spec = policy_spec_from_uri(bundle.dir_uri)
-    spec.init_kwargs["strict"] = False
-    loaded = initialize_or_load_policy(policy_env_info, spec)
-    assert isinstance(loaded, CheckpointPolicy)
+    assert artifact_path.exists()
 
-    action_component = loaded.wrapped_policy.components["action_embedding"]
-    expected_indices = tuple(range(len(policy_env_info.action_names)))
-    assert tuple(action_component.active_indices.tolist()) == expected_indices
-    assert action_component.num_actions == len(expected_indices)
+    loaded = load_mpt(str(artifact_path))
+    assert isinstance(loaded.architecture, DummyPolicyArchitecture)
+    assert loaded.state_dict is not None
+
+    instantiated = loaded.instantiate(policy_env_info, "cpu")
+    assert isinstance(instantiated, DummyPolicy)
 
 
 def test_architecture_round_trip_vit() -> None:
@@ -209,21 +162,35 @@ def test_architecture_from_spec_with_args_round_trip() -> None:
     assert round_tripped.model_dump() == architecture.model_dump()
 
 
-def test_mpt_policy_loads_from_policy_spec(tmp_path: Path) -> None:
-    policy_env_info = _policy_env_info()
-    architecture = DummyPolicyArchitecture()
+def test_safetensors_save_with_fast_core(tmp_path: Path) -> None:
+    from mettagrid.config import MettaGridConfig
+
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+
+    architecture = FastConfig()
     policy = architecture.make_policy(policy_env_info)
+    policy.initialize_to_environment(policy_env_info, torch.device("cpu"))
 
-    mpt_path = tmp_path / "checkpoint.mpt"
-    save_mpt(mpt_path, architecture=architecture, state_dict=policy.state_dict())
+    artifact_path = tmp_path / "artifact.mpt"
+    save_mpt(artifact_path, architecture=architecture, state_dict=policy.state_dict())
 
-    submission_spec = SubmissionPolicySpec(
-        class_path="metta.rl.mpt_policy.MptPolicy",
-        data_path="checkpoint.mpt",
-        init_kwargs={},
-    )
-    (tmp_path / POLICY_SPEC_FILENAME).write_text(submission_spec.model_dump_json())
+    loaded = load_mpt(str(artifact_path))
+    reloaded = loaded.instantiate(policy_env_info, "cpu")
 
-    spec = policy_spec_from_uri(tmp_path.as_posix())
-    loaded = initialize_or_load_policy(policy_env_info, spec)
-    assert isinstance(loaded, MptPolicy)
+    assert hasattr(reloaded, "core")
+    assert isinstance(reloaded.core, CortexTD)
+
+
+def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
+    policy_env_info = _policy_env_info()
+    architecture = ActionTestArchitecture()
+    # Save state before env init so env-derived buffers are empty in the checkpoint.
+    policy = architecture.make_policy(policy_env_info)
+    artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
+
+    reloaded = artifact.instantiate(policy_env_info, "cpu", strict=False)
+
+    action_component = reloaded.components["action_embedding"]
+    expected_indices = tuple(range(len(policy_env_info.action_names)))
+    assert tuple(action_component.active_indices.tolist()) == expected_indices
+    assert action_component.num_actions == len(expected_indices)
