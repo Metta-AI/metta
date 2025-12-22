@@ -156,9 +156,11 @@ class SlicedKickstarter(Loss):
         # value loss
         teacher_value = minibatch["teacher_values"].detach()
         student_value = student_td["values"]
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        ks_value_loss_vec = (teacher_value.detach() - student_value) ** 2
+        ks_value_loss = ks_value_loss_vec.mean()
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        shared_loss_data["ks_val_loss_vec"] = ks_value_loss_vec
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
