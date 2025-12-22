@@ -529,17 +529,20 @@ class StatsReporter(TrainerComponent):
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
-        ppo_cfg = loss_configs.get("ppo") if isinstance(loss_configs, dict) else None
-        if ppo_cfg is not None:
-            for attr in (
-                "clip_coef",
-                "vf_clip_coef",
-                "ent_coef",
-                "l2_reg_loss_coef",
-                "l2_init_loss_coef",
-            ):
-                value = getattr(ppo_cfg, attr, None)
-                if value is None:
-                    continue
-                hyperparameters[f"ppo_{attr}"] = value
+        if isinstance(loss_configs, dict):
+            ppo_actor_cfg = loss_configs.get("ppo_actor")
+            if ppo_actor_cfg is not None:
+                for attr in ("clip_coef", "ent_coef", "norm_adv", "target_kl"):
+                    value = getattr(ppo_actor_cfg, attr, None)
+                    if value is None:
+                        continue
+                    hyperparameters[f"ppo_actor_{attr}"] = value
+
+            ppo_critic_cfg = loss_configs.get("ppo_critic")
+            if ppo_critic_cfg is not None:
+                for attr in ("vf_coef", "vf_clip_coef", "clip_vloss"):
+                    value = getattr(ppo_critic_cfg, attr, None)
+                    if value is None:
+                        continue
+                    hyperparameters[f"ppo_critic_{attr}"] = value
         return hyperparameters
