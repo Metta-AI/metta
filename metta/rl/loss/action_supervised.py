@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Any, Optional
 
-import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
@@ -48,11 +47,7 @@ class ActionSupervised(Loss):
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
-        act_space = self.env.single_action_space
-        if np.issubdtype(act_space.dtype, np.integer):
-            action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
-        else:
-            action_spec = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
 
         return Composite(
             actions=action_spec,
@@ -76,7 +71,10 @@ class ActionSupervised(Loss):
             # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
-            td["actions"] = td["teacher_actions"]
+            td["actions"] = td["teacher_actions"].to(td["actions"].dtype)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs", "act_log_prob"} if self.cfg.add_action_loss_to_rewards else {"full_log_probs"}
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         keys = {"full_log_probs"}

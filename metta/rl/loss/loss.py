@@ -73,7 +73,7 @@ class Loss:
         return Composite()
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return set()
+        raise NotImplementedError("Losses must implement policy_output_keys")
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
