@@ -10,6 +10,7 @@ if not dirExists(distDir):
 var builder = newAtlasBuilder(1024, 4)
 builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
 builder.addDir(rootDir / "data/ui/", rootDir / "data/")
+builder.addDir(rootDir / "data/ui_atlas/", rootDir / "data/ui_atlas/")
 builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
 builder.addDir(rootDir / "data/resources/", rootDir / "data/")
 builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
