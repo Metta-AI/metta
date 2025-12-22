@@ -1,5 +1,3 @@
-import numpy as np
-
 from mettagrid.mapgen.scene import Scene, SceneConfig
 
 

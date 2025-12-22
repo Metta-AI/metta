@@ -15,13 +15,13 @@ from mettagrid.mapgen.scene import (
     Scene,
     SceneConfig,
 )
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
-from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask, AsteroidMaskConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
