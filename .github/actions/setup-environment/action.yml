@@ -54,7 +54,7 @@ runs:
     - name: Set up nim
       shell: bash
       run: |
-        curl -L -o nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64
+        curl -L -o nimby https://github.com/treeform/nimby/releases/latest/download/nimby-Linux-X64
         chmod +x nimby
         ./nimby use 2.2.6
         echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
