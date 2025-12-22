@@ -46,3 +46,11 @@ cogames play -m hello_world -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,k
 - Exploration history tracking
 - Multi-agent coordination support
 - Cost tracking for API usage
+
+## Development
+
+If the policy isn't found after dependency changes, resync all packages:
+
+```bash
+uv sync --all-packages
+```
