@@ -50,10 +50,10 @@ def list_checkpoints():
 
 def describe_policy_arg(with_proportion: bool):
     console.print("[bold cyan]-p [POLICY][/bold cyan] accepts two formats:\n")
-    console.print("[bold]1. URI format[/bold] (for .mpt checkpoints):")
+    console.print("[bold]1. URI format[/bold] (checkpoint bundle / policy spec):")
     console.print("  - metta://policy/<name> or metta://policy/<uuid>")
-    console.print("  - s3://bucket/path/to/checkpoint.mpt")
-    console.print("  - file:///path/to/checkpoint.mpt or /path/to/checkpoint.mpt")
+    console.print("  - s3://bucket/path/to/run:v<N> or s3://bucket/path/to/run:v<N>/policy_spec.json")
+    console.print("  - file:///path/to/run:v<N> or /path/to/run:v<N> (or .../policy_spec.json)")
     console.print()
     console.print(
         "[bold]2. Key-value format[/bold]: "

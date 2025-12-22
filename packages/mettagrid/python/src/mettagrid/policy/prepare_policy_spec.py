@@ -15,7 +15,7 @@ from typing import Optional
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.file import local_copy
+from mettagrid.util.file import local_copy, read
 
 logger = logging.getLogger(__name__)
 
@@ -186,31 +186,28 @@ def load_policy_spec_from_s3(
     *,
     device: str | None = None,
 ) -> PolicySpec:
-    """Download a submission archive from S3 and return a PolicySpec ready for loading.
-
-    Downloads the archive to a deterministic cache location based on the URI hash,
-    allowing reuse across calls with the same URI.
-
-    Args:
-        s3_path: S3 path to the submission archive (e.g., s3://bucket/path/submission.zip)
-        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
-        cleanup_on_exit: If True, register an atexit handler to clean up the cache directory
-        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
-
-    Returns:
-        PolicySpec with paths resolved to the local extraction directory
-    """
+    """Download a submission archive or checkpoint directory from S3 and return a PolicySpec ready for loading."""
     if cache_dir is None:
         cache_dir = DEFAULT_POLICY_CACHE_DIR
 
-    extraction_root = cache_dir / hashlib.sha256(s3_path.encode()).hexdigest()[:16]
-    marker_file = extraction_root / ".extraction_complete"
+    normalized_path = s3_path
+    if normalized_path.endswith(f"/{POLICY_SPEC_FILENAME}"):
+        normalized_path = normalized_path.rsplit("/", 1)[0]
+    is_archive = normalized_path.endswith(".zip")
+    if not is_archive:
+        normalized_path = normalized_path.rstrip("/")
+
+    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()[:16]
+    marker_file = extraction_root / (".extraction_complete" if is_archive else ".checkpoint_sync_complete")
 
     if not marker_file.exists():
         extraction_root.mkdir(parents=True, exist_ok=True)
 
-        with local_copy(s3_path) as local_archive:
-            _extract_submission_archive(local_archive, extraction_root)
+        if is_archive:
+            with local_copy(normalized_path) as local_archive:
+                _extract_submission_archive(local_archive, extraction_root)
+        else:
+            _sync_s3_checkpoint_dir(normalized_path, extraction_root)
 
         marker_file.touch()
 
@@ -221,3 +218,31 @@ def load_policy_spec_from_s3(
         atexit.register(_cleanup_cache_dir, extraction_root)
 
     return policy_spec
+
+
+def load_policy_spec_from_s3_checkpoint_dir(
+    checkpoint_dir_uri: str,
+    cache_dir: Optional[Path] = None,
+    remove_downloaded_copy_on_exit: bool = False,
+    *,
+    device: str | None = None,
+) -> PolicySpec:
+    return load_policy_spec_from_s3(
+        checkpoint_dir_uri,
+        cache_dir=cache_dir,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        device=device,
+    )
+
+
+def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:
+    spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
+    spec_bytes = read(spec_uri)
+    (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
+
+    submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
+    if submission_spec.data_path:
+        data_uri = f"{checkpoint_dir_uri.rstrip('/')}/{submission_spec.data_path.lstrip('/')}"
+        local_data_path = extraction_root / submission_spec.data_path
+        local_data_path.parent.mkdir(parents=True, exist_ok=True)
+        local_data_path.write_bytes(read(data_uri))

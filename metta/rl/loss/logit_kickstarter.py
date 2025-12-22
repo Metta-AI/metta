@@ -10,8 +10,8 @@ from torchrl.data import Composite, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
@@ -67,8 +67,8 @@ class LogitKickstarter(Loss):
 
         teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
         self.teacher_policy = initialize_or_load_policy(base_policy_env_info, teacher_spec)
-        if isinstance(self.teacher_policy, MptPolicy):
-            self.teacher_policy = self.teacher_policy._policy
+        if isinstance(self.teacher_policy, CheckpointPolicy):
+            self.teacher_policy = self.teacher_policy.wrapped_policy
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
