@@ -24,13 +24,11 @@ class MptPolicy(MultiAgentPolicy):
         *,
         checkpoint_uri: str | None = None,
         device: str = "cpu",
-        strict: bool = True,
     ):
         super().__init__(policy_env_info, device=device)
 
         self._policy = None
         self._architecture = None
-        self._strict = strict
         self._device = device
 
         if checkpoint_uri:
@@ -39,7 +37,7 @@ class MptPolicy(MultiAgentPolicy):
     def _load_from_checkpoint(self, checkpoint_uri: str, *, device: str) -> None:
         artifact = load_mpt(checkpoint_uri)
         self._architecture = artifact.architecture
-        self._policy = artifact.instantiate(self._policy_env_info, device=device, strict=self._strict)
+        self._policy = artifact.instantiate(self._policy_env_info, device=device)
         self._policy.eval()
 
     def load_policy_data(self, policy_data_path: str) -> None:
