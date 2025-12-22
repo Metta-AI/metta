@@ -56,10 +56,18 @@ def create_github_webhook_router() -> APIRouter:
         """
         Receive GitHub webhook events.
 
-        This endpoint processes GitHub webhook events, currently supporting:
-        - pull_request events (action: opened)
+        This endpoint processes GitHub webhook events, supporting:
+        - ping events: returns pong
+        - pull_request events with actions:
+          * opened: create Asana task (with deduplication)
+          * assigned/unassigned/edited: sync task assignee
+          * closed: mark task complete (merged or not)
+          * reopened: reopen task
+          * synchronize: no-op (new commits pushed)
+        - Other event types: acknowledged and ignored
 
-        Future phases will add support for additional actions and event types.
+        All pull_request actions return structured plan objects for observability.
+        Unexpected errors are caught and logged without returning 500 to GitHub.
         """
         # Get raw body for signature verification
         body = await request.body()
@@ -73,7 +81,11 @@ def create_github_webhook_router() -> APIRouter:
             )
 
         # Parse JSON payload
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except Exception as e:
+            logger.error(f"Failed to parse webhook payload: {e}", exc_info=True)
+            return {"status": "error", "message": "Invalid JSON payload"}
 
         logger.info(
             f"Received GitHub webhook: event={x_github_event}, delivery={x_github_delivery}, "
@@ -86,12 +98,28 @@ def create_github_webhook_router() -> APIRouter:
             return {"status": "ok", "message": "pong"}
 
         if x_github_event == "pull_request":
-            with metrics.timed("github_asana.webhook.latency_ms", {"event": "pull_request"}):
-                result = await handle_pull_request_event(
-                    payload=payload,
-                    delivery_id=x_github_delivery,
+            try:
+                with metrics.timed("github_asana.webhook.latency_ms", {"event": "pull_request"}):
+                    result = await handle_pull_request_event(
+                        payload=payload,
+                        delivery_id=x_github_delivery,
+                    )
+                return {"status": "ok", "result": result}
+            except Exception as e:
+                logger.error(
+                    f"Unexpected error processing pull_request event: {e}",
+                    exc_info=True,
+                    extra={"delivery": x_github_delivery, "action": payload.get("action")},
                 )
-            return {"status": "ok", "result": result}
+                metrics.increment_counter("github_asana.dead_letter.count", {"operation": "webhook_handler"})
+                return {
+                    "status": "ok",
+                    "result": {
+                        "kind": "dead_letter",
+                        "reason": "unexpected_error",
+                        "error": str(e),
+                    },
+                }
 
         # For unsupported events, log and return success
         logger.info(f"Ignoring unsupported event type: {x_github_event}")
