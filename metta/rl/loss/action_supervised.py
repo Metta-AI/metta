@@ -49,9 +49,6 @@ class ActionSupervised(Loss):
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
         action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
 
-        # NOTE: This assumes scalar discrete actions. That's consistent with current mettagrid/tribal_village envs
-        # and other losses here, but if we ever support Box/MultiDiscrete or vector actions, this will override the
-        # correct action shape in the merged experience spec.
         return Composite(
             actions=action_spec,
             teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
