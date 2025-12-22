@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
@@ -88,6 +88,9 @@ class EERKickstarter(Loss):
         if env_slice is None:
             raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
         self.replay.store(data_td=td, env_id=env_slice)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs", "values"}
 
     def run_train(
         self,

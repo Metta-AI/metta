@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 import torch
 from pydantic import Field
@@ -71,6 +71,9 @@ class Loss:
     def get_experience_spec(self) -> Composite:
         """Optional extension of the experience replay buffer spec required by this loss."""
         return Composite()
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        raise NotImplementedError("Losses must implement policy_output_keys")
 
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
