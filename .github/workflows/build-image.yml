@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-push-image:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: warp-ubuntu-latest-x64-4x
     timeout-minutes: 20 # up from default of 10 minutes
     permissions:
       id-token: write
