@@ -151,9 +151,8 @@ def apply_teacher_phase(
         _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.supervisor.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=supervisor.action_loss_coef,
