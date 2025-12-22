@@ -4,6 +4,12 @@ resource "kubernetes_namespace" "observatory" {
   }
 }
 
+data "kubernetes_namespace" "monitoring" {
+  metadata {
+    name = "monitoring"
+  }
+}
+
 data "aws_secretsmanager_secret" "anthropic_api_key" {
   name = "anthropic/api-key"
 }
@@ -28,7 +34,7 @@ resource "random_password" "auth_secret" {
 resource "kubernetes_secret" "observatory_backend_env" {
   metadata {
     name      = "observatory-backend-env"
-    namespace = kubernetes_namespace.observatory.metadata[0].name
+    namespace = data.kubernetes_namespace.monitoring.metadata[0].name
   }
   data = {
     STATS_DB_URI = "postgresql://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
