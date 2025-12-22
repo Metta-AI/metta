@@ -20,6 +20,7 @@ from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
+from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
@@ -98,6 +99,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             "forest": BiomeForestConfig,
             "desert": BiomeDesertConfig,
             "city": BiomeCityConfig,
+            "plains": BiomePlainsConfig,
         }
         if cfg.base_biome not in biome_map:
             raise ValueError(f"Unknown base_biome '{cfg.base_biome}'. Valid: {sorted(biome_map.keys())}")
@@ -169,6 +171,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                 cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=w["desert"]))
             if w.get("city", 0) > 0:
                 cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=w["city"]))
+            if w.get("plains", 0) > 0:
+                cands.append(RandomSceneCandidate(scene=BiomePlainsConfig(), weight=w["plains"]))
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
