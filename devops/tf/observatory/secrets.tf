@@ -12,6 +12,14 @@ data "aws_secretsmanager_secret_version" "anthropic_api_key_version" {
   secret_id = data.aws_secretsmanager_secret.anthropic_api_key.id
 }
 
+data "aws_secretsmanager_secret" "github_webhook_secret" {
+  name = "github/webhook-secret"
+}
+
+data "aws_secretsmanager_secret_version" "github_webhook_secret_version" {
+  secret_id = data.aws_secretsmanager_secret.github_webhook_secret.id
+}
+
 resource "random_password" "auth_secret" {
   length  = 27
   special = false
@@ -28,5 +36,6 @@ resource "kubernetes_secret" "observatory_backend_env" {
     ANTHROPIC_API_KEY = data.aws_secretsmanager_secret_version.anthropic_api_key_version.secret_string
     # bypass for token auth in app_backend, allows softmax.com -> observatory communication
     OBSERVATORY_AUTH_SECRET = random_password.auth_secret.result
+    GITHUB_WEBHOOK_SECRET   = data.aws_secretsmanager_secret_version.github_webhook_secret_version.secret_string
   }
 }
