@@ -50,27 +50,33 @@ proc createTestReplay(): Replay =
     let cx = 15.0
     let cy = 16.0
     let size = 8.0 + float(i) * 2.0
+    let perimeter = size * 8.0  # Each side is size*2 long, 4 sides total
+    let speed = 1.0  # Units per step
 
     for step in 0 ..< result.maxSteps:
-      let t = float(step) / float(result.maxSteps)
-      let side = int(t * 4.0) mod 4
-      let sideT = (t * 4.0) mod 1.0
-      
+      # Calculate position along perimeter (constant speed for all agents)
+      let position = (float(step) * speed) mod perimeter
+
+      # Determine which side of the square we're on
+      let sideLength = size * 2.0  # Each side is 2*size long
+      let side = int(position / sideLength) mod 4
+      let sidePos = position mod sideLength
+
       var x, y: float
       case side:
       of 0:  # Top edge: left to right
-        x = cx - size + sideT * size * 2.0
+        x = cx - size + sidePos
         y = cy - size
       of 1:  # Right edge: top to bottom
         x = cx + size
-        y = cy - size + sideT * size * 2.0
+        y = cy - size + sidePos
       of 2:  # Bottom edge: right to left
-        x = cx + size - sideT * size * 2.0
+        x = cx + size - sidePos
         y = cy + size
       else:  # Left edge: bottom to top
         x = cx - size
-        y = cy + size - sideT * size * 2.0
-      
+        y = cy + size - sidePos
+
       agent.location[step] = ivec2(
         int32(x),
         int32(y)
@@ -88,15 +94,16 @@ testHeatmap.initialize(testReplay)
 proc generateCoordinatePattern(heatmap: var Heatmap) =
   ## Generate heatmap data based on coordinates for verification.
   ## Uses abs(x) + abs(y) pattern to create a diagonal gradient.
+  let maxCoordValue = (heatmap.width - 1) + (heatmap.height - 1)
+
   for step in 0 ..< heatmap.maxSteps:
     for y in 0 ..< heatmap.height:
       for x in 0 ..< heatmap.width:
         let value = abs(x) + abs(y)
-        let clampedValue = min(value, 255)
-        heatmap.data[step][y * heatmap.width + x] = clampedValue
+        heatmap.data[step][y * heatmap.width + x] = value
 
-    # Update max heat for this step
-    heatmap.maxHeat[step] = 255
+    # Update max heat for this step to the actual max coordinate value
+    heatmap.maxHeat[step] = maxCoordValue
 
 var testShader = newHeatmapShader()
 testShader.updateTexture(testHeatmap, 0)
