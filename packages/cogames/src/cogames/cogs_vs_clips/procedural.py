@@ -41,7 +41,7 @@ class MachinaArenaConfig(SceneConfig):
     spawn_count: int
 
     # Biome / dungeon structure
-    base_biome: str = "caves"
+    base_biome: str = "plains"
     base_biome_config: dict[str, Any] = {}
 
     # Corner balancing: ensure roughly equal path distance from center to each corner.
