@@ -1,8 +1,8 @@
 """Retry logic for Asana API calls with exponential backoff."""
 
+import asyncio
 import logging
 import random
-import time
 from typing import Any, Callable, Optional, TypeVar
 
 T = TypeVar("T")
@@ -126,6 +126,3 @@ async def retry_with_backoff(
                 raise RetryExhausted(f"{operation_name} failed after {max_retries} attempts", e) from e
 
     raise RetryExhausted(f"{operation_name} exhausted retries", last_exception or Exception("Unknown error"))
-
-
-import asyncio

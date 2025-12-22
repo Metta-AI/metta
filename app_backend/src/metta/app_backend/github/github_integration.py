@@ -50,6 +50,9 @@ async def update_pr_description_with_asana_task(
 
             current_body = response.json().get("body") or ""
 
+            # Remove any existing Asana Task links (matches [Asana Task](url) format)
+            # Note: If PR description format changes significantly in the future,
+            # consider using a more robust approach (e.g., fenced block with sentinel comment)
             asana_link_pattern = r"\[Asana Task\]\([^)]+\)"
             body_without_asana = re.sub(asana_link_pattern, "", current_body).strip()
 
