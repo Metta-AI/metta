@@ -1,6 +1,7 @@
 """Policy checkpoint management component."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -11,11 +12,10 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import architecture_from_spec
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy, architecture_from_spec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.checkpoint_dir import load_checkpoint_dir, resolve_checkpoint_dir
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -59,25 +59,26 @@ class Checkpointer(TrainerComponent):
         candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
-        def load_state_from_checkpoint_bundle(bundle) -> tuple[str, dict[str, torch.Tensor]]:
-            architecture_spec = bundle.policy_spec.init_kwargs.get("architecture_spec")
+        def load_state_from_checkpoint_uri(uri: str) -> tuple[str, dict[str, torch.Tensor]]:
+            spec = policy_spec_from_uri(uri, device=str(load_device))
+            architecture_spec = spec.init_kwargs.get("architecture_spec")
             if not architecture_spec:
                 raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
-            if not bundle.weights_path:
+            if not spec.data_path:
                 raise ValueError("policy_spec.json missing data_path")
-            state_dict = load_safetensors(bundle.weights_path.read_bytes())
+            state_dict = load_safetensors(Path(spec.data_path).read_bytes())
             return architecture_spec, dict(state_dict)
 
         if self._distributed.is_distributed:
             normalized_uri = None
-            loaded: tuple[str, dict[str, torch.Tensor]] | None = None
             if self._distributed.is_master() and candidate_uri:
-                bundle = load_checkpoint_dir(candidate_uri, device=str(load_device))
-                normalized_uri = bundle.dir_uri
-                loaded = load_state_from_checkpoint_bundle(bundle)
+                normalized_uri = resolve_checkpoint_dir(candidate_uri).dir_uri
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
+                loaded: tuple[str, dict[str, torch.Tensor]] | None = None
+                if self._distributed.is_master():
+                    loaded = load_state_from_checkpoint_uri(normalized_uri)
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in loaded[1].items()} if loaded else None
                 )

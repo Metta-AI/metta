@@ -22,7 +22,6 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
-from mettagrid.policy.policy import format_architecture_spec, parse_architecture_spec
 from mettagrid.policy.lstm import obs_to_obs_tensor
 from mettagrid.policy.policy import (
     AgentPolicy,
@@ -65,12 +64,32 @@ class PolicyArchitecture(Config):
         if self.action_probs_config is not None:
             config_data["action_probs_config"] = _component_to_manifest(self.action_probs_config)
 
-        return format_architecture_spec(class_path, config_data)
+        if not config_data:
+            return class_path
+
+        sorted_config = _sorted_structure(config_data)
+        parts = [f"{key}={repr(sorted_config[key])}" for key in sorted(sorted_config)]
+        return f"{class_path}({', '.join(parts)})"
 
     @classmethod
     def from_spec(cls, spec: str) -> "PolicyArchitecture":
         """Deserialize an architecture from a string specification."""
-        class_path, kwargs = parse_architecture_spec(spec)
+        import ast
+
+        spec = spec.strip()
+        if not spec:
+            raise ValueError("Policy architecture specification cannot be empty")
+
+        expr = ast.parse(spec, mode="eval").body
+
+        if isinstance(expr, ast.Call):
+            class_path = _expr_to_dotted(expr.func)
+            kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in expr.keywords if kw.arg}
+        elif isinstance(expr, (ast.Name, ast.Attribute)):
+            class_path = _expr_to_dotted(expr)
+            kwargs = {}
+        else:
+            raise ValueError("Unsupported policy architecture specification format")
 
         config_class = load_symbol(class_path)
         if not isinstance(config_class, type):
@@ -331,3 +350,25 @@ def _load_component(data: Any, context: str, default_class: type | None = None) 
         raise TypeError(f"Loaded symbol {class_path} for {context} is not a class")
 
     return component_class.model_validate(payload)
+
+
+def _sorted_structure(value: Any) -> Any:
+    """Recursively sort dicts by key for deterministic serialization."""
+    from collections.abc import Mapping
+
+    if isinstance(value, Mapping):
+        return {key: _sorted_structure(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_sorted_structure(item) for item in value]
+    return value
+
+
+def _expr_to_dotted(expr) -> str:
+    """Convert an AST expression to a dotted class path string."""
+    import ast
+
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return f"{_expr_to_dotted(expr.value)}.{expr.attr}"
+    raise ValueError("Expected a dotted name for policy architecture class path")

@@ -10,8 +10,7 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
-from mettagrid.policy.policy import architecture_from_spec
-from mettagrid.util.checkpoint_dir import prepare_state_dict_for_save
+from mettagrid.policy.checkpoint_policy import architecture_from_spec, prepare_state_dict_for_save
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri_resolvers.schemes import parse_uri

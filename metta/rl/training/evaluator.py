@@ -28,9 +28,9 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.checkpoint_dir import load_checkpoint_dir
-from mettagrid.util.file import write_data
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
+from mettagrid.util.file import read, write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -161,22 +161,20 @@ class Evaluator(TrainerComponent):
         if not checkpoint_uri.startswith("s3://"):
             return None
 
-        bundle = load_checkpoint_dir(checkpoint_uri)
-        submission_path = f"{bundle.dir_uri.rstrip('/')}/submission.zip"
+        checkpoint_dir = resolve_checkpoint_dir(checkpoint_uri)
+        submission_path = checkpoint_dir.submission_zip_uri
 
-        submission_spec = bundle.submission_spec
-        spec_bytes = bundle.policy_spec_path.read_bytes()
+        spec_bytes = read(checkpoint_dir.policy_spec_uri)
+        submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
         data_path = submission_spec.data_path
         data_bytes = None
         if data_path:
             if Path(data_path).is_absolute():
                 data_path = Path(data_path).name
-                submission_spec = submission_spec.model_copy()
                 submission_spec.data_path = data_path
                 spec_bytes = submission_spec.model_dump_json().encode("utf-8")
-            if bundle.weights_path is None:
-                raise ValueError("policy_spec.json missing data_path")
-            data_bytes = bundle.weights_path.read_bytes()
+            data_uri = f"{checkpoint_dir.dir_uri.rstrip('/')}/{data_path.lstrip('/')}"
+            data_bytes = read(data_uri)
 
         zip_data = self._create_submission_zip(policy_spec_bytes=spec_bytes, data_path=data_path, data_bytes=data_bytes)
         write_data(submission_path, zip_data, content_type="application/zip")
