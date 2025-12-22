@@ -53,7 +53,7 @@ class MachinaArenaConfig(SceneConfig):
     #### Building placement ####
 
     # How much of the map is covered by buildings
-    building_coverage: float = 0.0125
+    building_coverage: float = 0.0175
     # Resource placement (building-based API)
     # Defines the set of buildings that can be placed on the map
     building_names: list[str] | None = None
@@ -115,7 +115,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         default_building_weights = {
             "chest": 0.0,
             "charger": 0.6,
-            "germanium_extractor": 0.6,
+            "germanium_extractor": 0.5,
             "silicon_extractor": 0.3,
             "oxygen_extractor": 0.3,
             "carbon_extractor": 0.3,

@@ -23,72 +23,60 @@ class AsteroidMask(Scene[AsteroidMaskConfig]):
         width_max = max(width_min, int(cfg.width_max))
         chunk_prob = float(cfg.chunk_prob)
 
-        def _cut_triangle_from_top(x: int) -> None:
-            if self.rng.random() >= chunk_prob:
-                return
-            depth = int(self.rng.integers(depth_min, depth_max + 1))
-            half_w = int(self.rng.integers(width_min, width_max + 1))
-            if depth <= 0 or half_w <= 0:
-                return
-            for dy in range(depth):
-                span = max(0, int(round(half_w * (1.0 - dy / max(1.0, depth)))))
-                if span == 0:
-                    continue
-                x0 = max(0, x - span)
-                x1 = min(width, x + span + 1)
-                grid[dy, x0:x1] = "wall"
+        if depth_max == 0 or width_max == 0 or chunk_prob <= 0.0:
+            return
 
-        def _cut_triangle_from_bottom(x: int) -> None:
-            if self.rng.random() >= chunk_prob:
-                return
-            depth = int(self.rng.integers(depth_min, depth_max + 1))
-            half_w = int(self.rng.integers(width_min, width_max + 1))
+        def _cut_triangle(anchor: int, depth: int, half_w: int, axis: str, reverse: bool) -> None:
             if depth <= 0 or half_w <= 0:
                 return
-            for dy in range(depth):
-                span = max(0, int(round(half_w * (1.0 - dy / max(1.0, depth)))))
-                if span == 0:
+            denom = max(1, depth)
+            for offset in range(depth):
+                span = int(round(half_w * (1.0 - offset / denom)))
+                if span <= 0:
                     continue
-                x0 = max(0, x - span)
-                x1 = min(width, x + span + 1)
-                y = height - 1 - dy
-                grid[y, x0:x1] = "wall"
-
-        def _cut_triangle_from_left(y: int) -> None:
-            if self.rng.random() >= chunk_prob:
-                return
-            depth = int(self.rng.integers(depth_min, depth_max + 1))
-            half_w = int(self.rng.integers(width_min, width_max + 1))
-            if depth <= 0 or half_w <= 0:
-                return
-            for dx in range(depth):
-                span = max(0, int(round(half_w * (1.0 - dx / max(1.0, depth)))))
-                if span == 0:
-                    continue
-                y0 = max(0, y - span)
-                y1 = min(height, y + span + 1)
-                grid[y0:y1, dx] = "wall"
-
-        def _cut_triangle_from_right(y: int) -> None:
-            if self.rng.random() >= chunk_prob:
-                return
-            depth = int(self.rng.integers(depth_min, depth_max + 1))
-            half_w = int(self.rng.integers(width_min, width_max + 1))
-            if depth <= 0 or half_w <= 0:
-                return
-            for dx in range(depth):
-                span = max(0, int(round(half_w * (1.0 - dx / max(1.0, depth)))))
-                if span == 0:
-                    continue
-                y0 = max(0, y - span)
-                y1 = min(height, y + span + 1)
-                x = width - 1 - dx
-                grid[y0:y1, x] = "wall"
+                if axis == "x":
+                    x0 = max(0, anchor - span)
+                    x1 = min(width, anchor + span + 1)
+                    y = height - 1 - offset if reverse else offset
+                    grid[y, x0:x1] = "wall"
+                else:
+                    y0 = max(0, anchor - span)
+                    y1 = min(height, anchor + span + 1)
+                    x = width - 1 - offset if reverse else offset
+                    grid[y0:y1, x] = "wall"
 
         for x in range(0, width, step):
-            _cut_triangle_from_top(x)
-            _cut_triangle_from_bottom(x)
+            if self.rng.random() < chunk_prob:
+                _cut_triangle(
+                    x,
+                    int(self.rng.integers(depth_min, depth_max + 1)),
+                    int(self.rng.integers(width_min, width_max + 1)),
+                    "x",
+                    False,
+                )
+            if self.rng.random() < chunk_prob:
+                _cut_triangle(
+                    x,
+                    int(self.rng.integers(depth_min, depth_max + 1)),
+                    int(self.rng.integers(width_min, width_max + 1)),
+                    "x",
+                    True,
+                )
 
         for y in range(0, height, step):
-            _cut_triangle_from_left(y)
-            _cut_triangle_from_right(y)
+            if self.rng.random() < chunk_prob:
+                _cut_triangle(
+                    y,
+                    int(self.rng.integers(depth_min, depth_max + 1)),
+                    int(self.rng.integers(width_min, width_max + 1)),
+                    "y",
+                    False,
+                )
+            if self.rng.random() < chunk_prob:
+                _cut_triangle(
+                    y,
+                    int(self.rng.integers(depth_min, depth_max + 1)),
+                    int(self.rng.integers(width_min, width_max + 1)),
+                    "y",
+                    True,
+                )
