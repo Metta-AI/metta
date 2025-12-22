@@ -6,7 +6,7 @@ import uuid
 from uuid import UUID
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.job_runner.config import get_job_runner_config
+from metta.app_backend.job_runner.config import get_job_worker_config
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
@@ -24,11 +24,11 @@ def main():
         sys.exit(1)
 
     job_id = UUID(sys.argv[1])
-    runner_config = get_job_runner_config()
-    pod_id = runner_config.HOSTNAME
-    observatory_auth_config.save_token(runner_config.MACHINE_TOKEN, runner_config.BACKEND_URL)
+    worker_config = get_job_worker_config()
+    pod_id = worker_config.HOSTNAME
+    observatory_auth_config.save_token(worker_config.MACHINE_TOKEN, worker_config.BACKEND_URL)
 
-    stats_client = StatsClient(runner_config.BACKEND_URL)
+    stats_client = StatsClient(worker_config.BACKEND_URL)
 
     try:
         job_data = stats_client.get_job(job_id)
@@ -46,9 +46,7 @@ def main():
         local_job = job.model_copy(deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri})
         subprocess.run(
             [
-                "uv",
-                "run",
-                "python",
+                "/workspace/metta/.venv/bin/python",
                 "-m",
                 "metta.sim.pure_single_episode_runner",
                 json.dumps(

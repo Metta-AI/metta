@@ -3,10 +3,10 @@
 ## Setup
 
 ```bash
-# Build Kind cluster + load image + create jobs namespace
+# Build image + Kind cluster + create jobs namespace
 metta observatory kind build
 
-# Start postgres + backend + reconciler
+# Start postgres + backend + reconciler (uses same image)
 metta observatory backend up -d
 ```
 

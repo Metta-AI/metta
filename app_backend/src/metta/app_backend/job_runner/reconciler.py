@@ -2,7 +2,7 @@ import asyncio
 import logging
 from uuid import UUID
 
-from kubernetes import client, config
+from kubernetes import client
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.job_runner.config import (
@@ -12,19 +12,12 @@ from metta.app_backend.job_runner.config import (
     LABEL_JOB_ID,
     get_dispatch_config,
 )
+from metta.app_backend.job_runner.dispatcher import get_k8s_client
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
-
-
-def get_k8s_client() -> client.BatchV1Api:
-    try:
-        config.load_incluster_config()
-    except config.ConfigException:
-        config.load_kube_config()
-    return client.BatchV1Api()
 
 
 async def run_reconciler(poll_interval: float = 10.0):

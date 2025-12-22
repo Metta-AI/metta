@@ -15,8 +15,20 @@ class JobDispatchConfig(BaseSettings):
     # TODO(Nishad): Instead of passing MACHINE_TOKEN in, auto-create it via a SystemTokens table
     # that has (name, machine_token_foreign_key), unique on name. Gets-or-creates on startup.
     MACHINE_TOKEN: str = ""
+    METTA_SCHEME_SERVER_URI: str = ""
 
 
 @lru_cache
 def get_dispatch_config() -> JobDispatchConfig:
     return JobDispatchConfig()
+
+
+class JobWorkerConfig(BaseSettings):
+    BACKEND_URL: str
+    MACHINE_TOKEN: str
+    HOSTNAME: str = "unknown"
+
+
+@lru_cache
+def get_job_worker_config() -> JobWorkerConfig:
+    return JobWorkerConfig()

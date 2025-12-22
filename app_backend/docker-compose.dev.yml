@@ -16,10 +16,12 @@ services:
       retries: 5
 
   observatory-backend:
+    image: metta-policy-evaluator-local:latest
+    pull_policy: never
     platform: linux/amd64
-    build:
-      context: ..
-      dockerfile: app_backend/Dockerfile
+    working_dir: /workspace/metta/app_backend
+    entrypoint: ["/workspace/metta/app_backend/scripts/docker-entrypoint.sh"]
+    command: ["/workspace/metta/.venv/bin/python", "src/metta/app_backend/server.py"]
     ports:
       - "8000:8000"
     environment:
@@ -27,31 +29,37 @@ services:
       RUN_MIGRATIONS: "true"
       DEBUG_USER_EMAIL: localdev@example.com
       AWS_PROFILE: softmax
-      EPISODE_RUNNER_IMAGE: metta-policy-evaluator:latest
+      HOST: 0.0.0.0
+      PORT: 8000
+      EPISODE_RUNNER_IMAGE: metta-policy-evaluator-local:latest
       BACKEND_URL: http://host.docker.internal:8000
       MACHINE_TOKEN: local-dev-token
+      METTA_SCHEME_SERVER_URI: http://host.docker.internal:8000
+      KUBERNETES_SKIP_TLS_VERIFY: "true"
     volumes:
       - ./src:/workspace/metta/app_backend/src
+      - ./scripts:/workspace/metta/app_backend/scripts
       - ../common/src:/workspace/metta/common/src
-      - ../metta:/workspace/metta/metta
       - ~/.aws:/root/.aws
+      - ~/.kube:/root/.kube:ro
     depends_on:
       postgres:
         condition: service_healthy
 
   reconciler:
+    image: metta-policy-evaluator-local:latest
+    pull_policy: never
     platform: linux/amd64
-    build:
-      context: ..
-      dockerfile: app_backend/Dockerfile
+    entrypoint: ["/workspace/metta/app_backend/scripts/docker-entrypoint.sh"]
     command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.reconciler"]
     environment:
       BACKEND_URL: http://observatory-backend:8000
       MACHINE_TOKEN: local-dev-token
+      KUBERNETES_SKIP_TLS_VERIFY: "true"
     volumes:
       - ./src:/workspace/metta/app_backend/src
+      - ./scripts:/workspace/metta/app_backend/scripts
       - ../common/src:/workspace/metta/common/src
-      - ../metta:/workspace/metta/metta
       - ~/.kube:/root/.kube:ro
     depends_on:
       - observatory-backend

@@ -43,7 +43,6 @@ def observatory_backend(ctx: typer.Context):
         error(f"Failed to launch Stats Server: {e}")
         raise typer.Exit(1) from e
     except KeyboardInterrupt:
-        info("\nStats Server shutdown")
         raise typer.Exit(0) from None
 
 
