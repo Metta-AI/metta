@@ -125,7 +125,7 @@ class PPOCritic(Loss):
 
             shared_loss_data["ppo_val_loss_vec"] = v_loss_vec
 
-            # Compare with Kickstarter value loss if available
+            # 12-21-25 av experimental code. cute but delete later (compare with Kickstarter value loss if available)
             if "ks_val_loss_vec" in shared_loss_data:
                 analyze_loss_alignment(
                     shared_data=shared_loss_data,
