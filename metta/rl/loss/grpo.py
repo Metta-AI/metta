@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -55,6 +55,8 @@ class GRPO(Loss):
     sampled responses for each state/prompt.
     """
 
+    policy_output_keys_static = {"act_log_prob", "entropy"}
+
     __slots__ = (
         "advantages",
         "burn_in_steps",
@@ -110,9 +112,6 @@ class GRPO(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import torch
 import torch.nn.functional as F
@@ -44,6 +44,8 @@ class SlicedKickstarter(Loss):
     """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
     value against the student's using a KL divergence and MSE loss respectively.
     """
+
+    policy_output_keys_static = {"logits", "values"}
 
     __slots__ = ("teacher_policy", "rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
@@ -111,9 +113,6 @@ class SlicedKickstarter(Loss):
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"logits", "values"}
 
     def run_train(
         self,

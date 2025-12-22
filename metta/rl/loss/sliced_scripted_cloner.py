@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import torch
 from pydantic import Field
@@ -37,6 +37,8 @@ class SlicedScriptedCloner(Loss):
     """This uses a scripted policy's actions (provided by the environment) to supervise the student
     on specific slices of the experience, similar to SlicedKickstarter but with Ground Truth actions.
     """
+
+    policy_output_keys_static = {"full_log_probs"}
 
     __slots__ = ("rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
@@ -98,9 +100,6 @@ class SlicedScriptedCloner(Loss):
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"full_log_probs"}
 
     def run_train(
         self,

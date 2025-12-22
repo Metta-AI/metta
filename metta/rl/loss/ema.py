@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from pydantic import Field
@@ -30,6 +30,8 @@ class EMAConfig(LossConfig):
 
 
 class EMA(Loss):
+    policy_output_keys_static = {"EMA_pred_output_2"}
+
     __slots__ = ("target_model",)
 
     def __init__(
@@ -54,9 +56,6 @@ class EMA(Loss):
                 self.target_model.parameters(), self.policy.parameters(), strict=False
             ):
                 target_param.data = self.cfg.decay * target_param.data + (1 - self.cfg.decay) * online_param.data
-
-    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
-        return {"EMA_pred_output_2"}
 
     def run_train(
         self,
