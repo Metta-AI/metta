@@ -243,6 +243,9 @@ Author: {author_login}"""
             try:
                 result = await retry_with_backoff(
                     _create_task,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"create_task_{external_id}",
                 )
 
@@ -378,6 +381,9 @@ async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> 
             try:
                 await retry_with_backoff(
                     _update_assignee,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"update_assignee_{task_gid}",
                 )
                 logger.info(f"Updated task {task_gid} assignee to: {assignee_email or 'unassigned'}")
@@ -429,6 +435,9 @@ async def update_task_completed(task_gid: str, completed: bool) -> bool:
             try:
                 await retry_with_backoff(
                     _update_completed,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"update_completed_{task_gid}",
                 )
                 logger.info(f"Updated task {task_gid} completed status to: {completed}")

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     ASANA_PAT: str | None = None
     ASANA_WORKSPACE_GID: str | None = None
     ASANA_PROJECT_GID: str | None = None
+    ASANA_RETRY_MAX_ATTEMPTS: int = 3
+    ASANA_RETRY_INITIAL_DELAY_MS: float = 500.0
+    ASANA_RETRY_MAX_DELAY_MS: float = 8000.0
 
 
 settings = Settings()
