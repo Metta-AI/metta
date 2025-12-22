@@ -18,7 +18,6 @@ root_packages =
     metta.cogworks
     metta.adaptive
     metta.map
-    metta.utils
     metta.common
     metta.app_backend
     cogames
@@ -41,7 +40,6 @@ layers =
     metta.cogworks
     metta.adaptive
     metta.map
-    metta.utils
     metta.common
 # Known violations to fix over time (remove as they get fixed)
 ignore_imports =
@@ -50,8 +48,6 @@ ignore_imports =
     metta.gridworks.** -> metta.tools.**
     metta.rl.** -> metta.tools.**
     metta.rl.** -> metta.sim.**
-    metta.utils.** -> metta.adaptive.**
-    metta.common.** -> metta.utils.**
     metta.common.** -> metta.rl.**
 
 [importlinter:contract:cogames-independence]
@@ -102,5 +98,4 @@ forbidden_modules =
 ignore_imports =
     metta.common.** -> metta.common.**
     # Tech debt - remove as violations are fixed:
-    metta.common.** -> metta.utils.**
     metta.common.** -> metta.rl.**
