@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from metta.tests_support import run_tool_in_process
+from metta.common.tests_support import run_tool_in_process
 
 
 @pytest.fixture

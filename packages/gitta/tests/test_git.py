@@ -10,7 +10,6 @@ import pytest
 from gitta import (
     GitError,
     add_remote,
-    canonical_remote_url,
     find_root,
     get_all_remotes,
     get_current_branch,
@@ -127,8 +126,8 @@ def test_find_git_root():
         assert find_root(Path(tmpdir)) is None
 
 
-def test_https_remote_url_alias():
-    """Test URL canonicalization helpers."""
+def test_https_remote_url():
+    """Test URL canonicalization helper."""
     # GitHub SSH URLs
     assert https_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
     assert https_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
@@ -139,9 +138,6 @@ def test_https_remote_url_alias():
 
     # Non-GitHub URLs remain unchanged
     assert https_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
-
-    # Backwards compatibility alias still available
-    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
 
 
 def test_git_errors():

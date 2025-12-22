@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate
+from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
 
@@ -61,7 +61,7 @@ def apply_teacher_phase(
     *,
     trainer_cfg: TrainerConfig,
     training_env_cfg: TrainingEnvironmentConfig,
-    scheduler_rules: list[HyperUpdateRule],
+    scheduler_rules: list[ScheduleRule],
     scheduler_run_gates: list[LossRunGate],
     teacher_cfg: TeacherConfig,
     default_steps: int = DEFAULT_TEACHER_STEPS,
@@ -73,8 +73,11 @@ def apply_teacher_phase(
 
     total_steps = teacher_cfg.steps or default_steps
     losses = trainer_cfg.losses
+    loss_cfg = _select_teacher_loss_cfg(losses=losses, mode=teacher_cfg.mode)
+    if loss_cfg is not None:
+        _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
 
-    def _gate_loss(name: str, end_at_step: int | None = total_steps) -> None:
+    def _gate_loss(name: str, end_at_step: int = total_steps) -> None:
         if end_at_step:
             scheduler_run_gates.extend(
                 [
@@ -96,9 +99,8 @@ def apply_teacher_phase(
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:
         if total_steps and start_value > 0.0:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name=loss_name,
-                    attr_path=attr_path,
+                ScheduleRule(
+                    target_path=f"losses.{loss_name}.{attr_path}",
                     mode="progress",
                     style="linear",
                     start_value=start_value,
@@ -108,14 +110,13 @@ def apply_teacher_phase(
                 )
             )
 
-    if teacher_cfg.mode in {"sliced_cloner", "supervisor", "eer_cloner"}:
+    if teacher_cfg.mode in {"sliced_cloner", "sliced_cloner_no_ppo", "supervisor", "eer_cloner"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
-        _apply_teacher_kwargs(loss_cfg=slicer, teacher_cfg=teacher_cfg)
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
@@ -135,7 +136,6 @@ def apply_teacher_phase(
         grow. PPO critic won't update weights because vf_coef is 0.0. PPO actor is disabled."""
         slicer = losses.sliced_scripted_cloner
         slicer.enabled = True
-        _apply_teacher_kwargs(loss_cfg=slicer, teacher_cfg=teacher_cfg)
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
@@ -155,31 +155,20 @@ def apply_teacher_phase(
     elif teacher_cfg.mode == "supervisor":
         supervisor = losses.supervisor
         supervisor.enabled = True
-        _apply_teacher_kwargs(loss_cfg=supervisor, teacher_cfg=teacher_cfg)
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
-        _gate_loss("supervisor")
-        _gate_critic_after_teacher()
-        _anneal("supervisor", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
-        if total_steps:
-            scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="supervisor",
-                    attr_path="action_loss_coef",
-                    mode="progress",
-                    style="linear",
-                    start_value=supervisor.action_loss_coef,
-                    end_value=0.0,
-                    start_agent_step=total_steps // 2,
-                    end_agent_step=total_steps,
-                )
-            )
+        # Legacy BC behavior: stay in pure-supervisor mode for the whole run.
+        # Do not gate off the supervisor or re-enable PPO later.
+        losses.ppo_actor.enabled = False
+        losses.ppo_critic.enabled = False
+        losses.quantile_ppo_critic.enabled = False
+        scheduler_run_gates.clear()
+        scheduler_rules.clear()
 
     elif teacher_cfg.mode == "sliced_kickstarter":
         _require_policy_uri(teacher_cfg)
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
-        _apply_teacher_kwargs(loss_cfg=sliced_kick, teacher_cfg=teacher_cfg)
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
@@ -199,16 +188,14 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         eer_kick = losses.eer_kickstarter
         eer_kick.enabled = True
-        _apply_teacher_kwargs(loss_cfg=eer_kick, teacher_cfg=teacher_cfg)
         eer_kick.teacher_uri = teacher_cfg.policy_uri
 
         _gate_loss("eer_kickstarter")
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.action_loss_coef,
@@ -218,9 +205,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_kickstarter",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.value_loss_coef,
@@ -230,9 +216,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_kickstarter",
-                    attr_path="r_lambda",
+                ScheduleRule(
+                    target_path="losses.eer_kickstarter.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.r_lambda,
@@ -245,7 +230,6 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         ks = losses.kickstarter
         ks.enabled = True
-        _apply_teacher_kwargs(loss_cfg=ks, teacher_cfg=teacher_cfg)
         ks.teacher_uri = teacher_cfg.policy_uri
         ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
@@ -254,9 +238,8 @@ def apply_teacher_phase(
         _anneal("kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.action_loss_coef,
@@ -266,9 +249,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="kickstarter",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.value_loss_coef,
@@ -282,7 +264,6 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         logit = losses.logit_kickstarter
         logit.enabled = True
-        _apply_teacher_kwargs(loss_cfg=logit, teacher_cfg=teacher_cfg)
         logit.teacher_uri = teacher_cfg.policy_uri
         logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
@@ -291,9 +272,8 @@ def apply_teacher_phase(
         _anneal("logit_kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="logit_kickstarter",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.logit_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.action_loss_coef,
@@ -303,9 +283,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="logit_kickstarter",
-                    attr_path="value_loss_coef",
+                ScheduleRule(
+                    target_path="losses.logit_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.value_loss_coef,
@@ -319,15 +298,13 @@ def apply_teacher_phase(
         _require_policy_uri(teacher_cfg)
         eer_cl = losses.eer_cloner
         eer_cl.enabled = True
-        _apply_teacher_kwargs(loss_cfg=eer_cl, teacher_cfg=teacher_cfg)
 
         _gate_loss("eer_cloner")
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_cloner",
-                    attr_path="action_loss_coef",
+                ScheduleRule(
+                    target_path="losses.eer_cloner.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.action_loss_coef,
@@ -337,9 +314,8 @@ def apply_teacher_phase(
                 )
             )
             scheduler_rules.append(
-                HyperUpdateRule(
-                    loss_instance_name="eer_cloner",
-                    attr_path="r_lambda",
+                ScheduleRule(
+                    target_path="losses.eer_cloner.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.r_lambda,
@@ -361,7 +337,7 @@ def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> No
     """Apply teacher.kwargs overrides onto a concrete loss config.
 
     This is intentionally applied during apply_teacher_phase() so any scheduled
-    HyperUpdateRules use the overridden start values.
+    ScheduleRules use the overridden start values.
     """
 
     if not teacher_cfg.kwargs:
@@ -371,3 +347,21 @@ def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> No
             loss_cfg.override(key, value)
         except Exception as e:  # noqa: BLE001 - surface as a user-facing config error
             raise ValueError(f"Invalid teacher.kwargs override for mode='{teacher_cfg.mode}': {key}={value!r}") from e
+
+
+def _select_teacher_loss_cfg(*, losses: Any, mode: TeacherMode) -> Config | None:
+    if mode in {"sliced_cloner", "sliced_cloner_no_ppo"}:
+        return losses.sliced_scripted_cloner
+    if mode == "supervisor":
+        return losses.supervisor
+    if mode == "sliced_kickstarter":
+        return losses.sliced_kickstarter
+    if mode == "eer_kickstarter":
+        return losses.eer_kickstarter
+    if mode == "kickstarter":
+        return losses.kickstarter
+    if mode == "logit_kickstarter":
+        return losses.logit_kickstarter
+    if mode == "eer_cloner":
+        return losses.eer_cloner
+    return None

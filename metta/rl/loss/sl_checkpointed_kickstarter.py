@@ -96,6 +96,9 @@ class SLCheckpointedKickstarter(Loss):
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
+
     def run_train(
         self,
         shared_loss_data: TensorDict,
@@ -164,7 +167,7 @@ class SLCheckpointedKickstarter(Loss):
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
-    def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
+    def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
         policy_env_info = getattr(self.env, "policy_env_info", None)
