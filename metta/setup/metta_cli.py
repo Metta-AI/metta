@@ -21,7 +21,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 import gitta as git
-from metta.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
@@ -717,7 +716,23 @@ def cmd_gridworks(ctx: typer.Context):
     subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
-app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
+@app.command(
+    name="run-monitor",
+    help="Monitor training runs.",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def cmd_run_monitor(ctx: typer.Context) -> None:
+    """Launch the live run monitor CLI without importing it at module load time."""
+    from metta.adaptive import live_run_monitor
+
+    live_run_monitor.app(
+        prog_name="metta run-monitor",
+        standalone_mode=False,
+        args=list(ctx.args),
+    )
+
+
 app.add_typer(observatory_app, name="observatory")
 app.add_typer(book_app, name="book")
 app.add_typer(python_test_runner_app, name="pytest")
