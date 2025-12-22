@@ -25,6 +25,7 @@ dependencies = [
   "pytest-asyncio>=1.0.0",
   "python-multipart>=0.0.20",
   "httpx>=0.28.1",
+  "requests>=2.31.0",
   "wandb>=0.22.3",
   "metta-common",
   "gitta",
