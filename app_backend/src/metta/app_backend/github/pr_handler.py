@@ -4,6 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from metta.app_backend.github.asana_integration import (
+    _resolve_assignee,
     create_task_from_pr,
     find_task_by_github_url,
     update_task_assignee,
@@ -22,8 +23,13 @@ async def handle_pull_request_event(
     """
     Handle a pull_request webhook event from GitHub.
 
-    Phase 1: Only handles 'opened' action to create Asana tasks.
-    Future phases will handle: assigned, unassigned, closed, reopened, synchronize.
+    Supports all PR actions:
+    - opened: create Asana task (with deduplication)
+    - assigned/unassigned/edited: sync task assignee
+    - closed: mark task complete (merged or not)
+    - reopened: reopen task
+    - synchronize: no-op (new commits pushed)
+    - other actions: no-op with logging
 
     Args:
         payload: The webhook payload from GitHub
@@ -112,8 +118,6 @@ async def handle_pull_request_event(
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
 
-        from metta.app_backend.github.asana_integration import _resolve_assignee
-
         assignee_email = _resolve_assignee(assignee_login, {assignee_login})
         if not assignee_email:
             plan = {
@@ -151,8 +155,6 @@ async def handle_pull_request_event(
             metrics.increment_counter("github_asana.noops", {"reason": "task_not_found"})
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
-
-        from metta.app_backend.github.asana_integration import _resolve_assignee
 
         assignee_email = _resolve_assignee(author_login, {author_login})
         if not assignee_email:
@@ -194,8 +196,6 @@ async def handle_pull_request_event(
 
         current_assignee_login = pr.get("assignee", {}).get("login") if pr.get("assignee") else None
         assignee_to_use = current_assignee_login if current_assignee_login else author_login
-
-        from metta.app_backend.github.asana_integration import _resolve_assignee
 
         assignee_email = _resolve_assignee(assignee_to_use, {assignee_to_use})
         if not assignee_email:
