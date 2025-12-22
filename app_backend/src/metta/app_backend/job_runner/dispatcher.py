@@ -1,5 +1,7 @@
 import logging
+import os
 
+import urllib3
 from kubernetes import client, config
 
 from metta.app_backend.job_runner.config import (
@@ -16,9 +18,17 @@ logger = logging.getLogger(__name__)
 
 def get_k8s_client() -> client.BatchV1Api:
     try:
-        config.load_incluster_config()  # Running in EKS - uses service account token
+        config.load_incluster_config()
     except config.ConfigException:
-        config.load_kube_config()  # Running locally - uses ~/.kube/config
+        config.load_kube_config()
+
+    # For local dev via Docker, disable SSL verification (cert is for 127.0.0.1, not host.docker.internal)
+    if os.environ.get("KUBERNETES_SKIP_TLS_VERIFY", "").lower() == "true":
+        configuration = client.Configuration.get_default_copy()
+        configuration.verify_ssl = False
+        client.Configuration.set_default(configuration)
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
     return client.BatchV1Api()
 
 
@@ -58,6 +68,7 @@ def create_episode_job(job: JobRequest) -> str:
                         client.V1Container(
                             name="worker",
                             image=cfg.EPISODE_RUNNER_IMAGE,
+                            image_pull_policy="IfNotPresent",
                             command=[
                                 "/workspace/metta/.venv/bin/python",
                                 "-m",
@@ -67,6 +78,7 @@ def create_episode_job(job: JobRequest) -> str:
                             env=[
                                 client.V1EnvVar(name="BACKEND_URL", value=cfg.BACKEND_URL),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
+                                client.V1EnvVar(name="METTA_SCHEME_SERVER_URI", value=cfg.METTA_SCHEME_SERVER_URI),
                             ],
                             resources=client.V1ResourceRequirements(
                                 requests={"cpu": "3", "memory": "3Gi"},
