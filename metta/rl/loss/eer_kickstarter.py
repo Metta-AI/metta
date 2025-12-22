@@ -55,7 +55,6 @@ class EERKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
-
         # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
         # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).
         # So we must use the cached pi(S_{t-1}) to shape R_t.
