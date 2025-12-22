@@ -16,9 +16,8 @@ from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvir
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 
 class DummyPolicyArchitecture(PolicyArchitecture):
@@ -77,9 +76,14 @@ class FastCheckpointTrainTool(TrainTool):
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / checkpoint_filename(run_name, epoch)
         policy = DummyPolicy(epoch)
-        save_mpt(policy_path, architecture=DummyPolicyArchitecture(), state_dict=policy.state_dict())
+        CheckpointPolicy.write_checkpoint_dir(
+            base_dir=checkpoint_manager.checkpoint_dir,
+            run_name=run_name,
+            epoch=epoch,
+            architecture=DummyPolicyArchitecture(),
+            state_dict=policy.state_dict(),
+        )
 
         return 0
 
