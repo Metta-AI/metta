@@ -1460,25 +1460,31 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 top_priority_resource = res
                 break
 
+        self._logger.debug(f"Step {state.step_count}: GATHER DECISION: top_priority={top_priority_resource}, pos=({state.row},{state.col})")
+
         if top_priority_resource:
             extractor = self._find_nearest_extractor(state, top_priority_resource)
             if extractor is not None:
-                self._logger.info(f"  GATHER: Navigating to known {top_priority_resource} extractor at {extractor.position}")
+                dist = abs(extractor.position[0] - state.row) + abs(extractor.position[1] - state.col)
+                self._logger.info(f"Step {state.step_count}: GATHER: Navigating to {top_priority_resource} extractor at {extractor.position} (dist={dist})")
 
                 # Try MapManager pathfinding first (uses complete map knowledge)
                 direction = self._navigate_to_with_mapmanager(state, extractor.position, reach_adjacent=True)
                 if direction:
                     if self._is_direction_clear_in_obs(state, direction):
-                        self._logger.debug(f"  GATHER: Moving {direction} toward extractor (MapManager)")
+                        self._logger.debug(f"Step {state.step_count}: GATHER: Moving {direction} toward extractor (MapManager)")
                         return self._actions.move.Move(direction)
                     else:
-                        self._logger.debug(f"  GATHER: MapManager path blocked in obs, trying fallback")
+                        self._logger.warning(f"Step {state.step_count}: GATHER: MapManager suggested {direction} but BLOCKED in obs, trying fallback pathfinding")
 
                 # Fall back to observation-based pathfinding
-                return self._move_towards(state, extractor.position, reach_adjacent=True)
+                self._logger.debug(f"Step {state.step_count}: GATHER: Falling back to observation-based pathfinding")
+                action = self._move_towards(state, extractor.position, reach_adjacent=True)
+                self._logger.debug(f"Step {state.step_count}: GATHER: Fallback pathfinding returned {action.name}")
+                return action
             else:
                 # We need this resource but have NO extractors for it - EXPLORE!
-                self._logger.info(f"  GATHER: Need {top_priority_resource} but no extractors found - EXPLORING")
+                self._logger.info(f"Step {state.step_count}: GATHER: Need {top_priority_resource} but no extractors found - EXPLORING")
                 return self._explore(state)
 
         # Fallback: all resources satisfied (shouldn't reach here)
@@ -2087,9 +2093,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if not path:
             # Pathfinding failed - just try any clear direction
             # (Don't call _explore here to avoid recursion)
+            self._logger.warning(f"Step {state.step_count}: PATHFIND FAILED to {target}, trying any clear direction (THIS CAUSES OSCILLATION!)")
             for direction in ["north", "south", "east", "west"]:
                 if self._is_direction_clear_in_obs(state, direction):
+                    self._logger.debug(f"Step {state.step_count}: PATHFIND FAILED: Moving {direction} (random)")
                     return self._actions.move.Move(direction)
+            self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked, nooping")
             return self._actions.noop.Noop()
 
         # Get next step
@@ -2316,22 +2325,34 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Priority 3: USE MAPMANAGER FRONTIER EXPLORATION (more efficient on large maps)
         # This uses complete map knowledge instead of just state.explored_cells
         if self.map_manager is not None and len(state.discovered_chargers) > 0:
-            frontier = self.exploration.find_nearest_frontier_cell(state, self.map_manager)
+            # CRITICAL FIX: Find ALL frontier candidates and try pathfinding to each
+            # until we find one that's REACHABLE (not just closest by distance)
+            frontier_candidates = self._find_all_frontier_cells(state, self.map_manager, max_candidates=10)
 
-            if frontier:
-                self._logger.info(f"  EXPLORE: Targeting MapManager frontier at {frontier}")
+            if frontier_candidates:
+                self._logger.debug(f"Step {state.step_count}: EXPLORE: Found {len(frontier_candidates)} frontier candidates")
 
-                # Try pathfinding to frontier using MapManager
-                direction = self._navigate_to_with_mapmanager(state, frontier, reach_adjacent=False)
+                # Try pathfinding to each frontier candidate until one succeeds
+                for i, frontier in enumerate(frontier_candidates):
+                    dist = abs(frontier[0] - state.row) + abs(frontier[1] - state.col)
+                    self._logger.debug(f"Step {state.step_count}: EXPLORE: Trying frontier {i+1}/{len(frontier_candidates)} at {frontier} (dist={dist})")
 
-                if direction:
-                    if self._is_direction_clear_in_obs(state, direction):
-                        self._logger.info(f"  EXPLORE: Moving {direction} toward frontier")
-                        return self._actions.move.Move(direction)
+                    # Try pathfinding to frontier using MapManager
+                    direction = self._navigate_to_with_mapmanager(state, frontier, reach_adjacent=False)
+
+                    if direction:
+                        if self._is_direction_clear_in_obs(state, direction):
+                            self._logger.info(f"Step {state.step_count}: EXPLORE: Found REACHABLE frontier at {frontier}, moving {direction}")
+                            return self._actions.move.Move(direction)
+                        else:
+                            self._logger.debug(f"Step {state.step_count}: EXPLORE: Frontier {frontier} path {direction} blocked in obs, trying next")
                     else:
-                        self._logger.debug(f"  EXPLORE: Frontier path blocked in obs, trying quadrant navigation")
-                else:
-                    self._logger.debug(f"  EXPLORE: No path to frontier, trying quadrant navigation")
+                        self._logger.debug(f"Step {state.step_count}: EXPLORE: No path to frontier {frontier}, trying next")
+
+                # All frontiers unreachable - fall through to quadrant navigation
+                self._logger.warning(f"Step {state.step_count}: EXPLORE: All {len(frontier_candidates)} frontiers UNREACHABLE, falling back to quadrant navigation")
+            else:
+                self._logger.warning(f"Step {state.step_count}: EXPLORE: No frontier cells found in MapManager!")
 
         # Priority 4: Navigate to current exploration quadrant target
         # CRITICAL for quadrant_buildings missions
@@ -2422,6 +2443,63 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # No blocking object found - path is clear
         return True
+
+    def _find_all_frontier_cells(
+        self,
+        state: HarvestState,
+        map_manager: 'MapManager',
+        max_candidates: int = 10
+    ) -> list[tuple[int, int]]:
+        """Find multiple frontier candidates sorted by distance.
+
+        Returns up to max_candidates frontier cells, prioritized by Manhattan distance.
+        This allows trying multiple frontiers when the closest one is unreachable.
+
+        Args:
+            state: Current agent state
+            map_manager: MapManager with complete map grid
+            max_candidates: Maximum number of candidates to return
+
+        Returns:
+            List of frontier positions, sorted by distance (closest first)
+        """
+        from .map import MapCellType
+
+        frontier_candidates = []
+
+        # Scan map for frontier cells (same logic as find_nearest_frontier_cell)
+        search_radius = 50  # Limit search to 50 cells around agent
+        start_r = max(0, state.row - search_radius)
+        end_r = min(state.map_height, state.row + search_radius + 1)
+        start_c = max(0, state.col - search_radius)
+        end_c = min(state.map_width, state.col + search_radius + 1)
+
+        for r in range(start_r, end_r):
+            for c in range(start_c, end_c):
+                # Must be EXPLORED and TRAVERSABLE
+                cell_type = map_manager.grid[r][c]
+                if cell_type in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END):
+                    continue
+
+                # Check if adjacent to any UNKNOWN cell
+                is_frontier = False
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
+                        if map_manager.grid[nr][nc] == MapCellType.UNKNOWN:
+                            is_frontier = True
+                            break
+
+                if is_frontier:
+                    dist = abs(r - state.row) + abs(c - state.col)
+                    frontier_candidates.append((dist, r, c))
+
+        if not frontier_candidates:
+            return []
+
+        # Sort by distance and return top N
+        frontier_candidates.sort(key=lambda x: x[0])
+        return [(r, c) for (_, r, c) in frontier_candidates[:max_candidates]]
 
     def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
         """Find explored cells that are adjacent to unexplored cells (frontier)."""
