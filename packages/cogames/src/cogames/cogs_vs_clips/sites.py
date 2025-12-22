@@ -48,7 +48,14 @@ MACHINA_1 = Site(
         border_width=1,
         instance=MachinaArena.Config(
             spawn_count=20,
-            asteroid_mask=AsteroidMask.Config(radius_scale=1.2, shape_power=10.0, jagged_prob=0.9, jagged_depth=10),
+            asteroid_mask=AsteroidMask.Config(
+                inset_min=1,
+                inset_max=7,
+                jagged_step=1,
+                spike_prob=0.35,
+                spike_depth=6,
+                smooth=3,
+            ),
         ),
     ),
     min_cogs=1,
