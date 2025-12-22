@@ -4,7 +4,7 @@ from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
 class BiomePlainsConfig(SceneConfig):
-    cluster_period: int = 11  # distance between cluster anchors
+    cluster_period: int = 7  # distance between cluster anchors
     cluster_min_radius: int = 1  # min radius for a cluster
     cluster_max_radius: int = 3  # max radius for a cluster
     cluster_fill: float = 0.7  # density of rocks within a cluster footprint
