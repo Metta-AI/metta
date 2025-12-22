@@ -17,74 +17,47 @@ WEIGHTS_FILENAME = "weights.safetensors"
 
 
 def architecture_from_spec(spec: str) -> Any:
-    spec = spec.strip()
-    if not spec:
-        raise ValueError("architecture_spec cannot be empty")
-
-    class_path = spec.split("(")[0].strip()
-    config_class = load_symbol(class_path)
-    if not isinstance(config_class, type):
-        raise TypeError(f"Loaded symbol {class_path} is not a class")
-    if not hasattr(config_class, "from_spec"):
-        raise TypeError(f"Class {class_path} does not have a from_spec method")
-    return config_class.from_spec(spec)
+    class_path = spec.split("(", 1)[0].strip()
+    return load_symbol(class_path).from_spec(spec)
 
 
 def architecture_spec_from_value(architecture: Any) -> str:
-    if isinstance(architecture, str):
-        spec = architecture
-    elif hasattr(architecture, "to_spec"):
-        spec = architecture.to_spec()
-    else:
-        raise TypeError("architecture must be a spec string or provide to_spec()")
-    spec = spec.strip()
-    if not spec:
-        raise ValueError("architecture_spec cannot be empty")
-    return spec
+    return architecture if isinstance(architecture, str) else architecture.to_spec()
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    result: dict[str, torch.Tensor] = {}
-    for key, tensor in state_dict.items():
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
-        result[key] = tensor.detach().cpu()
-    return result
+    return {key: tensor.detach().cpu() for key, tensor in state_dict.items()}
 
 
-def _resolve_policy_data_path(policy_data_path: Path) -> Path:
-    if policy_data_path.is_dir():
-        spec_path = policy_data_path / POLICY_SPEC_FILENAME
+def _resolve_policy_data_path(path: Path) -> Path:
+    if path.is_dir():
+        spec_path = path / POLICY_SPEC_FILENAME
         if not spec_path.exists():
-            raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in checkpoint directory: {policy_data_path}")
+            raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}")
         submission_spec = SubmissionPolicySpec.model_validate_json(spec_path.read_text())
         if not submission_spec.data_path:
-            raise ValueError(f"{POLICY_SPEC_FILENAME} missing data_path in {policy_data_path}")
-        weights_path = policy_data_path / submission_spec.data_path
+            raise ValueError(f"{POLICY_SPEC_FILENAME} missing data_path in {path}")
+        weights_path = path / submission_spec.data_path
         if not weights_path.exists():
             raise FileNotFoundError(f"Policy data path does not exist: {weights_path}")
         return weights_path
 
-    if policy_data_path.is_file():
-        if policy_data_path.name == POLICY_SPEC_FILENAME:
-            raise ValueError("Pass the checkpoint directory, not policy_spec.json")
-        return policy_data_path
+    if path.is_file() and path.name != POLICY_SPEC_FILENAME:
+        return path
 
-    raise FileNotFoundError(f"Policy data path does not exist: {policy_data_path}")
+    raise FileNotFoundError(f"Policy data path does not exist: {path}")
 
 
-def write_policy_spec(checkpoint_dir: Path, architecture_spec: str, *, data_path: str = WEIGHTS_FILENAME) -> None:
-    submission_spec = SubmissionPolicySpec(
+def write_policy_spec(checkpoint_dir: Path, architecture_spec: str) -> None:
+    spec = SubmissionPolicySpec(
         class_path="mettagrid.policy.checkpoint_policy.CheckpointPolicy",
-        data_path=data_path,
+        data_path=WEIGHTS_FILENAME,
         init_kwargs={"architecture_spec": architecture_spec},
     )
-    (checkpoint_dir / POLICY_SPEC_FILENAME).write_text(submission_spec.model_dump_json())
+    (checkpoint_dir / POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
 
 
 class CheckpointPolicy(MultiAgentPolicy):
-    """Policy implementation that loads weights from a policy_spec directory."""
-
     short_names = ["checkpoint"]
 
     def __init__(
@@ -105,24 +78,21 @@ class CheckpointPolicy(MultiAgentPolicy):
         self._policy.eval()
 
     def load_policy_data(self, policy_data_path: str) -> None:
-        weights_path = _resolve_policy_data_path(Path(policy_data_path).expanduser())
-        weights_blob = weights_path.read_bytes()
+        weights_blob = _resolve_policy_data_path(Path(policy_data_path).expanduser()).read_bytes()
         state_dict = load_safetensors(weights_blob)
         missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=self._strict)
         if self._strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-
         if hasattr(self._policy, "initialize_to_environment"):
             self._policy.initialize_to_environment(self._policy_env_info, self._device)
         self._policy.eval()
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        target_path = Path(policy_data_path).expanduser()
-        target_path.mkdir(parents=True, exist_ok=True)
-        weights_path = target_path / WEIGHTS_FILENAME
-        prepared_state = prepare_state_dict_for_save(self._policy.state_dict())
-        weights_path.write_bytes(save_safetensors(dict(prepared_state)))
-        write_policy_spec(target_path, self._architecture_spec)
+        target_dir = Path(policy_data_path).expanduser()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        weights_path = target_dir / WEIGHTS_FILENAME
+        weights_path.write_bytes(save_safetensors(prepare_state_dict_for_save(self._policy.state_dict())))
+        write_policy_spec(target_dir, self._architecture_spec)
 
     @staticmethod
     def write_checkpoint_dir(
@@ -136,12 +106,9 @@ class CheckpointPolicy(MultiAgentPolicy):
         architecture_spec = architecture_spec_from_value(architecture)
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
         weights_path = checkpoint_dir / WEIGHTS_FILENAME
-        prepared_state = prepare_state_dict_for_save(state_dict)
-        weights_path.write_bytes(save_safetensors(dict(prepared_state)))
+        weights_path.write_bytes(save_safetensors(prepare_state_dict_for_save(state_dict)))
         write_policy_spec(checkpoint_dir, architecture_spec)
-
         return checkpoint_dir
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:

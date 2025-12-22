@@ -9,6 +9,8 @@ from mettagrid.policy.checkpoint_policy import WEIGHTS_FILENAME, CheckpointPolic
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
+
+
 def write_checkpoint_dir(
     *,
     base_dir: Path,
@@ -24,6 +26,8 @@ def write_checkpoint_dir(
         architecture=architecture,
         state_dict=state_dict,
     )
+
+
 def upload_checkpoint_dir(checkpoint_dir: Path, remote_prefix: str) -> str:
     if not checkpoint_dir.is_dir():
         raise ValueError("upload_checkpoint_dir requires a checkpoint directory")
@@ -37,6 +41,8 @@ def upload_checkpoint_dir(checkpoint_dir: Path, remote_prefix: str) -> str:
     policy_spec_uri = f"{remote_dir}/{POLICY_SPEC_FILENAME}"
     write_data(policy_spec_uri, local_spec.model_dump_json().encode("utf-8"), content_type="application/json")
     return remote_dir
+
+
 def resolve_checkpoint_dir(uri: str) -> str:
     parsed = resolve_uri(uri)
     dir_uri = parsed.canonical
