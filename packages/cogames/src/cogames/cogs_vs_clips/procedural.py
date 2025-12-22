@@ -29,6 +29,7 @@ from mettagrid.mapgen.scenes.building_distributions import (
 )
 from mettagrid.mapgen.scenes.make_connected import MakeConnected
 from mettagrid.mapgen.scenes.maze import MazeConfig
+from mettagrid.mapgen.scenes.nop import NopConfig
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze
 from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandidate, RandomSceneConfig
 
@@ -163,6 +164,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
+            if w.get("none", 0) > 0:
+                cands.append(RandomSceneCandidate(scene=NopConfig(), weight=w["none"]))
             if w.get("caves", 0) > 0:
                 cands.append(RandomSceneCandidate(scene=BiomeCavesConfig(), weight=w["caves"]))
             if w.get("forest", 0) > 0:
@@ -179,6 +182,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
+            if w.get("none", 0) > 0:
+                cands.append(RandomSceneCandidate(scene=NopConfig(), weight=w["none"]))
             if w.get("bsp", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(

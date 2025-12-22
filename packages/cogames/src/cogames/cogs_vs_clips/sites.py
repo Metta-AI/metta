@@ -47,8 +47,10 @@ MACHINA_1 = Site(
         instance=MachinaArena.Config(
             spawn_count=20,
             base_biome="plains",
-            biome_weights={"caves": 0.0, "forest": 0.0, "desert": 0.0, "city": 0.0, "plains": 0.0},
-            dungeon_weights={"bsp": 0.0, "maze": 0.0, "radial": 0.0},
+            biome_count=7,
+            dungeon_count=1,
+            biome_weights={"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0},
+            dungeon_weights={"none": 0.85, "bsp": 0.05, "maze": 0.05, "radial": 0.05},
         ),
     ),
     min_cogs=1,
