@@ -10,7 +10,6 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -154,7 +153,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-
-
-# Here temporarily for backwards-compatibility but we will move it
-CheckpointPolicy = MptPolicy
