@@ -37,6 +37,7 @@ class VibePickerComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("vibe_picker")
+        assert sidebar_panel is not None
         self._set_panel(sidebar_panel)
         self._vibe_query: str = ""
 
@@ -88,12 +89,14 @@ class VibePickerComponent(MiniscopeComponent):
         # Always render when in VIBE_PICKER mode, regardless of sidebar visibility
         in_picker_mode = self._state.mode == RenderMode.VIBE_PICKER
 
+        panel = self._panel
+        assert panel is not None
         if not in_picker_mode and not self.state.is_sidebar_visible("vibe_picker"):
-            self._panel.clear()
+            panel.clear()
             return
 
         lines = self._build_lines(self._vibe_query)
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def _build_lines(self, query: str) -> list[str]:
         """Build vibe picker display as plain text lines.

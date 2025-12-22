@@ -86,6 +86,8 @@ class MapComponent(MiniscopeComponent):
 
     def update(self) -> None:
         """Update the map display."""
+        panel = self._panel
+        assert panel is not None
         # Update buffer configuration from state
         self._update_buffer_config()
 
@@ -93,7 +95,7 @@ class MapComponent(MiniscopeComponent):
         grid_objects = self._sim.grid_objects()
 
         # Get viewport size from panel
-        panel_width, panel_height = self._panel.size()
+        panel_width, panel_height = panel.size()
         # Each map cell takes 2 chars in width
         viewport_width = panel_width // 2 if panel_width else self.state.viewport_width
         viewport_height = panel_height if panel_height else self.state.viewport_height
@@ -120,4 +122,4 @@ class MapComponent(MiniscopeComponent):
 
         # Render with viewport and set panel content
         buffer = self._map_buffer.render(grid_objects, use_viewport=True)
-        self._panel.set_content(buffer.split("\n"))
+        panel.set_content(buffer.split("\n"))
