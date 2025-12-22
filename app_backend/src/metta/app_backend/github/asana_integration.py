@@ -253,7 +253,6 @@ Author: {author_login}"""
                     task_gid = result.get("gid")
                     task_url = result.get("permalink_url")
                     logger.info(f"Successfully created Asana task {task_gid}: {task_url}")
-                    metrics.increment_counter("github_asana.tasks_created")
                     return result
                 else:
                     logger.error(f"Unexpected result type from Asana API: {type(result)}")
@@ -387,7 +386,6 @@ async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> 
                     operation_name=f"update_assignee_{task_gid}",
                 )
                 logger.info(f"Updated task {task_gid} assignee to: {assignee_email or 'unassigned'}")
-                metrics.increment_counter("github_asana.assign_updates")
                 return True
 
             except RetryExhausted as e:
@@ -441,10 +439,6 @@ async def update_task_completed(task_gid: str, completed: bool) -> bool:
                     operation_name=f"update_completed_{task_gid}",
                 )
                 logger.info(f"Updated task {task_gid} completed status to: {completed}")
-                if completed:
-                    metrics.increment_counter("github_asana.tasks_completed")
-                else:
-                    metrics.increment_counter("github_asana.tasks_reopened")
                 return True
 
             except RetryExhausted as e:
