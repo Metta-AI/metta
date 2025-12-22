@@ -33,6 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from safetensors.torch import load as load_safetensors
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -85,16 +86,20 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
             return None
 
     try:
-        if policy_path.endswith(".mpt"):
-            from mettagrid.policy.mpt_artifact import load_mpt
+        spec = policy_spec_from_uri(policy_path)
+        if not spec.data_path:
+            return None
+        weights = load_safetensors(Path(spec.data_path).read_bytes())
 
-            artifact = load_mpt(policy_path)
-            action_space = _action_space_from_state_dict(artifact.state_dict)
-        else:
-            from mettagrid.policy.checkpoint_policy import load_state_from_checkpoint_uri
+        # Look for actor head weight to determine action space
+        for key, tensor in weights.items():
+            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                action_space = tensor.shape[0]
+                _policy_action_space_cache[policy_path] = action_space
+                logger.info(f"Detected policy action space: {action_space} actions")
+                return action_space
 
-            _, state_dict = load_state_from_checkpoint_uri(policy_path, device="cpu")
-            action_space = _action_space_from_state_dict(state_dict)
+        return None
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
         return None

@@ -7,7 +7,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from mettagrid.util.uri_resolvers.base import MettaParsedScheme, SchemeResolver
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +117,6 @@ class MettaSchemeResolver(SchemeResolver):
             logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")
             return policy_version.s3_path
 
-        # If that is missing (probably legacy policy), we send you to the mpt file, and will later assume
-        # that the class to hydrate from is MptPolicy
-        mpt_file_path = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
-        if not mpt_file_path:
-            raise ValueError(f"Data not found for policy version {policy_version.id}")
-        if not mpt_file_path.endswith(".mpt"):
-            raise ValueError(f"Invalid mpt file path: {mpt_file_path}")
-        logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {mpt_file_path}")
-        return resolve_uri(mpt_file_path).canonical
+        raise ValueError(
+            f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission zip in S3."
+        )
