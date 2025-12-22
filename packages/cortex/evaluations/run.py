@@ -20,7 +20,7 @@ from synthetic_datasets import (  # type: ignore[import-not-found]
 )
 from torch.utils.data import DataLoader
 
-from metta.utils.torch_init import enable_determinism
+from metta.rl.torch_init import enable_determinism
 
 # Globals used by optional Axons parity probe
 AXONS_PARITY_PROBE: int = 0
