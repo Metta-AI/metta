@@ -43,7 +43,13 @@ class MachinaArenaConfig(SceneConfig):
 
     # Biome / dungeon structure
     base_biome: str = "plains"
-    base_biome_config: dict[str, Any] = {}
+    base_biome_config: dict[str, Any] = {
+        "cluster_prob": 0.92,
+        "cluster_fill": 0.82,
+        "cluster_max_radius": 4,
+        "cluster_period": 5,
+        "jitter": 2,
+    }
 
     # Corner balancing: ensure roughly equal path distance from center to each corner.
     balance_corners: bool = False
