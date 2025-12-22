@@ -53,12 +53,14 @@ runs:
 
     - name: Set up nim
       shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        curl -L -o nimby -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://github.com/treeform/nimby/releases/latest/download/nimby-Linux-X64
+        gh release download --repo treeform/nimby --pattern 'nimby-Linux-X64' --output nimby --clobber
         chmod +x nimby
         ./nimby use 2.2.6
         echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
-        mv nimby "$HOME/.nimby/nim/bin/nimby"
+        install -m 0755 nimby "$HOME/.nimby/nim/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
