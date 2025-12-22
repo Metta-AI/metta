@@ -167,7 +167,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         def _make_biome_candidates(
             weights: dict[str, float] | None,
         ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
-            defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
+            defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
             uniques: list[SceneConfig] = []
             weighted: list[RandomSceneCandidate] = []
@@ -192,7 +192,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         def _make_dungeon_candidates(
             weights: dict[str, float] | None,
         ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
-            defaults = {"bsp": 0.0, "maze": 1.0, "radial": 1.0}
+            defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             uniques: list[SceneConfig] = []
             weighted: list[RandomSceneCandidate] = []

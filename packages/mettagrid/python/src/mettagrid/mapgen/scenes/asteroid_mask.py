@@ -4,12 +4,12 @@ from mettagrid.mapgen.scene import Scene, SceneConfig
 
 
 class AsteroidMaskConfig(SceneConfig):
-    inset_min: int = 2
-    inset_max: int = 12
-    jagged_step: int = 1
-    spike_prob: float = 0.25
-    spike_depth: int = 8
-    smooth: int = 3
+    step: int = 3
+    depth_min: int = 2
+    depth_max: int = 8
+    width_min: int = 2
+    width_max: int = 6
+    chunk_prob: float = 0.6
 
 
 class AsteroidMask(Scene[AsteroidMaskConfig]):
@@ -18,51 +18,79 @@ class AsteroidMask(Scene[AsteroidMaskConfig]):
         height, width = self.height, self.width
         cfg = self.config
 
-        min_inset = max(0, int(cfg.inset_min))
-        max_inset = max(min_inset, int(cfg.inset_max))
-        jagged_step = max(0, int(cfg.jagged_step))
-        spike_prob = float(cfg.spike_prob)
-        spike_depth = max(0, int(cfg.spike_depth))
-        smooth = max(1, int(cfg.smooth))
+        step = max(1, int(cfg.step))
+        depth_min = max(0, int(cfg.depth_min))
+        depth_max = max(depth_min, int(cfg.depth_max))
+        width_min = max(0, int(cfg.width_min))
+        width_max = max(width_min, int(cfg.width_max))
+        chunk_prob = float(cfg.chunk_prob)
 
-        def _make_depths(length: int, cap: int) -> np.ndarray:
-            if cap <= 0 or length <= 0:
-                return np.zeros(length, dtype=np.int32)
-            cur = int(self.rng.integers(min_inset, cap + 1)) if cap > min_inset else min_inset
-            depths = np.empty(length, dtype=np.int32)
-            for i in range(length):
-                if spike_depth > 0 and self.rng.random() < spike_prob:
-                    cur = min(cap, cur + int(self.rng.integers(1, spike_depth + 1)))
-                elif jagged_step > 0:
-                    cur += int(self.rng.integers(-jagged_step, jagged_step + 1))
-                if self.rng.random() < 0.1:
-                    cur += int(self.rng.integers(-2, 3))
-                cur = int(np.clip(cur, min_inset, cap))
-                depths[i] = cur
-            if smooth > 1 and length >= smooth:
-                kernel = np.ones(smooth, dtype=np.float32) / float(smooth)
-                padded = np.pad(depths.astype(np.float32), (smooth, smooth), mode="edge")
-                smoothed = np.convolve(padded, kernel, mode="same")[smooth:-smooth]
-                depths = np.clip(smoothed, min_inset, cap).astype(np.int32)
-            return depths
+        def _cut_triangle_from_top(x: int) -> None:
+            if self.rng.random() >= chunk_prob:
+                return
+            depth = int(self.rng.integers(depth_min, depth_max + 1))
+            half_w = int(self.rng.integers(width_min, width_max + 1))
+            if depth <= 0 or half_w <= 0:
+                return
+            for dy in range(depth):
+                span = max(0, int(round(half_w * (1.0 - dy / max(1.0, depth)))))
+                if span == 0:
+                    continue
+                x0 = max(0, x - span)
+                x1 = min(width, x + span + 1)
+                grid[dy, x0:x1] = "wall"
 
-        max_top = min(max_inset, height // 2)
-        max_side = min(max_inset, width // 2)
+        def _cut_triangle_from_bottom(x: int) -> None:
+            if self.rng.random() >= chunk_prob:
+                return
+            depth = int(self.rng.integers(depth_min, depth_max + 1))
+            half_w = int(self.rng.integers(width_min, width_max + 1))
+            if depth <= 0 or half_w <= 0:
+                return
+            for dy in range(depth):
+                span = max(0, int(round(half_w * (1.0 - dy / max(1.0, depth)))))
+                if span == 0:
+                    continue
+                x0 = max(0, x - span)
+                x1 = min(width, x + span + 1)
+                y = height - 1 - dy
+                grid[y, x0:x1] = "wall"
 
-        top = _make_depths(width, max_top)
-        bottom = _make_depths(width, max_top)
-        left = _make_depths(height, max_side)
-        right = _make_depths(height, max_side)
+        def _cut_triangle_from_left(y: int) -> None:
+            if self.rng.random() >= chunk_prob:
+                return
+            depth = int(self.rng.integers(depth_min, depth_max + 1))
+            half_w = int(self.rng.integers(width_min, width_max + 1))
+            if depth <= 0 or half_w <= 0:
+                return
+            for dx in range(depth):
+                span = max(0, int(round(half_w * (1.0 - dx / max(1.0, depth)))))
+                if span == 0:
+                    continue
+                y0 = max(0, y - span)
+                y1 = min(height, y + span + 1)
+                grid[y0:y1, dx] = "wall"
 
-        for x, depth in enumerate(top):
-            if depth > 0:
-                grid[:depth, x] = "wall"
-        for x, depth in enumerate(bottom):
-            if depth > 0:
-                grid[height - depth :, x] = "wall"
-        for y, depth in enumerate(left):
-            if depth > 0:
-                grid[y, :depth] = "wall"
-        for y, depth in enumerate(right):
-            if depth > 0:
-                grid[y, width - depth :] = "wall"
+        def _cut_triangle_from_right(y: int) -> None:
+            if self.rng.random() >= chunk_prob:
+                return
+            depth = int(self.rng.integers(depth_min, depth_max + 1))
+            half_w = int(self.rng.integers(width_min, width_max + 1))
+            if depth <= 0 or half_w <= 0:
+                return
+            for dx in range(depth):
+                span = max(0, int(round(half_w * (1.0 - dx / max(1.0, depth)))))
+                if span == 0:
+                    continue
+                y0 = max(0, y - span)
+                y1 = min(height, y + span + 1)
+                x = width - 1 - dx
+                grid[y0:y1, x] = "wall"
+
+        for x in range(0, width, step):
+            _cut_triangle_from_top(x)
+            _cut_triangle_from_bottom(x)
+
+        for y in range(0, height, step):
+            _cut_triangle_from_left(y)
+            _cut_triangle_from_right(y)
