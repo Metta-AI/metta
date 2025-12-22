@@ -26,7 +26,19 @@ def architecture_spec_from_value(architecture: Any) -> str:
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    return {key: tensor.detach().cpu() for key, tensor in state_dict.items()}
+    result: dict[str, torch.Tensor] = {}
+    seen_storage: set[int] = set()
+    for key, tensor in state_dict.items():
+        if not isinstance(tensor, torch.Tensor):
+            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
+        value = tensor.detach().cpu()
+        data_ptr = value.data_ptr()
+        if data_ptr in seen_storage:
+            value = value.clone()
+        else:
+            seen_storage.add(data_ptr)
+        result[key] = value
+    return result
 
 
 def _resolve_policy_data_path(path: Path) -> Path:
