@@ -236,6 +236,7 @@ def get_formatters() -> dict[str, FormatterConfig]:
             FormatterConfig(
                 name="Python Import Linter",
                 check_cmds=(("uv", "run", "lint-imports"),),
+                format_cmds=(("uv", "run", "lint-imports"),),
                 extensions=(".py",),
                 accepts_file_args=False,
             ),

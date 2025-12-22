@@ -1,13 +1,17 @@
+# Import dependency rules for the metta codebase.
+# To add or reorder folders, edit this file then run:
+#   metta codebase generate-folder-diagram
+
 [importlinter]
 root_packages =
     metta
     cogames
     mettagrid
-include_external_packages = False
+include_external_packages = True
 
-# Modules higher in the list can import from modules lower in the list, not vice versa
-[importlinter:contract:metta-layers]
-name = Metta module layers
+# Folders higher in the list can import from folders lower in the list, not vice versa
+[importlinter:contract:metta-folders]
+name = Metta folder hierarchy
 type = layers
 layers =
     metta.tools
@@ -37,6 +41,11 @@ source_modules =
     cogames
 forbidden_modules =
     metta
+    cortex
+    gitta
+    codebot
+    tribal_village
+
 
 [importlinter:contract:mettagrid-independence]
 name = mettagrid cannot import from metta or cogames
@@ -46,3 +55,7 @@ source_modules =
 forbidden_modules =
     metta
     cogames
+    cortex
+    gitta
+    codebot
+    tribal_village
