@@ -1,7 +1,10 @@
 import
   std/[math],
   boxy, windy, opengl, vmath,
-  ../src/mettascope/[heatmap, heatmapshader, replays]
+  ../src/mettascope/[heatmap, heatmapshader, replays, utils, common]
+
+# run from the mettascope directory:
+# nim r tests/manual_heatmap.nim
 
 let window = newWindow("Test Heatmap Shader", ivec2(800, 800))
 makeContextCurrent(window)
@@ -9,11 +12,16 @@ loadExtensions()
 
 let bxy = newBoxy()
 
+# Load font for debug text rendering
+let debugTypeface = readTypeface("./data/fonts/Inter-Regular.ttf")
+
 var
   pos: Vec2
   zoom: float32 = 20.0
   frame: int
   currentStep: int = 0
+  showDebug: bool = false
+  patternMode: bool = false
 
 proc centerView() =
   ## Center the view on the map.
@@ -26,7 +34,7 @@ proc centerView() =
 proc createTestReplay(): Replay =
   result = Replay()
   result.version = 3
-  result.mapSize = (32, 32)
+  result.mapSize = (31, 33)
   result.maxSteps = 100
   result.numAgents = 4
 
@@ -39,14 +47,33 @@ proc createTestReplay(): Replay =
     agent.typeName = "agent"
     agent.location = newSeq[IVec2](result.maxSteps)
 
+    let cx = 15.0
+    let cy = 16.0
+    let size = 8.0 + float(i) * 2.0
+
     for step in 0 ..< result.maxSteps:
-      let angle = float(step) * 0.1 + float(i) * PI / 2.0
-      let radius = 8.0 + float(i) * 2.0
-      let cx = 16.0
-      let cy = 16.0
+      let t = float(step) / float(result.maxSteps)
+      let side = int(t * 4.0) mod 4
+      let sideT = (t * 4.0) mod 1.0
+      
+      var x, y: float
+      case side:
+      of 0:  # Top edge: left to right
+        x = cx - size + sideT * size * 2.0
+        y = cy - size
+      of 1:  # Right edge: top to bottom
+        x = cx + size
+        y = cy - size + sideT * size * 2.0
+      of 2:  # Bottom edge: right to left
+        x = cx + size - sideT * size * 2.0
+        y = cy + size
+      else:  # Left edge: bottom to top
+        x = cx - size
+        y = cy + size - sideT * size * 2.0
+      
       agent.location[step] = ivec2(
-        int32(cx + cos(angle) * radius),
-        int32(cy + sin(angle) * radius)
+        int32(x),
+        int32(y)
       )
 
     result.objects.add(agent)
@@ -58,6 +85,19 @@ let testReplay = createTestReplay()
 var testHeatmap = newHeatmap(testReplay)
 testHeatmap.initialize(testReplay)
 
+proc generateCoordinatePattern(heatmap: var Heatmap) =
+  ## Generate heatmap data based on coordinates for verification.
+  ## Uses abs(x) + abs(y) pattern to create a diagonal gradient.
+  for step in 0 ..< heatmap.maxSteps:
+    for y in 0 ..< heatmap.height:
+      for x in 0 ..< heatmap.width:
+        let value = abs(x) + abs(y)
+        let clampedValue = min(value, 255)
+        heatmap.data[step][y * heatmap.width + x] = clampedValue
+
+    # Update max heat for this step
+    heatmap.maxHeat[step] = 255
+
 var testShader = newHeatmapShader()
 testShader.updateTexture(testHeatmap, 0)
 
@@ -67,6 +107,8 @@ echo "Heatmap test ready."
 echo "  Scroll to zoom, drag to pan."
 echo "  Left/Right arrows to change step."
 echo "  Space to animate, R to reset view."
+echo "  D to toggle debug overlay."
+echo "  P to toggle coordinate pattern mode."
 echo "Map size: ", testReplay.mapSize[0], "x", testReplay.mapSize[1]
 echo "Max steps: ", testReplay.maxSteps
 
@@ -112,6 +154,51 @@ window.onFrame = proc() =
   if maxHeat > 0:
     testShader.draw(mvp, mapSize, maxHeat)
 
+  # Draw debug overlay if enabled
+  if showDebug:
+    bxy.exitRawOpenGLMode()
+
+    # Show coordinates when zoomed in enough (individual cells are visible)
+    let showCoords = zoom > 15.0
+
+    # Calculate visible area in world coordinates to optimize rendering
+    let viewMatrix = translate(vec3(pos.x, pos.y, 0.0f)) * scale(vec3(zoom, zoom, 1.0f))
+    let invView = viewMatrix.inverse()
+
+    # Transform screen corners to world coordinates to find visible area
+    let topLeftScreen = vec2(0, 0)
+    let bottomRightScreen = vec2(window.size.x.float32, window.size.y.float32)
+    let topLeftWorld = (invView * vec4(topLeftScreen.x, topLeftScreen.y, 0.0, 1.0)).xy
+    let bottomRightWorld = (invView * vec4(bottomRightScreen.x, bottomRightScreen.y, 0.0, 1.0)).xy
+
+    # Convert to grid bounds with margin
+    let margin = 2.0
+    let minX = max(0, int(floor(topLeftWorld.x - margin)))
+    let maxX = min(testReplay.mapSize[0] - 1, int(ceil(bottomRightWorld.x + margin)))
+    let minY = max(0, int(floor(topLeftWorld.y - margin)))
+    let maxY = min(testReplay.mapSize[1] - 1, int(ceil(bottomRightWorld.y + margin)))
+
+    # Draw heat values and optionally coordinates on visible cells only
+    for y in minY .. maxY:
+      for x in minX .. maxX:
+        let heatValue = testHeatmap.getHeat(currentStep, x, y)
+        # Cell center in world coordinates
+        let worldPos = vec2(x.float32 + 0.5, y.float32 + 0.5)
+        # Transform to screen coordinates using view matrix only
+        let screenPos = (viewMatrix * vec4(worldPos.x, worldPos.y, 0.0, 1.0)).xy
+
+        # Draw heat value
+        if heatValue > 0:
+          let heatText = $heatValue
+          drawText(bxy, "debug_heat_" & $x & "_" & $y, translate(screenPos - vec2(0, 6)), debugTypeface, heatText, 12.0, color(1, 1, 1, 0.9))
+
+        # Draw coordinates when zoomed in
+        if showCoords:
+          let coordText = "(" & $x & "," & $y & ")"
+          drawText(bxy, "debug_coord_" & $x & "_" & $y, translate(screenPos + vec2(0, 6)), debugTypeface, coordText, 10.0, color(1, 0.8, 0.8, 0.7))
+
+    bxy.enterRawOpenGLMode()
+
   # Draw grid lines for reference.
   glUseProgram(0)
   glMatrixMode(GL_PROJECTION)
@@ -125,12 +212,16 @@ window.onFrame = proc() =
   glLineWidth(1.0)
   glColor4f(0.3, 0.3, 0.3, 0.5)
   glBegin(GL_LINES)
+  # Grid lines should align with heatmap cell boundaries
+  # Heatmap spans from -0.5 to mapSize - 0.5, so grid lines are at half-integers
   for i in 0 .. testReplay.mapSize[0]:
-    glVertex2f(i.float32, 0)
-    glVertex2f(i.float32, testReplay.mapSize[1].float32)
+    let x = i.float32 - 0.5
+    glVertex2f(x, -0.5)
+    glVertex2f(x, testReplay.mapSize[1].float32 - 0.5)
   for i in 0 .. testReplay.mapSize[1]:
-    glVertex2f(0, i.float32)
-    glVertex2f(testReplay.mapSize[0].float32, i.float32)
+    let y = i.float32 - 0.5
+    glVertex2f(-0.5, y)
+    glVertex2f(testReplay.mapSize[0].float32 - 0.5, y)
   glEnd()
 
   bxy.exitRawOpenGLMode()
@@ -153,6 +244,20 @@ window.onButtonPress = proc(button: Button) =
     zoom = 20.0
     centerView()
     echo "View reset"
+  elif button == KeyD:
+    showDebug = not showDebug
+    echo "Debug overlay: ", (if showDebug: "ON" else: "OFF")
+  elif button == KeyP:
+    patternMode = not patternMode
+    echo "Pattern mode: ", (if patternMode: "ON" else: "OFF")
+    # Regenerate heatmap with pattern or restore from replay
+    if patternMode:
+      generateCoordinatePattern(testHeatmap)
+    else:
+      testHeatmap.initialize(testReplay)
+    # Force texture update by resetting current step
+    testShader.currentStep = -1
+    testShader.updateTexture(testHeatmap, currentStep)
 
 while not window.closeRequested:
   pollEvents()
