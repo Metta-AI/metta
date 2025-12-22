@@ -43,6 +43,9 @@ recipes/
 
 Dependency direction: `metta` → `cogames` → `mettagrid`. Nothing depends on `metta`.
 
+Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv run lint-imports` to check. See
+`.importlinter` for the folder hierarchy.
+
 ## Recipe System
 
 ```bash
