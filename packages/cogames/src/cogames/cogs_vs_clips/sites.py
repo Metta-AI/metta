@@ -41,7 +41,14 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=MapGen.Config(width=200, height=200, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=MapGen.Config(
+        width=200,
+        height=200,
+        instance=MachinaArena.Config(
+            spawn_count=20,
+            base_biome="plains",
+        ),
+    ),
     min_cogs=1,
     max_cogs=20,
 )
