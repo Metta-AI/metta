@@ -1,6 +1,5 @@
 """Unit tests for the new loss infrastructure."""
 
-from typing import Optional
 from types import SimpleNamespace
 from typing import Optional
 
