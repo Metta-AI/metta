@@ -3,14 +3,31 @@
 #   metta codebase generate-folder-diagram
 
 [importlinter]
+# root_packages tells grimp which packages to scan for building the import graph.
+# - Must list each metta.* sub-namespace explicitly (not just "metta") because they
+#   come from different workspace packages (common/, agent/, app_backend/, etc.)
+# - Packages not listed here won't be scanned, so contracts can't check their imports
+# - The "metta" parent namespace is NOT listed to avoid "shared descendants" errors
 root_packages =
-    metta
+    metta.tools
+    metta.gridworks
+    metta.setup
+    metta.sim
+    metta.rl
+    metta.sweep
+    metta.cogworks
+    metta.adaptive
+    metta.map
+    metta.utils
     metta.common
+    metta.app_backend
     cogames
     mettagrid
 include_external_packages = True
 
-# Folders higher in the list can import from folders lower in the list, not vice versa
+# Layers contract: modules higher can import from lower, NOT vice versa.
+# metta.common is at the bottom, so it cannot import from ANY metta.* above it.
+# Violations in ignore_imports are tech debt to fix over time.
 [importlinter:contract:metta-folders]
 name = Metta folder hierarchy
 type = layers
@@ -62,3 +79,28 @@ forbidden_modules =
     gitta
     codebot
     tribal_village
+
+
+[importlinter:contract:app-backend-independence]
+name = app_backend can only import metta.common
+type = forbidden
+source_modules =
+    metta.app_backend
+forbidden_modules =
+    metta
+ignore_imports =
+    metta.app_backend.** -> metta.common.**
+
+
+[importlinter:contract:common-independence]
+name = metta.common cannot import from any metta.* other than itself
+type = forbidden
+source_modules =
+    metta.common
+forbidden_modules =
+    metta
+ignore_imports =
+    metta.common.** -> metta.common.**
+    # Tech debt - remove as violations are fixed:
+    metta.common.** -> metta.utils.**
+    metta.common.** -> metta.rl.**

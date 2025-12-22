@@ -25,6 +25,6 @@ def test_folder_diagram_is_up_to_date():
 
     actual_content = readme_content[start_idx + len(MARKER_START) : end_idx].strip()
 
-    assert actual_content == expected_mermaid, (
+    assert actual_content == expected_mermaid.strip(), (
         "README folder diagram is out of date with .importlinter.\nRun: metta codebase generate-folder-diagram"
     )
