@@ -9,8 +9,10 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
+from mettagrid.policy.checkpoint_policy import WEIGHTS_FILENAME, CheckpointPolicy
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.util.file import write_data
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +82,30 @@ class CheckpointManager:
         return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-        local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
+        checkpoint_dir = CheckpointPolicy.write_checkpoint_dir(
+            base_dir=self.checkpoint_dir,
+            run_name=self.run_name,
+            epoch=epoch,
+            architecture=architecture,
+            state_dict=state_dict,
+        )
 
         if self._remote_prefix:
-            remote_uri = save_mpt(f"{self.output_uri}/{filename}", architecture=architecture, state_dict=state_dict)
-            logger.debug("Policy checkpoint saved remotely to %s", remote_uri)
-            return remote_uri
+            remote_dir = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}"
+            write_data(
+                f"{remote_dir}/{WEIGHTS_FILENAME}",
+                (checkpoint_dir / WEIGHTS_FILENAME).read_bytes(),
+            )
+            write_data(
+                f"{remote_dir}/{POLICY_SPEC_FILENAME}",
+                (checkpoint_dir / POLICY_SPEC_FILENAME).read_bytes(),
+                content_type="application/json",
+            )
+            logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
+            return remote_dir
 
+        local_uri = checkpoint_dir.as_uri()
         logger.debug("Policy checkpoint saved locally to %s", local_uri)
         return local_uri
 
