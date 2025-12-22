@@ -1,6 +1,7 @@
 """Unit tests for the new loss infrastructure."""
 
 from types import SimpleNamespace
+from typing import Optional
 
 import torch
 from tensordict import TensorDict
@@ -57,6 +58,9 @@ class DummyLoss(Loss):
         env = SimpleNamespace()
         loss_cfg = SimpleNamespace()
         super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", loss_cfg)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"values"}
 
 
 def test_loss_stats_average_values() -> None:

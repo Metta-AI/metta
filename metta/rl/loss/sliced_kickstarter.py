@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -111,6 +111,9 @@ class SlicedKickstarter(Loss):
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
 
     def run_train(
         self,
