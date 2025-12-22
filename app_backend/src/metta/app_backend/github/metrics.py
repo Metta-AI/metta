@@ -1,4 +1,16 @@
-"""Metrics and observability for GitHub → Asana sync."""
+"""Metrics and observability for GitHub → Asana sync.
+
+Metrics emitted:
+- github_asana.tasks_created: Counter for tasks created
+- github_asana.tasks_completed: Counter for tasks marked complete
+- github_asana.tasks_reopened: Counter for tasks reopened
+- github_asana.assign_updates: Counter for assignee updates
+- github_asana.noops: Counter for no-op operations (tags: reason)
+- github_asana.mapping_failures: Counter for GitHub→Asana user mapping failures
+- github_asana.dead_letter.count: Counter for exhausted retries (tags: operation)
+- github_asana.sync.latency_ms: Histogram for Asana API call latency (tags: operation)
+- github_asana.webhook.latency_ms: Histogram for full webhook processing latency (tags: event)
+"""
 
 import logging
 import time
