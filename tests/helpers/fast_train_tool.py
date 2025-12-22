@@ -142,6 +142,7 @@ def create_minimal_training_setup(
         vectorization="serial",
         data_dir=data_dir,
         seed=42,
+        local_only=True,
     )
 
     return trainer_cfg, training_env_cfg, policy_cfg, system_cfg
