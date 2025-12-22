@@ -265,6 +265,12 @@ jobs:
           fi
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
+      - name: Python type checking
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py pyright
+
   recipe-tests:
     name: "Tests - Recipes"
     needs: [graphite-ci-optimizer, setup-checks]
