@@ -111,9 +111,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         architecture_spec = architecture if isinstance(architecture, str) else architecture.to_spec()
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        (checkpoint_dir / WEIGHTS_FILENAME).write_bytes(
-            save_safetensors(prepare_state_dict_for_save(state_dict))
-        )
+        (checkpoint_dir / WEIGHTS_FILENAME).write_bytes(save_safetensors(prepare_state_dict_for_save(state_dict)))
         write_policy_spec(checkpoint_dir, architecture_spec)
         return checkpoint_dir
 
