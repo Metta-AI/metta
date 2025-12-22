@@ -5,6 +5,7 @@
 [importlinter]
 root_packages =
     metta
+    metta.common
     cogames
     mettagrid
 include_external_packages = True
@@ -33,6 +34,8 @@ ignore_imports =
     metta.rl.** -> metta.tools.**
     metta.rl.** -> metta.sim.**
     metta.utils.** -> metta.adaptive.**
+    metta.common.** -> metta.utils.**
+    metta.common.** -> metta.rl.**
 
 [importlinter:contract:cogames-independence]
 name = cogames cannot import from metta
