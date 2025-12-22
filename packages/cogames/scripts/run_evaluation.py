@@ -3,11 +3,13 @@
 Evaluation Script for Policies
 
 Supports:
+- Built-in scripted agents: baseline, ladybug, thinky, racecar, starter (`--agent all` runs all)
 - Checkpoint directory URIs (s3:// or file://) with policy_spec.json bundles
 
 Usage snippets:
+  uv run python packages/cogames/scripts/run_evaluation.py --agent all
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/checkpoints/run:v5 --experiments oxygen_bottleneck --cogs 1
+      --agent ladybug --experiments oxygen_bottleneck --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
       --agent s3://bucket/path/checkpoints/run:v5 --cogs 1
 """
@@ -37,6 +39,8 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVarian
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
 
@@ -71,6 +75,8 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
 
     Returns the number of actions the policy was trained with, or None if detection fails.
     """
+    if not policy_path.endswith(".mpt"):
+        return None
     if policy_path in _policy_action_space_cache:
         return _policy_action_space_cache[policy_path]
 
@@ -207,16 +213,37 @@ def load_policy(
             device_override=str(device),
         ).wrapped_policy
 
-    if not (checkpoint_path and is_s3_uri(checkpoint_path)) and not is_s3_uri(policy_path):
-        raise ValueError("Only checkpoint directory URIs are supported.")
-    if policy_path:
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
-    else:
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-    return CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec, device_override=str(device)).wrapped_policy
+    policy_spec = PolicySpec(class_path=policy_path, data_path=None)
+    return initialize_or_load_policy(policy_env_info, policy_spec)
 
 
-AGENT_CONFIGS: Dict[str, AgentConfig] = {}
+AGENT_CONFIGS: Dict[str, AgentConfig] = {
+    "baseline": AgentConfig(
+        key="baseline",
+        label="Baseline",
+        policy_path="cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+    ),
+    "ladybug": AgentConfig(
+        key="ladybug",
+        label="Ladybug",
+        policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    ),
+    "thinky": AgentConfig(
+        key="thinky",
+        label="Thinky",
+        policy_path="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    ),
+    "racecar": AgentConfig(
+        key="racecar",
+        label="RaceCar",
+        policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
+    ),
+    "starter": AgentConfig(
+        key="starter",
+        label="Starter",
+        policy_path="cogames.policy.scripted_agent.starter_agent.StarterPolicy",
+    ),
+}
 
 EXPERIMENT_MAP: Dict[str, Mission] = {}
 VARIANT_LOOKUP: Dict[str, MissionVariant] = {v.name: v for v in VARIANTS}
@@ -1118,7 +1145,7 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate checkpoint policies.")
-    parser.add_argument("--agent", nargs="*", default=None, help="Checkpoint directory URI (s3://...)")
+    parser.add_argument("--agent", nargs="*", default=None, help="Agent key or checkpoint directory URI (s3://...)")
     parser.add_argument("--checkpoint", type=str, default=None, help="Deprecated (use --agent with URI)")
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
@@ -1163,16 +1190,18 @@ def main():
     global EXPERIMENT_MAP
     EXPERIMENT_MAP = experiment_map
 
-    if not args.agent:
-        raise ValueError("Provide at least one --agent checkpoint URI.")
-    agent_keys = args.agent
+    agent_keys = args.agent if args.agent else ["ladybug"]
     configs: List[AgentConfig] = []
     for agent_key in agent_keys:
-        if is_s3_uri(agent_key):
+        if agent_key == "all":
+            configs.extend(list(AGENT_CONFIGS.values()))
+        elif agent_key in AGENT_CONFIGS:
+            configs.append(AGENT_CONFIGS[agent_key])
+        elif is_s3_uri(agent_key):
             label = Path(agent_key).stem if "/" in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
-            raise ValueError("Only checkpoint directory URIs are supported for --agent.")
+            raise ValueError("Unknown agent. Use a built-in key or a checkpoint URI.")
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
 
