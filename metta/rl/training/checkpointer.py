@@ -109,9 +109,23 @@ class Checkpointer(TrainerComponent):
 
         if candidate_uri:
             spec = policy_spec_from_uri(candidate_uri, device=str(load_device))
-            policy = initialize_or_load_policy(policy_env_info, spec, device_override=str(load_device))
-            if isinstance(policy, CheckpointPolicy):
+            checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
+            if spec.class_path == checkpoint_class_path:
+                architecture_spec = spec.init_kwargs.get("architecture_spec")
+                if not architecture_spec:
+                    raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
+                if not spec.data_path:
+                    raise ValueError("policy_spec.json missing data_path")
+                policy = CheckpointPolicy(
+                    policy_env_info,
+                    architecture_spec=architecture_spec,
+                    device=spec.init_kwargs.get("device", str(load_device)),
+                    strict=spec.init_kwargs.get("strict", True),
+                )
+                policy.load_policy_data(spec.data_path)
                 policy = policy.wrapped_policy
+            else:
+                policy = initialize_or_load_policy(policy_env_info, spec, device_override=str(load_device))
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
