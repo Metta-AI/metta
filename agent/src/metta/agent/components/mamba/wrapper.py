@@ -27,11 +27,11 @@ from mamba_ssm.utils.generation import GenerationMixin
 
 @dataclass
 class MambaConfig:
-    d_model: int = 96
-    n_layer: int = 1
-    d_intermediate: int = 192
-    stoch_dim: int = 48
-    action_dim: int = 1
+    d_model: int
+    n_layer: int
+    d_intermediate: int
+    stoch_dim: int
+    action_dim: int
     ssm_cfg: dict = field(default_factory=dict)
     attn_layer_idx: list[int] = field(default_factory=list)
     attn_cfg: dict = field(default_factory=dict)
