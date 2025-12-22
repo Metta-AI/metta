@@ -455,4 +455,5 @@ pyright metta  # optional, some stubs are missing
 | Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`      |
 | Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
+
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
