@@ -294,10 +294,8 @@ def policy_spec_from_uri(
     strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
-    from mettagrid.policy.prepare_policy_spec import (
-        load_policy_spec_from_local_dir,
-        load_policy_spec_from_s3,
-    )
+    from mettagrid.policy.checkpoint_io import load_checkpoint_dir
+    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_s3
 
     def _override_strict(spec):
         if "strict" in spec.init_kwargs:
@@ -306,7 +304,7 @@ def policy_spec_from_uri(
 
     parsed = resolve_uri(uri)
 
-    if parsed.scheme == "s3":
+    if parsed.scheme == "s3" and parsed.canonical.endswith(".zip"):
         return _override_strict(
             load_policy_spec_from_s3(
                 parsed.canonical,
@@ -315,11 +313,9 @@ def policy_spec_from_uri(
             )
         )
 
-    if parsed.local_path:
-        if parsed.local_path.is_file():
-            if parsed.local_path.name != "policy_spec.json":
-                raise ValueError("Expected policy_spec.json")
-            return _override_strict(load_policy_spec_from_local_dir(parsed.local_path.parent, device=device))
-        return _override_strict(load_policy_spec_from_local_dir(parsed.local_path, device=device))
-
-    raise ValueError("Provide a checkpoint directory or policy_spec.json")
+    bundle = load_checkpoint_dir(
+        parsed.canonical,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        device=device,
+    )
+    return _override_strict(bundle.policy_spec)
