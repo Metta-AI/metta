@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -50,8 +50,6 @@ class SLCheckpointedKickstarter(Loss):
     """This is currently only student-led. No blockers to make it teacher-led, but not needed yet.
     It should be better at avoiding student-led curriculum hacking since we keep changing the teacher."""
 
-    policy_output_keys_static = {"logits", "values"}
-
     __slots__ = (
         "teacher_policy",
         "teacher_policy_spec",
@@ -97,6 +95,9 @@ class SLCheckpointedKickstarter(Loss):
 
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
 
     def run_train(
         self,
