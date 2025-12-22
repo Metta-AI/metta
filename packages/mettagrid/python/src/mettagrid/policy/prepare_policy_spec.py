@@ -223,7 +223,7 @@ def load_policy_spec_from_s3_checkpoint_dir(
     *,
     device: str | None = None,
 ) -> PolicySpec:
-    from mettagrid.policy.checkpoint_io import load_checkpoint_dir
+    from mettagrid.util.checkpoint_dir import load_checkpoint_dir
 
     bundle = load_checkpoint_dir(
         checkpoint_dir_uri,

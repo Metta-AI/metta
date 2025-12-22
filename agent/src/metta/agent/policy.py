@@ -22,7 +22,7 @@ from metta.agent.components.obs_shim import (
 )
 from metta.rl.utils import ensure_sequence_metadata
 from mettagrid.base_config import Config
-from mettagrid.policy.architecture_spec import format_spec, parse_spec
+from mettagrid.policy.policy import format_architecture_spec, parse_architecture_spec
 from mettagrid.policy.lstm import obs_to_obs_tensor
 from mettagrid.policy.policy import (
     AgentPolicy,
@@ -65,12 +65,12 @@ class PolicyArchitecture(Config):
         if self.action_probs_config is not None:
             config_data["action_probs_config"] = _component_to_manifest(self.action_probs_config)
 
-        return format_spec(class_path, config_data)
+        return format_architecture_spec(class_path, config_data)
 
     @classmethod
     def from_spec(cls, spec: str) -> "PolicyArchitecture":
         """Deserialize an architecture from a string specification."""
-        class_path, kwargs = parse_spec(spec)
+        class_path, kwargs = parse_architecture_spec(spec)
 
         config_class = load_symbol(class_path)
         if not isinstance(config_class, type):
@@ -331,4 +331,3 @@ def _load_component(data: Any, context: str, default_class: type | None = None) 
         raise TypeError(f"Loaded symbol {class_path} for {context} is not a class")
 
     return component_class.model_validate(payload)
-

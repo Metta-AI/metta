@@ -294,7 +294,7 @@ def policy_spec_from_uri(
     strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
-    from mettagrid.policy.checkpoint_io import load_checkpoint_dir
+    from mettagrid.util.checkpoint_dir import load_checkpoint_dir
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_s3
 
     def _override_strict(spec):

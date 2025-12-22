@@ -7,13 +7,13 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
-from mettagrid.policy.architecture_spec import architecture_from_spec
-from mettagrid.policy.checkpoint_io import (
+from mettagrid.policy.policy import architecture_from_spec
+from mettagrid.util.checkpoint_dir import (
     WEIGHTS_FILENAME,
     CheckpointDir,
     load_checkpoint_dir,
     prepare_state_dict_for_save,
-    write_checkpoint_dir as write_checkpoint_dir_io,
+    write_checkpoint_dir,
     write_policy_spec,
 )
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
@@ -96,7 +96,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         architecture: Any,
         state_dict: Mapping[str, torch.Tensor],
     ) -> CheckpointDir:
-        return write_checkpoint_dir_io(
+        return write_checkpoint_dir(
             base_dir=base_dir,
             run_name=run_name,
             epoch=epoch,

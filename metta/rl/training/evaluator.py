@@ -29,7 +29,7 @@ from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.policy.checkpoint_io import load_checkpoint_dir
+from mettagrid.util.checkpoint_dir import load_checkpoint_dir
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
