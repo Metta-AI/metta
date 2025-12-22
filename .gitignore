@@ -150,8 +150,3 @@ terraform.tfstate
 tools/dev/python_imports/cycles_report.json
 tools/dev/python_imports/architecture_report.json
 tools/dev/python_imports/analysis_summary.md
-
-# GitHub webhook test files
-test_webhook_*.sh
-WEBHOOK_DESIGN.md
-PHASE*.md
