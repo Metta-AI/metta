@@ -21,6 +21,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 import gitta as git
+from metta.adaptive.live_run_monitor import app as run_monitor_app
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
@@ -34,7 +35,6 @@ from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.utils.live_run_monitor import app as run_monitor_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
