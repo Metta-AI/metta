@@ -27,6 +27,9 @@ services:
       RUN_MIGRATIONS: "true"
       DEBUG_USER_EMAIL: localdev@example.com
       AWS_PROFILE: softmax
+      EPISODE_RUNNER_IMAGE: metta-policy-evaluator:latest
+      BACKEND_URL: http://host.docker.internal:8000
+      MACHINE_TOKEN: local-dev-token
     volumes:
       - ./src:/workspace/metta/app_backend/src
       - ../common/src:/workspace/metta/common/src
@@ -35,6 +38,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  reconciler:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: app_backend/Dockerfile
+    command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.reconciler"]
+    environment:
+      BACKEND_URL: http://observatory-backend:8000
+      MACHINE_TOKEN: local-dev-token
+    volumes:
+      - ./src:/workspace/metta/app_backend/src
+      - ../common/src:/workspace/metta/common/src
+      - ../metta:/workspace/metta/metta
+      - ~/.kube:/root/.kube:ro
+    depends_on:
+      - observatory-backend
 
 volumes:
   postgres_data:

@@ -12,6 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description="Submit test episode jobs")
     parser.add_argument("--server", default="http://localhost:8000", help="Backend URL")
     parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
+    parser.add_argument("--num-jobs", type=int, default=1, help="Number of jobs to submit")
     args = parser.parse_args()
 
     policy_uris = [
@@ -21,20 +22,21 @@ def main():
 
     env = MettaGridConfig.EmptyRoom(num_agents=args.num_agents, width=20, height=20)
 
-    job = {
-        "policy_uris": policy_uris,
-        "assignments": [i % len(policy_uris) for i in range(args.num_agents)],
-        "env": env.model_dump(),
-        "results_uri": None,
-        "replay_uri": None,
-        "seed": 42,
-    }
-
-    job_request = JobRequestCreate(job_type=JobType.episode, job=job)
+    jobs = []
+    for seed in range(args.num_jobs):
+        job = {
+            "policy_uris": policy_uris,
+            "assignments": [i % len(policy_uris) for i in range(args.num_agents)],
+            "env": env.model_dump(),
+            "results_uri": None,
+            "replay_uri": None,
+            "seed": seed,
+        }
+        jobs.append(JobRequestCreate(job_type=JobType.episode, job=job))
 
     stats_client = StatsClient(args.server)
     try:
-        job_ids = stats_client.create_jobs([job_request])
+        job_ids = stats_client.create_jobs(jobs)
         print(f"Created {len(job_ids)} job(s):")
         for job_id in job_ids:
             print(f"  {job_id}")
