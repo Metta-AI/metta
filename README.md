@@ -154,7 +154,6 @@ graph TD
     cogworks[cogworks]
     adaptive[adaptive]
     map[map]
-    utils[utils]
     common[common]
     tools --> gridworks
     gridworks --> setup
@@ -164,8 +163,7 @@ graph TD
     sweep --> cogworks
     cogworks --> adaptive
     adaptive --> map
-    map --> utils
-    utils --> common
+    map --> common
 ```
 
 <!-- FOLDER_DIAGRAM_END -->
