@@ -23,6 +23,7 @@ var
   px*: Pixelator
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
+  needsInitialFit*: bool = true
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -748,6 +749,17 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
   if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
     # Replay has not been loaded yet.
     return
+
+  if needsInitialFit:
+    fitFullMap(zoomInfo)
+    var baseEntity: Entity = nil
+    for obj in replay.objects:
+      if obj.typeName == "assembler":
+        baseEntity = obj
+        break
+    if baseEntity != nil:
+      centerAt(zoomInfo, baseEntity)
+    needsInitialFit = false
 
   ## Draw the world map.
   if settings.lockFocus:

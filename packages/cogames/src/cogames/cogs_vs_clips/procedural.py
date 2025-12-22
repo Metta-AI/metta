@@ -73,7 +73,7 @@ class MachinaArenaConfig(SceneConfig):
     dungeon_weights: dict[str, float] | None = None
     biome_count: int | None = None
     dungeon_count: int | None = None
-    density_scale: float = 1.05
+    density_scale: float = 1.15
     max_biome_zone_fraction: float = 0.22
     max_dungeon_zone_fraction: float = 0.18
 
@@ -250,7 +250,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         biome_layer: ChildrenAction | None = None
         biome_cands = _make_biome_candidates(cfg.biome_weights)
         if biome_cands:
-            biome_fill_count = max(1, int(biome_count * 0.6))
+            biome_fill_count = int(biome_count * 1.2)
             biome_layer = ChildrenAction(
                 scene=BSPLayout.Config(
                     area_count=biome_count,
