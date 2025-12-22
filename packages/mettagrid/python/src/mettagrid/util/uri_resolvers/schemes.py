@@ -127,7 +127,10 @@ class S3SchemeResolver(SchemeResolver):
         for obj in response["Contents"]:
             if not obj["Key"].endswith("policy_spec.json"):
                 continue
-            uri = f"s3://{parsed.bucket}/{obj['Key']}"
+            key_dir = obj["Key"].removesuffix("/policy_spec.json")
+            if not key_dir:
+                continue
+            uri = f"s3://{parsed.bucket}/{key_dir}"
             info = self.parse(uri).checkpoint_info
             if info and (best is None or info[1] > best[0]):
                 best = (info[1], uri)
