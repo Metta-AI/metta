@@ -89,6 +89,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
             )
 
             output_lines: list[str] = []
+            if process.stdout is None:
+                process.wait()
+                return subprocess.CompletedProcess(args=cmd, returncode=process.returncode or 1, stdout="", stderr=None)
             for line in process.stdout:
                 sys.stdout.write(line)
                 sys.stdout.flush()
