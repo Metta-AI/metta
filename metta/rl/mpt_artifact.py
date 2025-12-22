@@ -10,10 +10,10 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
+from mettagrid.policy.checkpoint_policy import architecture_from_spec, prepare_state_dict_for_save
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.file import local_copy, parse_uri, write_file
-from mettagrid.util.module import load_symbol
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.file import local_copy, write_file
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 
 class PolicyArchitectureProtocol(Protocol):
@@ -57,12 +57,8 @@ class MptArtifact:
 
 
 def load_mpt(uri: str) -> MptArtifact:
-    """Load an .mpt checkpoint from a URI.
-
-    Supports file://, s3://, metta://, local paths, and :latest suffix.
-    """
-    parsed = resolve_uri(uri)
-    with local_copy(parsed.canonical) as local_path:
+    """Load an .mpt checkpoint from a local path or s3:// URI."""
+    with local_copy(uri) as local_path:
         return _load_local_mpt_file(local_path)
 
 
@@ -80,7 +76,7 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
         else:
             raise ValueError(f"Invalid .mpt file: {path} (missing architecture)")
-        architecture = _architecture_from_spec(architecture_blob)
+        architecture = architecture_from_spec(architecture_blob)
 
         weights_blob = archive.read("weights.safetensors")
         state_dict = load_safetensors(weights_blob)
@@ -88,25 +84,6 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             raise TypeError("Loaded safetensors state_dict is not a mutable mapping")
 
     return MptArtifact(architecture=architecture, state_dict=state_dict)
-
-
-def _architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
-    """Deserialize an architecture from a string specification."""
-    spec = spec.strip()
-    if not spec:
-        raise ValueError("Policy architecture specification cannot be empty")
-
-    # Extract class path (everything before '(' if present)
-    class_path = spec.split("(")[0].strip()
-
-    config_class = load_symbol(class_path)
-    if not isinstance(config_class, type):
-        raise TypeError(f"Loaded symbol {class_path} is not a class")
-
-    if not hasattr(config_class, "from_spec"):
-        raise TypeError(f"Class {class_path} does not have a from_spec method")
-
-    return config_class.from_spec(spec)
 
 
 def save_mpt(
@@ -140,7 +117,7 @@ def _save_mpt_file_locally(
     state_dict: Mapping[str, torch.Tensor],
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    prepared_state = _prepare_state_dict_for_save(state_dict)
+    prepared_state = prepare_state_dict_for_save(state_dict)
 
     with tempfile.NamedTemporaryFile(
         dir=path.parent,
@@ -160,25 +137,3 @@ def _save_mpt_file_locally(
         except Exception:
             temp_path.unlink(missing_ok=True)
             raise
-
-
-def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    """Prepare state dict for safetensors: detach, move to CPU, handle shared storage."""
-    result: dict[str, torch.Tensor] = {}
-    seen_storage: dict[int, str] = {}
-
-    for key, tensor in state_dict.items():
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
-
-        value = tensor.detach().cpu()
-        data_ptr = value.data_ptr()
-
-        if data_ptr in seen_storage:
-            value = value.clone()
-        else:
-            seen_storage[data_ptr] = key
-
-        result[key] = value
-
-    return result
