@@ -8,10 +8,10 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
-from mettagrid.policy.architecture_spec import architecture_from_spec, architecture_spec_from_value
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 WEIGHTS_FILENAME = "weights.safetensors"
@@ -19,6 +19,32 @@ WEIGHTS_FILENAME = "weights.safetensors"
 
 def _join_uri(base: str, child: str) -> str:
     return f"{base.rstrip('/')}/{child}"
+
+
+def architecture_from_spec(spec: str) -> Any:
+    spec = spec.strip()
+    if not spec:
+        raise ValueError("architecture_spec cannot be empty")
+
+    class_path = spec.split("(")[0].strip()
+    config_class = load_symbol(class_path)
+    if not isinstance(config_class, type):
+        raise TypeError(f"Loaded symbol {class_path} is not a class")
+    if not hasattr(config_class, "from_spec"):
+        raise TypeError(f"Class {class_path} does not have a from_spec method")
+    return config_class.from_spec(spec)
+
+
+def architecture_spec_from_value(architecture: Any) -> str:
+    if isinstance(architecture, str):
+        spec = architecture
+    elif hasattr(architecture, "to_spec"):
+        spec = architecture.to_spec()
+    else:
+        raise TypeError("architecture must be a spec string or provide to_spec()")
+    if not spec.strip():
+        raise ValueError("architecture_spec cannot be empty")
+    return spec.strip()
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:

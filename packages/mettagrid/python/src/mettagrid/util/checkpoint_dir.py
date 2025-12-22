@@ -11,10 +11,6 @@ from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 
-def _join_uri(base: str, child: str) -> str:
-    return f"{base.rstrip('/')}/{child}"
-
-
 def write_checkpoint_dir(
     *,
     base_dir: Path,
@@ -37,17 +33,14 @@ def upload_checkpoint_dir(checkpoint: CheckpointDir, remote_prefix: str) -> Chec
     if checkpoint.local_dir is None:
         raise ValueError("upload_checkpoint_dir requires a local checkpoint with a local_dir")
 
-    remote_dir = _join_uri(remote_prefix, checkpoint.local_dir.name)
-    remote_weights_uri = _join_uri(remote_dir, WEIGHTS_FILENAME)
+    remote_dir = f"{remote_prefix.rstrip('/')}/{checkpoint.local_dir.name}"
+    remote_weights_uri = f"{remote_dir}/{WEIGHTS_FILENAME}"
     write_data(remote_weights_uri, (checkpoint.local_dir / WEIGHTS_FILENAME).read_bytes())
 
     local_spec = SubmissionPolicySpec.model_validate_json((checkpoint.local_dir / POLICY_SPEC_FILENAME).read_text())
     local_spec.data_path = WEIGHTS_FILENAME
-    write_data(
-        _join_uri(remote_dir, POLICY_SPEC_FILENAME),
-        local_spec.model_dump_json().encode("utf-8"),
-        content_type="application/json",
-    )
+    policy_spec_uri = f"{remote_dir}/{POLICY_SPEC_FILENAME}"
+    write_data(policy_spec_uri, local_spec.model_dump_json().encode("utf-8"), content_type="application/json")
     return CheckpointDir(dir_uri=remote_dir)
 
 

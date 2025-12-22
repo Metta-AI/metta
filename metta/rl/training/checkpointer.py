@@ -12,8 +12,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.architecture_spec import architecture_from_spec
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy, architecture_from_spec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.checkpoint_dir import resolve_checkpoint_dir
