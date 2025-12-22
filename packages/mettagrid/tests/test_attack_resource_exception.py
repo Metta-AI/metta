@@ -41,7 +41,7 @@ def test_exception_when_laser_not_in_inventory():
                 consumed_resources={"laser": 1},  # This should trigger an exception!
                 defense_resources={"armor": 1},
             ),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
         agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
@@ -81,7 +81,7 @@ def test_no_exception_when_resources_in_inventory():
             noop=NoopActionConfig(enabled=True),
             move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
         agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),

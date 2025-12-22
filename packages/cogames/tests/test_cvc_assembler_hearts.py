@@ -42,7 +42,6 @@ def _make_simulation() -> Simulation:
     cfg.game.actions.noop.enabled = True
     cfg.game.actions.move.enabled = True
     cfg.game.actions.change_vibe.enabled = True
-    cfg.game.actions.change_vibe.number_of_vibes = 32
 
     assembler_cfg = CvCAssemblerConfig(
         first_heart_cost=FIRST_HEART_COST, additional_heart_cost=ADDITIONAL_HEART_COST

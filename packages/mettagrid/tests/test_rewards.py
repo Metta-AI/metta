@@ -44,7 +44,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             noop=NoopActionConfig(enabled=True),
             move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={
             "wall": WallConfig(),
