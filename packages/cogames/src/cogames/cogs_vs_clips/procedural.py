@@ -52,7 +52,7 @@ class MachinaArenaConfig(SceneConfig):
     #### Building placement ####
 
     # How much of the map is covered by buildings
-    building_coverage: float = 0.01
+    building_coverage: float = 0.0125
     # Resource placement (building-based API)
     # Defines the set of buildings that can be placed on the map
     building_names: list[str] | None = None
@@ -179,7 +179,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
-            defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
+            defaults = {"bsp": 0.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
             if w.get("none", 0) > 0:
