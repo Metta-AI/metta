@@ -96,9 +96,7 @@ class QuantilePPOCritic(Loss):
             self.burn_in_steps_iter += 1
             return
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:

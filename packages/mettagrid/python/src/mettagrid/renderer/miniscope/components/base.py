@@ -53,15 +53,12 @@ class MiniscopeComponent(ABC):
         """Return the panel layout registry."""
         return self._panels
 
-    def _set_panel(self, panel: Optional[MiniscopePanel]) -> None:
+    def _set_panel(self, panel: MiniscopePanel) -> None:
         """Set the panel for this component and update dimensions.
 
         Args:
             panel: The panel to use for this component
         """
-        if panel is None:
-            raise ValueError(f"{self.__class__.__name__} requires a configured panel")
-
         self._panel = panel
         self._width = panel.width
         self._height = panel.height
@@ -76,8 +73,6 @@ class MiniscopeComponent(ABC):
         Returns:
             Padded lines
         """
-        if width is None:
-            return lines
         return [line[:width].ljust(width) for line in lines]
 
     def handle_input(self, ch: str) -> bool:

@@ -171,10 +171,7 @@ def _simple_prompt_choice(
             markers.append("default")
 
         marker = f" ({', '.join(markers)})" if markers else ""
-        if current is not None and value == current:
-            debug(f"{i + 1}. {desc}{marker}", indent=2)
-        else:
-            debug(f"{i + 1}. {desc}{marker}", indent=2)
+        debug(f"{i + 1}. {desc}{marker}", indent=2)
 
     while True:
         try:

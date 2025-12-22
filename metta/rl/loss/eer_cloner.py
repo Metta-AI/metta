@@ -49,9 +49,7 @@ class EERCloner(Loss):
         with torch.no_grad():
             self.policy.forward(td)
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 

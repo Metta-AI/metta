@@ -27,11 +27,11 @@ from mamba_ssm.utils.generation import GenerationMixin
 
 @dataclass
 class MambaConfig:
-    d_model: int
-    n_layer: int
-    d_intermediate: int
-    stoch_dim: int
-    action_dim: int
+    d_model: int = 96
+    n_layer: int = 1
+    d_intermediate: int = 192
+    stoch_dim: int = 48
+    action_dim: int = 1
     ssm_cfg: dict = field(default_factory=dict)
     attn_layer_idx: list[int] = field(default_factory=list)
     attn_cfg: dict = field(default_factory=dict)
@@ -46,33 +46,25 @@ class MambaConfig:
 def create_block(
     d_model,
     d_intermediate,
-    ssm_cfg=None,
-    attn_layer_idx=None,
-    attn_cfg=None,
-    pff_cfg=None,
+    ssm_cfg,
+    attn_layer_idx,
+    attn_cfg,
+    pff_cfg,
+    layer_idx,
     dropout_p=0.0,
     norm_epsilon=1e-5,
     rms_norm=False,
     residual_in_fp32=False,
     fused_add_norm=False,
-    layer_idx=None,
     device=None,
     dtype=None,
     *,
     guard_triton: bool = True,
 ):
-    if ssm_cfg is None:
-        ssm_cfg = {}
-    if attn_layer_idx is None:
-        attn_layer_idx = []
-    if attn_cfg is None:
-        attn_cfg = {}
-    if pff_cfg is None:
-        pff_cfg = {}
     factory_kwargs = {"device": device, "dtype": dtype}
     if layer_idx not in attn_layer_idx:
         # Create a copy of the config to modify
-        ssm_cfg = copy.deepcopy(ssm_cfg) if ssm_cfg is not None else {}
+        ssm_cfg = copy.deepcopy(ssm_cfg)
         ssm_layer = ssm_cfg.pop("layer", "Mamba2")
         if ssm_layer != "Mamba2":
             raise ValueError(f"Invalid ssm_layer: {ssm_layer}, only support Mamba2")
@@ -166,10 +158,10 @@ class MixerModel(nn.Module):
         d_intermediate: int,
         stoch_dim: int,
         action_dim: int,
-        ssm_cfg=None,
-        attn_layer_idx=None,
-        attn_cfg=None,
-        pff_cfg=None,
+        ssm_cfg,
+        attn_layer_idx,
+        attn_cfg,
+        pff_cfg,
         dropout_p: float = 0.0,
         norm_epsilon: float = 1e-5,
         rms_norm: bool = False,

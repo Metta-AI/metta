@@ -31,14 +31,12 @@ class SymbolsTableComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("symbols")
-        if sidebar_panel is None:
-            sidebar_panel = panels.register_sidebar_panel("symbols")
         self._set_panel(sidebar_panel)
         self._max_rows = max_rows
 
     def _get_symbol_map(self) -> dict[str, str]:
         """Get symbol map from state."""
-        return self.state.symbol_map if self.state else {}
+        return self.state.symbol_map
 
     def update(self) -> None:
         """Render the symbols table."""

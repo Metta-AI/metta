@@ -38,7 +38,7 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
     # Can be either a scene config or another MapBuilder config.
     # If it's a scene config, you need to set `width` and `height` explicitly.
     # If `instances` or `num_agents` are set, this configuration will be used multiple times.
-    instance: AnySceneConfig | AnyMapBuilderConfig | None = Field(default=None)
+    instance: AnySceneConfig | AnyMapBuilderConfig = Field(...)
 
     @field_validator("instance", mode="wrap")
     @classmethod
@@ -115,9 +115,6 @@ class MapGenConfig(MapBuilderConfig["MapGen"]):
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> MapGenConfig:
-        if not self.instance:
-            raise ValueError("instance is required")
-
         if isinstance(self.instance, MapBuilderConfig):
             if self.width is not None or self.height is not None:
                 raise ValueError("width and height must be None if instance is a MapBuilder config")
@@ -133,11 +130,8 @@ class MapGen(MapBuilder[MapGenConfig]):
         super().__init__(config)
 
         self.rng = np.random.default_rng(self.config.seed)
-        self.grid = None
-
-    def guarded_grid(self) -> MapGrid:
-        assert self.grid is not None
-        return self.grid
+        self.grid: MapGrid
+        self._built = False
 
     def prebuild_instances(self):
         """In some cases, we need to render individual instances in separate grids before we render the final grid.
@@ -215,13 +209,10 @@ class MapGen(MapBuilder[MapGenConfig]):
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(TransplantScene.Config(scene=instance_scene))
             else:
-                assert isinstance(self.config.instance, MapBuilderConfig)
+                instance_config = self.config.instance
                 # Instance is a map, not a scene, so it defines its own size.
                 # We need to prerender it to find the full size of our grid.
-                instance_map_builder = self.config.instance.create()
-                if not isinstance(instance_map_builder, MapBuilder):
-                    raise ValueError("instance must be a MapBuilder")
-
+                instance_map_builder = instance_config.create()
                 instance_map = instance_map_builder.build()
                 instance_grid = instance_map.grid
 
@@ -257,12 +248,8 @@ class MapGen(MapBuilder[MapGenConfig]):
 
     def prepare_grid(self):
         """Prepare the full grid with outer walls and inner area for instances."""
-        assert self.instances is not None
-
         self.instance_rows = int(np.ceil(np.sqrt(self.instances)))
         self.instance_cols = int(np.ceil(self.instances / self.instance_rows))
-
-        assert self.width is not None and self.height is not None
 
         self.inner_width = (
             self.width * self.instance_cols + (self.instance_cols - 1) * self.config.instance_border_width
@@ -292,13 +279,8 @@ class MapGen(MapBuilder[MapGenConfig]):
 
     def get_root_scene_cfg(self) -> SceneConfig:
         """Create the full root scene configuration, handling single or multiple instances."""
-        assert self.instances is not None
-
         if self.instances == 1:
             if self.instance_scene_factories:
-                assert len(self.instance_scene_factories) == 1, (
-                    "Internal logic error: MapGen wants 1 instance but prebuilt more"
-                )
                 # Even for single instance, set instance_id=0 if set_team_by_instance is True
                 scene_config = self.instance_scene_factories[0]
                 if self.config.set_team_by_instance:
@@ -311,18 +293,13 @@ class MapGen(MapBuilder[MapGenConfig]):
                 # prerendering should have happened. This is a fallback for edge cases.
                 if isinstance(self.config.instance, MapBuilderConfig):
                     # Prerender on the fly as a fallback
-                    instance_map_builder = self.config.instance.create()
-                    if not isinstance(instance_map_builder, MapBuilder):
-                        raise ValueError("instance must be a MapBuilder")
-                    instance_map = instance_map_builder.build()
+                    instance_map = self.config.instance.create().build()
                     instance_grid = instance_map.grid
                     return CopyGrid.Config(grid=instance_grid)
-                assert isinstance(self.config.instance, SceneConfig), (
-                    "Internal logic error: instance is not a scene but we don't have prebuilt instances either"
-                )
+                instance_scene = self.config.instance
                 if self.config.set_team_by_instance:
-                    return self._wrap_with_instance_id(self.config.instance, 0)
-                return self.config.instance
+                    return self._wrap_with_instance_id(instance_scene, 0)
+                return instance_scene
 
         # We've got more than one instance, so we'll need a RoomGrid.
 
@@ -345,9 +322,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         remaining_instances = self.instances - len(self.instance_scene_factories)
 
         if remaining_instances > 0:
-            assert isinstance(self.config.instance, SceneConfig), (
-                "Internal logic error: MapGen failed to prebuild enough instances"
-            )
+            instance_scene = self.config.instance
 
             # Create separate ChildrenAction for each remaining instance
             # so each can have its own instance_id
@@ -358,7 +333,7 @@ class MapGen(MapBuilder[MapGenConfig]):
                 for i in range(remaining_instances):
                     children_actions.append(
                         ChildrenAction(
-                            scene=self.config.instance,
+                            scene=instance_scene,
                             where=AreaWhere(tags=["room"]),
                             limit=1,
                             order_by="first",
@@ -371,7 +346,7 @@ class MapGen(MapBuilder[MapGenConfig]):
                 # Original behavior: one ChildrenAction for all remaining instances
                 children_actions.append(
                     ChildrenAction(
-                        scene=self.config.instance,
+                        scene=instance_scene,
                         where=AreaWhere(tags=["room"]),
                         limit=remaining_instances,
                         order_by="first",
@@ -405,7 +380,7 @@ class MapGen(MapBuilder[MapGenConfig]):
         )
 
     def build(self):
-        if self.grid is not None:
+        if self._built:
             return GameMap(self.grid)
 
         self.prebuild_instances()
@@ -423,7 +398,8 @@ class MapGen(MapBuilder[MapGenConfig]):
         )
         self.root_scene.render_with_children()
 
-        return GameMap(self.guarded_grid())
+        self._built = True
+        return GameMap(self.grid)
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()

@@ -32,8 +32,6 @@ class HelpPanelComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("help")
-        if sidebar_panel is None:
-            sidebar_panel = panels.register_sidebar_panel("help")
         self._set_panel(sidebar_panel)
 
     def update(self) -> None:

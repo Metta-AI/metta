@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:
     from mettagrid.config.id_map import ObservationFeatureSpec
@@ -38,7 +38,7 @@ class SimulatorEventHandler:
     """Handler for Simulator events."""
 
     def __init__(self):
-        self._sim: Optional["Simulation"] = None
+        self._sim: "Simulation"
 
     def set_simulation(self, simulation: "Simulation") -> None:
         self._sim = simulation

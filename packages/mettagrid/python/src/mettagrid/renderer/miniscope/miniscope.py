@@ -81,8 +81,6 @@ class MiniscopeRenderer(Renderer):
 
     def on_episode_start(self) -> None:
         """Initialize the renderer for a new episode."""
-        assert self._sim is not None
-
         # Reset state for new episode
         self._state.reset_for_episode(
             num_agents=self._sim.num_agents,
@@ -171,8 +169,6 @@ class MiniscopeRenderer(Renderer):
 
     def on_step(self) -> None:
         """Handle step event."""
-        assert self._sim is not None
-
         self._state.step_count = self._sim.current_step
         if self._state.total_rewards is not None:
             self._state.total_rewards = self._sim.episode_rewards
@@ -189,8 +185,6 @@ class MiniscopeRenderer(Renderer):
         When paused, this loops indefinitely until user takes an action.
         When running, this returns after the frame delay has elapsed.
         """
-        assert self._sim is not None
-
         start_time = time.time()
         frame_delay = self._state.get_frame_delay()
         was_paused_last_frame = False

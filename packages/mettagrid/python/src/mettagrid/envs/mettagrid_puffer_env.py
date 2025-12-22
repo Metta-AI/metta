@@ -24,7 +24,7 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium.spaces import Box, Discrete
@@ -80,7 +80,6 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = cfg
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
-        self._sim: Simulation | None = None
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -106,9 +105,9 @@ class MettaGridPufferEnv(PufferEnv):
         self.single_action_space: Discrete = policy_env_info.action_space
 
         self._env_supervisor: MultiAgentPolicy | None = None
-        self._new_sim()
-        sim = cast(Simulation, self._sim)
-        self.num_agents = sim.num_agents
+        self._sim: Optional[Simulation] = None
+        self._sim = self._init_simulation()
+        self.num_agents = self._sim.num_agents
 
         super().__init__(buf=buf)
 
@@ -121,27 +120,28 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        return cast(Simulation, self._sim).episode_rewards
+        return self._sim.episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
-        return cast(Simulation, self._sim)
+        if self._sim is None:
+            raise RuntimeError("Simulation is closed")
+        return self._sim
 
-    def _new_sim(self) -> None:
-        if self._sim is not None:
-            self._sim.close()
-
-        self._sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
-
+    def _init_simulation(self) -> Simulation:
+        sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
         if self._supervisor_policy_spec is not None:
             self._env_supervisor = initialize_or_load_policy(
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 self._supervisor_policy_spec,
             )
-
             self._compute_supervisor_actions()
-        else:
-            self._env_supervisor = None
+        return sim
+
+    def _new_sim(self) -> None:
+        if self._sim is not None:
+            self._sim.close()
+        self._sim = self._init_simulation()
 
     @override
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -154,18 +154,15 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        sim = cast(Simulation, self._sim)
-
-        if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
+        if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
             self._new_sim()
-            sim = cast(Simulation, self._sim)
 
         # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
         # so coerce here to keep callers simple while preserving strict bounds checking.
         actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
         np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
-        sim.step()
+        self._sim.step()
 
         # Do this after step() so that the trainer can use it if needed
         if self._supervisor_policy_spec is not None:
@@ -176,13 +173,10 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            sim._context.get("infos", {}),
+            self._sim._context.get("infos", {}),
         )
 
     def _compute_supervisor_actions(self) -> None:
-        if self._env_supervisor is None:
-            return
-
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
         self._env_supervisor.step_batch(raw_observations, teacher_actions)
@@ -258,8 +252,6 @@ class MettaGridPufferEnv(PufferEnv):
         from mettagrid.renderer.miniscope.buffer import MapBuffer
         from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
 
-        sim = cast(Simulation, self._sim)
-
         symbol_map = DEFAULT_SYMBOL_MAP.copy()
         for obj in self._current_cfg.game.objects.values():
             if obj.render_name:
@@ -268,14 +260,13 @@ class MettaGridPufferEnv(PufferEnv):
 
         return MapBuffer(
             symbol_map=symbol_map,
-            initial_height=sim.map_height,
-            initial_width=sim.map_width,
-        ).render_full_map(sim._c_sim.grid_objects())
+            initial_height=self._sim.map_height,
+            initial_width=self._sim.map_width,
+        ).render_full_map(self._sim._c_sim.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""
         if self._sim is None:
             return
-
         self._sim.close()
         self._sim = None

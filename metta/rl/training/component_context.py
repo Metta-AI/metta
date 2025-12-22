@@ -69,6 +69,8 @@ class ComponentContext:
         config: Any,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
+        get_train_epoch_fn: Callable[[], Callable[[], None]],
+        set_train_epoch_fn: Callable[[Callable[[], None]], None],
         run_name: Optional[str] = None,
         curriculum: Optional["Curriculum"] = None,
     ) -> None:
@@ -95,8 +97,8 @@ class ComponentContext:
         self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
         self.loss_scheduler: Any | None = None
 
-        self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
-        self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+        self.get_train_epoch_fn = get_train_epoch_fn
+        self.set_train_epoch_fn = set_train_epoch_fn
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
@@ -202,11 +204,7 @@ class ComponentContext:
     # Training epoch callable indirection
     # ------------------------------------------------------------------
     def get_train_epoch_callable(self) -> Callable[[], None]:
-        if self.get_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no getter for train epoch callable")
         return self.get_train_epoch_fn()
 
     def set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
-        if self.set_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no setter for train epoch callable")
         self.set_train_epoch_fn(fn)

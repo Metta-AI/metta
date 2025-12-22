@@ -75,7 +75,5 @@ class ProteinConfig(Config):
             elif isinstance(value, dict):
                 if "min" in value and "max" in value:
                     config[key] = value
-            else:
-                pass
 
         return config

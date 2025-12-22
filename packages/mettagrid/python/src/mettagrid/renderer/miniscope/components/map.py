@@ -40,8 +40,7 @@ class MapComponent(MiniscopeComponent):
 
     def _update_buffer_config(self) -> None:
         """Update buffer configuration from state."""
-        if self.state:
-            self._map_buffer._symbol_map = self.state.symbol_map or {}
+        self._map_buffer._symbol_map = self.state.symbol_map or {}
 
     def handle_input(self, ch: str) -> bool:
         """Handle map-specific inputs (cursor movement in SELECT mode).
@@ -94,7 +93,6 @@ class MapComponent(MiniscopeComponent):
         grid_objects = self._sim.grid_objects()
 
         # Get viewport size from panel
-        assert self._panel is not None
         panel_width, panel_height = self._panel.size()
         # Each map cell takes 2 chars in width
         viewport_width = panel_width // 2 if panel_width else self.state.viewport_width

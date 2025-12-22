@@ -65,10 +65,7 @@ class ReplayTool(Tool):
 
 
 def get_clean_path(replay_url: str) -> str:
-    path = replay_url
-    if replay_url.startswith("file://"):
-        path = replay_url.removeprefix("file://")
-
+    path = replay_url.removeprefix("file://")
     if path.startswith("./"):
         return path.removeprefix("./")
     else:

@@ -104,9 +104,9 @@ class GRPO(Loss):
             return
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for GRPO rollout")
+        env_slice = self._training_env_id(
+            context, error="ComponentContext.training_env_id is required for GRPO rollout"
+        )
         self.replay.store(data_td=td, env_id=env_slice)
 
         return

@@ -213,9 +213,7 @@ class ActorHeadConfig(ComponentConfig):
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: PolicyEnvInterface | None = None):
-        if env is None:
-            raise ValueError("ActorHeadConfig requires PolicyEnvInterface to determine action dimensions")
+    def make_component(self, env: PolicyEnvInterface):
         return ActorHead(config=self, env=env)
 
 

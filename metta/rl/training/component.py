@@ -2,7 +2,7 @@
 
 import logging
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -28,7 +28,7 @@ class TrainerComponent:
     _epoch_interval: int = Field(default=1, ge=1)
     _step_interval: int = Field(default=1, ge=1)
 
-    _context: Optional[ComponentContext] = None
+    _context: ComponentContext
 
     def __init__(self, epoch_interval: int = 1, step_interval: int = 1) -> None:
         self._epoch_interval = epoch_interval
@@ -61,9 +61,6 @@ class TrainerComponent:
     @property
     def context(self) -> ComponentContext:
         """Return the trainer context associated with this component."""
-
-        if self._context is None:
-            raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:

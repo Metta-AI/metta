@@ -41,7 +41,7 @@ def make_configs_router() -> APIRouter:
             return cfg.game.map_builder
         if isinstance(cfg, SimulationConfig):
             return cfg.env.game.map_builder
-        if isinstance(cfg, PlayTool) or isinstance(cfg, ReplayTool):
+        if isinstance(cfg, (PlayTool, ReplayTool)):
             return cfg.sim.env.game.map_builder
         if isinstance(cfg, CurriculumConfig):
             return cfg.make().get_task().get_env_cfg().game.map_builder
@@ -56,7 +56,7 @@ def make_configs_router() -> APIRouter:
         if isinstance(cfg, EvaluateTool):
             return config_to_map_builder_by_name(list(cfg.simulations), name)
 
-        if isinstance(cfg, ReplayTool) or isinstance(cfg, PlayTool):
+        if isinstance(cfg, (ReplayTool, PlayTool)):
             return config_to_map_builder_by_name(cfg.sim, name)
 
         if isinstance(cfg, list):

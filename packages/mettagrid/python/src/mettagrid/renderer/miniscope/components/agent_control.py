@@ -103,5 +103,4 @@ class AgentControlComponent(MiniscopeComponent):
             content = table
 
         # Set panel content
-        if self._panel is not None:
-            self._panel.set_content(content)
+        self._panel.set_content(content)

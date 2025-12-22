@@ -15,7 +15,7 @@ from typing_extensions import override
 
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mettagrid_c import dtype_actions
-from mettagrid.simulator import Simulator
+from mettagrid.simulator import Simulation, Simulator
 
 
 class MettaGridPettingZooEnv(ParallelEnv):
@@ -47,6 +47,7 @@ class MettaGridPettingZooEnv(ParallelEnv):
         self._seed = 0
 
         # Initialize first simulation to get space information
+        self._sim: Simulation | None = None
         self._sim = self._simulator.new_simulation(cfg, seed=self._seed)
 
         # PettingZoo attributes - agent IDs are integers
@@ -74,7 +75,7 @@ class MettaGridPettingZooEnv(ParallelEnv):
             Tuple of (observations_dict, infos_dict)
         """
         # Close current simulation if it exists
-        if hasattr(self, "_sim") and self._sim is not None:
+        if self._sim is not None:
             self._sim.close()
 
         # Update seed if provided
@@ -200,8 +201,10 @@ class MettaGridPettingZooEnv(ParallelEnv):
     @override  # pettingzoo.ParallelEnv.close
     def close(self) -> None:
         """Close the environment."""
-        if hasattr(self, "_sim") and self._sim is not None:
-            self._sim.close()
+        if self._sim is None:
+            return
+        self._sim.close()
+        self._sim = None
 
     @property
     def max_num_agents(self) -> int:

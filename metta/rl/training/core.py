@@ -122,7 +122,7 @@ class CoreTrainingLoop:
                 t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td, env)
+                self.add_last_action_to_td(td)
 
                 self._ensure_rollout_metadata(td)
 
@@ -141,9 +141,6 @@ class CoreTrainingLoop:
                 )
 
             actions_column = raw_actions.view(-1, 1)
-
-            if self.last_action is None:
-                raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
 
             if self.last_action.device != actions_column.device:
                 self.last_action = self.last_action.to(device=actions_column.device)
@@ -172,9 +169,6 @@ class CoreTrainingLoop:
                 raw_infos.extend(infos_list)
 
             total_steps += num_steps
-
-        if last_env_id is None:
-            raise RuntimeError("Rollout completed without receiving any environment data")
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
@@ -231,9 +225,6 @@ class CoreTrainingLoop:
         Returns:
             Dictionary of loss statistics
         """
-        training_env_id = context.training_env_id
-        assert training_env_id is not None, "Training environment ID is required"
-
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
@@ -346,14 +337,8 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_epoch_start(context)
 
-    def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
-        env_ids = td["training_env_ids"]
-        if env_ids.dim() == 2:
-            env_ids = env_ids.squeeze(-1)
-
-        if env_ids.numel() == 0:
-            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int32, device=td.device)
-            return
+    def add_last_action_to_td(self, td: TensorDict) -> None:
+        env_ids = td["training_env_ids"].squeeze(-1)
 
         max_env_id = int(env_ids.max().item())
         target_length = max_env_id + 1

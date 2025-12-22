@@ -91,9 +91,7 @@ class SlicedScriptedCloner(Loss):
         td["ppo_mask"] = self.ppo_mask
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
