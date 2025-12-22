@@ -555,12 +555,19 @@ def _get_policy_action_space(policy_uri: str) -> Optional[int]:
         return None
 
     try:
-        from metta.rl.mpt_artifact import load_mpt
+        from pathlib import Path
 
-        artifact = load_mpt(policy_uri)
+        from safetensors.torch import load as load_safetensors
+
+        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
+        spec = policy_spec_from_uri(policy_uri)
+        if not spec.data_path:
+            return None
+        state_dict = load_safetensors(Path(spec.data_path).read_bytes())
 
         # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
+        for key, tensor in state_dict.items():
             if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
                 return tensor.shape[0]
         return None

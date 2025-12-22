@@ -308,7 +308,7 @@ def make_curriculum(
 
 
 # uv run cogames submit \
-#   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -p class=checkpoint,data=s3://softmax-public/policies/...:v1 \
 #   -n your-policy-name-for-leaderboard \
 #   --skip-validation
 #
