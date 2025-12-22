@@ -72,7 +72,7 @@ def create_episode_job(job: JobRequest) -> str:
                             command=[
                                 "/workspace/metta/.venv/bin/python",
                                 "-m",
-                                "metta.app_backend.job_runner.episode_job_worker",
+                                "metta.sim.impure_single_episode_runner",
                                 str(job.id),
                             ],
                             env=[
