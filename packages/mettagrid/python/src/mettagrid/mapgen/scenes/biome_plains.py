@@ -56,18 +56,43 @@ class BiomePlains(Scene[BiomePlainsConfig]):
 
         for cx, cy in anchors:
             radius = int(self.rng.integers(min_radius, max_radius + 1)) if max_radius > 0 else 0
-            offsets = offsets_cache[radius]
-            if radius > 0:
-                fill = float(p.cluster_fill) * float(self.rng.uniform(0.6, 1.0))
-                if fill < 1.0:
-                    offsets = offsets[self.rng.random(len(offsets)) <= fill]
-                    if offsets.size == 0:
-                        continue
-            coords = offsets + np.array([cx, cy])
-            mask = (coords[:, 0] >= 0) & (coords[:, 0] < W) & (coords[:, 1] >= 0) & (coords[:, 1] < H)
-            coords = coords[mask]
-            if coords.size == 0:
+            if radius == 0:
+                rocks[cy, cx] = True
                 continue
-            rocks[coords[:, 1], coords[:, 0]] = True
+
+            fill = float(p.cluster_fill) * float(self.rng.uniform(0.6, 1.0))
+            branch_count = int(self.rng.integers(2, 5))
+            max_steps = max(3, radius * 3)
+            max_dist2 = (radius + 1) * (radius + 1)
+
+            for _ in range(branch_count):
+                x, y = cx, cy
+                dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+                for step in range(max_steps):
+                    if 0 <= x < W and 0 <= y < H and self.rng.random() <= fill:
+                        rocks[y, x] = True
+
+                    if self.rng.random() < 0.35:
+                        dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+
+                    nx = x + dx
+                    ny = y + dy
+                    if (nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) > max_dist2:
+                        dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+                        nx = x + dx
+                        ny = y + dy
+
+                    x, y = nx, ny
+
+                    if self.rng.random() < 0.12 and step > 1:
+                        sx, sy = x, y
+                        sdx, sdy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+                        for _ in range(2):
+                            sx += sdx
+                            sy += sdy
+                            if (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy) > max_dist2:
+                                break
+                            if 0 <= sx < W and 0 <= sy < H and self.rng.random() <= fill:
+                                rocks[sy, sx] = True
 
         grid[rocks] = "wall"
