@@ -69,7 +69,7 @@ class EvaluateTool(Tool):
             return None
         try:
             resolver = MettaSchemeResolver(self.stats_server_uri)
-            return resolver._get_policy_version(uri)
+            return resolver.get_policy_version(uri)
         except Exception:
             return None
 
