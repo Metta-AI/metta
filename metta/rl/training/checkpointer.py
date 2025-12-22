@@ -1,18 +1,22 @@
 """Policy checkpoint management component."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
+from safetensors.torch import load as load_safetensors
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.module import load_symbol
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,16 @@ class Checkpointer(TrainerComponent):
         candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
+        def load_state_from_checkpoint_uri(uri: str) -> tuple[str, dict[str, torch.Tensor]]:
+            spec = policy_spec_from_uri(uri, device=str(load_device))
+            architecture_spec = spec.init_kwargs.get("architecture_spec")
+            if not architecture_spec:
+                raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
+            if not spec.data_path:
+                raise ValueError("policy_spec.json missing data_path")
+            state_dict = load_safetensors(Path(spec.data_path).read_bytes())
+            return architecture_spec, dict(state_dict)
+
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
@@ -62,14 +76,13 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                artifact: MptArtifact | None = None
+                loaded: tuple[str, dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
-                    artifact = load_mpt(normalized_uri)
-
+                    loaded = load_state_from_checkpoint_uri(normalized_uri)
                 state_dict = self._distributed.broadcast_from_master(
-                    {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None
+                    {k: v.cpu() for k, v in loaded[1].items()} if loaded else None
                 )
-                arch = self._distributed.broadcast_from_master(artifact.architecture if artifact else None)
+                architecture_spec = self._distributed.broadcast_from_master(loaded[0] if loaded else None)
                 action_count = self._distributed.broadcast_from_master(
                     len(policy_env_info.actions.actions()) if self._distributed.is_master() else None
                 )
@@ -78,6 +91,10 @@ class Checkpointer(TrainerComponent):
                 if local_action_count != action_count:
                     raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 
+                if architecture_spec is None:
+                    raise ValueError("Missing architecture_spec from master")
+                class_path = architecture_spec.split("(", 1)[0].strip()
+                arch = load_symbol(class_path).from_spec(architecture_spec)
                 policy = arch.make_policy(policy_env_info).to(load_device)
                 if hasattr(policy, "initialize_to_environment"):
                     policy.initialize_to_environment(policy_env_info, load_device)
@@ -91,8 +108,10 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            artifact = load_mpt(candidate_uri)
-            policy = artifact.instantiate(policy_env_info, self._distributed.config.device)
+            spec = policy_spec_from_uri(candidate_uri, device=str(load_device))
+            policy = initialize_or_load_policy(policy_env_info, spec, device_override=str(load_device))
+            if isinstance(policy, CheckpointPolicy):
+                policy = policy.wrapped_policy
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
