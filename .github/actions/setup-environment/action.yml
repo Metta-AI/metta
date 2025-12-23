@@ -44,7 +44,7 @@ runs:
 
     - name: Cache nimby
       id: cache-nimby
-      uses: WarpBuilds/cache@v1
+      uses: actions/cache@v4
       with:
         path: ~/.nimby
         key: nimby-2.2.6-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
@@ -65,7 +65,7 @@ runs:
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
       id: cache-bazel
-      uses: WarpBuilds/cache@v1
+      uses: actions/cache@v4
       with:
         path: /usr/local/bin/bazel
         key: bazel-binary-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}

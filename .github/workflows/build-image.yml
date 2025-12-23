@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-push-image:
-    runs-on: warp-ubuntu-latest-x64-4x
+    runs-on: depot-ubuntu-24.04-4
     timeout-minutes: 20 # up from default of 10 minutes
     permissions:
       id-token: write
