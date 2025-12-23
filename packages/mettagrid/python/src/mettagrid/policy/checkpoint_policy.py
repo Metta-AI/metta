@@ -61,6 +61,7 @@ def write_policy_spec(checkpoint_dir: Path, architecture_spec: str) -> None:
 
 
 class CheckpointPolicy(MultiAgentPolicy):
+    CLASS_PATH = "mettagrid.policy.checkpoint_policy.CheckpointPolicy"
     short_names = ["checkpoint"]
 
     def __init__(

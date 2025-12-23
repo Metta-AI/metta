@@ -198,7 +198,6 @@ def load_policy(
 ):
     device = device or torch.device("cpu")
 
-    checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
         policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
@@ -218,7 +217,7 @@ def load_policy(
         ).wrapped_policy
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
-    if policy_spec.class_path == checkpoint_class_path:
+    if policy_spec.class_path == CheckpointPolicy.CLASS_PATH:
         return CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec).wrapped_policy
     return initialize_or_load_policy(policy_env_info, policy_spec)
 
