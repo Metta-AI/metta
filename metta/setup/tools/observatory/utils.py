@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -24,14 +25,19 @@ def _get_kind_image_id(image_name: str) -> str | None:
             f"{KIND_CLUSTER_NAME}-control-plane",
             "crictl",
             "images",
-            "-q",
-            f"docker.io/library/{image_name}",
+            "-o",
+            "json",
         ],
         capture_output=True,
         text=True,
     )
-    if result.returncode == 0 and result.stdout.strip():
-        return result.stdout.strip().split("\n")[0]
+    if result.returncode != 0:
+        return None
+    images = json.loads(result.stdout).get("images", [])
+    for img in images:
+        tags = img.get("repoTags", [])
+        if f"docker.io/library/{image_name}" in tags:
+            return img.get("id")
     return None
 
 

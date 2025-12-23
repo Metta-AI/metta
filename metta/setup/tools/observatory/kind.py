@@ -196,12 +196,10 @@ class KindLocal(Kind):
     def build(self) -> None:
         result = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True)
         cluster_exists = self.cluster_name in result.stdout.split()
-        cluster_created = False
 
         if not cluster_exists:
             info("Creating Kind cluster...")
             subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
-            cluster_created = True
         else:
             result = subprocess.run(["kubectl", "cluster-info", "--context", self.context], capture_output=True)
             if result.returncode != 0:
@@ -212,11 +210,10 @@ class KindLocal(Kind):
                     capture_output=True,
                 )
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
-                cluster_created = True
         self._use_appropriate_context()
 
         build_image(force_build=False)
-        load_image_into_kind(force_load=cluster_created)
+        load_image_into_kind()
         success("Kind cluster ready")
 
         if not self._check_namespace_exists(self.namespace):
