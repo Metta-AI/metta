@@ -135,13 +135,13 @@ proc initPanels() =
 
   rootArea = Area()
   rootArea.split(Vertical)
-  rootArea.split = 0.30
+  rootArea.split = 0.22
 
   rootArea.areas[0].split(Horizontal)
   rootArea.areas[0].split = 0.7
 
   rootArea.areas[1].split(Vertical)
-  rootArea.areas[1].split = 0.7
+  rootArea.areas[1].split = 0.85
 
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
