@@ -1,22 +1,24 @@
-from abc import ABC, abstractmethod
-from typing import Any, Literal, override
+from typing import Any, Literal
 
 import numpy as np
 
-from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.mission import Mission
+from cogames.cogs_vs_clips.procedural import (
+    BaseHubVariant,
+    EnvNodeVariant,
+    MachinaArenaConfig as BaseMachinaArenaConfig,
+    MapGenVariant,
+    MapSeedVariant,
+    RandomTransform,
+    RandomTransformConfig,
+)
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
-from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
+from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
-from mettagrid.mapgen.scene import (
-    AnySceneConfig,
-    ChildrenAction,
-    GridTransform,
-    Scene,
-    SceneConfig,
-)
+from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
-from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
+from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
@@ -35,8 +37,22 @@ from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandida
 
 HubBundle = Literal["extractors", "none", "custom"]
 
+__all__ = [
+    "BaseHubVariant",
+    "BaseMachinaArenaConfig",
+    "EnvNodeVariant",
+    "MapGenVariant",
+    "MapSeedVariant",
+    "RandomTransform",
+    "RandomTransformConfig",
+    "SequentialMachinaArena",
+    "SequentialMachinaArenaConfig",
+    "SequentialMachinaArenaVariant",
+]
 
-class SequentialMachinaArenaConfig(SceneConfig):
+
+class SequentialMachinaArenaConfig(BaseMachinaArenaConfig):
+    _scene_cls = None
     # Core composition
     spawn_count: int
 
@@ -340,96 +356,6 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
         )
 
         return children
-
-
-class RandomTransformConfig(SceneConfig):
-    scene: AnySceneConfig
-
-
-class RandomTransform(Scene[RandomTransformConfig]):
-    def render(self) -> None:
-        return
-
-    def get_children(self) -> list[ChildrenAction]:
-        return [
-            ChildrenAction(
-                scene=self.config.scene.model_copy(
-                    update={"transform": GridTransform(self.rng.choice(list(GridTransform)))}
-                ),
-                where="full",
-            )
-        ]
-
-
-class EnvNodeVariant[T](MissionVariant, ABC):
-    @abstractmethod
-    def extract_node(self, env: MettaGridConfig) -> T: ...
-
-    @abstractmethod
-    def modify_node(self, node: T): ...
-
-    @override
-    def modify_env(self, mission, env) -> None:
-        node = self.extract_node(env)
-        self.modify_node(node)
-
-
-class MapGenVariant(EnvNodeVariant[MapGenConfig]):
-    @classmethod
-    def extract_node(cls, env: MettaGridConfig) -> MapGenConfig:
-        map_builder = env.game.map_builder
-        if not isinstance(map_builder, MapGen.Config):
-            raise TypeError("MapGenConfigVariant can only be applied to MapGen.Config builders")
-        return map_builder
-
-
-class MapSeedVariant(MapGenVariant):
-    """Variant that sets the MapGen seed for deterministic map generation.
-
-    This is primarily meant for programmatic control from experiments / pipelines:
-
-        mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
-        env_cfg = mission.make_env()
-
-    """
-
-    name: str = "map_seed"
-    description: str = "Set MapGen seed for deterministic map generation."
-    seed: int
-
-    @override
-    def modify_node(self, node: MapGenConfig) -> None:
-        node.seed = int(self.seed)
-
-
-class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
-    @override
-    def compat(self, mission: Mission) -> bool:
-        env = mission.make_env()
-        if not isinstance(env.game.map_builder, MapGen.Config):
-            return False
-        instance = env.game.map_builder.instance
-        if not isinstance(instance, BaseHub.Config):
-            return False
-        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
-            return True
-        if isinstance(instance, SequentialMachinaArena.Config):
-            return True
-        return False
-
-    @classmethod
-    def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
-        assert isinstance(env.game.map_builder, MapGen.Config)
-        instance = env.game.map_builder.instance
-
-        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
-            return instance.scene
-
-        elif isinstance(instance, SequentialMachinaArena.Config):
-            return instance.hub
-
-        raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
-
 
 class SequentialMachinaArenaVariant(EnvNodeVariant[SequentialMachinaArenaConfig]):
     def compat(self, mission: Mission) -> bool:

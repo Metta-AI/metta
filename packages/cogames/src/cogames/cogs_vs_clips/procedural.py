@@ -4,7 +4,6 @@ from typing import Any, Literal, override
 import numpy as np
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from cogames.cogs_vs_clips.sequential import SequentialMachinaArena
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
@@ -403,39 +402,40 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
         if not isinstance(env.game.map_builder, MapGen.Config):
             return False
         instance = env.game.map_builder.instance
-        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
-            return True
         if isinstance(instance, BaseHub.Config):
             return True
-        return isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config))
+        if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
+            return True
+        hub = getattr(instance, "hub", None)
+        return isinstance(hub, BaseHubConfig)
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
         instance = env.game.map_builder.instance
 
+        if isinstance(instance, BaseHub.Config):
+            return instance
+
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
 
-        if isinstance(instance, BaseHub.Config):
-            return instance
-        if isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config)):
-            return instance.hub
+        hub = getattr(instance, "hub", None)
+        if isinstance(hub, BaseHubConfig):
+            return hub
 
-        raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
+        raise TypeError("BaseHubVariant can only be applied to BaseHub or scenes that expose a BaseHubConfig")
 
 
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
     def compat(self, mission: Mission) -> bool:
         env = mission.make_env()
-        if not isinstance(env.game.map_builder, MapGen.Config):
-            return False
-        return isinstance(env.game.map_builder.instance, (MachinaArena.Config, SequentialMachinaArena.Config))
+        return isinstance(env.game.map_builder, MapGen.Config) and isinstance(
+            env.game.map_builder.instance, MachinaArena.Config
+        )
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
-        instance = env.game.map_builder.instance
-        if isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config)):
-            return instance
-        raise TypeError("MachinaArenaVariant can only be applied to MachinaArena scenes")
+        assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
+        return env.game.map_builder.instance
