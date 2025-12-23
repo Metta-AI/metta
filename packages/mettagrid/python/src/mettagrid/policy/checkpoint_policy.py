@@ -12,7 +12,7 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -55,8 +55,6 @@ class CheckpointPolicy(MultiAgentPolicy):
         cls,
         policy_env_info: PolicyEnvInterface,
         policy_spec: PolicySpec,
-        *,
-        device_override: str | None = None,
     ) -> "CheckpointPolicy":
         if policy_spec.class_path != cls.CLASS_PATH:
             raise ValueError(f"Only CheckpointPolicy specs are supported (got {policy_spec.class_path})")
@@ -65,24 +63,10 @@ class CheckpointPolicy(MultiAgentPolicy):
             raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
         if not policy_spec.data_path:
             raise ValueError("policy_spec.json missing data_path")
-        device = device_override or policy_spec.init_kwargs.get("device", "cpu")
+        device = policy_spec.init_kwargs.get("device", "cpu")
         policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device)
         policy.load_policy_data(policy_spec.data_path)
         return policy
-
-    @classmethod
-    def from_checkpoint_uri(
-        cls,
-        policy_env_info: PolicyEnvInterface,
-        uri: str,
-        *,
-        device_override: str | None = None,
-    ) -> "CheckpointPolicy":
-        if device_override is None:
-            spec = policy_spec_from_uri(uri)
-        else:
-            spec = policy_spec_from_uri(uri, device=device_override)
-        return cls.from_policy_spec(policy_env_info, spec, device_override=device_override)
 
     def load_policy_data(self, policy_data_path: str) -> None:
         path = Path(policy_data_path).expanduser()

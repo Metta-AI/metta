@@ -13,7 +13,7 @@ from mettagrid.base_config import Config
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +66,8 @@ class Checkpointer(TrainerComponent):
                 architecture_spec: str | None = None
                 state_dict: dict[str, torch.Tensor] | None = None
                 if self._distributed.is_master():
-                    policy = CheckpointPolicy.from_checkpoint_uri(
-                        policy_env_info,
-                        normalized_uri,
-                        device_override=str(load_device),
-                    )
+                    spec = policy_spec_from_uri(normalized_uri)
+                    policy = CheckpointPolicy.from_policy_spec(policy_env_info, spec)
                     architecture_spec = policy.architecture_spec
                     state_dict = policy.wrapped_policy.state_dict()
                 state_dict = self._distributed.broadcast_from_master(
@@ -101,11 +98,8 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            policy = CheckpointPolicy.from_checkpoint_uri(
-                policy_env_info,
-                candidate_uri,
-                device_override=str(load_device),
-            ).wrapped_policy
+            spec = policy_spec_from_uri(candidate_uri)
+            policy = CheckpointPolicy.from_policy_spec(policy_env_info, spec).wrapped_policy
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
