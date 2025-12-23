@@ -1,12 +1,10 @@
 """Policy checkpoint management component."""
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
-from safetensors.torch import load as load_safetensors
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -71,10 +69,12 @@ class Checkpointer(TrainerComponent):
                     architecture_spec = spec.init_kwargs.get("architecture_spec")
                     if not architecture_spec:
                         raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
-                    if not spec.data_path:
-                        raise ValueError("policy_spec.json missing data_path")
-                    state_dict = load_safetensors(Path(spec.data_path).read_bytes())
-                    loaded = (architecture_spec, dict(state_dict))
+                    policy = CheckpointPolicy.from_policy_spec(
+                        policy_env_info,
+                        spec,
+                        device_override=str(load_device),
+                    )
+                    loaded = (architecture_spec, policy.wrapped_policy.state_dict())
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in loaded[1].items()} if loaded else None
                 )

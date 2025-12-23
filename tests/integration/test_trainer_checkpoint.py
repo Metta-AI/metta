@@ -12,13 +12,14 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from safetensors.torch import load as load_safetensors
-
 from metta.agent.policies.fast import FastConfig
+from metta.cogworks.curriculum import Curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
@@ -161,6 +162,7 @@ class TestTrainerCheckpointIntegration:
         assert policy_uri, "Expected at least one policy checkpoint"
 
         spec = policy_spec_from_uri(policy_uri)
-        assert spec.data_path, "policy_spec missing data_path"
-        state_dict = load_safetensors(Path(spec.data_path).read_bytes())
-        assert state_dict is not None
+        env_cfg = Curriculum(training_env_cfg.curriculum).get_task().get_env_cfg()
+        env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+        policy = CheckpointPolicy.from_policy_spec(env_info, spec, device_override=system_cfg.device)
+        assert policy.wrapped_policy.state_dict()
