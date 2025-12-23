@@ -79,7 +79,7 @@ class MachinaArenaConfig(SceneConfig):
     #### Distributions ####
 
     # How buildings are distributed on the map
-    distribution: DistributionConfig = DistributionConfig(type="normal", std_x=0.18, std_y=0.18)
+    distribution: DistributionConfig = DistributionConfig()
 
     # How buildings are distributed on the map per building type, falls back to global distribution if not set
     building_distributions: dict[str, DistributionConfig] | None = None
