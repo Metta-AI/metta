@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
+#include <climits>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -96,8 +97,11 @@ public:
   // Called when this object is demolished. Override for cleanup.
   virtual void on_demolish() {}
 
-  virtual std::vector<PartialObservationToken> obs_features() const {
-    return {};  // Default: no observable features
+  // observer_agent_id: The agent observing this object (UINT_MAX means no specific observer)
+  // Used by Assembler to report agent-specific cooldowns
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const {
+    (void)observer_agent_id;  // Unused in base class
+    return {};                // Default: no observable features
   }
 };
 

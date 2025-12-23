@@ -130,6 +130,9 @@ class IdMap:
         features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="cooldown_remaining"))
         feature_id += 1
 
+        features.append(ObservationFeatureSpec(id=feature_id, normalization=255.0, name="agent_cooldown_remaining"))
+        feature_id += 1
+
         features.append(ObservationFeatureSpec(id=feature_id, normalization=1.0, name="clipped"))
         feature_id += 1
 
