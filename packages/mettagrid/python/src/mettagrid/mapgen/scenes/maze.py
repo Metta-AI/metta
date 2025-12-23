@@ -101,7 +101,7 @@ class MazeGrid:
 
 class MazeConfig(SceneConfig):
     algorithm: Literal["kruskal", "dfs"] = "kruskal"
-    room_size: IntDistribution = IntConstantDistribution(value=1)
+    room_size: IntDistribution = IntConstantDistribution(value=3)
     wall_size: IntDistribution = IntConstantDistribution(value=1)
 
 

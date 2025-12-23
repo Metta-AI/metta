@@ -8,11 +8,11 @@ from mettagrid.mapgen.utils.draw import bresenham_line
 
 
 class RadialMazeConfig(SceneConfig):
-    arms: int = Field(default=4, ge=4, le=12)
-    arm_width: int = Field(default=4, ge=1)
+    arms: int = Field(default=8, ge=4, le=12)
+    arm_width: int = Field(default=1, ge=1)
     arm_length: int | None = None
-    clear_background: bool = Field(default=True, description="If True, fill area with walls before carving arms")
-    outline_walls: bool = Field(default=True, description="Outline arms with walls for visual clarity")
+    clear_background: bool = Field(default=False, description="If True, fill area with walls before carving arms")
+    outline_walls: bool = Field(default=False, description="Outline arms with walls for visual clarity")
 
 
 class RadialMaze(Scene[RadialMazeConfig]):

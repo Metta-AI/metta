@@ -7,7 +7,6 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
-from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import (
     AnySceneConfig,
     ChildrenAction,
@@ -201,8 +200,6 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="dfs",
-                            room_size=IntConstantDistribution(value=3),
-                            wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.6,
                     )
@@ -211,8 +208,6 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="kruskal",
-                            room_size=IntConstantDistribution(value=3),
-                            wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.4,
                     )
@@ -220,7 +215,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMaze.Config(arms=8, arm_width=1, clear_background=False, outline_walls=False),
+                        scene=RadialMaze.Config(),
                         weight=w["radial"],
                     )
                 )
