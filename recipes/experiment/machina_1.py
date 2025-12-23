@@ -55,7 +55,7 @@ def train(
         )
     ]
     # Run evals periodically during long runs
-    tt.evaluator.epoch_interval = 600
+    tt.evaluator.epoch_interval = 150
     return tt
 
 
