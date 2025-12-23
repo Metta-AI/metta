@@ -33,6 +33,8 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     self.returns_pred(td)
     self.reward_pred(td)
     td["values"] = td["values"].flatten()
+    if "h_values" in td.keys():
+        td["h_values"] = td["h_values"].flatten()
     return td
 
 
@@ -79,6 +81,14 @@ class FastDynamicsConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
+            in_features=_core_out_dim,
+            out_features=1,
+            hidden_features=[1024],
+        ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
             in_features=_core_out_dim,
             out_features=1,
             hidden_features=[1024],

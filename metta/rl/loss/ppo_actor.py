@@ -91,25 +91,28 @@ class PPOActor(Loss):
         indices = shared_loss_data["indices"][:, 0]
         self.replay.update(indices, update_td)
 
-        # Re-compute advantages with new ratios (V-trace)
-        values = minibatch["values"]
-        if hasattr(self.policy, "critic_quantiles"):
-            # If we are using a quantile critic in our policy
-            values = values.mean(dim=-1)
+        if shared_loss_data.get("advantages_source", None) == "delta_lambda":
+            adv = shared_loss_data["advantages"]
+        else:
+            # Re-compute advantages with new ratios (V-trace)
+            values = minibatch["values"]
+            if hasattr(self.policy, "critic_quantiles"):
+                # If we are using a quantile critic in our policy
+                values = values.mean(dim=-1)
 
-        centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
-        adv = compute_advantage(
-            values,
-            centered_rewards,
-            minibatch["dones"],
-            importance_sampling_ratio,
-            shared_loss_data["advantages"],
-            self.trainer_cfg.advantage.gamma,
-            self.trainer_cfg.advantage.gae_lambda,
-            self.device,
-            self.trainer_cfg.advantage.vtrace_rho_clip,
-            self.trainer_cfg.advantage.vtrace_c_clip,
-        )
+            centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
+            adv = compute_advantage(
+                values,
+                centered_rewards,
+                minibatch["dones"],
+                importance_sampling_ratio,
+                shared_loss_data["advantages"],
+                self.trainer_cfg.advantage.gamma,
+                self.trainer_cfg.advantage.gae_lambda,
+                self.device,
+                self.trainer_cfg.advantage.vtrace_rho_clip,
+                self.trainer_cfg.advantage.vtrace_c_clip,
+            )
 
         # Normalize advantages with distributed support, then apply prioritized weights
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)
