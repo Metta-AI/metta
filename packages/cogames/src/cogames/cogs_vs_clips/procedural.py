@@ -46,7 +46,7 @@ class MachinaArenaConfig(SceneConfig):
     base_biome_config: dict[str, Any] = {
         "cluster_prob": 0.92,
         "cluster_fill": 0.82,
-        "cluster_max_radius": 3,
+        "cluster_max_radius": 2,
         "cluster_period": 5,
         "jitter": 2,
     }
