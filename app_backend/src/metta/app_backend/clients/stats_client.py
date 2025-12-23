@@ -27,6 +27,15 @@ from metta.app_backend.routes.stats_routes import (
     PresignedUploadUrlResponse,
     UUIDResponse,
 )
+from metta.app_backend.routes.tournament_routes import (
+    MatchCreate,
+    MatchesWithEvalStatusResponse,
+    PoolPlayersResponse,
+    PoolResponse,
+    PoolsResponse,
+    SeasonResponse,
+    SeasonsResponse,
+)
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
@@ -248,6 +257,42 @@ class StatsClient:
         response = self._http_client.post(f"/jobs/{job_id}", headers=headers, json=update.model_dump(mode="json"))
         response.raise_for_status()
         return JobRequest.model_validate(response.json())
+
+    def get_seasons(self, limit: int = 50, offset: int = 0) -> SeasonsResponse:
+        return self._make_sync_request(
+            SeasonsResponse, "GET", "/tournament/seasons", params={"limit": limit, "offset": offset}
+        )
+
+    def get_season(self, season_id: uuid.UUID) -> SeasonResponse:
+        return self._make_sync_request(SeasonResponse, "GET", f"/tournament/seasons/{season_id}")
+
+    def get_pools_for_season(self, season_id: uuid.UUID) -> PoolsResponse:
+        return self._make_sync_request(PoolsResponse, "GET", f"/tournament/seasons/{season_id}/pools")
+
+    def get_pool(self, pool_id: uuid.UUID) -> PoolResponse:
+        return self._make_sync_request(PoolResponse, "GET", f"/tournament/pools/{pool_id}")
+
+    def get_pool_players(self, pool_id: uuid.UUID, include_removed: bool = False) -> PoolPlayersResponse:
+        return self._make_sync_request(
+            PoolPlayersResponse,
+            "GET",
+            f"/tournament/pools/{pool_id}/players",
+            params={"include_removed": include_removed},
+        )
+
+    def get_matches_for_pool_with_eval_status(
+        self, pool_id: uuid.UUID, limit: int = 100, offset: int = 0
+    ) -> MatchesWithEvalStatusResponse:
+        return self._make_sync_request(
+            MatchesWithEvalStatusResponse,
+            "GET",
+            f"/tournament/pools/{pool_id}/matches/with-eval-status",
+            params={"limit": limit, "offset": offset},
+        )
+
+    def create_match(self, pool_id: uuid.UUID, policy_version_ids: list[uuid.UUID]) -> UUIDResponse:
+        data = MatchCreate(pool_id=pool_id, policy_version_ids=policy_version_ids)
+        return self._make_sync_request(UUIDResponse, "POST", "/tournament/matches", json=data.model_dump(mode="json"))
 
     @staticmethod
     def create(stats_server_uri: str) -> "StatsClient":

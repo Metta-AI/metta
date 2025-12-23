@@ -184,6 +184,76 @@ class LeaderboardPolicyEntry(BaseModel):
     score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
+class SeasonRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    commissioner_class: str
+    scorer_class: str
+    created_at: datetime
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+class PoolRow(BaseModel):
+    id: uuid.UUID
+    season_id: uuid.UUID | None
+    name: str | None
+    referee_class: str
+    created_at: datetime
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+class PoolPlayerRow(BaseModel):
+    id: uuid.UUID
+    policy_version_id: uuid.UUID
+    pool_id: uuid.UUID
+    added_at: datetime
+    removed_at: datetime | None
+    retired: bool
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+
+class MatchRow(BaseModel):
+    id: uuid.UUID
+    pool_id: uuid.UUID
+    eval_task_id: int | None
+    created_at: datetime
+
+
+class MatchPlayerRow(BaseModel):
+    id: uuid.UUID
+    match_id: uuid.UUID
+    policy_version_id: uuid.UUID
+    position: int
+
+
+class PoolPlayerWithPolicy(BaseModel):
+    id: uuid.UUID
+    policy_version_id: uuid.UUID
+    pool_id: uuid.UUID
+    added_at: datetime
+    removed_at: datetime | None
+    retired: bool
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    policy_name: str
+    policy_user_id: str
+    version: int
+
+
+class MatchWithPlayers(BaseModel):
+    match: MatchRow
+    players: list[MatchPlayerRow]
+
+
+class MatchWithEvalStatus(BaseModel):
+    id: uuid.UUID
+    pool_id: uuid.UUID
+    eval_task_id: int | None
+    created_at: datetime
+    players: list[MatchPlayerRow]
+    eval_status: TaskStatus | None = None
+    eval_is_finished: bool = False
+
+
 logger = logging.getLogger(name="metta_repo")
 
 
@@ -1323,3 +1393,423 @@ ORDER BY e.created_at DESC
             # `class_row` returns a dict for this attr but doesn't coerce its inner types
             row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
         return list(rows)
+
+    # Tournament methods
+
+    async def create_season(
+        self,
+        name: str,
+        commissioner_class: str,
+        scorer_class: str,
+        attributes: dict[str, Any] | None = None,
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO seasons (name, commissioner_class, scorer_class, attributes)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (name, commissioner_class, scorer_class, Jsonb(attributes or {})),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create season")
+            return row[0]
+
+    async def get_season(self, season_id: uuid.UUID) -> SeasonRow | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(SeasonRow)) as cur:
+                await cur.execute("SELECT * FROM seasons WHERE id = %s", (season_id,))
+                return await cur.fetchone()
+
+    async def get_season_by_name(self, name: str) -> SeasonRow | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(SeasonRow)) as cur:
+                await cur.execute("SELECT * FROM seasons WHERE name = %s", (name,))
+                return await cur.fetchone()
+
+    async def get_seasons(self, limit: int = 50, offset: int = 0) -> list[SeasonRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(SeasonRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM seasons ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                    (limit, offset),
+                )
+                return await cur.fetchall()
+
+    async def create_pool(
+        self,
+        referee_class: str,
+        season_id: uuid.UUID | None = None,
+        name: str | None = None,
+        attributes: dict[str, Any] | None = None,
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO pools (season_id, name, referee_class, attributes)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (season_id, name, referee_class, Jsonb(attributes or {})),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create pool")
+            return row[0]
+
+    async def get_pool(self, pool_id: uuid.UUID) -> PoolRow | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PoolRow)) as cur:
+                await cur.execute("SELECT * FROM pools WHERE id = %s", (pool_id,))
+                return await cur.fetchone()
+
+    async def get_pools_for_season(self, season_id: uuid.UUID) -> list[PoolRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PoolRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM pools WHERE season_id = %s ORDER BY created_at",
+                    (season_id,),
+                )
+                return await cur.fetchall()
+
+    async def add_pool_player(
+        self,
+        policy_version_id: uuid.UUID,
+        pool_id: uuid.UUID,
+        attributes: dict[str, Any] | None = None,
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO pool_players (policy_version_id, pool_id, attributes)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (policy_version_id, pool_id) DO UPDATE
+                SET removed_at = NULL, retired = FALSE
+                RETURNING id
+                """,
+                (policy_version_id, pool_id, Jsonb(attributes or {})),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to add pool player")
+            return row[0]
+
+    async def remove_pool_player(
+        self,
+        policy_version_id: uuid.UUID,
+        pool_id: uuid.UUID,
+    ) -> None:
+        async with self.connect() as con:
+            await con.execute(
+                """
+                UPDATE pool_players
+                SET removed_at = CURRENT_TIMESTAMP
+                WHERE policy_version_id = %s AND pool_id = %s AND removed_at IS NULL
+                """,
+                (policy_version_id, pool_id),
+            )
+
+    async def retire_pool_player(
+        self,
+        policy_version_id: uuid.UUID,
+        pool_id: uuid.UUID,
+    ) -> None:
+        async with self.connect() as con:
+            await con.execute(
+                """
+                UPDATE pool_players
+                SET retired = TRUE, removed_at = CURRENT_TIMESTAMP
+                WHERE policy_version_id = %s AND pool_id = %s
+                """,
+                (policy_version_id, pool_id),
+            )
+
+    async def get_pool_players(
+        self,
+        pool_id: uuid.UUID,
+        include_removed: bool = False,
+    ) -> list[PoolPlayerWithPolicy]:
+        async with self.connect() as con:
+            removed_clause = "" if include_removed else "AND pp.removed_at IS NULL"
+            async with con.cursor(row_factory=class_row(PoolPlayerWithPolicy)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT
+                        pp.id, pp.policy_version_id, pp.pool_id, pp.added_at,
+                        pp.removed_at, pp.retired, pp.attributes,
+                        p.name AS policy_name, p.user_id AS policy_user_id, pv.version
+                    FROM pool_players pp
+                    JOIN policy_versions pv ON pp.policy_version_id = pv.id
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pp.pool_id = %s {removed_clause}
+                    ORDER BY pp.added_at
+                    """,
+                    (pool_id,),
+                )
+                return await cur.fetchall()
+
+    async def get_pool_player(
+        self,
+        policy_version_id: uuid.UUID,
+        pool_id: uuid.UUID,
+    ) -> PoolPlayerRow | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PoolPlayerRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT * FROM pool_players
+                    WHERE policy_version_id = %s AND pool_id = %s
+                    """,
+                    (policy_version_id, pool_id),
+                )
+                return await cur.fetchone()
+
+    async def create_match(
+        self,
+        pool_id: uuid.UUID,
+        policy_version_ids: list[uuid.UUID],
+        eval_task_id: int | None = None,
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO matches (pool_id, eval_task_id)
+                VALUES (%s, %s)
+                RETURNING id
+                """,
+                (pool_id, eval_task_id),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create match")
+            match_id = row[0]
+
+            for position, pv_id in enumerate(policy_version_ids):
+                await con.execute(
+                    """
+                    INSERT INTO match_players (match_id, policy_version_id, position)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (match_id, pv_id, position),
+                )
+
+            return match_id
+
+    async def get_match(self, match_id: uuid.UUID) -> MatchWithPlayers | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute("SELECT * FROM matches WHERE id = %s", (match_id,))
+                match = await cur.fetchone()
+                if match is None:
+                    return None
+
+            async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                    (match_id,),
+                )
+                players = await cur.fetchall()
+
+            return MatchWithPlayers(match=match, players=players)
+
+    async def get_match_by_eval_task(self, eval_task_id: int) -> MatchWithPlayers | None:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM matches WHERE eval_task_id = %s",
+                    (eval_task_id,),
+                )
+                match = await cur.fetchone()
+                if match is None:
+                    return None
+
+            async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                await cur.execute(
+                    "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                    (match.id,),
+                )
+                players = await cur.fetchall()
+
+            return MatchWithPlayers(match=match, players=players)
+
+    async def get_matches_for_pool(
+        self,
+        pool_id: uuid.UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[MatchRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT * FROM matches
+                    WHERE pool_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (pool_id, limit, offset),
+                )
+                return await cur.fetchall()
+
+    async def get_matches_for_pool_with_eval_status(
+        self,
+        pool_id: uuid.UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[MatchWithEvalStatus]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        m.id, m.pool_id, m.eval_task_id, m.created_at,
+                        t.status AS eval_status, t.is_finished AS eval_is_finished
+                    FROM matches m
+                    LEFT JOIN eval_tasks_view t ON m.eval_task_id = t.id
+                    WHERE m.pool_id = %s
+                    ORDER BY m.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (pool_id, limit, offset),
+                )
+                match_rows = await cur.fetchall()
+
+            results = []
+            for row in match_rows:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (row["id"],),
+                    )
+                    players = await cur.fetchall()
+
+                results.append(
+                    MatchWithEvalStatus(
+                        id=row["id"],
+                        pool_id=row["pool_id"],
+                        eval_task_id=row["eval_task_id"],
+                        created_at=row["created_at"],
+                        players=players,
+                        eval_status=row["eval_status"],
+                        eval_is_finished=row["eval_is_finished"] or False,
+                    )
+                )
+
+            return results
+
+    async def get_unscheduled_matches(self, limit: int = 100) -> list[MatchWithPlayers]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT * FROM matches
+                    WHERE eval_task_id IS NULL
+                    ORDER BY created_at ASC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                matches = await cur.fetchall()
+
+            results = []
+            for match in matches:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (match.id,),
+                    )
+                    players = await cur.fetchall()
+                results.append(MatchWithPlayers(match=match, players=players))
+
+            return results
+
+    async def get_matches_needing_reschedule(self, limit: int = 100) -> list[MatchWithEvalStatus]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        m.id, m.pool_id, m.eval_task_id, m.created_at,
+                        t.status AS eval_status, t.is_finished AS eval_is_finished
+                    FROM matches m
+                    JOIN eval_tasks_view t ON m.eval_task_id = t.id
+                    WHERE t.status IN ('error', 'canceled', 'system_error')
+                    ORDER BY m.created_at ASC
+                    LIMIT %s
+                    """,
+                    (limit,),
+                )
+                match_rows = await cur.fetchall()
+
+            results = []
+            for row in match_rows:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (row["id"],),
+                    )
+                    players = await cur.fetchall()
+
+                results.append(
+                    MatchWithEvalStatus(
+                        id=row["id"],
+                        pool_id=row["pool_id"],
+                        eval_task_id=row["eval_task_id"],
+                        created_at=row["created_at"],
+                        players=players,
+                        eval_status=row["eval_status"],
+                        eval_is_finished=row["eval_is_finished"] or False,
+                    )
+                )
+
+            return results
+
+    async def set_match_eval_task(self, match_id: uuid.UUID, eval_task_id: int) -> None:
+        async with self.connect() as con:
+            await con.execute(
+                """
+                UPDATE matches SET eval_task_id = %s WHERE id = %s
+                """,
+                (eval_task_id, match_id),
+            )
+
+    async def get_match_history_for_policy(
+        self,
+        policy_version_id: uuid.UUID,
+        pool_id: uuid.UUID | None = None,
+        limit: int = 100,
+    ) -> list[MatchWithPlayers]:
+        async with self.connect() as con:
+            params: list[Any] = [policy_version_id]
+            pool_clause = ""
+            if pool_id:
+                pool_clause = "AND m.pool_id = %s"
+                params.append(pool_id)
+            params.append(limit)
+
+            async with con.cursor(row_factory=class_row(MatchRow)) as cur:
+                await cur.execute(
+                    f"""
+                    SELECT m.* FROM matches m
+                    JOIN match_players mp ON m.id = mp.match_id
+                    WHERE mp.policy_version_id = %s {pool_clause}
+                    ORDER BY m.created_at DESC
+                    LIMIT %s
+                    """,
+                    params,
+                )
+                matches = await cur.fetchall()
+
+            results = []
+            for match in matches:
+                async with con.cursor(row_factory=class_row(MatchPlayerRow)) as cur:
+                    await cur.execute(
+                        "SELECT * FROM match_players WHERE match_id = %s ORDER BY position",
+                        (match.id,),
+                    )
+                    players = await cur.fetchall()
+                results.append(MatchWithPlayers(match=match, players=players))
+
+            return results
