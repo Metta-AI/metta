@@ -12,7 +12,7 @@ from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGR
 from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
 from cogames.cogs_vs_clips.missions import MISSIONS
-from cogames.cogs_vs_clips.procedural import MachinaArena
+from cogames.cogs_vs_clips.sequential import MachinaArena
 from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from cogames.game import load_mission_config, load_mission_config_from_python

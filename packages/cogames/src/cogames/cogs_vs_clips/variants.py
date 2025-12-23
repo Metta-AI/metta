@@ -2,7 +2,7 @@ from typing import Iterable, Sequence, override
 
 from cogames.cogs_vs_clips.evals.difficulty_variants import DIFFICULTY_VARIANTS
 from cogames.cogs_vs_clips.mission import MissionVariant
-from cogames.cogs_vs_clips.procedural import BaseHubVariant, MachinaArenaVariant
+from cogames.cogs_vs_clips.sequential import BaseHubVariant, MachinaArenaVariant
 from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, ProtocolConfig, ResourceLimitsConfig
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.mapgen import MapGen
