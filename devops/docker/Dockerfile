@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
-    # && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    # && chmod +x /usr/local/bin/bazel
+    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && chmod +x /usr/local/bin/bazel
 
 WORKDIR /workspace/metta
 
@@ -21,14 +21,14 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   uv python install
 
 # Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
 # This ensures uv sync can build packages like mettagrid that require these tools
 # Copy bootstrap script to /tmp to avoid importing from metta package structure
 COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   cd /tmp && uv run --no-sync python bootstrap.py --non-interactive
 
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
@@ -50,7 +50,8 @@ RUN git config --global checkout.defaultRemote origin \
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  --mount=type=cache,id=metta-bazel-cache,target=/workspace/metta/.bazel_output \
   uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]

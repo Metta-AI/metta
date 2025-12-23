@@ -22,11 +22,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Bazel
-        uses: useblacksmith/setup-bazel@v2
-        with:
-          version: "8.x"
-
       - name: Build Docker image
         uses: ./.github/actions/docker-build
         with:
