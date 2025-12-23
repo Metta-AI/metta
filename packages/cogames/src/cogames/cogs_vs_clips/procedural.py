@@ -402,29 +402,26 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
         if not isinstance(env.game.map_builder, MapGen.Config):
             return False
         instance = env.game.map_builder.instance
-        if isinstance(instance, BaseHub.Config):
-            return True
+        if not isinstance(instance, BaseHub.Config):
+            return False
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return True
-        hub = getattr(instance, "hub", None)
-        return isinstance(hub, BaseHubConfig)
+        if isinstance(instance, MachinaArena.Config):
+            return True
+        return False
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
         instance = env.game.map_builder.instance
 
-        if isinstance(instance, BaseHub.Config):
-            return instance
-
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
 
-        hub = getattr(instance, "hub", None)
-        if isinstance(hub, BaseHubConfig):
-            return hub
+        elif isinstance(instance, MachinaArena.Config):
+            return instance.hub
 
-        raise TypeError("BaseHubVariant can only be applied to BaseHub or scenes that expose a BaseHubConfig")
+        raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
 
 
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
