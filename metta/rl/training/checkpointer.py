@@ -63,20 +63,19 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                architecture_spec: str | None = None
-                state_dict: dict[str, torch.Tensor] | None = None
+                payload: dict[str, object] | None = None
                 if self._distributed.is_master():
                     policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec_from_uri(normalized_uri))
-                    architecture_spec = policy.architecture_spec
-                    state_dict = policy.wrapped_policy.state_dict()
-                state_dict = self._distributed.broadcast_from_master(
-                    {k: v.cpu() for k, v in state_dict.items()} if state_dict else None
-                )
-                architecture_spec = self._distributed.broadcast_from_master(architecture_spec)
+                    payload = {
+                        "architecture_spec": policy.architecture_spec,
+                        "state_dict": {k: v.cpu() for k, v in policy.wrapped_policy.state_dict().items()},
+                        "action_count": len(policy_env_info.actions.actions()),
+                    }
+                payload = self._distributed.broadcast_from_master(payload)
+                architecture_spec = payload["architecture_spec"]
+                state_dict = payload["state_dict"]
                 local_action_count = len(policy_env_info.actions.actions())
-                action_count = self._distributed.broadcast_from_master(
-                    local_action_count if self._distributed.is_master() else None
-                )
+                action_count = payload["action_count"]
                 if local_action_count != action_count:
                     raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 

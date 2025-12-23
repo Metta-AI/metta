@@ -135,7 +135,6 @@ _executed_setup_scripts: set[Path] = set()
 
 def _load_policy_spec_from_local_dir(
     extraction_root: Path,
-    *,
     device: str | None = None,
 ) -> PolicySpec:
     """Load a PolicySpec from policy_spec.json in an extracted submission."""
@@ -297,7 +296,6 @@ def _load_policy_spec_from_zip(
 
 def load_policy_spec_from_path(
     local_path: Path,
-    *,
     device: str | None = None,
     remove_downloaded_copy_on_exit: bool = False,
     force_dest: Optional[Path] = None,

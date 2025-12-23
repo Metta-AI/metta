@@ -31,8 +31,8 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
 
 class CheckpointPolicy(MultiAgentPolicy):
     CLASS_PATH = "mettagrid.policy.checkpoint_policy.CheckpointPolicy"
-    short_names = ["checkpoint"]
     WEIGHTS_FILENAME = "weights.safetensors"
+    short_names = ["checkpoint"]
 
     def __init__(
         self,
