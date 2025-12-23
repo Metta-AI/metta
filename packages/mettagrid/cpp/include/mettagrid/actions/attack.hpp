@@ -93,32 +93,84 @@ public:
   bool try_attack(Agent& actor, GridObject* target_object) {
     if (!target_object) return false;
 
+    // First try to attack as agent
     Agent* target = dynamic_cast<Agent*>(target_object);
-    if (!target) return false;  // Can only attack agents
+    if (target) {
+      // Don't attack already frozen agents - let move handler swap instead
+      if (target->frozen > 0) return false;
 
-    // Don't attack already frozen agents - let move handler swap instead
-    if (target->frozen > 0) return false;
-
-    // Check if actor has required resources for attack
-    for (const auto& [item, amount] : _consumed_resources) {
-      if (actor.inventory.amount(item) < amount) {
-        return false;  // Can't afford attack
-      }
-    }
-
-    bool success = _handle_target(actor, *target);
-
-    // Consume resources on success
-    if (success) {
+      // Check if actor has required resources for attack
       for (const auto& [item, amount] : _consumed_resources) {
-        if (amount > 0) {
-          InventoryDelta delta = static_cast<InventoryDelta>(-static_cast<int>(amount));
-          actor.inventory.update(item, delta);
+        if (actor.inventory.amount(item) < amount) {
+          return false;  // Can't afford attack
         }
       }
+
+      bool success = _handle_target(actor, *target);
+
+      // Consume resources on success
+      if (success) {
+        for (const auto& [item, amount] : _consumed_resources) {
+          if (amount > 0) {
+            InventoryDelta delta = static_cast<InventoryDelta>(-static_cast<int>(amount));
+            actor.inventory.update(item, delta);
+          }
+        }
+      }
+      return success;
     }
 
-    return success;
+    // Not an agent - try to demolish if target has demolish config
+    return try_demolish(actor, target_object);
+  }
+
+  // Attempt to demolish a building
+  bool try_demolish(Agent& actor, GridObject* target) {
+    if (!target || !target->demolish_config) {
+      return false;  // No demolish config, can't demolish
+    }
+
+    const DemolishConfig& demolish = *target->demolish_config;
+
+    // Check if actor has required resources for demolition
+    for (const auto& [item, amount] : demolish.cost) {
+      if (actor.inventory.amount(item) < amount) {
+        const std::string& actor_group = actor.group_name;
+        actor.stats.incr(_action_prefix(actor_group) + "demolish.failed.insufficient_resources");
+        return false;
+      }
+    }
+
+    // Pay the demolition cost
+    for (const auto& [item, amount] : demolish.cost) {
+      if (amount > 0) {
+        InventoryDelta delta = static_cast<InventoryDelta>(-static_cast<int>(amount));
+        actor.inventory.update(item, delta);
+      }
+    }
+
+    // Log demolition BEFORE removing (target will be deleted)
+    const std::string& actor_group = actor.group_name;
+    const std::string target_type_name = target->type_name;  // Copy before removal
+    actor.stats.incr(_action_prefix(actor_group) + "demolish." + target_type_name);
+    actor.stats.incr("demolish." + target_type_name);
+
+    // Call on_demolish before removing
+    target->on_demolish();
+
+    // Give scrap resources to actor
+    for (const auto& [item, amount] : demolish.scrap) {
+      if (amount > 0) {
+        actor.inventory.update(item, amount);
+      }
+    }
+
+    // Remove the object from grid (this deletes the object)
+    if (_grid) {
+      _grid->remove_object(*target);
+    }
+
+    return true;
   }
 
 protected:

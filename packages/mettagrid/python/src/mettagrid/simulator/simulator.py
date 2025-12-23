@@ -65,17 +65,15 @@ class Simulation:
         self._timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self._timer.start()
 
-        game_config_dict = self._config.game.model_dump()
-
         with self._timer("sim.init.make_map"):
             map_grid = self._make_map().grid.tolist()
 
         # Create C++ config
         try:
-            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
+            c_cfg = mettagrid_c_config.convert_to_cpp_game_config(self._config.game)
         except Exception:
             logger.exception("Error creating C++ config")
-            logger.error("Game config: %s", game_config_dict)
+            logger.error("Game config: %s", self._config.game)
             raise
 
         # Create C++ environment

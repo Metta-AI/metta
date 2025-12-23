@@ -95,6 +95,7 @@ type
     # Computed fields.
     gainMap*: seq[seq[ItemAmount]]
     isAgent*: bool
+    removedAtStep*: int  # Step when object was removed, -1 if not removed
 
   Replay* = ref object
     version*: int
@@ -737,6 +738,7 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
       inventory: inventory,
       inventoryMax: obj.getInt("inventory_max", 0),
       color: obj.getExpandedIntSeq("color", replay.maxSteps),
+      removedAtStep: -1,  # Not removed
     )
     entity.groupId = getInt(obj, "group_id", 0)
 
@@ -861,10 +863,17 @@ proc loadReplay*(fileName: string): Replay =
 proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
   ## Apply a replay step to the replay.
   const agentTypeName = "agent"
+
+  # Track which object IDs are present in this step
+  var presentIds: set[uint16]
+  for obj in objects:
+    if obj.id >= 0 and obj.id < 65536:
+      presentIds.incl(obj.id.uint16)
+
   for obj in objects:
     let index = obj.id - 1
     while index >= replay.objects.len:
-      replay.objects.add(Entity(id: obj.id))
+      replay.objects.add(Entity(id: replay.objects.len + 1, removedAtStep: -1))
 
     let entity = replay.objects[index]
     doAssert entity.id == obj.id, "Object id mismatch"
@@ -907,6 +916,24 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
     entity.protocols = obj.protocols
+
+  # Check for removed objects (existed before but not in current step)
+  # Only mark as removed if:
+  # - Not already removed
+  # - Not a wall (walls are optimized out after step 0)
+  # - Not an agent (agents are never removed)
+  # - Has location data (was actually initialized with real data)
+  # - Not in current step's data
+  for entity in replay.objects:
+    if entity.removedAtStep < 0 and  # Not already removed
+       entity.typeName != "wall" and  # Skip walls (static, optimized out)
+       entity.typeName != "agent" and  # Skip agents (never removed)
+       entity.typeName.len > 0 and  # Has a type (was initialized)
+       entity.location.len > 0 and  # Has been seen before (has location data)
+       entity.id >= 0 and entity.id < 65536 and
+       entity.id.uint16 notin presentIds:
+      # This object was not in the step data - it was removed
+      entity.removedAtStep = step
 
   # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)
