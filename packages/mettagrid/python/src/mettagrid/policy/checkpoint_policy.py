@@ -41,10 +41,8 @@ class CheckpointPolicy(MultiAgentPolicy):
         *,
         architecture_spec: str,
         device: str = "cpu",
-        strict: bool = True,
     ):
         super().__init__(policy_env_info, device=device)
-        self._strict = strict
         self._device = torch.device(device)
         self._policy_env_info = policy_env_info
         self._architecture_spec = architecture_spec
@@ -69,7 +67,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         if not policy_spec.data_path:
             raise ValueError("policy_spec.json missing data_path")
         device = device_override or policy_spec.init_kwargs.get("device", "cpu")
-        policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device, strict=True)
+        policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device)
         policy.load_policy_data(policy_spec.data_path)
         return policy
 
@@ -86,7 +84,7 @@ class CheckpointPolicy(MultiAgentPolicy):
             raise ValueError(f"Checkpoint data path points at {CheckpointPolicy.POLICY_SPEC_FILENAME}: {path}")
         state_dict = load_safetensors(path.read_bytes())
         missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=False)
-        if self._strict and (missing or unexpected):
+        if missing or unexpected:
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
         if hasattr(self._policy, "initialize_to_environment"):
             self._policy.initialize_to_environment(self._policy_env_info, self._device)
