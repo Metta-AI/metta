@@ -1,5 +1,7 @@
 from typing import Any, Optional
 
+from typing_extensions import Literal
+
 import numpy as np
 import torch
 from pydantic import Field
@@ -12,11 +14,40 @@ from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
+def _td_lambda_error(
+    *,
+    values: Tensor,
+    rewards: Tensor,
+    dones: Tensor,
+    gamma: float,
+    gae_lambda: float,
+) -> Tensor:
+    _, tt = values.shape
+    delta_lambda = torch.zeros_like(values)
+    if tt <= 1:
+        return delta_lambda
+
+    terminal_next = dones[:, 1:]
+    mask_next = 1.0 - terminal_next
+
+    delta = rewards[:, 1:] + gamma * mask_next * values[:, 1:] - values[:, :-1]  # [B, TT-1]
+
+    running = torch.zeros_like(delta[:, -1])
+    for t in range(tt - 2, -1, -1):
+        running = delta[:, t] + (gamma * gae_lambda) * mask_next[:, t] * running
+        delta_lambda[:, t] = running
+
+    return delta_lambda
+
+
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
+    critic_update: Literal["mse", "gtd_lambda"] = "gtd_lambda"
+    aux_coef: float = Field(default=1.0, ge=0)
+    beta: float = Field(default=1.0, ge=0)
 
     def create(
         self,
@@ -84,6 +115,8 @@ class PPOCritic(Loss):
         self.replay.store(data_td=td, env_id=env_slice)
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        if self.cfg.critic_update == "gtd_lambda":
+            return {"values", "h_values"}
         return {"values"}
 
     def run_train(
@@ -96,8 +129,72 @@ class PPOCritic(Loss):
             return self._zero_tensor, shared_loss_data, False
 
         # Advantages are computed in the core loop and passed through shared_loss_data.
-        # Keep the full advantages around for explained variance logging.
+        # Keep the full advantages around for explained variance logging and prioritized sampling.
         old_values = minibatch["values"]
+        if self.cfg.critic_update == "gtd_lambda":
+            policy_td = shared_loss_data.get("policy_td", None)
+            if policy_td is None:
+                raise RuntimeError("PPOCritic requires shared_loss_data['policy_td'] for critic_update='gtd_lambda'")
+            if "h_values" not in policy_td.keys():
+                raise RuntimeError("Policy must output 'h_values' for critic_update='gtd_lambda'")
+
+            new_values = policy_td["values"].view(old_values.shape)
+            h_values = policy_td["h_values"]
+            if h_values.dim() == 3 and h_values.shape[-1] == 1:
+                h_values = h_values.squeeze(-1)
+            h_values = h_values.view(old_values.shape)
+
+            centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
+            delta_lambda = _td_lambda_error(
+                values=new_values,
+                rewards=centered_rewards,
+                dones=minibatch["dones"],
+                gamma=float(self.trainer_cfg.advantage.gamma),
+                gae_lambda=float(self.trainer_cfg.advantage.gae_lambda),
+            )
+            shared_loss_data["advantages"] = delta_lambda.detach()
+            shared_loss_data["advantages_source"] = "delta_lambda"
+
+            # Use only valid transitions (t=0..TT-2). The last step is padding.
+            dl = delta_lambda[:, :-1]
+            v_t = new_values[:, :-1]
+            h_t = h_values[:, :-1]
+
+            critic_loss = (h_t.detach() * dl).mean() - ((dl.detach() - h_t.detach()) * v_t).mean()
+
+            l2_sum = torch.tensor(0.0, device=critic_loss.device, dtype=critic_loss.dtype)
+            l2_count = 0
+            if self.cfg.beta > 0:
+                aux_module = getattr(self.policy, "gtd_aux", None)
+                components = getattr(self.policy, "components", None)
+                if aux_module is None and components is not None:
+                    aux_module = components.get("gtd_aux", None)
+                if aux_module is not None:
+                    for param in aux_module.parameters():
+                        l2_sum = l2_sum + (param * param).sum()
+                        l2_count += int(param.numel())
+            l2 = l2_sum / max(l2_count, 1)
+            aux_loss = 0.5 * ((dl.detach() - h_t) ** 2).mean() + 0.5 * float(self.cfg.beta) * l2
+
+            total = float(self.cfg.vf_coef) * critic_loss + float(self.cfg.aux_coef) * aux_loss
+            self.loss_tracker["value_loss"].append(float(total.item()))
+            self.loss_tracker["gtd_critic_loss"].append(float(critic_loss.item()))
+            self.loss_tracker["gtd_aux_loss"].append(float(aux_loss.item()))
+            self.loss_tracker["gtd_h_mse"].append(float(((dl.detach() - h_t) ** 2).mean().item()))
+            self.loss_tracker["gtd_delta_lambda_abs"].append(float(dl.detach().abs().mean().item()))
+
+            # Update values in experience buffer for advantage_full recomputation + EV logging.
+            update_td = TensorDict(
+                {
+                    "values": new_values.view(minibatch["values"].shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            indices = shared_loss_data["indices"][:, 0]
+            self.replay.update(indices, update_td)
+
+            return total, shared_loss_data, False
+
         advantages_mb = shared_loss_data["advantages"]
         returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
