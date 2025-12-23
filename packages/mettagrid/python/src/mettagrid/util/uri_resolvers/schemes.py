@@ -293,19 +293,17 @@ def policy_spec_from_uri(
         )
 
     if parsed.scheme == "s3":
-        spec = load_policy_spec_from_s3(
+        return load_policy_spec_from_s3(
             parsed.canonical,
             device=device,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
-        return spec
 
     if parsed.local_path:
-        spec = load_policy_spec_from_path(
+        return load_policy_spec_from_path(
             parsed.local_path,
             device=device,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
-        return spec
 
     raise ValueError(f"Cannot load policy spec from URI: {uri}")
