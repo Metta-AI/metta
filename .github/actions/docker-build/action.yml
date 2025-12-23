@@ -19,6 +19,10 @@ inputs:
   aws_role:
     description: "AWS role to assume"
     required: true
+  bazelisk_version:
+    description: "Version of bazelisk to install"
+    required: false
+    default: ""
 
 outputs:
   tag:
@@ -60,6 +64,5 @@ runs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        # GitHub cache is too slow and has 10Gb limit so they aren't very useful
-        # cache-from: type=gha
-        # cache-to: type=gha,mode=max
+        build-args: |
+          BAZELISK_VERSION=${{ inputs.bazelisk_version }}

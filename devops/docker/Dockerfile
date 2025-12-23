@@ -5,6 +5,8 @@ ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
 ENV READTHEDOCS=True
 ENV UV_LINK_MODE=copy
 
+ARG BAZELISK_VERSION=1.19.0
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -12,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
 WORKDIR /workspace/metta
@@ -51,7 +53,6 @@ RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
 RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
-  --mount=type=cache,id=metta-bazel-cache,target=/workspace/metta/.bazel_output \
   uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]
