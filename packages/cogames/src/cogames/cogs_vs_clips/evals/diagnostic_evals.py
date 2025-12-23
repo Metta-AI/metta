@@ -133,7 +133,8 @@ class _DiagnosticMissionBase(Mission):
         cli_override: bool = False,
     ) -> "Mission":
         forced_map = get_map(self.map_name)
-        mission = super().instantiate(forced_map, num_cogs, variant, cli_override=cli_override)
+        # TODO: Mission doesn't have instantiate() - this code path appears unused
+        mission = super().instantiate(forced_map, num_cogs, variant, cli_override=cli_override)  # type: ignore[attr-defined]
         if not cli_override and self.required_agents is not None:
             mission.num_cogs = self.required_agents
 
@@ -174,7 +175,7 @@ class _DiagnosticMissionBase(Mission):
             return
         chest = cfg.game.objects.get("communal_chest")
         if isinstance(chest, ChestConfig):
-            chest.initial_inventory = self.communal_chest_hearts
+            chest.initial_inventory = {"heart": self.communal_chest_hearts}
 
     def _apply_resource_chests(self, cfg: MettaGridConfig) -> None:
         if not self.resource_chest_stock:
@@ -182,16 +183,16 @@ class _DiagnosticMissionBase(Mission):
         for resource, amount in self.resource_chest_stock.items():
             chest_cfg = cfg.game.objects.get(f"chest_{resource}")
             if isinstance(chest_cfg, ChestConfig):
-                chest_cfg.initial_inventory = amount
+                chest_cfg.initial_inventory = {resource: amount}
 
     def _apply_extractor_settings(self, cfg: MettaGridConfig) -> None:
         for resource in RESOURCE_NAMES:
             extractor = cfg.game.objects.get(f"{resource}_extractor")
-            if extractor is None:
+            if not isinstance(extractor, AssemblerConfig):
                 continue
-            if resource in self.clip_extractors and hasattr(extractor, "start_clipped"):
+            if resource in self.clip_extractors:
                 extractor.start_clipped = True
-            if resource in self.extractor_max_uses and hasattr(extractor, "max_uses"):
+            if resource in self.extractor_max_uses:
                 extractor.max_uses = self.extractor_max_uses[resource]
 
     def _apply_assembler_requirements(self, cfg: MettaGridConfig) -> None:
@@ -235,13 +236,13 @@ class _DiagnosticMissionBase(Mission):
     def _apply_heart_reward_cap(self, cfg: MettaGridConfig) -> None:
         """Normalize diagnostics so a single deposited heart yields at most 1 reward per episode.
 
-        - Make each unit change of chest.heart.amount worth exactly 1.0 reward.
+        - Make each agent-deposited heart worth exactly 1.0 reward (credited only to the depositor).
         - Ensure all chests can store at most 1 heart so total reward per episode cannot exceed 1.
         """
         agent_cfg = cfg.game.agent
         rewards = agent_cfg.rewards
         stats = dict(rewards.stats or {})
-        stats["chest.heart.amount"] = 1.0
+        stats["chest.heart.deposited_by_agent"] = 1.0
         agent_cfg.rewards = rewards.model_copy(update={"stats": stats})
 
         # Cap heart capacity for every chest used in diagnostics (communal or resource-specific).
@@ -419,7 +420,7 @@ class _UnclipBase(_DiagnosticMissionBase):
         # Clip the chosen extractors
         for res in to_clip:
             station = cfg.game.objects.get(f"{res}_extractor")
-            if station is not None and hasattr(station, "start_clipped"):
+            if isinstance(station, AssemblerConfig):
                 station.start_clipped = True
         # Configure unclipping to require the other three resources of the clipped station (no gear)
         unclipping_protos: list[ProtocolConfig] = []

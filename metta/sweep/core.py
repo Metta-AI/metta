@@ -74,7 +74,7 @@ class SweepParameters:
 
     # PPO specific parameters
     PPO_CLIP_COEF = {
-        "trainer.losses.ppo.clip_coef": ParameterConfig(
+        "trainer.losses.ppo_actor.clip_coef": ParameterConfig(
             min=0.05,
             max=0.3,
             distribution="uniform",
@@ -84,7 +84,7 @@ class SweepParameters:
     }
 
     PPO_ENT_COEF = {
-        "trainer.losses.ppo.ent_coef": ParameterConfig(
+        "trainer.losses.ppo_actor.ent_coef": ParameterConfig(
             min=0.0001,
             max=0.03,
             distribution="log_normal",
@@ -94,7 +94,7 @@ class SweepParameters:
     }
 
     PPO_GAE_LAMBDA = {
-        "trainer.losses.ppo.gae_lambda": ParameterConfig(
+        "trainer.advantage.gae_lambda": ParameterConfig(
             min=0.8,
             max=0.99,
             distribution="uniform",
@@ -104,7 +104,7 @@ class SweepParameters:
     }
 
     PPO_VF_COEF = {
-        "trainer.losses.ppo.vf_coef": ParameterConfig(
+        "trainer.losses.ppo_critic.vf_coef": ParameterConfig(
             min=0.1,
             max=1.0,
             distribution="uniform",

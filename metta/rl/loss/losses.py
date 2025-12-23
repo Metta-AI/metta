@@ -6,6 +6,8 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.eer_cloner import EERClonerConfig
+from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
@@ -13,6 +15,7 @@ from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
@@ -27,6 +30,8 @@ class LossesConfig(Config):
     _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
         "sliced_kickstarter",
         "sliced_scripted_cloner",
+        "eer_kickstarter",
+        "eer_cloner",
         "ppo_critic",
         "quantile_ppo_critic",
         "ppo_actor",
@@ -34,6 +39,7 @@ class LossesConfig(Config):
         "contrastive",
         "grpo",
         "supervisor",
+        "sl_checkpointed_kickstarter",
         "kickstarter",
         "logit_kickstarter",
     )
@@ -41,6 +47,7 @@ class LossesConfig(Config):
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
+
     quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
 
     # other aux losses below
@@ -55,6 +62,11 @@ class LossesConfig(Config):
     sliced_scripted_cloner: SlicedScriptedClonerConfig = Field(
         default_factory=lambda: SlicedScriptedClonerConfig(enabled=False)
     )
+    sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
+        default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
+    )
+    eer_kickstarter: EERKickstarterConfig = Field(default_factory=lambda: EERKickstarterConfig(enabled=False))
+    eer_cloner: EERClonerConfig = Field(default_factory=lambda: EERClonerConfig(enabled=False))
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )

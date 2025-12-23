@@ -1,4 +1,4 @@
-import std/[json, tables],
+import std/[json, tables, strutils],
   boxy,
   zippy, vmath, jsony,
   ./validation
@@ -830,9 +830,23 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
 
 proc loadReplay*(data: string, fileName: string): Replay =
   ## Load a replay from a string.
+  if fileName.endsWith(".json"):
+    return loadReplayString(data, fileName)
+
+  if not (fileName.endsWith(".json.gz") or fileName.endsWith(".json.z")):
+    # TODO: Show error to user.
+    echo "Unrecognized replay extension: ", fileName
+    return Replay()
+
+  let expectedFormat =
+    if fileName.endsWith(".json.gz"):
+      dfGzip
+    else: # fileName.endsWith(".json.z"):
+      dfZlib
+
   let jsonData =
     try:
-      zippy.uncompress(data)
+      zippy.uncompress(data, dataFormat = expectedFormat)
     except ZippyError:
       # TODO: Show error to user.
       echo "Error uncompressing replay: ", getCurrentExceptionMsg()

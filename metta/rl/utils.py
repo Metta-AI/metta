@@ -1,6 +1,6 @@
 """Training utilities for Metta RL."""
 
-from typing import Sequence, Tuple
+from typing import Collection, Tuple
 
 import torch
 from tensordict import TensorDict
@@ -84,7 +84,7 @@ def add_dummy_loss_for_unused_params(
     loss: Tensor,
     *,
     td: TensorDict,
-    used_keys: Sequence[str],
+    used_keys: Collection[str],
 ) -> Tensor:
     """Add zero-weighted terms to loss for unused TensorDict outputs to satisfy DDP.
 

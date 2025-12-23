@@ -231,6 +231,7 @@ class TestEvalTaskOrchestratorIntegration:
         assert len(attempts.attempts) >= 1
         failed_attempt = attempts.attempts[0]
         assert failed_attempt.status == "system_error"
+        assert failed_attempt.status_details is not None
         assert failed_attempt.status_details.get("unassign_reason") == "worker_dead"
 
         # Task should be back to unprocessed (ready for retry)

@@ -17,7 +17,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -128,7 +128,7 @@ def train(
         torch_profiler=TorchProfilerConfig(),
     )
     scheduler_run_gates: list[LossRunGate] = []
-    scheduler_rules: list[HyperUpdateRule] = []
+    scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,
         training_env_cfg=tt.training_env,
@@ -264,7 +264,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.sliced",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both

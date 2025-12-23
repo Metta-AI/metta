@@ -1,8 +1,8 @@
 import
-  std/[strutils, strformat, os, parseopt, json],
+  std/[strutils, strformat, os, parseopt],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap, header]
+  footer, timeline, minimap, header, replayloader]
 
 when isMainModule:
   # Build the atlas.
@@ -11,10 +11,10 @@ when isMainModule:
   builder.addDir(rootDir / "data/ui/", rootDir / "data/")
   builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
   builder.addDir(rootDir / "data/resources/", rootDir / "data/")
-  builder.addDir(rootDir / "data/agents/", rootDir / "data/")
+  # builder.addDir(rootDir / "data/agents/", rootDir / "data/")
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
   builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-  builder.write(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  builder.write(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
 
   window = newWindow(
     "MettaScope",
@@ -50,10 +50,6 @@ proc parseUrlParams() =
   ## Parse URL parameters.
   let url = parseUrl(window.url)
   commandLineReplay = url.query["replay"]
-
-proc onReplayLoaded() =
-  ## Called when a replay is loaded.
-  echo "Replay loaded: ", replay.fileName
 
 proc replaySwitch(replay: string) =
   ## Load the replay.
@@ -139,13 +135,13 @@ proc initPanels() =
 
   rootArea = Area()
   rootArea.split(Vertical)
-  rootArea.split = 0.30
+  rootArea.split = 0.22
 
   rootArea.areas[0].split(Horizontal)
   rootArea.areas[0].split = 0.7
 
   rootArea.areas[1].split(Vertical)
-  rootArea.areas[1].split = 0.7
+  rootArea.areas[1].split = 0.85
 
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
@@ -191,17 +187,22 @@ proc initMettascope*() =
 
   window.onFrame = onFrame
 
+  window.onFileDrop = proc(fileName: string, fileData: string) =
+    echo "File dropped: ", fileName, " (", fileData.len, " bytes)"
+    if fileName.endsWith(".json.z"):
+      try:
+        common.replay = loadReplay(fileData, fileName)
+        onReplayLoaded()
+        echo "Successfully loaded replay: ", fileName
+      except:
+        echo "Error loading replay file: ", getCurrentExceptionMsg()
+    else:
+      echo "Ignoring dropped file (not .json.z): ", fileName
+
   initPanels()
 
-  sk = newSilky(rootDir / "dist/atlas.png", rootDir / "dist/atlas.json")
+  sk = newSilky(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
   bxy = newBoxy()
-
-  if playMode == Historical:
-    when defined(emscripten):
-      parseUrlParams()
-    else:
-      parseArgs()
-    replaySwitch(commandLineReplay)
 
   ## Initialize the world map zoom info.
   worldMapZoomInfo = ZoomInfo()
@@ -212,6 +213,13 @@ proc initMettascope*() =
   worldMapZoomInfo.maxZoom = 50
   worldMapZoomInfo.scrollArea = Rect(x: 0, y: 0, w: 500, h: 500)
   worldMapZoomInfo.hasMouse = false
+
+  if playMode == Historical:
+    when defined(emscripten):
+      parseUrlParams()
+    else:
+      parseArgs()
+    replaySwitch(commandLineReplay)
 
 proc tickMettascope*() =
   pollEvents()

@@ -36,12 +36,16 @@ private:
             HasInventory::transfer_resources(agent.inventory, inventory, resource, delta, true);
         if (transferred > 0) {
           any_transfer = true;
+          // Track per-agent chest deposits so only the actor can be rewarded
+          agent.stats.add("chest." + agent.stats.resource_name(resource) + ".deposited_by_agent", transferred);
         }
       } else if (delta < 0) {
         InventoryDelta transferred =
             HasInventory::transfer_resources(inventory, agent.inventory, resource, -delta, true);
         if (transferred > 0) {
           any_transfer = true;
+          // Track per-agent withdrawals (even if later disabled by config)
+          agent.stats.add("chest." + agent.stats.resource_name(resource) + ".withdrawn_by_agent", transferred);
         }
       }
     }

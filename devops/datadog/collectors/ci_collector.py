@@ -36,6 +36,7 @@ class CICollectorConfig(BaseSettings):
     hotfix_threshold: int = Field(default=5, description="Threshold for hotfix count")
     force_merge_threshold: int = Field(default=7, description="Threshold for force merge count")
     revert_threshold: int = Field(default=1, description="Threshold for revert count")
+    other_failing_threshold: int = Field(default=2, description="Threshold for other failing workflows")
     tests_blocking_merge_workflows: List[str] = Field(
         default_factory=list, description="Workflow names for tests that block merge"
     )
@@ -135,6 +136,62 @@ class CICollector(BaseCollector):
 
         samples: List[MetricSample] = []
 
+        # Flaky tests count
+        samples.extend(
+            self.build_criterion_samples(
+                job="ci_workflow",
+                category="ci",
+                criterion="flaky_tests",
+                value=float(flaky_runs),
+                target=float(self.config.flaky_threshold),
+                operator="<",
+                passed=flaky_runs < self.config.flaky_threshold,
+                unit="count",
+            )
+        )
+
+        # P90 duration
+        samples.extend(
+            self.build_criterion_samples(
+                job="ci_workflow",
+                category="ci",
+                criterion="duration_p90",
+                value=p90_duration,
+                target=self.config.duration_p90_minutes,
+                operator="<",
+                passed=p90_duration < self.config.duration_p90_minutes,
+                unit="minutes",
+            )
+        )
+
+        # Cancelled runs count
+        samples.extend(
+            self.build_criterion_samples(
+                job="ci_workflow",
+                category="ci",
+                criterion="cancelled_runs",
+                value=float(cancelled_runs),
+                target=float(self.config.cancelled_threshold),
+                operator="<",
+                passed=cancelled_runs < self.config.cancelled_threshold,
+                unit="count",
+            )
+        )
+
+        # Success ratio (all runs succeeded)
+        samples.extend(
+            self.build_criterion_samples(
+                job="ci_workflow",
+                category="ci",
+                criterion="success_ratio",
+                value=1.0 if success_ratio == 1.0 else 0.0,
+                target=1.0,
+                operator=">=",
+                passed=success_ratio == 1.0,
+            )
+        )
+
+        # TODO(datadog-migration): Remove legacy metrics after dashboard migration (2025-02-01)
         samples.append(
             self.build_sample(
                 metric="ci.workflow.flaky_tests",
@@ -147,7 +204,6 @@ class CICollector(BaseCollector):
                 metric_kind=MetricKind.COUNT,
             )
         )
-
         samples.append(
             self.build_sample(
                 metric="ci.workflow.duration.p90",
@@ -159,7 +215,6 @@ class CICollector(BaseCollector):
                 status="pass" if p90_duration < self.config.duration_p90_minutes else "fail",
             )
         )
-
         samples.append(
             self.build_sample(
                 metric="ci.workflow.cancelled",
@@ -172,7 +227,6 @@ class CICollector(BaseCollector):
                 metric_kind=MetricKind.COUNT,
             )
         )
-
         samples.append(
             self.build_sample(
                 metric="ci.workflow.success",
@@ -202,8 +256,15 @@ class CICollector(BaseCollector):
         since = (utcnow() - timedelta(days=self.config.weekly_window_days)).date().isoformat()
         samples: List[MetricSample] = []
 
-        # Map task names to metric suffixes per the plan
-        metric_suffix_map = {
+        # Map task names to criterion names
+        criterion_map = {
+            "hotfix_commits": "hotfix_count",
+            "force_merges": "force_merge_count",
+            "reverts": "revert_count",
+        }
+
+        # Map task names to legacy metric suffixes
+        legacy_metric_map = {
             "hotfix_commits": "github.hotfix.count",
             "force_merges": "github.force_merge.count",
             "reverts": "github.reverts.count",
@@ -211,10 +272,25 @@ class CICollector(BaseCollector):
 
         for _metric_name, (labels, threshold, task) in label_groups.items():
             count = self._count_prs_by_labels(labels, since)
-            metric_suffix = metric_suffix_map.get(task, f"github.{task}.count")
+            criterion = criterion_map.get(task, task)
+            samples.extend(
+                self.build_criterion_samples(
+                    job="commit_history",
+                    category="hygiene",
+                    criterion=criterion,
+                    value=float(count),
+                    target=float(threshold),
+                    operator="<",
+                    passed=count < threshold,
+                    unit="count",
+                )
+            )
+
+            # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
+            legacy_metric = legacy_metric_map.get(task, f"github.{task}.count")
             samples.append(
                 self.build_sample(
-                    metric=metric_suffix,
+                    metric=legacy_metric,
                     value=count,
                     workflow_name="commit_history",
                     task=task,
@@ -224,17 +300,30 @@ class CICollector(BaseCollector):
                     metric_kind=MetricKind.COUNT,
                 )
             )
+
             self.logger.info("Weekly %s count=%s since=%s labels=%s", task, count, since, labels)
 
         return samples
 
     def _build_workflow_status_metrics(self) -> List[MetricSample]:
-        """Build metrics for specific workflow status checks per Nishad's plan."""
+        """Build metrics for specific workflow status checks."""
         samples: List[MetricSample] = []
 
         # 1. Tests that block merge passing
         if self.config.tests_blocking_merge_workflows:
             passing = self._check_workflows_passing(self.config.tests_blocking_merge_workflows)
+            samples.extend(
+                self.build_criterion_samples(
+                    job="ci_workflow",
+                    category="ci",
+                    criterion="tests_blocking_merge",
+                    value=1.0 if passing else 0.0,
+                    target=1.0,
+                    operator=">=",
+                    passed=passing,
+                )
+            )
+            # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
             samples.append(
                 self.build_sample(
                     metric="ci.workflow.tests_blocking_merge",
@@ -250,6 +339,18 @@ class CICollector(BaseCollector):
         # 2. Benchmarks passing
         if self.config.benchmarks_workflows:
             passing = self._check_workflows_passing(self.config.benchmarks_workflows)
+            samples.extend(
+                self.build_criterion_samples(
+                    job="ci_workflow",
+                    category="ci",
+                    criterion="benchmarks_passing",
+                    value=1.0 if passing else 0.0,
+                    target=1.0,
+                    operator=">=",
+                    passed=passing,
+                )
+            )
+            # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
             samples.append(
                 self.build_sample(
                     metric="ci.workflow.benchmarks",
@@ -264,6 +365,19 @@ class CICollector(BaseCollector):
 
         # 3. Num other workflows whose latest run off main is failing
         failing_count = self._count_other_workflows_failing()
+        samples.extend(
+            self.build_criterion_samples(
+                job="ci_workflow",
+                category="ci",
+                criterion="other_workflows_failing",
+                value=float(failing_count),
+                target=float(self.config.other_failing_threshold),
+                operator="<",
+                passed=failing_count < self.config.other_failing_threshold,
+                unit="count",
+            )
+        )
+        # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
         samples.append(
             self.build_sample(
                 metric="ci.workflow.other_failing",
@@ -271,8 +385,8 @@ class CICollector(BaseCollector):
                 workflow_name="latest_state_of_main",
                 task="other_workflows",
                 check="failing_count",
-                condition="< 2",
-                status="pass" if failing_count < 2 else "fail",
+                condition=f"< {self.config.other_failing_threshold}",
+                status="pass" if failing_count < self.config.other_failing_threshold else "fail",
                 metric_kind=MetricKind.COUNT,
             )
         )

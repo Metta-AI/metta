@@ -274,7 +274,9 @@ class sLSTMCell(MemoryCell):
         m0 = m_prev.view(B, NH, DH)
         states0 = torch.stack((y0, c0, n0, m0), dim=0)
 
-        allow_triton = (self.head_dim & (self.head_dim - 1)) == 0
+        # Triton kernels use tensor-core `tl.dot` paths which can exceed shared-memory limits
+        # for very large per-head dimensions; fall back to PyTorch in that case.
+        allow_triton = self.head_dim >= 16 and (self.head_dim & (self.head_dim - 1)) == 0 and self.head_dim <= 512
         logging.debug(f"head_dim: {self.head_dim}, allow_triton: {allow_triton}, is_step: {is_step}")
         backend_fn = select_backend(
             triton_fn="cortex.kernels.triton.slstm:slstm_sequence_triton",

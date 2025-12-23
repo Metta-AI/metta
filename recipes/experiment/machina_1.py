@@ -23,6 +23,8 @@ def train(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
+    if eval_variants is None:
+        eval_variants = variants
 
     tt = train_single_mission(
         mission="machina_1.open_world",
@@ -33,8 +35,6 @@ def train(
         teacher=teacher,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
-
-    tt.training_env.maps_cache_size = 30
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     full_vibes = [v.name for v in vibes.VIBES]
@@ -55,7 +55,7 @@ def train(
         )
     ]
     # Run evals periodically during long runs
-    tt.evaluator.epoch_interval = 600
+    tt.evaluator.epoch_interval = 150
     return tt
 
 
@@ -69,13 +69,13 @@ def train_sweep(
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
 
-    base_variants = ["heart_chorus", "inventory_heart_tune"]
+    base_variants = ["heart_chorus"]
     if variants:
         for v in variants:
             if v not in base_variants:
                 base_variants.append(v)
 
-    return train(
+    tt = train(
         num_cogs=num_cogs,
         variants=base_variants,
         eval_variants=eval_variants or base_variants,
@@ -83,6 +83,9 @@ def train_sweep(
         policy_architecture=policy_architecture,
         teacher=teacher,
     )
+    # Sweep-friendly default (kept consistent with the shared CvC sweep search space).
+    tt.trainer.total_timesteps = 1_000_000_000
+    return tt
 
 
 def evaluate_stub(*args, **kwargs) -> StubTool:

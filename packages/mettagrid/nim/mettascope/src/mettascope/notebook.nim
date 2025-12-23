@@ -79,7 +79,7 @@ when defined(emscripten):
     if binaryLen > 0:
       copyMem(fileData[0].addr, binaryPtr, binaryLen)
     
-    if fileName.endsWith(".json.z"):
+    if fileName.endsWith(".json.gz") or fileName.endsWith(".json.z"):
       try:
         common.replay = loadReplay(fileData, fileName)
         onReplayLoaded()

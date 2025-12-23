@@ -21,7 +21,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
@@ -103,7 +103,7 @@ def make_curriculum(
 
             # Add buckets
             mission_tasks.add_bucket("game.max_steps", [750, 1000, 1250, 1500])
-            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.amount", [0, 1, 5, 10])
+            mission_tasks.add_bucket("game.agent.rewards.stats.chest.heart.deposited_by_agent", [0, 1, 5, 10])
             mission_tasks.add_bucket("game.agent.rewards.inventory.heart", [0, 1, 5, 10])
 
             # Resource types for reward bucketing
@@ -174,7 +174,7 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
     scheduler_run_gates: list[LossRunGate] = []
-    scheduler_rules: list[HyperUpdateRule] = []
+    scheduler_rules: list[ScheduleRule] = []
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
 
     if teacher and teacher.enabled:

@@ -9,14 +9,12 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.util.file import ParsedURI
 from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_filename,
     parse_uri,
-    policy_spec_from_uri,
 )
 
 if TYPE_CHECKING:
@@ -30,10 +28,10 @@ class SLCheckpointedKickstarterConfig(LossConfig):
     temperature: float = Field(default=2.0, gt=0)
 
     # Checkpoint reloading parameters
-    checkpointed_interval: int = Field(gt=0, description="Interval at which teacher checkpoints are saved")
-    epochs_per_checkpoint: int = Field(gt=0, description="Number of epochs to train with each checkpoint")
-    terminating_epoch: int = Field(ge=0, description="Stop reloading checkpoints before this epoch")
-    final_checkpoint: int = Field(ge=0, description="Final checkpoint to use (can be beyond terminating)")
+    checkpointed_interval: int = Field(default=1, gt=0, description="Interval at which teacher checkpoints are saved")
+    epochs_per_checkpoint: int = Field(default=1, gt=0, description="Number of epochs to train with each checkpoint")
+    terminating_epoch: int = Field(default=0, ge=0, description="Stop reloading checkpoints before this epoch")
+    final_checkpoint: int = Field(default=0, ge=0, description="Final checkpoint to use (can be beyond terminating)")
 
     def create(
         self,
@@ -80,13 +78,7 @@ class SLCheckpointedKickstarter(Loss):
         self._epochs_per_checkpoint = self.cfg.epochs_per_checkpoint
         self._terminating_epoch = self.cfg.terminating_epoch
         self._final_checkpoint = self.cfg.final_checkpoint
-
-        policy_env_info = getattr(self.env, "policy_env_info", None)
-        if policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=str(self.device))
-        self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
+        self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
 
         self.teacher_policy_spec = self.teacher_policy.get_agent_experience_spec()
 
@@ -96,6 +88,9 @@ class SLCheckpointedKickstarter(Loss):
 
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
 
     def run_train(
         self,
@@ -145,8 +140,8 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        parsed = ParsedURI.parse(self._base_teacher_uri)
-        info = parse_uri(self._base_teacher_uri).checkpoint_info
+        parsed = parse_uri(self._base_teacher_uri, allow_none=False)
+        info = parsed.checkpoint_info
         if info is None:
             raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
         run_name, _ = info
@@ -165,15 +160,15 @@ class SLCheckpointedKickstarter(Loss):
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
-    def load_teacher_policy(self, checkpointed_epoch: Optional[int] = None) -> None:
+    def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""
         new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
-        policy_env_info = getattr(self.env, "policy_env_info", None)
-        if policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to reload teacher policy")
-
-        teacher_spec = policy_spec_from_uri(new_uri, device=str(self.device))
-        self.teacher_policy = initialize_or_load_policy(policy_env_info, teacher_spec)
+        self.teacher_policy = load_teacher_policy(
+            self.env,
+            policy_uri=new_uri,
+            device=self.device,
+            error="Environment metadata is required to reload teacher policy",
+        )
 
         # Detach gradient
         for param in self.teacher_policy.parameters():

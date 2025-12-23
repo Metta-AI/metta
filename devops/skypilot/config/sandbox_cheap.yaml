@@ -4,8 +4,8 @@ resources:
   instance_type: m6i.2xlarge # 8 vCPUs, 32GB RAM (~$0.384/hour on-demand)
   cpus: 8+
   memory: 32+
-  # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
-  image_id: ami-0ebd2b5422ef02377
+  # Ubuntu Server 22.04 LTS (Jammy), us-east-1, 2025-12-12
+  image_id: ami-0030e4319cbf4dbf2
 
 file_mounts:
   /mnt/s3/softmax-public:

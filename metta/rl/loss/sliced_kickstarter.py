@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -9,10 +9,8 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -20,7 +18,7 @@ if TYPE_CHECKING:
 
 class SlicedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=10.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
 
@@ -57,15 +55,7 @@ class SlicedKickstarter(Loss):
         cfg: "SlicedKickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-
-        base_policy_env_info = getattr(self.env, "policy_env_info", None)
-        if base_policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
-        self.teacher_policy = initialize_or_load_policy(base_policy_env_info, teacher_spec)
-        if isinstance(self.teacher_policy, MptPolicy):
-            self.teacher_policy = self.teacher_policy._policy
+        self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -77,6 +67,8 @@ class SlicedKickstarter(Loss):
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
+            rewards=scalar_f32,
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
             stud_mask=boolean,
@@ -102,13 +94,14 @@ class SlicedKickstarter(Loss):
         td["ppo_mask"] = self.ppo_mask
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
 
     def run_train(
         self,
@@ -151,9 +144,11 @@ class SlicedKickstarter(Loss):
         # value loss
         teacher_value = minibatch["teacher_values"].detach()
         student_value = student_td["values"]
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        ks_value_loss_vec = (teacher_value.detach() - student_value) ** 2
+        ks_value_loss = ks_value_loss_vec.mean()
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        shared_loss_data["ks_val_loss_vec"] = ks_value_loss_vec
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))

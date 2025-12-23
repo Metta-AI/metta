@@ -29,12 +29,22 @@ def _extract_recipe_path(job: Job) -> str | None:
     return None
 
 
-def job_to_metrics(job: Job) -> list[MetricSample]:
-    """Convert a Job result to Datadog MetricSamples.
+def _normalize_criterion_name(metric: str) -> str:
+    """Normalize criterion metric name for tagging.
 
-    Emits:
-    - One "runs_success" metric per job (1.0 if succeeded and acceptance passed, 0.0 otherwise)
-    - One metric per acceptance criterion (using criterion.metric_name if provided, or deriving from criterion.metric)
+    Examples:
+        "overview/sps" -> "overview_sps"
+        "env_agent/heart.gained" -> "env_agent_heart_gained"
+    """
+    return metric.replace("/", "_").replace(".", "_")
+
+
+def job_to_metrics(job: Job) -> list[MetricSample]:
+    """Convert a Job result to Datadog MetricSamples using unified acceptance schema.
+
+    Emits triples (value, target, status) for:
+    - runs_success: Whether the job succeeded overall
+    - Each acceptance criterion defined on the job
 
     Args:
         job: Completed job from the runner.
@@ -49,12 +59,15 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
         logger.debug("Skipping job %s: could not extract recipe path from command", job.name)
         return samples
 
+    # New metrics use cleaned job tag (no "recipes." prefix)
+    job_tag = recipe_path.replace("recipes.", "").replace(".", "_")
+    # Legacy metrics use original format (with "recipes_" prefix) for backward compat
+    legacy_job_tag = recipe_path.replace(".", "_")
+
+    # Build base tags for additional context
     base_tags = {
-        "workflow_name": recipe_path,
         "job_name": job.name,
     }
-
-    # Add remote/local tag
     if job.is_remote:
         base_tags["execution_type"] = "remote"
         if job.remote_gpus:
@@ -64,42 +77,87 @@ def job_to_metrics(job: Job) -> list[MetricSample]:
     else:
         base_tags["execution_type"] = "local"
 
-    # Emit one "runs_success" metric per job
-    success_value = 1.0 if job.status == JobStatus.SUCCEEDED and job.acceptance_passed is not False else 0.0
+    # Determine overall success
+    success = job.status == JobStatus.SUCCEEDED and job.acceptance_passed is not False
+
+    # Emit runs_success criterion (always emitted for completed jobs)
+    samples.extend(
+        MetricSample.from_criterion(
+            job=job_tag,
+            category="training",
+            criterion="runs_success",
+            value=1.0 if success else 0.0,
+            target=1.0,
+            operator=">=",
+            passed=success,
+            base_tags=base_tags,
+        )
+    )
+
+    # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
     samples.append(
         MetricSample(
-            name=f"metta.infra.cron.stable.{recipe_path.replace('.', '_')}.runs_success",
-            value=success_value,
+            name=f"metta.infra.cron.stable.{legacy_job_tag}.runs_success",
+            value=1.0 if success else 0.0,
             tags=base_tags,
         )
     )
 
-    # Emit one metric per acceptance criterion
+    # Emit each acceptance criterion
     if job.acceptance and job.status == JobStatus.SUCCEEDED and job.metrics:
         for criterion in job.acceptance:
-            # Use metric_name if provided, otherwise derive from criterion.metric
-            metric_name = criterion.metric_name
-            if not metric_name:
-                # Derive metric name from criterion.metric (e.g., "overview/sps" -> "overview_sps")
-                metric_name = criterion.metric.replace("/", "_").replace(".", "_")
-
-            # Get the actual value from job.metrics
             actual_value = job.metrics.get(criterion.metric)
-            if actual_value is not None:
-                # Use the evaluation result from the runner (don't recompute)
-                criterion_passed = job.criterion_results.get(criterion.metric, False)
-                samples.append(
-                    MetricSample(
-                        name=f"metta.infra.cron.stable.{recipe_path.replace('.', '_')}.{metric_name}",
-                        value=float(actual_value),
-                        tags={
-                            **base_tags,
-                            "criterion_passed": str(criterion_passed).lower(),
-                            "criterion_threshold": str(criterion.threshold),
-                            "criterion_operator": criterion.operator,
-                        },
-                    )
+            if actual_value is None:
+                logger.debug(
+                    "Skipping criterion %s for job %s: metric not found in job.metrics",
+                    criterion.metric,
+                    job.name,
                 )
+                continue
+
+            criterion_passed = job.criterion_results.get(criterion.metric, False)
+            criterion_name = _normalize_criterion_name(criterion.metric)
+
+            # Build criterion-specific tags
+            criterion_tags = dict(base_tags)
+
+            # Handle tuple thresholds (for "in" operator)
+            if isinstance(criterion.threshold, tuple):
+                target_low, target_high = criterion.threshold
+                # Use upper bound for target line overlay
+                target_value = float(target_high)
+                # Preserve range bounds in tags
+                criterion_tags["target_low"] = str(target_low)
+                criterion_tags["target_high"] = str(target_high)
+            else:
+                target_value = float(criterion.threshold)
+
+            samples.extend(
+                MetricSample.from_criterion(
+                    job=job_tag,
+                    category="training",
+                    criterion=criterion_name,
+                    value=float(actual_value),
+                    target=target_value,
+                    operator=criterion.operator,
+                    passed=criterion_passed,
+                    base_tags=criterion_tags,
+                )
+            )
+
+            # TODO(datadog-migration): Remove legacy metric after dashboard migration (2025-02-01)
+            samples.append(
+                MetricSample(
+                    name=f"metta.infra.cron.stable.{legacy_job_tag}.{criterion_name}",
+                    value=float(actual_value),
+                    tags={
+                        **base_tags,
+                        "criterion_passed": str(criterion_passed).lower(),
+                        "criterion_threshold": str(criterion.threshold),
+                        "criterion_operator": criterion.operator,
+                    },
+                )
+            )
 
     return samples
 

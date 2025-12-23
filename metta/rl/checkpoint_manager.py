@@ -10,7 +10,6 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -104,6 +103,8 @@ class CheckpointManager:
             "epoch": state.get("epoch", 0),
             "agent_step": state.get("agent_step", 0),
         }
+        if "avg_reward" in state:
+            result["avg_reward"] = state["avg_reward"]
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
         if "curriculum_state" in state:
@@ -117,6 +118,7 @@ class CheckpointManager:
         optimizer,
         epoch: int,
         agent_step: int,
+        avg_reward: torch.Tensor | float | None = None,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
@@ -129,6 +131,8 @@ class CheckpointManager:
             optimizer.eval()
 
         state: dict[str, Any] = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        if avg_reward is not None:
+            state["avg_reward"] = torch.as_tensor(avg_reward).detach().to(device="cpu")
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:
@@ -154,7 +158,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-
-
-# Here temporarily for backwards-compatibility but we will move it
-CheckpointPolicy = MptPolicy

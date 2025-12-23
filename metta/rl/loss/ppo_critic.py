@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -8,13 +8,13 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.753832, ge=0)
+    vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
 
@@ -80,10 +80,11 @@ class PPOCritic(Loss):
             self.burn_in_steps_iter += 1
             return
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"values"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -117,9 +118,24 @@ class PPOCritic(Loss):
                     vf_clip_coef,
                 )
                 v_loss_clipped = (v_clipped - returns) ** 2
-                v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                v_loss_vec = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped)
             else:
-                v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+                v_loss_vec = 0.5 * ((newvalue_reshaped - returns) ** 2)
+
+            v_loss = v_loss_vec.mean()
+
+            shared_loss_data["ppo_val_loss_vec"] = v_loss_vec
+
+            # 12-21-25 av experimental code. cute but delete later (compare with Kickstarter value loss if available)
+            if "ks_val_loss_vec" in shared_loss_data:
+                analyze_loss_alignment(
+                    shared_data=shared_loss_data,
+                    name1="ks_val",
+                    name2="ppo_val",
+                    params=list(self.policy.parameters()),
+                    tracker=self.loss_tracker,
+                )
+
             # Update values in experience buffer
             update_td = TensorDict(
                 {

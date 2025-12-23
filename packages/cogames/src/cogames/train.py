@@ -319,6 +319,8 @@ def train(
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
+                if network is None:
+                    continue
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
                         logger.error(f"NaN/Inf detected in gradients for parameter: {name}", exc_info=True)

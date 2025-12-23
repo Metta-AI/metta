@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import typer
 from rich import box
@@ -58,7 +58,7 @@ def load_mission_set(mission_set: str) -> list[Mission]:
                 missions_list.append(mission)
 
     elif mission_set == "diagnostic_evals":
-        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
+        missions_list = cast(list[Mission], [mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
     elif mission_set == "integrated_evals":
         missions_list = list(INTEGRATED_EVAL_MISSIONS)
     elif mission_set == "spanning_evals":

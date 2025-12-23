@@ -17,7 +17,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -127,7 +127,7 @@ def train(
         torch_profiler=TorchProfilerConfig(),
     )
     scheduler_run_gates: list[LossRunGate] = []
-    scheduler_rules: list[HyperUpdateRule] = []
+    scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,
         training_env_cfg=tt.training_env,
@@ -138,9 +138,8 @@ def train(
     )
     scheduler_rules.extend(
         [
-            HyperUpdateRule(
-                loss_instance_name="logit_kickstarter",
-                attr_path="action_loss_coef",
+            ScheduleRule(
+                target_path="losses.logit_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -148,9 +147,8 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-            HyperUpdateRule(
-                loss_instance_name="logit_kickstarter",
-                attr_path="value_loss_coef",
+            ScheduleRule(
+                target_path="losses.logit_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,
@@ -287,7 +285,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.logit",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both

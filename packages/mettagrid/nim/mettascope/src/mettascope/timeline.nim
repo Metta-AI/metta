@@ -18,6 +18,9 @@ proc onRequestPython*() =
   processActions()
 
 proc playControls*() =
+  let now = epochTime()
+  let deltaTime = now - lastFrameTime
+
   if window.buttonPressed[KeySpace]:
     play = not play
     stepFloat = step.float32
@@ -31,9 +34,6 @@ proc playControls*() =
     play = true
 
   if play:
-    let now = epochTime()
-    let deltaTime = now - lastFrameTime
-    lastFrameTime = now
     stepFloat += playSpeed * deltaTime
     case playMode:
     of Historical:
@@ -62,6 +62,8 @@ proc playControls*() =
   # Fire onStepChanged once and only once when step changes.
   if step != previousStep:
     previousStep = step
+
+  lastFrameTime = now
 
 proc drawTimeline*(pos, size: Vec2) =
   ribbon(pos, size, ScrubberColor):

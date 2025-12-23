@@ -27,6 +27,8 @@ dependencies = [
   "wandb>=0.22.3",
   "metta-common",
   "gitta",
+  "sqlmodel>=0.0.22",
+  "greenlet>=3.0.0",
 ]
 
 [dependency-groups]

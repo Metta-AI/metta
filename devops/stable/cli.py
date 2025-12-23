@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -47,6 +48,11 @@ def _write_summary(runner: Runner, state_dir: Path) -> None:
     # Discord summary (file)
     state_dir.mkdir(parents=True, exist_ok=True)
     lines = [f"**Jobs**: {header}", "", "```", *table, "```"]
+    gh_server = os.environ.get("GITHUB_SERVER_URL")
+    gh_repo = os.environ.get("GITHUB_REPOSITORY")
+    gh_run_id = os.environ.get("GITHUB_RUN_ID")
+    if gh_server and gh_repo and gh_run_id:
+        lines.append(f"\n<{gh_server}/{gh_repo}/actions/runs/{gh_run_id}>")
     (state_dir / "discord_summary.txt").write_text("\n".join(lines))
 
     # GitHub summary (env var)
@@ -94,6 +100,9 @@ def main(
     skip_submitting_metrics: Annotated[
         bool, typer.Option("--skip-submitting-metrics", help="Skip submitting metrics to Datadog")
     ] = False,
+    dump_metrics: Annotated[
+        Path | None, typer.Option("--dump-metrics", help="Write metrics JSON to file for inspection")
+    ] = None,
 ):
     # Get Datadog client up front to fail fast in case of missing credentials
     datadog_client: DatadogMetricsClient | None = None
@@ -134,6 +143,13 @@ def main(
     # Emit Datadog metrics for completed jobs
     metrics = jobs_to_metrics(runner.jobs)
     if metrics:
+        # Dump metrics to file if requested
+        if dump_metrics:
+            payload = [m.to_dict() for m in metrics]
+            dump_metrics.parent.mkdir(parents=True, exist_ok=True)
+            dump_metrics.write_text(json.dumps(payload, indent=2))
+            print(f"\nWrote {len(metrics)} metrics to {dump_metrics}")
+
         if not skip_submitting_metrics:
             logger.info("Emitting %d Datadog metrics from job results", len(metrics))
             assert datadog_client is not None

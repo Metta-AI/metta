@@ -5,9 +5,6 @@ import sys
 
 from setuptools import setup
 
-# Always build extensions
-BUILD_EXTENSIONS = True
-
 # Import torch for extensions
 try:
     import torch
@@ -38,17 +35,30 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 # Get torch library path for rpath
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
-# Check if CUDA compiler is available.
-# Note: `torch.cuda.is_available()` reflects *runtime* GPU availability, which may be False in build
-# environments (e.g., CI, containers) even when a CUDA toolkit is present. We only need the toolkit
-# to compile the extension.
-if shutil.which("nvcc"):
+force_cuda = os.getenv("PUFFERLIB_BUILD_CUDA", "0") == "1"
+disable_cuda = os.getenv("PUFFERLIB_DISABLE_CUDA", "0") == "1"
+has_nvcc = shutil.which("nvcc") is not None
+
+try:
+    cuda_runtime_available = bool(torch.cuda.is_available() and torch.cuda.device_count() > 0)
+except Exception:
+    cuda_runtime_available = False
+
+build_with_cuda = has_nvcc and (force_cuda or (cuda_runtime_available and not disable_cuda))
+
+if build_with_cuda:
     extension_class = CUDAExtension
     torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
-    print("Building with CUDA support")
+    if force_cuda and not cuda_runtime_available:
+        print("Building with CUDA support (PUFFERLIB_BUILD_CUDA=1; runtime CUDA unavailable)")
+    else:
+        print("Building with CUDA support")
 else:
     extension_class = CppExtension
-    print("Building with CPU-only support")
+    if disable_cuda and has_nvcc:
+        print("Building with CPU-only support (PUFFERLIB_DISABLE_CUDA=1)")
+    else:
+        print("Building with CPU-only support")
 
 # Add rpath for torch libraries
 extra_link_args = []
