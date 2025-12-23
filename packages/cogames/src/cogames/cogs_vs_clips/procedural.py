@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal, override
+from typing import Any, Literal, cast, override
 
 import numpy as np
 
@@ -402,13 +402,11 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
         if not isinstance(env.game.map_builder, MapGen.Config):
             return False
         instance = env.game.map_builder.instance
-        if not isinstance(instance, BaseHub.Config):
-            return False
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return True
-        if isinstance(instance, MachinaArena.Config):
+        if isinstance(instance, BaseHub.Config):
             return True
-        return False
+        return _is_machina_like(instance)
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
@@ -418,7 +416,9 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
 
-        elif isinstance(instance, MachinaArena.Config):
+        if isinstance(instance, BaseHub.Config):
+            return instance
+        if _is_machina_like(instance):
             return instance.hub
 
         raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
@@ -427,12 +427,18 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
 class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
     def compat(self, mission: Mission) -> bool:
         env = mission.make_env()
-        return isinstance(env.game.map_builder, MapGen.Config) and isinstance(
-            env.game.map_builder.instance, MachinaArena.Config
-        )
+        if not isinstance(env.game.map_builder, MapGen.Config):
+            return False
+        return _is_machina_like(env.game.map_builder.instance)
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
-        assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
-        return env.game.map_builder.instance
+        instance = env.game.map_builder.instance
+        if _is_machina_like(instance):
+            return cast(MachinaArenaConfig, instance)
+        raise TypeError("MachinaArenaVariant can only be applied to MachinaArena scenes")
+
+
+def _is_machina_like(instance: Any) -> bool:
+    return hasattr(instance, "hub") and hasattr(instance, "spawn_count") and hasattr(instance, "base_biome")
