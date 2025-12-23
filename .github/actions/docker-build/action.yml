@@ -53,7 +53,7 @@ runs:
 
     - name: Build and push Docker image
       id: push
-      uses:  Warpbuilds/build-push-action@v6
+      uses: Warpbuilds/build-push-action@v6
       with:
         context: ${{ inputs.context }}
         file: ${{ inputs.dockerfile }}
