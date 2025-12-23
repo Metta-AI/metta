@@ -203,10 +203,14 @@ def print_cost_info(hourly_cost: float | None, num_gpus: int):
 
 
 @contextmanager
-def maybe_set_capacity_reservation(capacity_reservation_id: str | None):
+def maybe_set_capacity_reservation(cloud: str, capacity_reservation_id: str | None):
     if capacity_reservation_id is None:
         yield
         return
+
+    if cloud.lower() != "aws":
+        print(f"{red('✗')} --capacity-reservation-id is only supported for AWS (cloud={cloud})")
+        raise typer.Exit(1)
 
     new_configs = skypilot_config.to_dict()
     new_configs.set_nested(("aws", "specific_reservations"), [capacity_reservation_id])
@@ -506,16 +510,12 @@ def new(
             print("to authenticate before launching a sandbox.")
             raise typer.Exit(1) from None
 
-        if capacity_reservation_id is not None and cloud.lower() != "aws":
-            print(f"{red('✗')} --capacity-reservation-id is only supported for AWS (cloud={cloud})")
-            raise typer.Exit(1) from None
-
         if capacity_reservation_id is not None:
             print(f"📌 Capacity reservation: {cyan(capacity_reservation_id)}")
         if image_id is not None:
             print(f"🖼️  Image ID override: {cyan(image_id)}")
 
-        with maybe_set_capacity_reservation(capacity_reservation_id):
+        with maybe_set_capacity_reservation(cloud, capacity_reservation_id):
             request_id = sky.launch(
                 task,
                 cluster_name=cluster_name,
