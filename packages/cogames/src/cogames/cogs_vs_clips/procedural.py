@@ -167,7 +167,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         def _make_biome_candidates(
             weights: dict[str, float] | None,
         ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
-            defaults = {"caves": 0.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
+            defaults = {"forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
             uniques: list[SceneConfig] = []
             weighted: list[RandomSceneCandidate] = []
@@ -182,7 +182,6 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             none_weight = float(w.get("none", 0.0))
             if none_weight > 0:
                 weighted.append(RandomSceneCandidate(scene=NopConfig(), weight=none_weight))
-            _add("caves", BiomeCavesConfig())
             _add("forest", BiomeForestConfig())
             _add("desert", BiomeDesertConfig())
             _add("city", BiomeCityConfig())
