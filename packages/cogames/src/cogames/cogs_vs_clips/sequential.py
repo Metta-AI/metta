@@ -36,7 +36,7 @@ from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandida
 HubBundle = Literal["extractors", "none", "custom"]
 
 
-class MachinaArenaConfig(SceneConfig):
+class SequentialMachinaArenaConfig(SceneConfig):
     # Core composition
     spawn_count: int
 
@@ -83,13 +83,13 @@ class MachinaArenaConfig(SceneConfig):
     #### Distributions ####
 
     # How buildings are distributed on the map
-    distribution: DistributionConfig = DistributionConfig()
+    distribution: DistributionConfig = DistributionConfig(type="normal", std_x=0.18, std_y=0.18)
 
     # How buildings are distributed on the map per building type, falls back to global distribution if not set
     building_distributions: dict[str, DistributionConfig] | None = None
 
 
-class MachinaArena(Scene[MachinaArenaConfig]):
+class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
     def render(self) -> None:
         # No direct drawing; composition is done via children actions
         return
@@ -164,6 +164,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
 
         # Candidates
         def _make_biomes(weights: dict[str, float] | None) -> list[SceneConfig]:
+            if weights is not None and "none" in weights:
+                return []
             defaults = {"caves": 0.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
             biomes: list[SceneConfig] = []
@@ -180,6 +182,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             return biomes
 
         def _make_dungeons(weights: dict[str, float] | None) -> list[SceneConfig]:
+            if weights is not None and "none" in weights:
+                return []
             defaults = {"maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             dungeons: list[SceneConfig] = []
@@ -409,7 +413,7 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
             return False
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return True
-        if isinstance(instance, MachinaArena.Config):
+        if isinstance(instance, SequentialMachinaArena.Config):
             return True
         return False
 
@@ -421,21 +425,21 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
         if isinstance(instance, RandomTransform.Config) and isinstance(instance.scene, BaseHub.Config):
             return instance.scene
 
-        elif isinstance(instance, MachinaArena.Config):
+        elif isinstance(instance, SequentialMachinaArena.Config):
             return instance.hub
 
         raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
 
 
-class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
+class SequentialMachinaArenaVariant(EnvNodeVariant[SequentialMachinaArenaConfig]):
     def compat(self, mission: Mission) -> bool:
         env = mission.make_env()
         return isinstance(env.game.map_builder, MapGen.Config) and isinstance(
-            env.game.map_builder.instance, MachinaArena.Config
+            env.game.map_builder.instance, SequentialMachinaArena.Config
         )
 
     @classmethod
-    def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
+    def extract_node(cls, env: MettaGridConfig) -> SequentialMachinaArenaConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
-        assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
+        assert isinstance(env.game.map_builder.instance, SequentialMachinaArena.Config)
         return env.game.map_builder.instance

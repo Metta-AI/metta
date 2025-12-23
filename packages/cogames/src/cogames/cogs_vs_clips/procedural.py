@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 
 import numpy as np
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
+from cogames.cogs_vs_clips.sequential import SequentialMachinaArena
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
@@ -78,7 +79,7 @@ class MachinaArenaConfig(SceneConfig):
     #### Distributions ####
 
     # How buildings are distributed on the map
-    distribution: DistributionConfig = DistributionConfig()
+    distribution: DistributionConfig = DistributionConfig(type="normal", std_x=0.18, std_y=0.18)
 
     # How buildings are distributed on the map per building type, falls back to global distribution if not set
     building_distributions: dict[str, DistributionConfig] | None = None
@@ -406,7 +407,7 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
             return True
         if isinstance(instance, BaseHub.Config):
             return True
-        return _is_machina_like(instance)
+        return isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config))
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> BaseHubConfig:
@@ -418,7 +419,7 @@ class BaseHubVariant(EnvNodeVariant[BaseHubConfig]):
 
         if isinstance(instance, BaseHub.Config):
             return instance
-        if _is_machina_like(instance):
+        if isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config)):
             return instance.hub
 
         raise TypeError("BaseHubVariant can only be applied RandomTransform/BaseHub or MachinaArena scenes")
@@ -429,16 +430,12 @@ class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
         env = mission.make_env()
         if not isinstance(env.game.map_builder, MapGen.Config):
             return False
-        return _is_machina_like(env.game.map_builder.instance)
+        return isinstance(env.game.map_builder.instance, (MachinaArena.Config, SequentialMachinaArena.Config))
 
     @classmethod
     def extract_node(cls, env: MettaGridConfig) -> MachinaArenaConfig:
         assert isinstance(env.game.map_builder, MapGen.Config)
         instance = env.game.map_builder.instance
-        if _is_machina_like(instance):
-            return cast(MachinaArenaConfig, instance)
+        if isinstance(instance, (MachinaArena.Config, SequentialMachinaArena.Config)):
+            return instance
         raise TypeError("MachinaArenaVariant can only be applied to MachinaArena scenes")
-
-
-def _is_machina_like(instance: Any) -> bool:
-    return hasattr(instance, "hub") and hasattr(instance, "spawn_count") and hasattr(instance, "base_biome")
