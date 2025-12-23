@@ -23,7 +23,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import matplotlib
 
@@ -75,31 +75,41 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
 
     Returns the number of actions the policy was trained with, or None if detection fails.
     """
-    if not policy_path.endswith(".mpt"):
+    if not policy_path:
         return None
     if policy_path in _policy_action_space_cache:
         return _policy_action_space_cache[policy_path]
-
-    if not is_s3_uri(policy_path):
-        return None
+    if "://" not in policy_path:
+        candidate = Path(policy_path).expanduser()
+        if not candidate.exists() and not policy_path.endswith(".mpt"):
+            return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
+        if policy_path.endswith(".mpt"):
+            from mettagrid.policy.mpt_artifact import load_mpt
 
-        artifact = load_mpt(policy_path)
+            artifact = load_mpt(policy_path)
+            action_space = _action_space_from_state_dict(artifact.state_dict)
+        else:
+            from mettagrid.policy.checkpoint_policy import load_state_from_checkpoint_uri
 
-        # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
-            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                action_space = tensor.shape[0]
-                _policy_action_space_cache[policy_path] = action_space
-                logger.info(f"Detected policy action space: {action_space} actions")
-                return action_space
-
-        return None
+            _, state_dict = load_state_from_checkpoint_uri(policy_path, device="cpu")
+            action_space = _action_space_from_state_dict(state_dict)
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
         return None
+
+    if action_space is not None:
+        _policy_action_space_cache[policy_path] = action_space
+        logger.info(f"Detected policy action space: {action_space} actions")
+    return action_space
+
+
+def _action_space_from_state_dict(state_dict: Mapping[str, torch.Tensor]) -> Optional[int]:
+    for key, tensor in state_dict.items():
+        if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+            return int(tensor.shape[0])
+    return None
 
 
 def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
@@ -281,10 +291,9 @@ def _run_case(
         _ensure_vibe_supports_gear(env_config)
 
         # Auto-detect policy action space and configure environment to match
-        if is_s3_uri(agent_config.policy_path):
-            policy_action_space = _get_policy_action_space(agent_config.policy_path)
-            if policy_action_space is not None:
-                _configure_env_for_action_space(env_config, policy_action_space)
+        policy_action_space = _get_policy_action_space(agent_config.policy_path)
+        if policy_action_space is not None:
+            _configure_env_for_action_space(env_config, policy_action_space)
 
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
