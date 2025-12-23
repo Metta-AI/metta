@@ -554,7 +554,7 @@ def _get_policy_action_space(policy_uri: str) -> Optional[int]:
         return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
+        from metta.rl.mpt_artifact import load_mpt
 
         artifact = load_mpt(policy_uri)
 

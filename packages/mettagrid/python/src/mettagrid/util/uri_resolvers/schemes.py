@@ -287,7 +287,7 @@ def policy_spec_from_uri(
     if parsed.canonical.endswith(".mpt"):
         checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
         return PolicySpec(
-            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            class_path="metta.rl.mpt_policy.MptPolicy",
             init_kwargs={
                 "checkpoint_uri": checkpoint_path,
                 "device": device,
