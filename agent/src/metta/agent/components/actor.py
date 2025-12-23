@@ -125,6 +125,7 @@ class ActionProbs(nn.Module):
         self.config = config
         self.num_actions = 0
         self._active_actions = 0
+        self._invalid_log_prob = -1e9
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0 or self._active_actions <= 0:
@@ -143,13 +144,20 @@ class ActionProbs(nn.Module):
         self.num_actions = int(action_space.n)
         self._active_actions = min(self.num_actions, self._max_active_actions)
 
-    def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Sanitize logits and mask past the first 21 actions (keep full action_dim for checkpoint compatibility)."""
-        mask_value = -1e9
+    def _trim_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        """Sanitize logits and trim to the first 21 actions."""
+        mask_value = self._invalid_log_prob
         logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
         if logits.size(-1) > self._active_actions:
-            logits[..., self._active_actions :] = mask_value
+            logits = logits[..., : self._active_actions]
         return logits
+
+    def _pad_full_log_probs(self, log_probs: torch.Tensor) -> torch.Tensor:
+        if log_probs.size(-1) >= self.num_actions:
+            return log_probs
+        padded = log_probs.new_full((*log_probs.shape[:-1], self.num_actions), self._invalid_log_prob)
+        padded[..., : log_probs.size(-1)] = log_probs
+        return padded
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         if action is None:
@@ -162,9 +170,9 @@ class ActionProbs(nn.Module):
         logits = td[self.config.in_key]
 
         self._ensure_initialized()
-        logits = self._mask_logits_if_needed(logits)
-        valid_actions = None if self._active_actions >= logits.size(-1) else self._active_actions
-        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits, valid_actions=valid_actions)
+        logits = self._trim_logits(logits)
+        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
+        full_log_probs = self._pad_full_log_probs(full_log_probs)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
@@ -192,13 +200,9 @@ class ActionProbs(nn.Module):
 
         action_logit_index = action.to(dtype=torch.long)
         self._ensure_initialized()
-        logits = self._mask_logits_if_needed(logits)
-        valid_actions = None if self._active_actions >= logits.size(-1) else self._active_actions
-        selected_log_probs, entropy, action_log_probs = evaluate_actions(
-            logits,
-            action_logit_index,
-            valid_actions=valid_actions,
-        )
+        logits = self._trim_logits(logits)
+        selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
+        action_log_probs = self._pad_full_log_probs(action_log_probs)
 
         # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
