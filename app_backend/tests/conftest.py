@@ -4,6 +4,7 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 from typing import Dict
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -103,6 +104,18 @@ def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
     # Auth is handled via debug_user_email, no need for headers
     return create_test_stats_client(test_client, machine_token="dummy_token")
+
+
+@pytest.fixture(autouse=True)
+def mock_k8s_client(monkeypatch):
+    """Prevent any accidental k8s API calls in tests."""
+    from metta.app_backend.job_runner import dispatcher
+
+    dispatcher.get_k8s_client.cache_clear()
+    mock_client = MagicMock()
+    monkeypatch.setattr(dispatcher, "get_k8s_client", lambda: mock_client)
+    yield mock_client
+    dispatcher.get_k8s_client.cache_clear()
 
 
 @pytest.fixture(autouse=True)
