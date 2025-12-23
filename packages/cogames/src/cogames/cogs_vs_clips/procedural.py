@@ -359,8 +359,6 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
 
     def get_children(self) -> list[ChildrenAction]:
         cfg = self.config
-
-        # Base biome map
         biome_map: dict[str, type[SceneConfig]] = {
             "caves": BiomeCavesConfig,
             "forest": BiomeForestConfig,
@@ -368,12 +366,10 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             "city": BiomeCityConfig,
             "plains": BiomePlainsConfig,
         }
-        if cfg.base_biome not in biome_map:
+        BaseCfgModel = biome_map.get(cfg.base_biome)
+        if BaseCfgModel is None:
             raise ValueError(f"Unknown base_biome '{cfg.base_biome}'. Valid: {sorted(biome_map.keys())}")
-        BaseCfgModel: type[SceneConfig] = biome_map[cfg.base_biome]
         base_cfg: SceneConfig = BaseCfgModel.model_validate(cfg.base_biome_config or {})
-
-        # Building weights
         default_building_weights = {
             "chest": 0.0,
             "charger": 0.6,
@@ -382,27 +378,20 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             "oxygen_extractor": 0.3,
             "carbon_extractor": 0.3,
         }
-
         weights_dict: dict[str, float] = {str(k): v for k, v in (cfg.building_weights or {}).items()}
         if not weights_dict:
             names = cfg.building_names or list(default_building_weights.keys())
             weights_dict = {name: default_building_weights.get(name, 1.0) for name in names}
-
         building_names_final = list(dict.fromkeys(cfg.building_names or list(weights_dict)))
         building_weights_final = {
             name: weights_dict.get(name, default_building_weights.get(name, 1.0)) for name in building_names_final
         }
 
-        # Autoscale counts
-        def _autoscale_zone_counts(
-            w: int, h: int, *, biome_density: float = 1.0, dungeon_density: float = 1.0
-        ) -> tuple[int, int]:
+        def _autoscale_zone_counts(w: int, h: int, *, biome_density: float = 1.0, dungeon_density: float = 1.0):
             area = max(1, w * h)
             biome_divisor = max(800, int(1600 / max(0.1, biome_density)))
             dungeon_divisor = max(800, int(1500 / max(0.1, dungeon_density)))
-            biomes = max(3, min(48, area // biome_divisor))
-            dungeons = max(3, min(48, area // dungeon_divisor))
-            return int(biomes), int(dungeons)
+            return max(3, min(48, area // biome_divisor)), max(3, min(48, area // dungeon_divisor))
 
         biome_count = cfg.biome_count
         dungeon_count = cfg.dungeon_count
@@ -414,14 +403,11 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             dungeon_count = auto_dungeons if dungeon_count is None else dungeon_count
 
         def _min_count_for_fraction(frac: float) -> int:
-            if frac <= 0:
-                return 1
-            return int(np.ceil(1.0 / min(0.9, max(0.02, float(frac)))))
+            return 1 if frac <= 0 else int(np.ceil(1.0 / min(0.9, max(0.02, float(frac)))))
 
         biome_count = max(int(biome_count), _min_count_for_fraction(cfg.max_biome_zone_fraction))
         dungeon_count = max(int(dungeon_count), _min_count_for_fraction(cfg.max_dungeon_zone_fraction))
 
-        # Candidates
         def _make_biomes(weights: dict[str, float] | None) -> list[SceneConfig]:
             if weights is not None and "none" in weights:
                 return []
@@ -526,22 +512,14 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             )
 
         biomes = _make_biomes(cfg.biome_weights)
-        biome_layer = None
+        dungeons = _make_dungeons(cfg.dungeon_weights)
         if biomes:
             biome_count = len(biomes) if cfg.biome_count is None else max(int(biome_count), len(biomes))
-            biome_layer = _make_layer(
-                biomes,
-                "biome.zone",
-                biome_max_w,
-                biome_max_h,
-                biome_count,
-            )
-
-        dungeons = _make_dungeons(cfg.dungeon_weights)
-        dungeon_layer = None
         if dungeons:
             dungeon_count = len(dungeons) if cfg.dungeon_count is None else max(int(dungeon_count), len(dungeons))
-            dungeon_layer = _make_layer(
+        biome_layer = _make_layer(biomes, "biome.zone", biome_max_w, biome_max_h, biome_count) if biomes else None
+        dungeon_layer = (
+            _make_layer(
                 dungeons,
                 "dungeon.zone",
                 dungeon_max_w,
@@ -550,24 +528,20 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                 order_by="first",
                 limit=1,
             )
-
+            if dungeons
+            else None
+        )
         children: list[ChildrenAction] = []
-
-        # Base shell first
         children.append(ChildrenAction(scene=base_cfg, where="full"))
-
         if biome_layer is not None:
             children.append(biome_layer)
         if dungeon_layer is not None:
             children.append(dungeon_layer)
-
         asteroid_mask = cfg.asteroid_mask
         if asteroid_mask is None and min(self.width, self.height) >= 80:
             asteroid_mask = AsteroidMaskConfig()
         if asteroid_mask is not None:
             children.append(ChildrenAction(scene=asteroid_mask, where="full"))
-
-        # Resources
         children.append(
             ChildrenAction(
                 scene=UniformExtractorParams(
@@ -581,15 +555,12 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                 where="full",
             )
         )
-
-        # Connectivity + hub
         children.append(
             ChildrenAction(
                 scene=cfg.hub.model_copy(deep=True, update={"spawn_count": cfg.spawn_count}),
                 where="full",
             )
         )
-
         children.append(
             ChildrenAction(
                 scene=MakeConnected.Config(
