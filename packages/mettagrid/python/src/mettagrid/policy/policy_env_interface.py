@@ -73,6 +73,8 @@ class PolicyEnvInterface(BaseModel):
     obs_height: int
     assembler_protocols: list  # Assembler protocols for recipe initialization
     tag_id_to_name: dict[int, str]  # Tag ID to name mapping for observation parsing
+    chest_vibe_transfers: dict[str, dict[str, int]]  # Chest vibe name -> output resources
+    assembler_chest_search_distance: int  # Distance assembler searches for chests (0 = disabled)
 
     @property
     def action_names(self) -> list[str]:
@@ -89,11 +91,21 @@ class PolicyEnvInterface(BaseModel):
         Returns:
             A PolicyEnvInterface instance with environment information
         """
-        # Extract assembler protocols if available
+        # Extract assembler protocols and chest_search_distance if available
         assembler_protocols = []
+        assembler_chest_search_distance = 0
         assembler_config = mg_cfg.game.objects.get("assembler")
-        if assembler_config and hasattr(assembler_config, "protocols"):
-            assembler_protocols = assembler_config.protocols
+        if assembler_config:
+            if hasattr(assembler_config, "protocols"):
+                assembler_protocols = assembler_config.protocols
+            if hasattr(assembler_config, "chest_search_distance"):
+                assembler_chest_search_distance = assembler_config.chest_search_distance
+
+        # Extract chest vibe transfers if available
+        chest_vibe_transfers: dict[str, dict[str, int]] = {}
+        chest_config = mg_cfg.game.objects.get("chest")
+        if chest_config and hasattr(chest_config, "vibe_transfers"):
+            chest_vibe_transfers = chest_config.vibe_transfers
 
         # Get tag ID to name mapping from id_map
         id_map = mg_cfg.game.id_map()
@@ -114,6 +126,8 @@ class PolicyEnvInterface(BaseModel):
             obs_height=mg_cfg.game.obs.height,
             assembler_protocols=assembler_protocols,
             tag_id_to_name=tag_id_to_name,
+            chest_vibe_transfers=chest_vibe_transfers,
+            assembler_chest_search_distance=assembler_chest_search_distance,
         )
 
     def to_json(self) -> str:

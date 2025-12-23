@@ -70,7 +70,7 @@ def evaluate(
     for mission_name, env_cfg in missions:
         env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
         policy_instances: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec, mg_cfg=env_cfg) for spec in policy_specs
+            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
 
         progress_label = f"Simulating ({mission_name})"

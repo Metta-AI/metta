@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import functools
 import importlib
-import inspect
 import os
 import pkgutil
 import re
@@ -21,7 +20,6 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
     device_override: str | None = None,
-    mg_cfg=None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
@@ -49,12 +47,6 @@ def initialize_or_load_policy(
         for name in kwarg_overrides:
             if allows_all or (name in class_params):
                 kwargs[name] = kwarg_overrides[name]
-
-    # Only pass mg_cfg if the policy's __init__ accepts it
-    if mg_cfg is not None:
-        sig = inspect.signature(policy_class.__init__)
-        if "mg_cfg" in sig.parameters:
-            kwargs["mg_cfg"] = mg_cfg
 
     try:
         policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
