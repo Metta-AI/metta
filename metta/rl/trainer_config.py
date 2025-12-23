@@ -9,12 +9,12 @@ from mettagrid.base_config import Config
 
 
 class OptimizerConfig(Config):
-    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
+    type: Literal["adam", "kron", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
     # Learning rate tuned from CvC sweep winners (schedule-free AdamW)
     learning_rate: float = Field(default=0.0087423, gt=0, le=1.0)
-    # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
+    # Beta1: Used by Adam / Muon / ScheduleFree AdamW (not used by Kron)
     beta1: float = Field(default=0.9, ge=0, le=1.0)
-    # Beta2: Standard Adam default from Kingma & Ba (2014)
+    # Beta2: Used by Adam / Muon / ScheduleFree AdamW (not used by Kron)
     beta2: float = Field(default=0.999, ge=0, le=1.0)
     # Epsilon: picked from top CvC sweep run
     eps: float = Field(default=2.0e-6, gt=0)
@@ -23,6 +23,12 @@ class OptimizerConfig(Config):
     # ScheduleFree-specific parameters
     momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
     warmup_steps: int = Field(default=2070, ge=0)  # From best CvC sweep run
+
+    # PSGD Kron-specific parameters
+    preconditioner_update_probability: Optional[float] = Field(default=None, gt=0, le=1.0)
+    max_size_triangular: int = Field(default=2048, gt=0)
+    min_ndim_triangular: int = Field(default=2, ge=1)
+    memory_save_mode: Optional[Literal["smart_one_diag", "one_diag", "all_diag"]] = None
 
 
 class SamplingConfig(Config):
