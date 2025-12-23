@@ -114,7 +114,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         default_building_weights = {
             "chest": 0.0,
             "charger": 0.6,
-            "germanium_extractor": 0.6,
+            "germanium_extractor": 0.5,
             "silicon_extractor": 0.3,
             "oxygen_extractor": 0.3,
             "carbon_extractor": 0.3,
@@ -180,7 +180,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
-            defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
+            defaults = {"bsp": 0.0, "maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
             if w.get("bsp", 0) > 0:
@@ -201,7 +201,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="dfs",
-                            room_size=IntConstantDistribution(value=2),
+                            room_size=IntConstantDistribution(value=3),
                             wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.6,
@@ -211,7 +211,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="kruskal",
-                            room_size=IntConstantDistribution(value=2),
+                            room_size=IntConstantDistribution(value=3),
                             wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.4,
@@ -220,7 +220,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True),
+                        scene=RadialMaze.Config(arms=8, arm_width=1, clear_background=False, outline_walls=False),
                         weight=w["radial"],
                     )
                 )

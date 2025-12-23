@@ -134,15 +134,15 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             w = {**defaults, **(weights or {})}
             biomes: list[SceneConfig] = []
             if float(w.get("caves", 0.0)) > 0:
-                biomes.append(BiomeCavesConfig(fill_prob=0.4, steps=3))
+                biomes.append(BiomeCavesConfig())
             if float(w.get("forest", 0.0)) > 0:
-                biomes.append(BiomeForestConfig(clumpiness=2, seed_prob=0.03, growth_prob=0.5))
+                biomes.append(BiomeForestConfig())
             if float(w.get("desert", 0.0)) > 0:
-                biomes.append(BiomeDesertConfig(ridge_width=1))
+                biomes.append(BiomeDesertConfig())
             if float(w.get("city", 0.0)) > 0:
-                biomes.append(BiomeCityConfig(road_width=3, min_block_frac=0.5, jitter=1))
+                biomes.append(BiomeCityConfig())
             if float(w.get("plains", 0.0)) > 0:
-                biomes.append(BiomePlainsConfig(cluster_min_radius=0, cluster_max_radius=2))
+                biomes.append(BiomePlainsConfig())
             return biomes
 
         def _make_dungeons(weights: dict[str, float] | None) -> list[SceneConfig]:
