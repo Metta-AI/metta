@@ -91,7 +91,7 @@ class ActionSupervised(Loss):
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
-        self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
+        self.track_metric("supervised_action_loss", loss)
 
         # --------------------------Add action loss to rewards as per Matt's doc----------------------------------
         if self.cfg.add_action_loss_to_rewards:

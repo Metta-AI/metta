@@ -18,12 +18,47 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
+@dataclass(slots=True)
+class MetricAccumulator:
+    total: Tensor | float = 0.0
+    count: int = 0
+
+    def add(self, value: Tensor | float) -> None:
+        if torch.is_tensor(value):
+            value = value.detach()
+            if value.numel() != 1:
+                value = value.mean()
+            if self.count == 0:
+                self.total = value
+            elif torch.is_tensor(self.total):
+                self.total = self.total + value
+            else:
+                self.total = value + torch.tensor(float(self.total), device=value.device, dtype=value.dtype)
+        else:
+            if torch.is_tensor(self.total):
+                self.total = self.total + torch.tensor(float(value), device=self.total.device, dtype=self.total.dtype)
+            else:
+                self.total = float(self.total) + float(value)
+        self.count += 1
+
+    def mean(self) -> Tensor | float:
+        if self.count == 0:
+            return 0.0
+        if torch.is_tensor(self.total):
+            return self.total / self.count
+        return self.total / self.count
+
+
+def _track_metric(tracker: dict[str, MetricAccumulator], key: str, value: Tensor | float) -> None:
+    tracker[key].add(value)
+
+
 def analyze_loss_alignment(
     shared_data: TensorDict,
     name1: str,
     name2: str,
     params: list[Tensor],
-    tracker: dict[str, list[float]],
+    tracker: dict[str, MetricAccumulator],
 ) -> None:
     """
     Computes alignment metrics between two losses stored in shared_data.
@@ -58,11 +93,11 @@ def analyze_loss_alignment(
     with torch.no_grad():
         # Cosine similarity of loss vectors (batch alignment)
         loss_cos = F.cosine_similarity(vec1_flat, vec2_flat, dim=0)
-        tracker[f"{name1}_{name2}_loss_cos"].append(float(loss_cos.item()))
+        _track_metric(tracker, f"{name1}_{name2}_loss_cos", loss_cos)
 
         # Variance of loss difference
         loss_diff_var = (vec1_flat - vec2_flat).var()
-        tracker[f"{name1}_{name2}_loss_diff_var"].append(float(loss_diff_var.item()))
+        _track_metric(tracker, f"{name1}_{name2}_loss_diff_var", loss_diff_var)
 
     # 3. Gradient-level metrics
     params_with_grad = [p for p in params if p.requires_grad]
@@ -99,11 +134,11 @@ def analyze_loss_alignment(
 
     # Cosine similarity of gradients
     grad_cos = F.cosine_similarity(grad1_flat, grad2_flat, dim=0)
-    tracker[f"{name1}_{name2}_grad_cos"].append(float(grad_cos.item()))
+    _track_metric(tracker, f"{name1}_{name2}_grad_cos", grad_cos)
 
     # Variance of gradient differences
     grad_diff_var = (grad1_flat - grad2_flat).var()
-    tracker[f"{name1}_{name2}_grad_diff_var"].append(float(grad_diff_var.item()))
+    _track_metric(tracker, f"{name1}_{name2}_grad_diff_var", grad_diff_var)
 
 
 class LossConfig(Config):
@@ -133,7 +168,7 @@ class Loss:
 
     policy_experience_spec: Composite | None = None
     replay: Experience | None = None
-    loss_tracker: dict[str, list[float]] | None = None
+    loss_tracker: dict[str, MetricAccumulator] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
 
@@ -141,7 +176,7 @@ class Loss:
 
     def __post_init__(self) -> None:
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
-        self.loss_tracker = defaultdict(list)
+        self.loss_tracker = defaultdict(MetricAccumulator)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
 
@@ -235,7 +270,28 @@ class Loss:
 
     def stats(self) -> dict[str, float]:
         """Aggregate tracked statistics into mean values."""
-        return {k: (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
+        stats: dict[str, float] = {}
+        for key, acc in self.loss_tracker.items():
+            mean = acc.mean()
+            if torch.is_tensor(mean):
+                stats[key] = float(mean.detach().cpu().item())
+            else:
+                stats[key] = float(mean)
+        return stats
+
+    def track_metric(self, key: str, value: Tensor | float) -> None:
+        """Track a scalar metric without per-minibatch GPU syncs."""
+        _track_metric(self.loss_tracker, key, value)
+
+    def metric_mean(self, key: str) -> float:
+        """Return a mean value for a tracked metric."""
+        acc = self.loss_tracker.get(key)
+        if acc is None:
+            return 0.0
+        mean = acc.mean()
+        if torch.is_tensor(mean):
+            return float(mean.detach().cpu().item())
+        return float(mean)
 
     def zero_loss_tracker(self) -> None:
         """Zero all values in the loss tracker."""

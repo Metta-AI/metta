@@ -91,11 +91,9 @@ class EERKickstarter(Loss):
             # --- Reward Shaping ---
             # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
             # We use cached teacher probs from the previous step.
-            indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
-
-            valid_mask = self.has_last_probs[indices]
+            valid_mask = self.has_last_probs[env_slice]
             if valid_mask.any():
-                last_probs = self.last_teacher_log_probs[indices]
+                last_probs = self.last_teacher_log_probs[env_slice]
 
                 # Get actions taken at t-1: (batch,)
                 last_actions = td["last_actions"]
@@ -110,8 +108,8 @@ class EERKickstarter(Loss):
                 td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
 
             # Update cache for next step
-            self.last_teacher_log_probs[indices] = teacher_td["full_log_probs"]
-            self.has_last_probs[indices] = True
+            self.last_teacher_log_probs[env_slice] = teacher_td["full_log_probs"]
+            self.has_last_probs[env_slice] = True
 
         # Store experience
         self.replay.store(data_td=td, env_id=env_slice)
@@ -143,9 +141,9 @@ class EERKickstarter(Loss):
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
         # track losses for plotting
-        self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
-        self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        self.track_metric("ks_act_loss", ks_action_loss)
+        self.track_metric("ks_val_loss", ks_value_loss)
+        self.track_metric("ks_act_loss_coef", self.cfg.action_loss_coef)
+        self.track_metric("ks_val_loss_coef", self.cfg.value_loss_coef)
 
         return loss, shared_loss_data, False

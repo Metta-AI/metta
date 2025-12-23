@@ -85,6 +85,20 @@ class Experience:
         # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
+        # Cache sequential minibatch indices to avoid repeated arange allocations.
+        self._sequential_indices: list[Tensor] = []
+        for mb_idx in range(self.num_minibatches):
+            start = mb_idx * self.minibatch_segments
+            end = start + self.minibatch_segments
+            if end <= self.segments:
+                idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+            else:
+                overflow = end - self.segments
+                front = torch.arange(start, self.segments, dtype=torch.long, device=self.device)
+                back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+                idx = torch.cat((front, back), dim=0)
+            self._sequential_indices.append(idx)
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
@@ -204,21 +218,9 @@ class Experience:
 
     def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
         """Sample a contiguous minibatch from the buffer in sequential order."""
-        segments_per_mb = self.minibatch_segments
-        total_segments = self.segments
         num_minibatches = max(self.num_minibatches, 1)
-
         mb_idx_mod = int(mb_idx % num_minibatches)
-        start = mb_idx_mod * segments_per_mb
-        end = start + segments_per_mb
-
-        if end <= total_segments:
-            idx = torch.arange(start, end, dtype=torch.long, device=self.device)
-        else:
-            overflow = end - total_segments
-            front = torch.arange(start, total_segments, dtype=torch.long, device=self.device)
-            back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
-            idx = torch.cat((front, back), dim=0)
+        idx = self._sequential_indices[mb_idx_mod]
 
         minibatch = self.buffer[idx]
         return minibatch.clone(), idx

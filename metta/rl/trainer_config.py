@@ -86,6 +86,9 @@ class TrainerConfig(Config):
     batch_size: int = Field(default=2_097_152, gt=0)
     minibatch_size: int = Field(default=16384, gt=0)
     bptt_horizon: int = Field(default=256, gt=0)
+
+    # Debug/perf toggles.
+    synchronize_after_optimizer_step: bool = False
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 

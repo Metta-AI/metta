@@ -1,6 +1,5 @@
 from typing import Any, Optional
 
-import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
@@ -64,7 +63,7 @@ class PPOActor(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         stop_update_epoch = False
         if mb_idx > 0 and self.cfg.target_kl is not None:
-            avg_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
+            avg_kl = self.metric_mean("approx_kl")
             if avg_kl > self.cfg.target_kl:
                 stop_update_epoch = True
 
@@ -135,11 +134,11 @@ class PPOActor(Loss):
             clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
 
         # Update loss tracking
-        self.loss_tracker["policy_loss"].append(float(pg_loss.item()))
-        self.loss_tracker["entropy"].append(float(entropy_loss.item()))
-        self.loss_tracker["approx_kl"].append(float(approx_kl.item()))
-        self.loss_tracker["clipfrac"].append(float(clipfrac.item()))
-        self.loss_tracker["importance"].append(float(importance_sampling_ratio.mean().item()))
-        self.loss_tracker["current_logprobs"].append(float(new_logprob.mean().item()))
+        self.track_metric("policy_loss", pg_loss)
+        self.track_metric("entropy", entropy_loss)
+        self.track_metric("approx_kl", approx_kl)
+        self.track_metric("clipfrac", clipfrac)
+        self.track_metric("importance", importance_sampling_ratio.mean())
+        self.track_metric("current_logprobs", new_logprob.mean())
 
         return loss, shared_loss_data, stop_update_epoch

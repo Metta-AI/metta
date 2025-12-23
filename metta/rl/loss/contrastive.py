@@ -1,4 +1,5 @@
 # metta/rl/loss/contrastive.py
+import random
 from typing import Any, Optional
 
 import torch
@@ -115,13 +116,11 @@ class ContrastiveLoss(Loss):
         contrastive_loss, metrics = self._compute_contrastive_loss(embeddings, minibatch)
 
         # Track metrics
-        self.loss_tracker["contrastive_loss"].append(float(contrastive_loss.item()))
+        self.track_metric("contrastive_loss", contrastive_loss)
 
         # Track additional metrics for wandb logging
         for key, value in metrics.items():
-            if key not in self.loss_tracker:
-                self.loss_tracker[key] = []
-            self.loss_tracker[key].append(value)
+            self.track_metric(key, value)
 
         return contrastive_loss, shared_loss_data, False
 
@@ -189,7 +188,7 @@ class ContrastiveLoss(Loss):
         done_mask_cpu = done_mask.detach().to("cpu")
 
         prob = max(1.0 - float(self.discount), 1e-8)
-        geom_dist = torch.distributions.Geometric(probs=torch.tensor(prob, device=self.device, dtype=embeddings.dtype))
+        geom_dist = torch.distributions.Geometric(probs=torch.tensor(prob, device="cpu", dtype=torch.float32))
 
         batch_indices: list[int] = []
         anchor_steps: list[int] = []
@@ -217,7 +216,7 @@ class ContrastiveLoss(Loss):
             if not candidate_anchors:
                 continue
 
-            choice_idx = int(torch.randint(len(candidate_anchors), (1,), device=self.device).item())
+            choice_idx = random.randrange(len(candidate_anchors))
             anchor_step, episode_end = candidate_anchors[choice_idx]
             max_future = episode_end - anchor_step
             if max_future < 1:

@@ -320,7 +320,7 @@ class CoreTrainingLoop:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
                     self.optimizer.step()
 
-                    if self.device.type == "cuda":
+                    if self.device.type == "cuda" and context.config.synchronize_after_optimizer_step:
                         torch.cuda.synchronize()
 
                 # Notify losses of minibatch end

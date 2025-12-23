@@ -149,7 +149,7 @@ class PPOCritic(Loss):
             v_loss = 0.5 * ((old_values - returns) ** 2).mean()
         # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
-        self.loss_tracker["value_loss"].append(float(v_loss.item()))
+        self.track_metric("value_loss", v_loss)
 
         return v_loss, shared_loss_data, False
 
@@ -160,6 +160,6 @@ class PPOCritic(Loss):
             y_true = self.replay.buffer["advantages_full"].flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
-            self.loss_tracker["explained_variance"].append(float(ev))
+            self.track_metric("explained_variance", ev)
 
         super().on_train_phase_end(context)
