@@ -23,7 +23,7 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
-from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
+from mettagrid.mapgen.scenes.bsp import BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
     DistributionConfig,
     UniformExtractorParams,
