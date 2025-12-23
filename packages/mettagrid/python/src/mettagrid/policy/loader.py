@@ -31,6 +31,10 @@ def initialize_or_load_policy(
     """
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    # We're planning to remove kwargs from the policy spec, maybe in January
+    # 2026. We may want to support passing arguments, but they shouldn't take
+    # the form of arbitrary kwargs where the policy author and our execution
+    # code need to share a namespace.
     kwargs = policy_spec.init_kwargs or {}
 
     kwarg_overrides = {}
