@@ -55,7 +55,7 @@ evalScheduler:
     env: "production"
     service: "leaderboard-eval-scheduler"
 
-reconciler:
+watcher:
   enabled: false
   resources:
     requests:

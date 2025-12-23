@@ -13,5 +13,5 @@ datadog:
 evalScheduler:
   enabled: false
 
-reconciler:
+watcher:
   enabled: false
