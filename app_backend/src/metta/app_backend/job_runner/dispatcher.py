@@ -57,8 +57,11 @@ def create_episode_job(job: JobRequest) -> str:
             labels=labels,
         ),
         spec=client.V1JobSpec(
-            backoff_limit=3,
+            # No retries for now
+            backoff_limit=0,
+            # Kill job if it runs longer than 1 hour
             active_deadline_seconds=3600,
+            # Auto-delete job 5 min after completion (backup; watcher deletes immediately)
             ttl_seconds_after_finished=300,
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(labels=labels),
@@ -78,7 +81,6 @@ def create_episode_job(job: JobRequest) -> str:
                             env=[
                                 client.V1EnvVar(name="BACKEND_URL", value=cfg.BACKEND_URL),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
-                                client.V1EnvVar(name="METTA_SCHEME_SERVER_URI", value=cfg.METTA_SCHEME_SERVER_URI),
                             ],
                             resources=client.V1ResourceRequirements(
                                 requests={"cpu": "3", "memory": "3Gi"},
