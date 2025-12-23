@@ -55,17 +55,6 @@ class EERKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
-<<<<<<< HEAD
-        # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
-        # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).
-        # So we must use the cached pi(S_{t-1}) to shape R_t.
-        num_agents = self.env.total_parallel_agents
-        num_actions = self.env.single_action_space.n
-        self.last_teacher_log_probs = torch.zeros((num_agents, num_actions), device=self.device)
-        self.has_last_probs = torch.zeros(num_agents, dtype=torch.bool, device=self.device)
-=======
->>>>>>> 34f6ccf001 (Centralize teacher policy loading for kickstarter losses (#4500))
-
         # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
         # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).
         # So we must use the cached pi(S_{t-1}) to shape R_t.
