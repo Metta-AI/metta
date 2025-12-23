@@ -126,21 +126,24 @@ class CheckpointPolicy(MultiAgentPolicy):
         return self._architecture_spec
 
 
+
 def _write_file_atomic(path: Path, data: bytes) -> None:
-    with tempfile.NamedTemporaryFile(
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        delete=False,
-    ) as tmp:
-        tmp_path = Path(tmp.name)
-        tmp.write(data)
+    tmp_path = None
     try:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(data)
         tmp_path.replace(path)
-    except Exception:
-        if tmp_path.exists():
+        tmp_path = None  # Mark as successfully moved
+    finally:
+        if tmp_path and tmp_path.exists():
             tmp_path.unlink()
-        raise
+
 
 
 def _write_checkpoint_bundle(
