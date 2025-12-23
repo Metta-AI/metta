@@ -9,11 +9,9 @@ from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME as SUBMISSION_POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, policy_spec_from_uri
-
-WEIGHTS_FILENAME = "weights.safetensors"
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -45,16 +43,18 @@ def load_state_from_checkpoint_uri(uri: str, *, device: str) -> tuple[str, dict[
 
 def write_policy_spec(checkpoint_dir: Path, architecture_spec: str) -> None:
     spec = SubmissionPolicySpec(
-        class_path="mettagrid.policy.checkpoint_policy.CheckpointPolicy",
-        data_path=WEIGHTS_FILENAME,
+        class_path=CheckpointPolicy.CLASS_PATH,
+        data_path=CheckpointPolicy.WEIGHTS_FILENAME,
         init_kwargs={"architecture_spec": architecture_spec},
     )
-    (checkpoint_dir / POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
+    (checkpoint_dir / CheckpointPolicy.POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
 
 
 class CheckpointPolicy(MultiAgentPolicy):
     CLASS_PATH = "mettagrid.policy.checkpoint_policy.CheckpointPolicy"
     short_names = ["checkpoint"]
+    WEIGHTS_FILENAME = "weights.safetensors"
+    POLICY_SPEC_FILENAME = SUBMISSION_POLICY_SPEC_FILENAME
 
     def __init__(
         self,
@@ -98,17 +98,19 @@ class CheckpointPolicy(MultiAgentPolicy):
     def load_policy_data(self, policy_data_path: str) -> None:
         path = Path(policy_data_path).expanduser()
         if path.is_dir():
-            spec_path = path / POLICY_SPEC_FILENAME
+            spec_path = path / CheckpointPolicy.POLICY_SPEC_FILENAME
             if not spec_path.exists():
-                raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}")
+                raise FileNotFoundError(
+                    f"{CheckpointPolicy.POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}"
+                )
             submission_spec = SubmissionPolicySpec.model_validate_json(spec_path.read_text())
             if not submission_spec.data_path:
-                raise ValueError(f"{POLICY_SPEC_FILENAME} missing data_path in {path}")
+                raise ValueError(f"{CheckpointPolicy.POLICY_SPEC_FILENAME} missing data_path in {path}")
             weights_path = path / submission_spec.data_path
             if not weights_path.exists():
                 raise FileNotFoundError(f"Policy data path does not exist: {weights_path}")
             weights_blob = weights_path.read_bytes()
-        elif path.is_file() and path.name != POLICY_SPEC_FILENAME:
+        elif path.is_file() and path.name != CheckpointPolicy.POLICY_SPEC_FILENAME:
             weights_blob = path.read_bytes()
         else:
             raise FileNotFoundError(f"Policy data path does not exist: {path}")
@@ -123,7 +125,7 @@ class CheckpointPolicy(MultiAgentPolicy):
     def save_policy_data(self, policy_data_path: str) -> None:
         target_dir = Path(policy_data_path).expanduser()
         target_dir.mkdir(parents=True, exist_ok=True)
-        (target_dir / WEIGHTS_FILENAME).write_bytes(
+        (target_dir / CheckpointPolicy.WEIGHTS_FILENAME).write_bytes(
             save_safetensors(prepare_state_dict_for_save(self._policy.state_dict()))
         )
         write_policy_spec(target_dir, self._architecture_spec)
@@ -140,7 +142,9 @@ class CheckpointPolicy(MultiAgentPolicy):
         architecture_spec = architecture if isinstance(architecture, str) else architecture.to_spec()
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        (checkpoint_dir / WEIGHTS_FILENAME).write_bytes(save_safetensors(prepare_state_dict_for_save(state_dict)))
+        (checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME).write_bytes(
+            save_safetensors(prepare_state_dict_for_save(state_dict))
+        )
         write_policy_spec(checkpoint_dir, architecture_spec)
         return checkpoint_dir
 
