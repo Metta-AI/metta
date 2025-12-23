@@ -355,8 +355,7 @@ class SequentialMachinaArenaConfig(MachinaArenaConfig):
 
 class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
     def render(self) -> None:
-        # No direct drawing; composition is done via children actions
-        return
+        pass
 
     def get_children(self) -> list[ChildrenAction]:
         cfg = self.config
@@ -384,16 +383,12 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             "carbon_extractor": 0.3,
         }
 
-        weights_dict: dict[str, float] = (
-            {str(k): v for k, v in cfg.building_weights.items()} if cfg.building_weights is not None else {}
-        )
+        weights_dict: dict[str, float] = {str(k): v for k, v in (cfg.building_weights or {}).items()}
         if not weights_dict:
-            if cfg.building_names is not None:
-                weights_dict = {name: default_building_weights.get(name, 1.0) for name in cfg.building_names}
-            else:
-                weights_dict = {k: v for k, v in default_building_weights.items()}
+            names = cfg.building_names or list(default_building_weights.keys())
+            weights_dict = {name: default_building_weights.get(name, 1.0) for name in names}
 
-        building_names_final = list(dict.fromkeys(list((cfg.building_names or list(weights_dict.keys())))))
+        building_names_final = list(dict.fromkeys(cfg.building_names or list(weights_dict)))
         building_weights_final = {
             name: weights_dict.get(name, default_building_weights.get(name, 1.0)) for name in building_names_final
         }
@@ -432,18 +427,14 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                 return []
             defaults = {"caves": 0.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
-            biomes: list[SceneConfig] = []
-            if float(w.get("caves", 0.0)) > 0:
-                biomes.append(BiomeCavesConfig())
-            if float(w.get("forest", 0.0)) > 0:
-                biomes.append(BiomeForestConfig())
-            if float(w.get("desert", 0.0)) > 0:
-                biomes.append(BiomeDesertConfig())
-            if float(w.get("city", 0.0)) > 0:
-                biomes.append(BiomeCityConfig())
-            if float(w.get("plains", 0.0)) > 0:
-                biomes.append(BiomePlainsConfig())
-            return biomes
+            biome_defs = [
+                ("caves", BiomeCavesConfig()),
+                ("forest", BiomeForestConfig()),
+                ("desert", BiomeDesertConfig()),
+                ("city", BiomeCityConfig()),
+                ("plains", BiomePlainsConfig()),
+            ]
+            return [cfg for key, cfg in biome_defs if float(w.get(key, 0.0)) > 0]
 
         def _make_dungeons(weights: dict[str, float] | None) -> list[SceneConfig]:
             if weights is not None and "none" in weights:
@@ -498,57 +489,64 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                 ],
             )
 
-        biome_layer: ChildrenAction | None = None
-        biomes = _make_biomes(cfg.biome_weights)
-        if biomes:
-            biome_count = len(biomes) if cfg.biome_count is None else max(int(biome_count), len(biomes))
-            biome_children: list[ChildrenAction] = []
-            for scene_cfg in biomes:
-                biome_children.append(
-                    ChildrenAction(
-                        scene=_wrap_in_layout(scene_cfg, tag="biome.zone", max_w=biome_max_w, max_h=biome_max_h),
-                        where=AreaWhere(tags=["zone"]),
-                        order_by="random",
-                        limit=1,
-                        lock="biome.zone",
-                    )
+        def _make_layer(
+            configs: list[SceneConfig],
+            tag: str,
+            max_w: int,
+            max_h: int,
+            area_count: int,
+            *,
+            order_by: str | None = None,
+            limit: int | None = None,
+        ) -> ChildrenAction | None:
+            if not configs:
+                return None
+            children = [
+                ChildrenAction(
+                    scene=_wrap_in_layout(scene_cfg, tag=tag, max_w=max_w, max_h=max_h),
+                    where=AreaWhere(tags=["zone"]),
+                    order_by="random",
+                    limit=1,
+                    lock=tag,
                 )
-
-            biome_layer = ChildrenAction(
+                for scene_cfg in configs
+            ]
+            action_kwargs: dict[str, Any] = {}
+            if order_by is not None:
+                action_kwargs["order_by"] = order_by
+            if limit is not None:
+                action_kwargs["limit"] = limit
+            return ChildrenAction(
                 scene=BSPLayout.Config(
-                    area_count=biome_count,
-                    children=biome_children,
+                    area_count=area_count,
+                    children=children,
                 ),
                 where="full",
+                **action_kwargs,
             )
 
-        dungeon_layer: ChildrenAction | None = None
+        biomes = _make_biomes(cfg.biome_weights)
+        biome_layer = None
+        if biomes:
+            biome_count = len(biomes) if cfg.biome_count is None else max(int(biome_count), len(biomes))
+            biome_layer = _make_layer(
+                biomes,
+                "biome.zone",
+                biome_max_w,
+                biome_max_h,
+                biome_count,
+            )
+
         dungeons = _make_dungeons(cfg.dungeon_weights)
+        dungeon_layer = None
         if dungeons:
             dungeon_count = len(dungeons) if cfg.dungeon_count is None else max(int(dungeon_count), len(dungeons))
-            dungeon_children: list[ChildrenAction] = []
-            for scene_cfg in dungeons:
-                dungeon_children.append(
-                    ChildrenAction(
-                        scene=_wrap_in_layout(
-                            scene_cfg,
-                            tag="dungeon.zone",
-                            max_w=dungeon_max_w,
-                            max_h=dungeon_max_h,
-                        ),
-                        where=AreaWhere(tags=["zone"]),
-                        order_by="random",
-                        limit=1,
-                        lock="dungeon.zone",
-                    )
-                )
-
-            dungeon_layer = ChildrenAction(
-                scene=BSPLayout.Config(
-                    area_count=dungeon_count,
-                    children=dungeon_children,
-                ),
-                where="full",
+            dungeon_layer = _make_layer(
+                dungeons,
+                "dungeon.zone",
+                dungeon_max_w,
+                dungeon_max_h,
+                dungeon_count,
                 order_by="first",
                 limit=1,
             )
