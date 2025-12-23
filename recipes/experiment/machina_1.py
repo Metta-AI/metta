@@ -23,11 +23,11 @@ def train(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
+    eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
-    """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
+    """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if eval_variants is None:
         eval_variants = variants
 
@@ -77,7 +77,7 @@ def train_sweep(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
+    eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
