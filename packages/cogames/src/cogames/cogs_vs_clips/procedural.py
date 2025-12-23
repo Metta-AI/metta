@@ -15,7 +15,7 @@ from mettagrid.mapgen.scene import (
     Scene,
     SceneConfig,
 )
-from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask, AsteroidMaskConfig
+from mettagrid.mapgen.scenes.asteroid_mask import DEFAULT_ASTEROID_MASK, AsteroidMaskConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
@@ -36,6 +36,8 @@ from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandida
 
 HubBundle = Literal["extractors", "none", "custom"]
 
+ASTEROID_MASK_MIN_SIZE = 80
+
 
 class MachinaArenaConfig(SceneConfig):
     # Core composition
@@ -43,13 +45,7 @@ class MachinaArenaConfig(SceneConfig):
 
     # Biome / dungeon structure
     base_biome: str = "plains"
-    base_biome_config: dict[str, Any] = {
-        "cluster_prob": 0.92,
-        "cluster_fill": 0.82,
-        "cluster_max_radius": 2,
-        "cluster_period": 5,
-        "jitter": 2,
-    }
+    base_biome_config: dict[str, Any] = {}
 
     # Corner balancing: ensure roughly equal path distance from center to each corner.
     balance_corners: bool = False
@@ -77,15 +73,6 @@ class MachinaArenaConfig(SceneConfig):
     # Optional asteroid-shaped boundary mask.
     asteroid_mask: AsteroidMaskConfig | None = None
     asteroid_mask_enabled: bool = True
-    asteroid_mask_min_size: int = 80
-    asteroid_mask_default: AsteroidMaskConfig = AsteroidMask.Config(
-        step=3,
-        depth_min=2,
-        depth_max=8,
-        width_min=2,
-        width_max=6,
-        chunk_prob=0.6,
-    )
 
     #### Layers ####
 
@@ -392,9 +379,9 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if (
             asteroid_mask is None
             and cfg.asteroid_mask_enabled
-            and min(self.width, self.height) >= cfg.asteroid_mask_min_size
+            and min(self.width, self.height) >= ASTEROID_MASK_MIN_SIZE
         ):
-            asteroid_mask = cfg.asteroid_mask_default.model_copy(deep=True)
+            asteroid_mask = DEFAULT_ASTEROID_MASK.model_copy(deep=True)
         if asteroid_mask is not None:
             children.append(ChildrenAction(scene=asteroid_mask, where="full"))
 
