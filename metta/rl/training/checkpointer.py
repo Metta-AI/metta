@@ -1,18 +1,16 @@
 """Policy checkpoint management component."""
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
-from safetensors.torch import load as load_safetensors
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy, load_state_from_checkpoint_uri
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
@@ -58,16 +56,6 @@ class Checkpointer(TrainerComponent):
         candidate_uri = policy_uri or self._checkpoint_manager.get_latest_checkpoint()
         load_device = torch.device(self._distributed.config.device)
 
-        def load_state_from_checkpoint_uri(uri: str) -> tuple[str, dict[str, torch.Tensor]]:
-            spec = policy_spec_from_uri(uri, device=str(load_device))
-            architecture_spec = spec.init_kwargs.get("architecture_spec")
-            if not architecture_spec:
-                raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
-            if not spec.data_path:
-                raise ValueError("policy_spec.json missing data_path")
-            state_dict = load_safetensors(Path(spec.data_path).read_bytes())
-            return architecture_spec, dict(state_dict)
-
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
@@ -77,7 +65,7 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 loaded: tuple[str, dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
-                    loaded = load_state_from_checkpoint_uri(normalized_uri)
+                    loaded = load_state_from_checkpoint_uri(normalized_uri, device=str(load_device))
                 state_dict = self._distributed.broadcast_from_master(
                     {k: v.cpu() for k, v in loaded[1].items()} if loaded else None
                 )

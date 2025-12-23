@@ -11,7 +11,7 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, policy_spec_from_uri
 
 WEIGHTS_FILENAME = "weights.safetensors"
 
@@ -32,23 +32,15 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
     return result
 
 
-def _resolve_policy_data_path(path: Path) -> Path:
-    if path.is_dir():
-        spec_path = path / POLICY_SPEC_FILENAME
-        if not spec_path.exists():
-            raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}")
-        submission_spec = SubmissionPolicySpec.model_validate_json(spec_path.read_text())
-        if not submission_spec.data_path:
-            raise ValueError(f"{POLICY_SPEC_FILENAME} missing data_path in {path}")
-        weights_path = path / submission_spec.data_path
-        if not weights_path.exists():
-            raise FileNotFoundError(f"Policy data path does not exist: {weights_path}")
-        return weights_path
-
-    if path.is_file() and path.name != POLICY_SPEC_FILENAME:
-        return path
-
-    raise FileNotFoundError(f"Policy data path does not exist: {path}")
+def load_state_from_checkpoint_uri(uri: str, *, device: str) -> tuple[str, dict[str, torch.Tensor]]:
+    spec = policy_spec_from_uri(uri, device=device)
+    architecture_spec = spec.init_kwargs.get("architecture_spec")
+    if not architecture_spec:
+        raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
+    if not spec.data_path:
+        raise ValueError("policy_spec.json missing data_path")
+    state_dict = load_safetensors(Path(spec.data_path).read_bytes())
+    return architecture_spec, dict(state_dict)
 
 
 def write_policy_spec(checkpoint_dir: Path, architecture_spec: str) -> None:
@@ -104,7 +96,22 @@ class CheckpointPolicy(MultiAgentPolicy):
         return policy
 
     def load_policy_data(self, policy_data_path: str) -> None:
-        weights_blob = _resolve_policy_data_path(Path(policy_data_path).expanduser()).read_bytes()
+        path = Path(policy_data_path).expanduser()
+        if path.is_dir():
+            spec_path = path / POLICY_SPEC_FILENAME
+            if not spec_path.exists():
+                raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}")
+            submission_spec = SubmissionPolicySpec.model_validate_json(spec_path.read_text())
+            if not submission_spec.data_path:
+                raise ValueError(f"{POLICY_SPEC_FILENAME} missing data_path in {path}")
+            weights_path = path / submission_spec.data_path
+            if not weights_path.exists():
+                raise FileNotFoundError(f"Policy data path does not exist: {weights_path}")
+            weights_blob = weights_path.read_bytes()
+        elif path.is_file() and path.name != POLICY_SPEC_FILENAME:
+            weights_blob = path.read_bytes()
+        else:
+            raise FileNotFoundError(f"Policy data path does not exist: {path}")
         state_dict = load_safetensors(weights_blob)
         missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=False)
         if self._strict and (missing or unexpected):
