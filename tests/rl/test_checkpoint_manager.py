@@ -133,16 +133,7 @@ class TestCheckpointManagerFlows:
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         spec = policy_spec_from_uri(latest)
-        architecture_spec = spec.init_kwargs.get("architecture_spec")
-        assert architecture_spec, "policy_spec missing architecture_spec"
-        policy = CheckpointPolicy(
-            env_info,
-            architecture_spec=architecture_spec,
-            device=spec.init_kwargs.get("device", "cpu"),
-        )
-        assert spec.data_path, "policy_spec missing data_path"
-        policy.load_policy_data(spec.data_path)
-        policy = policy.wrapped_policy
+        policy = CheckpointPolicy.from_policy_spec(env_info, spec, device_override="cpu").wrapped_policy
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
