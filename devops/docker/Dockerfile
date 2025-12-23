@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libgomp1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel
+    && rm -rf /var/lib/apt/lists/*
+    # && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    # && chmod +x /usr/local/bin/bazel
 
 WORKDIR /workspace/metta
 
