@@ -5,6 +5,7 @@ import subprocess
 from typing import Annotated
 
 import typer
+import yaml
 from rich.console import Console
 
 from metta.app_backend.clients.base_client import get_machine_token
@@ -15,6 +16,12 @@ from metta.setup.tools.observatory.utils import build_and_load_image
 from metta.setup.utils import error, info
 
 console = Console()
+
+
+def get_kind_values() -> dict:
+    values_path = get_repo_root() / "devops/charts/orchestrator/environments/kind.yaml"
+    with open(values_path) as f:
+        return yaml.safe_load(f)
 
 
 def handle_errors(fn):
@@ -50,10 +57,10 @@ Observatory local development.
   metta observatory watcher         # Watches K8s jobs and updates job status through api server
 
 [bold]Upload policy:[/bold]
-  uv run cogames submit -p class=scripted_baseline -n my-policy --server {LOCAL_BACKEND_URL} --skip-validation
+  uv run cogames submit -p class=scripted_baseline --server {LOCAL_BACKEND_URL} --skip-validation -n <your-policy-name>
 
 [bold]Submit test jobs:[/bold]
-  uv run python app_backend/scripts/submit_test_jobs.py --policy-uri <local metta:// policy uri>
+  uv run python app_backend/scripts/submit_test_jobs.py --policy-uri metta://policy/<your-policy-name>
 
 [bold]Monitor:[/bold]
   kubectl get pods -n jobs -w
@@ -94,17 +101,21 @@ def postgres(ctx: typer.Context):
 @app.command(name="server", help="Run the backend server on host")
 @handle_errors
 def server():
+    kind_values = get_kind_values()
+    episode_runner_image = kind_values["episodeRunner"]["image"]
+
     env = os.environ.copy()
     env["STATS_DB_URI"] = LOCAL_DB_URI
     env["DEBUG_USER_EMAIL"] = "localdev@example.com"
     env["RUN_MIGRATIONS"] = "true"
-    env["EPISODE_RUNNER_IMAGE"] = "metta-policy-evaluator-local:latest"
+    env["EPISODE_RUNNER_IMAGE"] = episode_runner_image
     env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_KIND
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting backend server...")
     info(f"  DB: {LOCAL_DB_URI}")
     info(f"  URL: {LOCAL_BACKEND_URL}")
+    info(f"  Episode runner image: {episode_runner_image}")
 
     subprocess.run(
         ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],
