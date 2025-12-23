@@ -142,26 +142,38 @@ def _write_checkpoint_dir_contents(
 ) -> None:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
-    _write_file_atomic(checkpoint_dir / weights_filename, weights_blob)
+    weights_path = checkpoint_dir / weights_filename
+    with tempfile.NamedTemporaryFile(
+        dir=weights_path.parent,
+        prefix=f".{weights_path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write(weights_blob)
+    try:
+        tmp_path.replace(weights_path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
     spec = SubmissionPolicySpec(
         class_path=CheckpointPolicy.CLASS_PATH,
         data_path=weights_filename,
         init_kwargs={"architecture_spec": architecture_spec},
     )
-    _write_file_atomic((checkpoint_dir / policy_spec_filename), spec.model_dump_json().encode("utf-8"))
-
-
-def _write_file_atomic(path: Path, data: bytes) -> None:
+    spec_path = checkpoint_dir / policy_spec_filename
+    spec_data = spec.model_dump_json().encode("utf-8")
     with tempfile.NamedTemporaryFile(
-        dir=path.parent,
-        prefix=f".{path.name}.",
+        dir=spec_path.parent,
+        prefix=f".{spec_path.name}.",
         suffix=".tmp",
         delete=False,
     ) as tmp:
         tmp_path = Path(tmp.name)
-        tmp.write(data)
+        tmp.write(spec_data)
     try:
-        tmp_path.replace(path)
+        tmp_path.replace(spec_path)
     except Exception:
         if tmp_path.exists():
             tmp_path.unlink()
