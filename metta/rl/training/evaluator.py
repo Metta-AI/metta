@@ -25,7 +25,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +137,10 @@ class Evaluator(TrainerComponent):
 
     def _upload_submission_zip(self, policy_uri: str) -> str | None:
         """Return the S3 checkpoint directory to use as the submission path."""
-        if not policy_uri.startswith("s3://"):
+        parsed = resolve_uri(policy_uri)
+        if parsed.scheme != "s3":
             return None
-        return policy_uri
+        return parsed.canonical
 
     def _create_policy_version(
         self,
