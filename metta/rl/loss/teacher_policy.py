@@ -14,7 +14,6 @@ def load_teacher_policy(
     policy_uri: str,
     device: torch.device | str,
     error: str = "Environment metadata is required to instantiate teacher policy",
-    unwrap_mpt: bool = True,
 ):
     policy_env_info = getattr(env, "policy_env_info", None)
     if policy_env_info is None:
