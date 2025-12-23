@@ -16,7 +16,7 @@ class PureSingleEpisodeTool(Tool):
     job: PureSingleEpisodeJob
 
     def invoke(self, args: dict[str, str]) -> int:
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
             temp_file.write(
                 json.dumps({"job": self.job.model_dump(), "device": "cpu", "allow_network": True}).encode("utf-8")
             )

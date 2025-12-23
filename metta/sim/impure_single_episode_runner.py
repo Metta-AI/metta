@@ -45,7 +45,7 @@ def main():
         local_results_uri = "file://results.json"
         local_replay_uri = "file://replay.json.z"
 
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
             pure_job_spec = {
                 "job": job.model_copy(
                     deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri}
