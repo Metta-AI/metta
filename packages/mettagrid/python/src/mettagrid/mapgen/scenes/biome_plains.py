@@ -45,6 +45,8 @@ class BiomePlains(Scene[BiomePlainsConfig]):
         if anchors.size == 0:
             return
 
+        directions = np.array([(1, 0), (-1, 0), (0, 1), (0, -1)], dtype=int)
+
         for cx, cy in anchors:
             radius = int(self.rng.integers(min_radius, max_radius + 1)) if max_radius > 0 else 0
             if radius == 0:
@@ -56,34 +58,59 @@ class BiomePlains(Scene[BiomePlainsConfig]):
             max_steps = max(3, radius * 3)
             max_dist2 = (radius + 1) * (radius + 1)
 
-            for _ in range(branch_count):
-                x, y = cx, cy
-                dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
-                for step in range(max_steps):
-                    if 0 <= x < W and 0 <= y < H and self.rng.random() <= fill:
-                        rocks[y, x] = True
+            x = np.full(branch_count, cx, dtype=int)
+            y = np.full(branch_count, cy, dtype=int)
+            dir_idx = self.rng.integers(0, 4, size=branch_count)
 
-                    if self.rng.random() < 0.35:
-                        dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+            for step in range(max_steps):
+                in_bounds = (x >= 0) & (x < W) & (y >= 0) & (y < H)
+                place = in_bounds & (self.rng.random(branch_count) <= fill)
+                if place.any():
+                    rocks[y[place], x[place]] = True
 
+                turn = self.rng.random(branch_count) < 0.35
+                if turn.any():
+                    dir_idx[turn] = self.rng.integers(0, 4, size=int(turn.sum()))
+
+                dx = directions[dir_idx, 0]
+                dy = directions[dir_idx, 1]
+                nx = x + dx
+                ny = y + dy
+
+                out = (nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) > max_dist2
+                if out.any():
+                    dir_idx[out] = self.rng.integers(0, 4, size=int(out.sum()))
+                    dx = directions[dir_idx, 0]
+                    dy = directions[dir_idx, 1]
                     nx = x + dx
                     ny = y + dy
-                    if (nx - cx) * (nx - cx) + (ny - cy) * (ny - cy) > max_dist2:
-                        dx, dy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
-                        nx = x + dx
-                        ny = y + dy
 
-                    x, y = nx, ny
+                x, y = nx, ny
 
-                    if self.rng.random() < 0.12 and step > 1:
-                        sx, sy = x, y
-                        sdx, sdy = self.rng.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
-                        for _ in range(2):
-                            sx += sdx
-                            sy += sdy
-                            if (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy) > max_dist2:
-                                break
-                            if 0 <= sx < W and 0 <= sy < H and self.rng.random() <= fill:
-                                rocks[sy, sx] = True
+                if step > 1:
+                    spur = self.rng.random(branch_count) < 0.12
+                    if spur.any():
+                        spur_dirs = self.rng.integers(0, 4, size=int(spur.sum()))
+                        sdx = directions[spur_dirs, 0]
+                        sdy = directions[spur_dirs, 1]
+                        sx = x[spur] + sdx
+                        sy = y[spur] + sdy
+                        dist2 = (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy)
+                        spur_ok = dist2 <= max_dist2
+                        if spur_ok.any():
+                            spur_in = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
+                            spur_place = spur_ok & spur_in & (self.rng.random(len(sx)) <= fill)
+                            if spur_place.any():
+                                rocks[sy[spur_place], sx[spur_place]] = True
+
+                            sx2 = sx + sdx
+                            sy2 = sy + sdy
+                            dist2_2 = (sx2 - cx) * (sx2 - cx) + (sy2 - cy) * (sy2 - cy)
+                            spur_ok_2 = spur_ok & (dist2_2 <= max_dist2)
+                            if spur_ok_2.any():
+                                spur_in_2 = (sx2 >= 0) & (sx2 < W) & (sy2 >= 0) & (sy2 < H)
+                                spur_place_2 = spur_ok_2 & spur_in_2 & (self.rng.random(len(sx2)) <= fill)
+                                if spur_place_2.any():
+                                    rocks[sy2[spur_place_2], sx2[spur_place_2]] = True
 
         grid[rocks] = "wall"

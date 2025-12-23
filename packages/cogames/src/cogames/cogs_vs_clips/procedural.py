@@ -70,7 +70,6 @@ class MachinaArenaConfig(SceneConfig):
 
     # Optional asteroid-shaped boundary mask.
     asteroid_mask: AsteroidMaskConfig | None = None
-    asteroid_mask_enabled: bool = True
 
     #### Layers ####
 
@@ -78,9 +77,9 @@ class MachinaArenaConfig(SceneConfig):
     dungeon_weights: dict[str, float] | None = None
     biome_count: int | None = None
     dungeon_count: int | None = None
-    density_scale: float = 1.15
-    max_biome_zone_fraction: float = 0.22
-    max_dungeon_zone_fraction: float = 0.18
+    density_scale: float = 1.0
+    max_biome_zone_fraction: float = 0.35
+    max_dungeon_zone_fraction: float = 0.25
 
     #### Distributions ####
 
@@ -374,7 +373,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             children.append(dungeon_layer)
 
         asteroid_mask = cfg.asteroid_mask
-        if asteroid_mask is None and cfg.asteroid_mask_enabled and min(self.width, self.height) >= 80:
+        if asteroid_mask is None and min(self.width, self.height) >= 80:
             asteroid_mask = AsteroidMaskConfig()
         if asteroid_mask is not None:
             children.append(ChildrenAction(scene=asteroid_mask, where="full"))
