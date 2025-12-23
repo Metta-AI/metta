@@ -139,6 +139,7 @@ class MettaGridPufferEnv(PufferEnv):
                 PolicyEnvInterface.from_mg_cfg(self._current_cfg),
                 self._supervisor_policy_spec,
             )
+<<<<<<< HEAD
 =======
             policy_env_info = PolicyEnvInterface.from_mg_cfg(self._current_cfg)
             checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
@@ -151,6 +152,8 @@ class MettaGridPufferEnv(PufferEnv):
                 self._env_supervisor = initialize_or_load_policy(policy_env_info, self._supervisor_policy_spec)
 
 >>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
+=======
+>>>>>>> aedb368000 (Remove redundant guards and streamline training/sim components (#4426))
             self._compute_supervisor_actions()
         return sim
 

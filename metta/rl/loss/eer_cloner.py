@@ -59,6 +59,7 @@ class EERCloner(Loss):
             self.policy.forward(td)
         env_slice = self._training_env_id(context)
 
+<<<<<<< HEAD
         # --- Reward Shaping ---
         # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
         # For cloner, the teacher output is just an action index.
@@ -90,6 +91,41 @@ class EERCloner(Loss):
             # Add to rewards in place
             td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
 
+=======
+        env_slice = self._training_env_id(context)
+
+        # --- Reward Shaping ---
+        # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
+        # For cloner, the teacher output is just an action index.
+        # We treat this as a deterministic distribution (or peaked):
+        # If A_{t-1} == TeacherAction_{t-1}: log(prob) then loss is log(1) = 0
+        # If A_{t-1} != TeacherAction_{t-1}: log(prob) then loss is log(epsilon)
+
+        indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
+
+        valid_mask = self.has_last_actions[indices]
+
+        if valid_mask.any():
+            # Get cached teacher actions from t-1
+            last_teacher_acts = self.last_teacher_actions[indices]
+
+            # Get actions actually taken at t-1
+            last_actions = td["last_actions"]
+            if last_actions.dim() > 1:
+                last_actions = last_actions.squeeze(-1)
+            last_actions = last_actions.long()
+
+            # Compare: 1.0 if match, prob_floor if mismatch
+            matches = (last_teacher_acts == last_actions).float()
+            probs = matches * (1.0 - self.cfg.teacher_prob_floor) + self.cfg.teacher_prob_floor
+
+            # Compute log likelihood
+            intrinsic_reward = torch.log(probs)
+
+            # Add to rewards in place
+            td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
+
+>>>>>>> aedb368000 (Remove redundant guards and streamline training/sim components (#4426))
         teacher_actions = td["teacher_actions"]
         self.last_teacher_actions[indices] = teacher_actions
         self.has_last_actions[indices] = True
