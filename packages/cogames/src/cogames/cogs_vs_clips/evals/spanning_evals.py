@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from cogames.cogs_vs_clips.mission import Mission, Site
-from cogames.cogs_vs_clips.sequential import MachinaArena
+from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, TRAINING_FACILITY
 from cogames.cogs_vs_clips.variants import (
     ClipHubStationsVariant,

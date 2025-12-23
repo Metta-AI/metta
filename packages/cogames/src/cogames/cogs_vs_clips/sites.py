@@ -2,7 +2,7 @@
 
 from cogames.cogs_vs_clips.mission import Site
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sequential import MachinaArena, RandomTransform
+from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
