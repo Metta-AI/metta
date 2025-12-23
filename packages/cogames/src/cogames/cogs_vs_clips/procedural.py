@@ -374,11 +374,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             children.append(dungeon_layer)
 
         asteroid_mask = cfg.asteroid_mask
-        if (
-            asteroid_mask is None
-            and cfg.asteroid_mask_enabled
-            and min(self.width, self.height) >= 80
-        ):
+        if asteroid_mask is None and cfg.asteroid_mask_enabled and min(self.width, self.height) >= 80:
             asteroid_mask = AsteroidMaskConfig()
         if asteroid_mask is not None:
             children.append(ChildrenAction(scene=asteroid_mask, where="full"))
