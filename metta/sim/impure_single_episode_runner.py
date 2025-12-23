@@ -8,7 +8,7 @@ import uuid
 from uuid import UUID
 
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
+from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
@@ -27,15 +27,11 @@ def main():
     job_id = UUID(sys.argv[1])
     observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["BACKEND_URL"])
 
-    worker_name = os.environ["WORKER_NAME"]
-
     stats_client = StatsClient.create(os.environ["BACKEND_URL"])
 
     try:
         job_data = stats_client.get_job(job_id)
-
-        stats_client.update_job(job_id, JobRequestUpdate(status=JobStatus.running, worker=worker_name))
-        logger.info(f"Started job {job_id} on worker {worker_name}")
+        logger.info(f"Started job {job_id}")
 
         job = PureSingleEpisodeJob.model_validate(job_data.job)
 
@@ -94,15 +90,12 @@ def main():
             stats_client=stats_client,
         )
 
-        # Update job status and result
-        stats_client.update_job(
-            job_id, JobRequestUpdate(status=JobStatus.completed, result={"episode_id": str(episode_id)})
-        )
+        stats_client.update_job(job_id, JobRequestUpdate(result={"episode_id": str(episode_id)}))
         logger.info(f"Completed job {job_id}")
 
     except Exception as e:
         logger.exception(f"Job {job_id} failed")
-        stats_client.update_job(job_id, JobRequestUpdate(status=JobStatus.failed, error=str(e)))
+        stats_client.update_job(job_id, JobRequestUpdate(result={"error": str(e)}))
         raise
     finally:
         stats_client.close()
