@@ -22,6 +22,7 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
+from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
     DistributionConfig,
@@ -200,6 +201,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="dfs",
+                            room_size=IntConstantDistribution(value=3),
+                            wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.6,
                     )
@@ -208,6 +211,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     RandomSceneCandidate(
                         scene=MazeConfig(
                             algorithm="kruskal",
+                            room_size=IntConstantDistribution(value=3),
+                            wall_size=IntConstantDistribution(value=1),
                         ),
                         weight=maze_weight * 0.4,
                     )
@@ -215,7 +220,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             if w.get("radial", 0) > 0:
                 cands.append(
                     RandomSceneCandidate(
-                        scene=RadialMaze.Config(),
+                        scene=RadialMaze.Config(arms=8, arm_width=1, clear_background=False, outline_walls=False),
                         weight=w["radial"],
                     )
                 )

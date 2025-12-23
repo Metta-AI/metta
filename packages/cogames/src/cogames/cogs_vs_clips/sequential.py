@@ -17,6 +17,7 @@ from cogames.cogs_vs_clips.procedural import (
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
@@ -157,12 +158,16 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                             RandomSceneCandidate(
                                 scene=MazeConfig(
                                     algorithm="dfs",
+                                    room_size=IntConstantDistribution(value=3),
+                                    wall_size=IntConstantDistribution(value=1),
                                 ),
                                 weight=0.6,
                             ),
                             RandomSceneCandidate(
                                 scene=MazeConfig(
                                     algorithm="kruskal",
+                                    room_size=IntConstantDistribution(value=3),
+                                    wall_size=IntConstantDistribution(value=1),
                                 ),
                                 weight=0.4,
                             ),
@@ -170,7 +175,7 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                     )
                 )
             if float(w.get("radial", 0.0)) > 0:
-                dungeons.append(RadialMaze.Config())
+                dungeons.append(RadialMaze.Config(arms=8, arm_width=1, clear_background=False, outline_walls=False))
             return dungeons
 
         biome_max_w = max(10, int(min(self.width * cfg.max_biome_zone_fraction, self.width // 2)))
