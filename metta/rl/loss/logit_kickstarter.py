@@ -59,6 +59,10 @@ class LogitKickstarter(Loss):
         # Determine action space size
         act_space = self.env.single_action_space
         self.num_actions = int(act_space.n)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 34f6ccf001 (Centralize teacher policy loading for kickstarter losses (#4500))
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
 
     def get_experience_spec(self) -> Composite:
