@@ -46,7 +46,7 @@ def main():
         local_job = job.model_copy(deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri})
         subprocess.run(
             [
-                "/workspace/metta/.venv/bin/python",
+                "python",
                 "-m",
                 "metta.sim.pure_single_episode_runner",
                 json.dumps(

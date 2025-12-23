@@ -328,6 +328,7 @@ def render_eval_summary(
             logger.info("\n%s", "\n".join(lines))
 
 
+# NOTE: This will be removed when we switch all evaluations to the single-episode runner
 def write_eval_results_to_observatory(
     *,
     policy_version_ids: list[str],
