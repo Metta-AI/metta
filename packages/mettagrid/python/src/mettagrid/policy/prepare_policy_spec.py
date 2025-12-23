@@ -293,9 +293,7 @@ def load_policy_spec_from_zip(
             _registered_cleanup_dirs.add(extraction_root)
             atexit.register(_cleanup_cache_dir, extraction_root)
 
-    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
-
-    return policy_spec
+    return load_policy_spec_from_local_dir(extraction_root, device=device)
 
 
 def load_policy_spec_from_path(

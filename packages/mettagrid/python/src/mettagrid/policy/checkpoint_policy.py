@@ -10,7 +10,7 @@ from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME as SUBMISSION_POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.policy.submission import SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
@@ -32,8 +32,8 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
 class CheckpointPolicy(MultiAgentPolicy):
     CLASS_PATH = "mettagrid.policy.checkpoint_policy.CheckpointPolicy"
     short_names = ["checkpoint"]
+    POLICY_SPEC_FILENAME = "policy_spec.json"
     WEIGHTS_FILENAME = "weights.safetensors"
-    POLICY_SPEC_FILENAME = SUBMISSION_POLICY_SPEC_FILENAME
 
     def __init__(
         self,

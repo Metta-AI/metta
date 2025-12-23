@@ -63,7 +63,8 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                loaded: tuple[str, dict[str, torch.Tensor]] | None = None
+                architecture_spec: str | None = None
+                state_dict: dict[str, torch.Tensor] | None = None
                 if self._distributed.is_master():
                     spec = policy_spec_from_uri(normalized_uri, device=str(load_device))
                     architecture_spec = spec.init_kwargs.get("architecture_spec")
@@ -74,16 +75,15 @@ class Checkpointer(TrainerComponent):
                         spec,
                         device_override=str(load_device),
                     )
-                    loaded = (architecture_spec, policy.wrapped_policy.state_dict())
+                    state_dict = policy.wrapped_policy.state_dict()
                 state_dict = self._distributed.broadcast_from_master(
-                    {k: v.cpu() for k, v in loaded[1].items()} if loaded else None
+                    {k: v.cpu() for k, v in state_dict.items()} if state_dict else None
                 )
-                architecture_spec = self._distributed.broadcast_from_master(loaded[0] if loaded else None)
-                action_count = self._distributed.broadcast_from_master(
-                    len(policy_env_info.actions.actions()) if self._distributed.is_master() else None
-                )
-
+                architecture_spec = self._distributed.broadcast_from_master(architecture_spec)
                 local_action_count = len(policy_env_info.actions.actions())
+                action_count = self._distributed.broadcast_from_master(
+                    local_action_count if self._distributed.is_master() else None
+                )
                 if local_action_count != action_count:
                     raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 

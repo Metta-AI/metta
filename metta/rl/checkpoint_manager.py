@@ -104,9 +104,8 @@ class CheckpointManager:
             logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
             return remote_dir
 
-        local_uri = checkpoint_dir.as_uri()
-        logger.debug("Policy checkpoint saved locally to %s", local_uri)
-        return local_uri
+        logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
+        return checkpoint_dir.as_uri()
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

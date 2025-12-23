@@ -54,5 +54,4 @@ class MptPolicy(MultiAgentPolicy):
 
         save_mpt(str(destination), architecture=architecture, state_dict=self._policy.state_dict())
 
-        parsed = parse_uri(str(destination), allow_none=False)
-        return parsed.canonical
+        return parse_uri(str(destination), allow_none=False).canonical

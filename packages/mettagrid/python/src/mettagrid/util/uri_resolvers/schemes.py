@@ -272,17 +272,15 @@ def policy_spec_from_uri(
     uri: str,
     *,
     device: str = "cpu",
+    strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
     from mettagrid.policy.policy import PolicySpec
-<<<<<<< HEAD
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_path, load_policy_spec_from_s3
-=======
     from mettagrid.policy.prepare_policy_spec import (
-        load_policy_spec_from_path,
-        load_policy_spec_from_s3,
+        download_policy_spec_from_s3_as_zip,
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_zip,
     )
->>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)
 
     parsed = resolve_uri(uri)
 
@@ -293,41 +291,28 @@ def policy_spec_from_uri(
             init_kwargs={
                 "checkpoint_uri": checkpoint_path,
                 "device": device,
+                "strict": strict,
             },
         )
 
     if parsed.scheme == "s3":
-        if parsed.canonical.endswith("/policy_spec.json"):
-            raise ValueError("Provide a checkpoint directory, not policy_spec.json")
-        spec = load_policy_spec_from_s3(
-            parsed.canonical,
+        local = download_policy_spec_from_s3_as_zip(
+            s3_path=parsed.canonical,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            device=device,
         )
+        parsed = resolve_uri(local.as_uri())
+
+    if parsed.local_path:
+        if parsed.local_path.is_file():
+            spec = load_policy_spec_from_zip(
+                parsed.local_path,
+                device=device,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
+        else:
+            spec = load_policy_spec_from_local_dir(parsed.local_path, device=device)
         if "strict" in spec.init_kwargs:
             spec.init_kwargs["strict"] = strict
         return spec
 
-    if parsed.local_path:
-        if parsed.local_path.is_file() and parsed.local_path.name == "policy_spec.json":
-            raise ValueError("Provide a checkpoint directory, not policy_spec.json")
-        spec = load_policy_spec_from_path(
-            parsed.local_path,
-            device=device,
-            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-        )
-        return spec
-
-<<<<<<< HEAD
-    raise ValueError("Provide a checkpoint directory")
-=======
-    if parsed.local_path:
-        spec = load_policy_spec_from_path(
-            parsed.local_path,
-            device=device,
-            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-        )
-        return spec
-
     raise ValueError(f"Cannot load policy spec from URI: {uri}")
->>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)
