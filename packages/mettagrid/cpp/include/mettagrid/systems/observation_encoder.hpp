@@ -1,7 +1,6 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_SYSTEMS_OBSERVATION_ENCODER_HPP_
 
-#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -17,12 +16,12 @@ public:
   explicit ObservationEncoder(bool protocol_details_obs,
                               const std::vector<std::string>& resource_names,
                               const std::unordered_map<std::string, ObservationType>& feature_ids,
-                              unsigned int token_value_max = 255)
+                              unsigned int token_value_base = 256)
       : protocol_details_obs(protocol_details_obs),
         resource_count(resource_names.size()),
-        _token_value_max(token_value_max) {
+        _token_value_base(token_value_base) {
     // Compute number of tokens needed to encode max uint16_t value (65535)
-    _num_inventory_tokens = compute_num_tokens(65535, _token_value_max);
+    _num_inventory_tokens = compute_num_tokens(65535, _token_value_base);
 
     // Build feature ID maps for protocol details if enabled
     if (protocol_details_obs) {
@@ -89,12 +88,20 @@ public:
   }
 
   static size_t compute_num_tokens(uint32_t max_value, unsigned int base) {
-    if (max_value == 0 || base <= 1) {
+    if (base <= 1) {
+      throw std::runtime_error("Base must be greater than 1");
+    }
+    if (max_value == 0) {
       return 1;
     }
-    // Need ceil(log_base(max_value + 1)) tokens
-    return static_cast<size_t>(
-        std::ceil(std::log(static_cast<double>(max_value) + 1) / std::log(static_cast<double>(base))));
+    // Count digits needed: ceil(log_base(max_value + 1))
+    size_t count = 0;
+    uint32_t value = max_value;
+    while (value > 0) {
+      value /= base;
+      ++count;
+    }
+    return count;
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
@@ -159,21 +166,21 @@ public:
                                InventoryItem item,
                                InventoryQuantity amount) const {
     // Base token (always emitted)
-    ObservationType base_value = static_cast<ObservationType>(amount % _token_value_max);
+    ObservationType base_value = static_cast<ObservationType>(amount % _token_value_base);
     features.push_back({_inventory_feature_ids[item], base_value});
 
     // Higher power tokens (only emitted if needed)
-    InventoryQuantity remaining = amount / _token_value_max;
+    InventoryQuantity remaining = amount / _token_value_base;
     const auto& power_ids = _inventory_power_feature_ids[item];
     for (size_t p = 0; p < power_ids.size() && remaining > 0; ++p) {
-      ObservationType power_value = static_cast<ObservationType>(remaining % _token_value_max);
+      ObservationType power_value = static_cast<ObservationType>(remaining % _token_value_base);
       features.push_back({power_ids[p], power_value});
-      remaining /= _token_value_max;
+      remaining /= _token_value_base;
     }
   }
 
   unsigned int get_token_value_max() const {
-    return _token_value_max;
+    return _token_value_base;
   }
 
   size_t get_num_inventory_tokens() const {
@@ -184,7 +191,7 @@ public:
 
 private:
   size_t resource_count;
-  unsigned int _token_value_max;
+  unsigned int _token_value_base;
   size_t _num_inventory_tokens;
   std::vector<ObservationType> _input_feature_ids;
   std::vector<ObservationType> _output_feature_ids;
