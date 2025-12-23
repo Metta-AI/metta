@@ -168,15 +168,15 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             w = {**defaults, **(weights or {})}
             biomes: list[SceneConfig] = []
             if float(w.get("caves", 0.0)) > 0:
-                biomes.append(BiomeCavesConfig())
+                biomes.append(BiomeCavesConfig(fill_prob=0.4, steps=3))
             if float(w.get("forest", 0.0)) > 0:
-                biomes.append(BiomeForestConfig())
+                biomes.append(BiomeForestConfig(clumpiness=2, seed_prob=0.03, growth_prob=0.5))
             if float(w.get("desert", 0.0)) > 0:
-                biomes.append(BiomeDesertConfig())
+                biomes.append(BiomeDesertConfig(ridge_width=1))
             if float(w.get("city", 0.0)) > 0:
-                biomes.append(BiomeCityConfig())
+                biomes.append(BiomeCityConfig(road_width=3, min_block_frac=0.5, jitter=1))
             if float(w.get("plains", 0.0)) > 0:
-                biomes.append(BiomePlainsConfig())
+                biomes.append(BiomePlainsConfig(cluster_min_radius=0, cluster_max_radius=2))
             return biomes
 
         def _make_dungeons(weights: dict[str, float] | None) -> list[SceneConfig]:
@@ -190,7 +190,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                             RandomSceneCandidate(
                                 scene=MazeConfig(
                                     algorithm="dfs",
-                                    room_size=IntConstantDistribution(value=2),
+                                    room_size=IntConstantDistribution(value=3),
                                     wall_size=IntConstantDistribution(value=1),
                                 ),
                                 weight=0.6,
@@ -198,7 +198,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                             RandomSceneCandidate(
                                 scene=MazeConfig(
                                     algorithm="kruskal",
-                                    room_size=IntConstantDistribution(value=2),
+                                    room_size=IntConstantDistribution(value=3),
                                     wall_size=IntConstantDistribution(value=1),
                                 ),
                                 weight=0.4,
@@ -207,7 +207,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     )
                 )
             if float(w.get("radial", 0.0)) > 0:
-                dungeons.append(RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True))
+                dungeons.append(RadialMaze.Config(arms=8, arm_width=1, clear_background=False, outline_walls=False))
             return dungeons
 
         biome_max_w = max(10, int(min(self.width * cfg.max_biome_zone_fraction, self.width // 2)))
