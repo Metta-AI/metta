@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Test if Asana token is working."""
 
-import sys
-sys.path.insert(0, 'src')
 import os
-os.environ['USE_AWS_SECRETS'] = 'true'
-os.environ['AWS_REGION'] = 'us-east-1'
+import sys
+
+sys.path.insert(0, "src")
+
+os.environ["USE_AWS_SECRETS"] = "true"
+os.environ["AWS_REGION"] = "us-east-1"
 
 import asana
+
 from github_webhook.config import settings
 
 print(f"ASANA_PAT configured: {settings.ASANA_PAT is not None}")

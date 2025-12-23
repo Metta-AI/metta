@@ -49,8 +49,6 @@ echo ""
 
 # Cleanup
 echo "Stopping server..."
-kill $SERVER_PID 2>/dev/null || true
+kill $SERVER_PID 2> /dev/null || true
 
 echo "Test complete!"
-
-

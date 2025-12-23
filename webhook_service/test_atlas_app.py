@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Test atlas_app credentials for Asana service authentication."""
 
-import sys
-sys.path.insert(0, 'src')
 import os
-os.environ['USE_AWS_SECRETS'] = 'true'
-os.environ['AWS_REGION'] = 'us-east-1'
+import sys
 
-from github_webhook.config import settings
+sys.path.insert(0, "src")
+
+os.environ["USE_AWS_SECRETS"] = "true"
+os.environ["AWS_REGION"] = "us-east-1"
+
 from github_webhook.asana_integration import _get_asana_access_token
+from github_webhook.config import settings
 
 print("Testing Asana authentication with atlas_app credentials...")
 print(f"ASANA_CLIENT_ID: {settings.ASANA_CLIENT_ID is not None}")

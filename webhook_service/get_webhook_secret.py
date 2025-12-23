@@ -27,8 +27,8 @@ def get_secret():
 
         response = client.get_secret_value(SecretId=secret_name)
         secret = response["SecretString"]
-        print(f"✅ Retrieved secret from AWS Secrets Manager")
-        print(f"\nSet it as:")
+        print("✅ Retrieved secret from AWS Secrets Manager")
+        print("\nSet it as:")
         print(f"export GITHUB_WEBHOOK_SECRET='{secret}'")
         return secret
     except ClientError as e:

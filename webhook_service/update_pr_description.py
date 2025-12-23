@@ -29,7 +29,7 @@ async def main():
 
     task_url = task.get("permalink_url")
     if not task_url:
-        print(f"❌ Task found but no permalink URL")
+        print("❌ Task found but no permalink URL")
         sys.exit(1)
 
     print(f"✅ Found Asana task: {task_url}")
@@ -44,7 +44,7 @@ async def main():
     if success:
         print(f"✅ Updated PR #{pr_number} description with Asana task link")
     else:
-        print(f"❌ Failed to update PR description. Check GITHUB_TOKEN is configured.")
+        print("❌ Failed to update PR description. Check GITHUB_TOKEN is configured.")
         sys.exit(1)
 
 

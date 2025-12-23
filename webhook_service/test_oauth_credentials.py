@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Test OAuth client credentials for Asana."""
 
-import sys
-sys.path.insert(0, 'src')
 import os
-os.environ['USE_AWS_SECRETS'] = 'true'
-os.environ['AWS_REGION'] = 'us-east-1'
+import sys
+
+sys.path.insert(0, "src")
+
+os.environ["USE_AWS_SECRETS"] = "true"
+os.environ["AWS_REGION"] = "us-east-1"
 
 from github_webhook.config import settings
 
