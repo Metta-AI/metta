@@ -84,8 +84,10 @@ class TorchProfileSession:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if not self._active or self._profiler is None:
-            self._active = False
+        if not self._active:
+            return False
+        if self._profiler is None:
+            # Armed for a future epoch; keep active state for the next __enter__.
             return False
 
         logger.info("Stopping torch profiler for epoch %s", self._start_epoch)
