@@ -46,8 +46,12 @@ class PureSingleEpisodeJob(BaseModel):
                 raise ValueError(f"Directory {parsed.local_path.parent} does not exist")
 
         if self.replay_uri is not None:
-            if not self.replay_uri.endswith(".json.z"):
-                raise ValueError("Replay URI must end with .json.z")
+            if self.replay_uri.endswith(".json.z"):
+                pass
+            elif self.replay_uri.endswith(".json.gz"):
+                pass
+            else:
+                raise ValueError("Replay URI must end with .json.z or .json.gz")
 
         if not all(0 <= assignment < len(self.policy_uris) for assignment in self.assignments):
             raise ValueError("Assignment index out of range")
@@ -103,6 +107,10 @@ def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
 
     if job.replay_uri is not None:
         if replay is not None:
+            if job.replay_uri.endswith(".z"):
+                replay.set_compression("zlib")
+            elif job.replay_uri.endswith(".gz"):
+                replay.set_compression("gzip")
             replay.write_replay(job.replay_uri)
         else:
             raise ValueError("No replay was generated")
