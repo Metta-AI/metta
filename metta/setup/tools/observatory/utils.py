@@ -43,8 +43,20 @@ def _cleanup_kind_images():
     )
 
 
+def _get_local_image_id(image_name: str) -> str | None:
+    result = subprocess.run(
+        ["docker", "images", "-q", image_name],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return None
+
+
 def build_image(force_build: bool = True):
     image_exists = subprocess.run(["docker", "image", "inspect", IMAGE_NAME], capture_output=True).returncode == 0
+    old_image_id = _get_local_image_id(IMAGE_NAME) if image_exists else None
 
     if force_build or not image_exists:
         info(f"Building {IMAGE_NAME}...")
@@ -63,6 +75,11 @@ def build_image(force_build: bool = True):
             check=True,
             cwd=get_repo_root(),
         )
+        if old_image_id:
+            new_image_id = _get_local_image_id(IMAGE_NAME)
+            if new_image_id != old_image_id:
+                info(f"Removing old image {old_image_id[:12]}...")
+                subprocess.run(["docker", "rmi", old_image_id], capture_output=True)
 
 
 def load_image_into_kind(force_load: bool = False):
