@@ -387,27 +387,6 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             name: weights_dict.get(name, default_building_weights.get(name, 1.0)) for name in building_names_final
         }
 
-        def _autoscale_zone_counts(w: int, h: int, *, biome_density: float = 1.0, dungeon_density: float = 1.0):
-            area = max(1, w * h)
-            biome_divisor = max(800, int(1600 / max(0.1, biome_density)))
-            dungeon_divisor = max(800, int(1500 / max(0.1, dungeon_density)))
-            return max(3, min(48, area // biome_divisor)), max(3, min(48, area // dungeon_divisor))
-
-        biome_count = cfg.biome_count
-        dungeon_count = cfg.dungeon_count
-        if biome_count is None or dungeon_count is None:
-            auto_biomes, auto_dungeons = _autoscale_zone_counts(
-                self.width, self.height, biome_density=cfg.density_scale, dungeon_density=cfg.density_scale
-            )
-            biome_count = auto_biomes if biome_count is None else biome_count
-            dungeon_count = auto_dungeons if dungeon_count is None else dungeon_count
-
-        def _min_count_for_fraction(frac: float) -> int:
-            return 1 if frac <= 0 else int(np.ceil(1.0 / min(0.9, max(0.02, float(frac)))))
-
-        biome_count = max(int(biome_count), _min_count_for_fraction(cfg.max_biome_zone_fraction))
-        dungeon_count = max(int(dungeon_count), _min_count_for_fraction(cfg.max_dungeon_zone_fraction))
-
         def _make_biomes(weights: dict[str, float] | None) -> list[SceneConfig]:
             if weights is not None and "none" in weights:
                 return []
@@ -513,10 +492,8 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
 
         biomes = _make_biomes(cfg.biome_weights)
         dungeons = _make_dungeons(cfg.dungeon_weights)
-        if biomes:
-            biome_count = len(biomes) if cfg.biome_count is None else max(int(biome_count), len(biomes))
-        if dungeons:
-            dungeon_count = len(dungeons) if cfg.dungeon_count is None else max(int(dungeon_count), len(dungeons))
+        biome_count = cfg.biome_count if cfg.biome_count is not None else len(biomes)
+        dungeon_count = cfg.dungeon_count if cfg.dungeon_count is not None else len(dungeons)
         biome_layer = _make_layer(biomes, "biome.zone", biome_max_w, biome_max_h, biome_count) if biomes else None
         dungeon_layer = (
             _make_layer(
