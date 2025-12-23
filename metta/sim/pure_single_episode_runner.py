@@ -1,5 +1,7 @@
+import json
 import socket
-from contextlib import contextmanager
+import sys
+from contextlib import contextmanager, nullcontext
 
 from pydantic import BaseModel, model_validator
 
@@ -46,8 +48,12 @@ class PureSingleEpisodeJob(BaseModel):
                 raise ValueError(f"Directory {parsed.local_path.parent} does not exist")
 
         if self.replay_uri is not None:
-            if not self.replay_uri.endswith(".json.z"):
-                raise ValueError("Replay URI must end with .json.z")
+            if self.replay_uri.endswith(".json.z"):
+                pass
+            elif self.replay_uri.endswith(".json.gz"):
+                pass
+            else:
+                raise ValueError("Replay URI must end with .json.z or .json.gz")
 
         if not all(0 <= assignment < len(self.policy_uris) for assignment in self.assignments):
             raise ValueError("Assignment index out of range")
@@ -83,7 +89,7 @@ def _no_python_sockets():
         socket.getaddrinfo = _real_getaddrinfo
 
 
-def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
+def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, device: str = "cpu") -> None:
     # Pull each policy onto the local filesystem, leave them as zip files
     local_uris: list[str] = []
     for uri in job.policy_uris:
@@ -97,12 +103,15 @@ def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
             raise RuntimeError(f"could not resolve policy {uri}")
         local_uris.append(local)
     job.policy_uris = local_uris
-
-    with _no_python_sockets():
+    with (_no_python_sockets if not allow_network else nullcontext)():
         results, replay = run_pure_single_episode(job, device)
 
     if job.replay_uri is not None:
         if replay is not None:
+            if job.replay_uri.endswith(".z"):
+                replay.set_compression("zlib")
+            elif job.replay_uri.endswith(".gz"):
+                replay.set_compression("gzip")
             replay.write_replay(job.replay_uri)
         else:
             raise ValueError("No replay was generated")
@@ -152,3 +161,12 @@ def run_pure_single_episode(
         replay = replays[0]
 
     return results, replay
+
+
+if __name__ == "__main__":
+    with open(sys.argv[1]) as f:
+        args = json.load(f)
+    job = PureSingleEpisodeJob.model_validate(args["job"])
+    device = args["device"]
+    allow_network = args.get("allow_network", False)
+    run_single_episode(job, allow_network=allow_network, device=device)
