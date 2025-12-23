@@ -8,7 +8,7 @@ from rich.console import Console
 
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.observatory.utils import build_and_load_image
+from metta.setup.tools.observatory.utils import build_image, load_image_into_kind
 from metta.setup.utils import error, info, success
 
 repo_root = get_repo_root()
@@ -212,7 +212,8 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        build_and_load_image(force_build=False)
+        build_image(force_build=False)
+        load_image_into_kind(force_load=False)
         success("Kind cluster ready")
 
         if not self._check_namespace_exists(self.namespace):

@@ -105,6 +105,14 @@ def stats_client(test_client: TestClient) -> StatsClient:
     return create_test_stats_client(test_client, machine_token="dummy_token")
 
 
+@pytest.fixture(autouse=True)
+def mock_dispatch_job(monkeypatch):
+    def stub_dispatch(job):
+        return f"mock-k8s-job-{job.id.hex[:8]}"
+
+    monkeypatch.setattr("metta.app_backend.routes.job_routes.dispatch_job", stub_dispatch)
+
+
 # Isolated fixtures for function-scoped testing
 @pytest.fixture(scope="function")
 def isolated_db_context(db_uri: str) -> str:
