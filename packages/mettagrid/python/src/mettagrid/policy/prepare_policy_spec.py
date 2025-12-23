@@ -133,7 +133,7 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
 _executed_setup_scripts: set[Path] = set()
 
 
-def load_policy_spec_from_local_dir(
+def _load_policy_spec_from_local_dir(
     extraction_root: Path,
     *,
     device: str | None = None,
@@ -254,7 +254,7 @@ def download_policy_spec_from_s3_as_zip(
     return extraction_root
 
 
-def load_policy_spec_from_zip(
+def _load_policy_spec_from_zip(
     local_path: Path,
     cache_dir: Optional[Path] = None,
     force_dest: Optional[Path] = None,
@@ -293,7 +293,7 @@ def load_policy_spec_from_zip(
             _registered_cleanup_dirs.add(extraction_root)
             atexit.register(_cleanup_cache_dir, extraction_root)
 
-    return load_policy_spec_from_local_dir(extraction_root, device=device)
+    return _load_policy_spec_from_local_dir(extraction_root, device=device)
 
 
 def load_policy_spec_from_path(
@@ -304,9 +304,9 @@ def load_policy_spec_from_path(
     force_dest: Optional[Path] = None,
 ) -> PolicySpec:
     if local_path.is_dir():
-        return load_policy_spec_from_local_dir(local_path, device=device)
+        return _load_policy_spec_from_local_dir(local_path, device=device)
 
-    return load_policy_spec_from_zip(
+    return _load_policy_spec_from_zip(
         local_path=local_path,
         force_dest=force_dest,
         remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
