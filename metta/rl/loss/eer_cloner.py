@@ -83,9 +83,10 @@ class EERCloner(Loss):
         rewards = rewards + self.cfg.r_lambda * teach_act_reward_shift
         minibatch["rewards"] = rewards
 
+        centered_rewards = rewards - minibatch["reward_baseline"]
         advantages = compute_advantage(
             minibatch["values"],
-            rewards,
+            centered_rewards,
             minibatch["dones"],
             torch.ones_like(minibatch["values"]),
             torch.zeros_like(minibatch["values"], device=self.device),

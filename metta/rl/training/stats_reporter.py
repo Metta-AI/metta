@@ -330,6 +330,12 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
+        overview = processed.setdefault("overview", {})
+        avg_reward = self.context.state.avg_reward
+        overview["avg_reward_estimate"] = float(avg_reward.mean().item())
+        overview["avg_reward_estimate_min"] = float(avg_reward.min().item())
+        overview["avg_reward_estimate_max"] = float(avg_reward.max().item())
+
         # Ensure certain env metrics always exist (e.g., env_game/assembler.heart.created) so rolling
         # averages and wandb logs see zeros instead of missing keys.
         env_stats = processed.setdefault("environment_stats", {})

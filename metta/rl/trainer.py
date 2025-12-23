@@ -95,6 +95,13 @@ class Trainer:
         self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
 
         self._state = TrainerState()
+        reward_centering = self._cfg.advantage.reward_centering
+        self._state.avg_reward = torch.full(
+            (parallel_agents,),
+            float(reward_centering.initial_reward_mean),
+            device=self._device,
+            dtype=torch.float32,
+        )
 
         # Extract curriculum from environment if available
         curriculum = getattr(self._env, "_curriculum", None)

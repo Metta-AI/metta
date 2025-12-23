@@ -33,10 +33,20 @@ class SamplingConfig(Config):
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
+class RewardCenteringConfig(Config):
+    enabled: bool = True
+    beta: float = Field(default=1e-3, gt=0, le=1.0)
+    initial_reward_mean: float = 0.0
+
+
 class AdvantageConfig(Config):
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     vtrace_c_clip: float = Field(default=1.0, gt=0)
-    gamma: float = Field(default=0.99, ge=0, le=1.0)
+
+    # Average-reward baseline: replace r with (r - r_bar) and update r_bar via EMA.
+    reward_centering: RewardCenteringConfig = Field(default_factory=RewardCenteringConfig)
+
+    gamma: float = Field(default=1.0, ge=0, le=1.0)
     gae_lambda: float = Field(default=0.95, ge=0, le=1.0)
 
 

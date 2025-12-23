@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterable, List
 import torch
 from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.common.util.collections import duplicates
 from metta.rl.training.batch import calculate_prioritized_sampling_params
@@ -315,6 +315,11 @@ class Experience:
         for loss in losses.values():
             spec = loss.get_experience_spec()
             merged_spec_dict.update(dict(spec.items()))
+
+        merged_spec_dict.setdefault(
+            "reward_baseline",
+            UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32),
+        )
 
         # Create experience buffer
         experience = Experience(

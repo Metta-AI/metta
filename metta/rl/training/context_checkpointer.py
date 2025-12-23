@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Dict, Optional
 
+import torch
+
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
 
@@ -51,6 +53,7 @@ class ContextCheckpointer(TrainerComponent):
                 payload = {
                     "agent_step": raw.get("agent_step", 0),
                     "epoch": raw.get("epoch", 0),
+                    "avg_reward": raw.get("avg_reward"),
                     "optimizer_state": raw.get("optimizer_state", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
                     "curriculum_state": raw.get("curriculum_state"),
@@ -66,6 +69,12 @@ class ContextCheckpointer(TrainerComponent):
         context.epoch = restored_epoch
         context.latest_saved_policy_epoch = restored_epoch
         self._last_synced_policy_epoch = context.latest_saved_policy_epoch
+
+        total_agents = int(context.experience.total_agents)
+        device = context.experience.device
+        avg_reward = payload.get("avg_reward", context.config.advantage.reward_centering.initial_reward_mean)
+        avg_reward = torch.as_tensor(avg_reward).to(device=device, dtype=torch.float32)
+        context.state.avg_reward = torch.broadcast_to(avg_reward, (total_agents,)).clone()
 
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
@@ -182,6 +191,7 @@ class ContextCheckpointer(TrainerComponent):
             context.optimizer,
             current_epoch,
             agent_step,
+            avg_reward=context.state.avg_reward,
             stopwatch_state=context.state.stopwatch_state,
             curriculum_state=context.state.curriculum_state,
             loss_states=context.state.loss_states,
