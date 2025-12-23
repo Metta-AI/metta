@@ -20,7 +20,7 @@ class EERKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
-    r_lambda: float = Field(default=0.1, ge=0)  # scale the teacher log likelihoods that are added to rewards
+    r_lambda: float = Field(default=0.01, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     def create(
         self,
