@@ -216,9 +216,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                     )
                 )
             if float(w.get("radial", 0.0)) > 0:
-                dungeons.append(
-                    RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True)
-                )
+                dungeons.append(RadialMaze.Config(arms=8, arm_width=2, clear_background=False, outline_walls=True))
             return dungeons
 
         biome_max_w = max(10, int(min(self.width * cfg.max_biome_zone_fraction, self.width // 2)))
