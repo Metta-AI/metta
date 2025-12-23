@@ -172,7 +172,6 @@ def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], nu
         policy = initialize_or_load_policy(
             pei,
             PolicySpec(class_path=AGENT_PATH, data_path=None),
-            mg_cfg=env_cfg,
         )
         agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
 

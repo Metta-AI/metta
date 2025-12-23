@@ -155,7 +155,7 @@ class LLMAgentPolicy(AgentPolicy, ABC):
         net_dir = self._get_net_direction(start_pos, end_pos)
 
         return (
-            f"[Window {window_num}] {pos_to_dir(*start_pos)} → {pos_to_dir(*end_pos)} "
+            f"[Window {window_num}] {pos_to_dir(start_pos[0], start_pos[1])} → {pos_to_dir(end_pos[0], end_pos[1])} "
             f"(heading {net_dir}) | {unique_count} new spots, {summary_info['total_explored']} total"
         )
 
@@ -380,7 +380,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             hints.append("ENERGY LOW (<40): Head to charger soon!")
 
         # Direction change suggestion
-        if self._steps_in_direction >= self._direction_change_threshold:
+        if self._steps_in_direction >= self._direction_change_threshold and self._current_direction:
             opposite = {"north": "south", "south": "north", "east": "west", "west": "east"}
             suggested = opposite.get(self._current_direction, "different")
             hints.append(
