@@ -3,7 +3,7 @@
 from typing import Collection, Tuple
 
 import torch
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -12,11 +12,10 @@ def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int
     """Attach required sequence metadata to ``td`` if missing."""
 
     total = batch_size * time_steps
-    device = td.device
     if "batch" not in td.keys():
-        td.set("batch", torch.full((total,), batch_size, dtype=torch.long, device=device))
+        td.set("batch", NonTensorData(batch_size))
     if "bptt" not in td.keys():
-        td.set("bptt", torch.full((total,), time_steps, dtype=torch.long, device=device))
+        td.set("bptt", NonTensorData(time_steps))
 
 
 def prepare_policy_forward_td(
@@ -37,8 +36,8 @@ def prepare_policy_forward_td(
 
     B, TT = td.batch_size
     td = td.reshape(B * TT)
-    td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-    td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+    td.set("bptt", NonTensorData(TT))
+    td.set("batch", NonTensorData(B))
 
     return td, B, TT
 

@@ -221,8 +221,8 @@ class CortexTD(nn.Module):
         storage_dtype = self._storage_dtype
         compute_dtype = self._resolve_compute_dtype(x.dtype)
 
-        TT = int(td["bptt"][0].item())
-        B = int(td["batch"][0].item())
+        TT = int(td["bptt"])
+        B = int(td["batch"])
 
         self._init_template_if_needed(B=B, device=device, dtype=storage_dtype)
 
