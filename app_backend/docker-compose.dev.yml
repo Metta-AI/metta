@@ -34,7 +34,6 @@ services:
       EPISODE_RUNNER_IMAGE: metta-policy-evaluator-local:latest
       BACKEND_URL: http://host.docker.internal:8000
       MACHINE_TOKEN: local-dev-token
-      METTA_SCHEME_SERVER_URI: http://host.docker.internal:8000
       KUBERNETES_SKIP_TLS_VERIFY: "true"
     volumes:
       - ./src:/workspace/metta/app_backend/src
