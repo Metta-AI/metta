@@ -3,10 +3,11 @@ from __future__ import annotations
 import torch
 
 
-def set_tf32_precision(enabled: bool) -> None:
+def set_tf32_precision(mode: bool | str) -> None:
     if not torch.cuda.is_available():
         return
 
+    enabled = mode if isinstance(mode, bool) else mode.lower() == "tf32"
     matmul_has_fp32 = hasattr(torch.backends.cuda.matmul, "fp32_precision")
     cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
     cudnn_has_fp32 = cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision")
