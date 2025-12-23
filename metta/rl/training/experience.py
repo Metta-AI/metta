@@ -49,8 +49,9 @@ class Experience:
         spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
         self.buffer = spec.zero()
 
-        # Row-aligned tracking (per-agent row slot id and position within row)
-        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
+        # Row-aligned tracking (per-agent row slot id and position within row).
+        # Keep t_in_row on CPU to avoid GPU syncs when reading scalar counters.
+        self.t_in_row = torch.zeros(total_agents, device="cpu", dtype=torch.int32)
         self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 

@@ -199,9 +199,12 @@ class ActionProbs(nn.Module):
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
         if "batch" in td.keys() and "bptt" in td.keys():
-            batch_size = td["batch"][0].item()
-            bptt_size = td["bptt"][0].item()
-            td = td.reshape(batch_size, bptt_size)
+            batch = td["batch"]
+            bptt = td["bptt"]
+            if not (torch.is_tensor(batch) and batch.device.type == "cuda"):
+                batch_size = int(batch.reshape(-1)[0])
+                bptt_size = int(bptt.reshape(-1)[0])
+                td = td.reshape(batch_size, bptt_size)
 
         return td
 

@@ -128,7 +128,7 @@ class CoreTrainingLoop:
                 t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td)
+                self.add_last_action_to_td(td, training_env_id)
 
                 self._ensure_rollout_metadata(td)
 
@@ -351,11 +351,9 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_epoch_start(context)
 
-    def add_last_action_to_td(self, td: TensorDict) -> None:
+    def add_last_action_to_td(self, td: TensorDict, training_env_id: slice) -> None:
         env_ids = td["training_env_ids"].squeeze(-1)
-
-        max_env_id = int(env_ids.max().item())
-        target_length = max_env_id + 1
+        target_length = training_env_id.stop
 
         if self.last_action is None:
             self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
