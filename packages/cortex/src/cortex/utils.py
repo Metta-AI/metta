@@ -10,6 +10,8 @@ from typing import Callable
 import torch
 from torch._dynamo import disable
 
+from cortex.tf32 import set_tf32_precision as _set_tf32_precision
+
 logger = logging.getLogger(__name__)
 
 _disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
@@ -91,31 +93,13 @@ def set_tf32_precision(mode: str) -> None:
 
     Uses PyTorch fp32_precision settings when available, falling back to legacy flags.
     """
-    if not torch.cuda.is_available():
-        return
-
-    def _set_tf32(enabled: bool) -> None:
-        if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
-            torch.backends.cuda.matmul.fp32_precision = "tf32" if enabled else "ieee"
-            cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
-            if cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision"):
-                cudnn_conv.fp32_precision = "tf32" if enabled else "ieee"
-            elif hasattr(torch.backends.cudnn, "allow_tf32"):
-                torch.backends.cudnn.allow_tf32 = enabled
-            return
-
-        if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
-            torch.backends.cuda.matmul.allow_tf32 = enabled
-        if hasattr(torch.backends.cudnn, "allow_tf32"):
-            torch.backends.cudnn.allow_tf32 = enabled
-
     mode_lower = mode.lower()
     if mode_lower == "tf32":
         # Enable TF32 for performance
-        _set_tf32(True)
+        _set_tf32_precision(True)
     else:
         # Disable TF32, use full FP32 precision
-        _set_tf32(False)
+        _set_tf32_precision(False)
 
 
 def configure_tf32_precision() -> None:
