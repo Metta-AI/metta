@@ -39,8 +39,9 @@ class OllamaAgentPolicy(LLMAgentPolicy):
         message = response.choices[0].message
         raw = message.content or ""
 
-        if not raw and hasattr(message, "reasoning") and message.reasoning:
-            raw = message.reasoning
+        # Some Ollama reasoning models return output in a 'reasoning' field
+        if not raw:
+            raw = getattr(message, "reasoning", "") or ""
 
         if not raw:
             print(f"[ERROR] Ollama empty response for Agent {self.agent_id}")
