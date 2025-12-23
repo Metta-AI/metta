@@ -54,9 +54,6 @@ class TrainingEnvironmentConfig(Config):
     zero_copy: bool = Field(default=True)
     """Whether to use zero-copy optimization to avoid memory copies (default assumes multiprocessing)"""
 
-    pin_memory: bool = Field(default=True)
-    """Whether to stage observations in pinned CPU memory for faster H2D transfers when using CUDA."""
-
     vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     """Vectorization mode: 'serial' or 'parallel'"""
 
@@ -143,8 +140,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._curriculum = Curriculum(cfg.curriculum)
         env_cfg = self._curriculum.get_task().get_env_cfg()
         self._num_agents = env_cfg.game.num_agents
-        self._pin_memory = bool(cfg.pin_memory and torch.cuda.is_available())
-        self._pinned_buffers: dict[str, torch.Tensor] = {}
 
         self._replay_directory: Path | None = None
         if cfg.write_replays:
@@ -264,30 +259,17 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         num_steps = int(mask.sum().item())
 
         # Convert to tensors
-        o = self._to_tensor(o, key="observations")
+        o = torch.as_tensor(o)
         if o.ndim == 2:
             # Some vecenv backends collapse the batch axis when only one env/agent is ready
             o = o.unsqueeze(0)
-        r = self._to_tensor(r, key="rewards")
-        d = self._to_tensor(d, key="terminals")
-        t = self._to_tensor(t, key="truncations")
-        ta = self._to_tensor(ta, key="teacher_actions")
+        r = torch.as_tensor(r)
+        d = torch.as_tensor(d)
+        t = torch.as_tensor(t)
+        ta = torch.as_tensor(ta)
         return o, r, d, t, ta, info, training_env_id, mask, num_steps
 
     def send_actions(self, actions: np.ndarray) -> None:
         if actions.dtype != dtype_actions:
             actions = actions.astype(dtype_actions, copy=False)
         self._vecenv.send(actions)
-
-    def _to_tensor(self, array: np.ndarray, *, key: str) -> torch.Tensor:
-        tensor = torch.as_tensor(array)
-        if not self._pin_memory:
-            return tensor
-        if not tensor.is_contiguous():
-            tensor = tensor.contiguous()
-        pinned = self._pinned_buffers.get(key)
-        if pinned is None or pinned.shape != tensor.shape or pinned.dtype != tensor.dtype:
-            pinned = torch.empty_like(tensor, device="cpu", pin_memory=True)
-            self._pinned_buffers[key] = pinned
-        pinned.copy_(tensor, non_blocking=False)
-        return pinned
