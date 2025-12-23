@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 import uuid
 from uuid import UUID
 
@@ -43,22 +44,26 @@ def main():
         # this subprocess should be runnable with no network
         local_results_uri = "file://results.json"
         local_replay_uri = "file://replay.json.z"
-        local_job = job.model_copy(deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri})
-        subprocess.run(
-            [
-                "python",
-                "-m",
-                "metta.sim.pure_single_episode_runner",
-                json.dumps(
-                    {
-                        "job": local_job.model_dump(),
-                        "device": "cpu",
-                        "allow_network": True,  # Until trained policies no longer need network access to hydrate
-                    }
+
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            pure_job_spec = {
+                "job": job.model_copy(
+                    deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri}
                 ),
-            ],
-            check=True,
-        )
+                "device": "cpu",
+                "allow_network": True,  # Until trained policies no longer need network access to hydrate
+            }
+            temp_file.write(json.dumps(pure_job_spec).encode("utf-8"))
+            temp_file.flush()
+            subprocess.run(
+                [
+                    "python",
+                    "-m",
+                    "metta.sim.pure_single_episode_runner",
+                    temp_file.name,
+                ],
+                check=True,
+            )
 
         # Copy local pure-runner's results to requested locations
         for src, dest, content_type in [

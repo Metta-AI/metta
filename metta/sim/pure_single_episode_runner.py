@@ -164,7 +164,8 @@ def run_pure_single_episode(
 
 
 if __name__ == "__main__":
-    args = json.loads(sys.argv[1])
+    with open(sys.argv[1]) as f:
+        args = json.load(f)
     job = PureSingleEpisodeJob.model_validate(args["job"])
     device = args["device"]
     allow_network = args.get("allow_network", False)
