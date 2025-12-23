@@ -83,9 +83,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         if path.name == CheckpointPolicy.POLICY_SPEC_FILENAME:
             raise ValueError(f"Checkpoint data path points at {CheckpointPolicy.POLICY_SPEC_FILENAME}: {path}")
         state_dict = load_safetensors(path.read_bytes())
-        missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=False)
-        if missing or unexpected:
-            raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+        self._policy.load_state_dict(dict(state_dict))
         if hasattr(self._policy, "initialize_to_environment"):
             self._policy.initialize_to_environment(self._policy_env_info, self._device)
         self._policy.eval()
