@@ -10,33 +10,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Bazel for mettagrid build
-RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    && -rf /var/lib/apt/lists/* \
+    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
     && chmod +x /usr/local/bin/bazel
 
-RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
-RUN uv python install
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv python install
 
 # Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
 # This ensures uv sync can build packages like mettagrid that require these tools
 # Copy bootstrap script to /tmp to avoid importing from metta package structure
 COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
-RUN cd /tmp && \
-    uv run --no-sync python bootstrap.py --non-interactive
+RUN --mount=type=cache,target=/root/.cache/uv \
+  cd /tmp && uv run --no-sync python bootstrap.py --non-interactive
 
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
 
-RUN uv sync --no-install-workspace --frozen
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --no-install-workspace --frozen
 
 COPY . .
 
@@ -46,12 +46,10 @@ ENV VIRTUAL_ENV="/workspace/metta/.venv"
 RUN git config --global checkout.defaultRemote origin \
     && git config --global branch.autoSetupMerge simple
 
-# Doesn't do anything but guarantees that the remote is configured for anonymous access
-RUN git fetch
-
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
-RUN uv sync --locked
+RUN --mount=type=cache,target=/root/.cache/uv \
+  uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]
