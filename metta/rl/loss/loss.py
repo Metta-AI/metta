@@ -180,8 +180,6 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("rollout", ctx):
             return
-        if ctx.training_env_id is None:
-            raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
         self.run_rollout(td, ctx)
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -252,6 +250,12 @@ class Loss:
         if self._context is None:
             raise RuntimeError("Loss has not been attached to a ComponentContext")
         return self._context
+
+    def _training_env_id(self, context: ComponentContext, *, error: Optional[str] = None) -> slice:
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError(error or "ComponentContext.training_env_id is missing in rollout.")
+        return env_slice
 
     def _zero(self) -> Tensor:
         assert self._zero_tensor is not None

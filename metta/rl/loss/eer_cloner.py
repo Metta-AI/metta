@@ -58,44 +58,42 @@ class EERCloner(Loss):
         with torch.no_grad():
             self.policy.forward(td)
 
-            # --- Reward Shaping ---
-            # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
-            # For cloner, the teacher output is just an action index.
-            # We treat this as a deterministic distribution (or peaked):
-            # If A_{t-1} == TeacherAction_{t-1}: log(prob) then loss is log(1) = 0
-            # If A_{t-1} != TeacherAction_{t-1}: log(prob) then loss is log(epsilon)
+        env_slice = self._training_env_id(context)
 
-            env_slice = context.training_env_id
-            indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
+        # --- Reward Shaping ---
+        # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
+        # For cloner, the teacher output is just an action index.
+        # We treat this as a deterministic distribution (or peaked):
+        # If A_{t-1} == TeacherAction_{t-1}: log(prob) then loss is log(1) = 0
+        # If A_{t-1} != TeacherAction_{t-1}: log(prob) then loss is log(epsilon)
 
-            valid_mask = self.has_last_actions[indices]
+        indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
 
-            if valid_mask.any():
-                # Get cached teacher actions from t-1
-                last_teacher_acts = self.last_teacher_actions[indices]
+        valid_mask = self.has_last_actions[indices]
 
-                # Get actions actually taken at t-1
-                last_actions = td["last_actions"]
-                if last_actions.dim() > 1:
-                    last_actions = last_actions.squeeze(-1)
-                last_actions = last_actions.long()
+        if valid_mask.any():
+            # Get cached teacher actions from t-1
+            last_teacher_acts = self.last_teacher_actions[indices]
 
-                # Compare: 1.0 if match, prob_floor if mismatch
-                matches = (last_teacher_acts == last_actions).float()
-                probs = matches * (1.0 - self.cfg.teacher_prob_floor) + self.cfg.teacher_prob_floor
+            # Get actions actually taken at t-1
+            last_actions = td["last_actions"]
+            if last_actions.dim() > 1:
+                last_actions = last_actions.squeeze(-1)
+            last_actions = last_actions.long()
 
-                # Compute log likelihood
-                intrinsic_reward = torch.log(probs)
+            # Compare: 1.0 if match, prob_floor if mismatch
+            matches = (last_teacher_acts == last_actions).float()
+            probs = matches * (1.0 - self.cfg.teacher_prob_floor) + self.cfg.teacher_prob_floor
 
-                # Add to rewards in place
-                td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
+            # Compute log likelihood
+            intrinsic_reward = torch.log(probs)
 
-            teacher_actions = td["teacher_actions"]
-            self.last_teacher_actions[indices] = teacher_actions
-            self.has_last_actions[indices] = True
+            # Add to rewards in place
+            td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
 
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        teacher_actions = td["teacher_actions"]
+        self.last_teacher_actions[indices] = teacher_actions
+        self.has_last_actions[indices] = True
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
