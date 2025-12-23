@@ -276,7 +276,14 @@ def policy_spec_from_uri(
     remove_downloaded_copy_on_exit: bool = False,
 ):
     from mettagrid.policy.policy import PolicySpec
+<<<<<<< HEAD
     from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_path, load_policy_spec_from_s3
+=======
+    from mettagrid.policy.prepare_policy_spec import (
+        load_policy_spec_from_path,
+        load_policy_spec_from_s3,
+    )
+>>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)
 
     parsed = resolve_uri(uri)
 
@@ -315,4 +322,18 @@ def policy_spec_from_uri(
             spec.init_kwargs["strict"] = strict
         return spec
 
+<<<<<<< HEAD
     raise ValueError("Provide a checkpoint directory")
+=======
+    if parsed.local_path:
+        spec = load_policy_spec_from_path(
+            parsed.local_path,
+            device=device,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        )
+        if "strict" in spec.init_kwargs:
+            spec.init_kwargs["strict"] = strict
+        return spec
+
+    raise ValueError(f"Cannot load policy spec from URI: {uri}")
+>>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)

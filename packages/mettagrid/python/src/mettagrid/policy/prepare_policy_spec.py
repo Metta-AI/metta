@@ -344,7 +344,11 @@ def load_policy_spec_from_s3(
     Returns:
         PolicySpec with paths resolved to the local extraction/sync directory.
     """
+<<<<<<< HEAD
     local_path = download_policy_spec_from_s3_as_zip(
+=======
+    local_path = download_policy_spec_from_s3(
+>>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)
         s3_path=s3_path,
         cache_dir=cache_dir,
         remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,

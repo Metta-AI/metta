@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -18,8 +19,6 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
     result: dict[str, torch.Tensor] = {}
     seen_storage: set[int] = set()
     for key, tensor in state_dict.items():
-        if not isinstance(tensor, torch.Tensor):
-            raise TypeError(f"State dict entry '{key}' is not a torch.Tensor")
         value = tensor.detach().cpu()
         data_ptr = value.data_ptr()
         if data_ptr in seen_storage:
@@ -39,15 +38,6 @@ def load_state_from_checkpoint_uri(uri: str, *, device: str) -> tuple[str, dict[
         raise ValueError("policy_spec.json missing data_path")
     state_dict = load_safetensors(Path(spec.data_path).read_bytes())
     return architecture_spec, dict(state_dict)
-
-
-def write_policy_spec(checkpoint_dir: Path, architecture_spec: str) -> None:
-    spec = SubmissionPolicySpec(
-        class_path=CheckpointPolicy.CLASS_PATH,
-        data_path=CheckpointPolicy.WEIGHTS_FILENAME,
-        init_kwargs={"architecture_spec": architecture_spec},
-    )
-    (checkpoint_dir / CheckpointPolicy.POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
 
 
 class CheckpointPolicy(MultiAgentPolicy):
@@ -124,11 +114,13 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def save_policy_data(self, policy_data_path: str) -> None:
         target_dir = Path(policy_data_path).expanduser()
-        target_dir.mkdir(parents=True, exist_ok=True)
-        (target_dir / CheckpointPolicy.WEIGHTS_FILENAME).write_bytes(
-            save_safetensors(prepare_state_dict_for_save(self._policy.state_dict()))
+        _write_checkpoint_dir_contents(
+            target_dir,
+            architecture_spec=self._architecture_spec,
+            state_dict=self._policy.state_dict(),
+            weights_filename=CheckpointPolicy.WEIGHTS_FILENAME,
+            policy_spec_filename=CheckpointPolicy.POLICY_SPEC_FILENAME,
         )
-        write_policy_spec(target_dir, self._architecture_spec)
 
     @staticmethod
     def write_checkpoint_dir(
@@ -141,11 +133,13 @@ class CheckpointPolicy(MultiAgentPolicy):
     ) -> Path:
         architecture_spec = architecture if isinstance(architecture, str) else architecture.to_spec()
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        (checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME).write_bytes(
-            save_safetensors(prepare_state_dict_for_save(state_dict))
+        _write_checkpoint_dir_contents(
+            checkpoint_dir,
+            architecture_spec=architecture_spec,
+            state_dict=state_dict,
+            weights_filename=CheckpointPolicy.WEIGHTS_FILENAME,
+            policy_spec_filename=CheckpointPolicy.POLICY_SPEC_FILENAME,
         )
-        write_policy_spec(checkpoint_dir, architecture_spec)
         return checkpoint_dir
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
@@ -158,3 +152,39 @@ class CheckpointPolicy(MultiAgentPolicy):
     @property
     def wrapped_policy(self) -> Any:
         return self._policy
+
+
+def _write_checkpoint_dir_contents(
+    checkpoint_dir: Path,
+    *,
+    architecture_spec: str,
+    state_dict: Mapping[str, torch.Tensor],
+    weights_filename: str,
+    policy_spec_filename: str,
+) -> None:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
+    _write_file_atomic(checkpoint_dir / weights_filename, weights_blob)
+    spec = SubmissionPolicySpec(
+        class_path=CheckpointPolicy.CLASS_PATH,
+        data_path=weights_filename,
+        init_kwargs={"architecture_spec": architecture_spec},
+    )
+    _write_file_atomic((checkpoint_dir / policy_spec_filename), spec.model_dump_json().encode("utf-8"))
+
+
+def _write_file_atomic(path: Path, data: bytes) -> None:
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write(data)
+    try:
+        tmp_path.replace(path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
