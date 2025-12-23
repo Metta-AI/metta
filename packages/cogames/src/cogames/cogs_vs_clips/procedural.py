@@ -7,6 +7,7 @@ from cogames.cogs_vs_clips.mission import Mission, MissionVariant
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
 from mettagrid.mapgen.mapgen import MapGen, MapGenConfig
+from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import (
     AnySceneConfig,
     ChildrenAction,
@@ -22,7 +23,6 @@ from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
-from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
     DistributionConfig,

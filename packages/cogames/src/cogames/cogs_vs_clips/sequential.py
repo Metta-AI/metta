@@ -1,7 +1,6 @@
 from cogames.cogs_vs_clips.procedural import (
     BaseHubVariant,
     EnvNodeVariant,
-    MachinaArenaConfig as BaseMachinaArenaConfig,
     MapGenVariant,
     MapSeedVariant,
     RandomTransform,
@@ -9,6 +8,9 @@ from cogames.cogs_vs_clips.procedural import (
     SequentialMachinaArena,
     SequentialMachinaArenaConfig,
     SequentialMachinaArenaVariant,
+)
+from cogames.cogs_vs_clips.procedural import (
+    MachinaArenaConfig as BaseMachinaArenaConfig,
 )
 
 __all__ = [
