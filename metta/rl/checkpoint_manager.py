@@ -10,6 +10,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.util.file import write_data
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -97,8 +98,8 @@ class CheckpointManager:
                 (checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME).read_bytes(),
             )
             write_data(
-                f"{remote_dir}/{CheckpointPolicy.POLICY_SPEC_FILENAME}",
-                (checkpoint_dir / CheckpointPolicy.POLICY_SPEC_FILENAME).read_bytes(),
+                f"{remote_dir}/{POLICY_SPEC_FILENAME}",
+                (checkpoint_dir / POLICY_SPEC_FILENAME).read_bytes(),
                 content_type="application/json",
             )
             logger.debug("Policy checkpoint saved remotely to %s", remote_dir)

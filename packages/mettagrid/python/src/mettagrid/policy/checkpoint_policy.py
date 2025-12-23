@@ -10,7 +10,7 @@ from safetensors.torch import save as save_safetensors
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import SubmissionPolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
@@ -32,7 +32,6 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
 class CheckpointPolicy(MultiAgentPolicy):
     CLASS_PATH = "mettagrid.policy.checkpoint_policy.CheckpointPolicy"
     short_names = ["checkpoint"]
-    POLICY_SPEC_FILENAME = "policy_spec.json"
     WEIGHTS_FILENAME = "weights.safetensors"
 
     def __init__(
@@ -80,8 +79,8 @@ class CheckpointPolicy(MultiAgentPolicy):
             )
         if not path.is_file():
             raise FileNotFoundError(f"Policy data path does not exist: {path}")
-        if path.name == CheckpointPolicy.POLICY_SPEC_FILENAME:
-            raise ValueError(f"Checkpoint data path points at {CheckpointPolicy.POLICY_SPEC_FILENAME}: {path}")
+        if path.name == POLICY_SPEC_FILENAME:
+            raise ValueError(f"Checkpoint data path points at {POLICY_SPEC_FILENAME}: {path}")
         state_dict = load_safetensors(path.read_bytes())
         self._policy.load_state_dict(dict(state_dict))
         if hasattr(self._policy, "initialize_to_environment"):
@@ -99,7 +98,7 @@ class CheckpointPolicy(MultiAgentPolicy):
             data_path=CheckpointPolicy.WEIGHTS_FILENAME,
             init_kwargs={"architecture_spec": self._architecture_spec},
         )
-        spec_path = target_dir / CheckpointPolicy.POLICY_SPEC_FILENAME
+        spec_path = target_dir / POLICY_SPEC_FILENAME
         _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
 
     @staticmethod
@@ -122,7 +121,7 @@ class CheckpointPolicy(MultiAgentPolicy):
             data_path=CheckpointPolicy.WEIGHTS_FILENAME,
             init_kwargs={"architecture_spec": architecture_spec},
         )
-        spec_path = checkpoint_dir / CheckpointPolicy.POLICY_SPEC_FILENAME
+        spec_path = checkpoint_dir / POLICY_SPEC_FILENAME
         _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
         return checkpoint_dir
 
