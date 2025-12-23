@@ -77,8 +77,8 @@ class MachinaArenaConfig(SceneConfig):
     biome_count: int | None = None
     dungeon_count: int | None = None
     density_scale: float = 0.9
-    max_biome_zone_fraction: float = 0.3
-    max_dungeon_zone_fraction: float = 0.22
+    max_biome_zone_fraction: float = 0.28
+    max_dungeon_zone_fraction: float = 0.2
 
     #### Distributions ####
 
@@ -180,18 +180,9 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             return biomes
 
         def _make_dungeons(weights: dict[str, float] | None) -> list[SceneConfig]:
-            defaults = {"bsp": 1.0, "maze": 1.0, "radial": 1.0}
+            defaults = {"maze": 1.0, "radial": 1.0}
             w = {**defaults, **(weights or {})}
             dungeons: list[SceneConfig] = []
-            if float(w.get("bsp", 0.0)) > 0:
-                dungeons.append(
-                    BSPConfig(
-                        rooms=4,
-                        min_room_size=6,
-                        min_room_size_ratio=0.35,
-                        max_room_size_ratio=0.75,
-                    )
-                )
             if float(w.get("maze", 0.0)) > 0:
                 dungeons.append(
                     RandomScene.Config(
