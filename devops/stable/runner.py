@@ -336,9 +336,16 @@ class Runner:
                 raise TypeError(msg)
             status_by_id = {}
             for item in queue_data:
-                if not isinstance(item, dict):
-                    raise TypeError(f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}")
-                status_by_id[str(item.get("job_id"))] = item
+                # Handle both dicts (older SkyPilot) and ManagedJobRecord objects (newer SkyPilot)
+                if hasattr(item, "get"):
+                    jid = item.get("job_id")
+                    status = item.get("status", "")
+                else:
+                    jid = getattr(item, "job_id", None)
+                    status = getattr(item, "status", "")
+
+                if jid is not None:
+                    status_by_id[str(jid)] = {"status": status}
         except Exception as e:
             for job in running:
                 if job.status == JobStatus.RUNNING:
