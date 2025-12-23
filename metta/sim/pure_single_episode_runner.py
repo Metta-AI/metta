@@ -5,7 +5,7 @@ from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
-from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3
+from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -88,6 +88,7 @@ def _no_python_sockets():
 
 
 def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
+    job = job.model_copy()
     # Pull each policy onto the local filesystem, leave them as zip files
     local_uris: list[str] = []
     for uri in job.policy_uris:
@@ -96,7 +97,10 @@ def run_single_episode(job: PureSingleEpisodeJob, device: str = "cpu") -> None:
         if resolved.scheme == "file":
             local = resolved.local_path.as_uri()
         elif resolved.scheme == "s3":
-            local = download_policy_spec_from_s3(resolved.canonical, remove_downloaded_copy_on_exit=True).as_uri()
+            local = download_policy_spec_from_s3_as_zip(
+                resolved.canonical,
+                remove_downloaded_copy_on_exit=True,
+            ).as_uri()
         if local is None:
             raise RuntimeError(f"could not resolve policy {uri}")
         local_uris.append(local)
