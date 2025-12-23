@@ -98,9 +98,6 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     assert sum(p.numel() for p in policy.network().parameters()) > 0
 
 
-cogames_root = Path(__file__).parent.parent
-
-
 @pytest.mark.timeout(120)
 def test_make_policy_trainable_and_train(temp_checkpoint_dir):
     """Test that make-policy --trainable generates a working trainable policy."""
@@ -110,8 +107,7 @@ def test_make_policy_trainable_and_train(temp_checkpoint_dir):
 
         # Generate the trainable policy template
         result = subprocess.run(
-            ["uv", "run", "cogames", "make-policy", "--trainable", "-o", str(policy_file)],
-            cwd=cogames_root,
+            ["cogames", "make-policy", "--trainable", "-o", str(policy_file)],
             capture_output=True,
             text=True,
             timeout=30,
@@ -154,8 +150,7 @@ def test_make_policy_scripted_runs():
 
         # Generate the scripted policy template
         result = subprocess.run(
-            ["uv", "run", "cogames", "make-policy", "--scripted", "-o", str(policy_file)],
-            cwd=cogames_root,
+            ["cogames", "make-policy", "--scripted", "-o", str(policy_file)],
             capture_output=True,
             text=True,
             timeout=30,
