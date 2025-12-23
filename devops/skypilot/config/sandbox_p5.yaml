@@ -1,0 +1,49 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  instance_type: p5.48xlarge
+  accelerators: "H100:8"
+  cpus: 192+
+  # Custom AMI (Ubuntu 22.04, us-east-1)
+  image_id: ami-06161ef177f46b7d3
+
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
+setup: |
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+
+run: |
+  set -e
+  cd /workspace/metta
+
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  echo "Setting up Python environment..."
+  uv sync
+
+  bash ./devops/skypilot/config/lifecycle/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+
+  echo "Sandbox setup complete. Ready for SSH."
+
+envs:
+  GITHUB_REPOSITORY: Metta-AI/metta
+  METTA_GIT_REF: main
+
+secrets:
+  # sandbox uses a placeholder; override as needed
+  WANDB_PASSWORD: "dummy"
+  OBSERVATORY_TOKEN: ""
