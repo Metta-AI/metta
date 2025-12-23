@@ -1,13 +1,12 @@
 """LLM provider utilities for model selection and availability checks."""
 
 import subprocess
+from openai import OpenAI
 import sys
 
 
 def check_ollama_available() -> bool:
     try:
-        from openai import OpenAI
-
         client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
         # Try to list models as a health check
         client.models.list()

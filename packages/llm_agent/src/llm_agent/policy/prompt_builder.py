@@ -15,14 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import AgentObservation
-
-if TYPE_CHECKING:
-    from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Load prompt templates from markdown files
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -73,7 +69,6 @@ class LLMPromptBuilder:
         self,
         policy_env_info: PolicyEnvInterface,
         context_window_size: int = 20,
-        mg_cfg: MettaGridConfig | None = None,
         agent_id: int = 0,
         verbose: bool = False,
     ):
@@ -82,7 +77,6 @@ class LLMPromptBuilder:
         Args:
             policy_env_info: Policy environment interface with feature/tag/action specs
             context_window_size: Number of steps before resending basic info (default: 20)
-            mg_cfg: Optional MettaGridConfig to extract chest vibe transfers and other game-specific info
             agent_id: Agent ID for role assignment (default: 0)
             verbose: If True, print debug information (default: False)
         """
@@ -93,24 +87,14 @@ class LLMPromptBuilder:
         self._last_visible: VisibleElements | None = None
         self._verbose = verbose
         self._agent_id = agent_id
-        # Store mg_cfg for id_map access
-        self._mg_cfg = mg_cfg
 
-        # Extract chest vibe transfers if config is provided
-        self._chest_vibe_transfers: dict[str, dict[str, int]] = {}
-        if mg_cfg is not None:
-            chest_config = mg_cfg.game.objects.get("chest")
-            if chest_config and hasattr(chest_config, "vibe_transfers"):
-                self._chest_vibe_transfers = chest_config.vibe_transfers
-                if self._verbose:
-                    print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
+        # Get chest vibe transfers from policy_env_info
+        self._chest_vibe_transfers = policy_env_info.chest_vibe_transfers
+        if self._verbose:
+            if self._chest_vibe_transfers:
+                print(f"[LLMPromptBuilder] Loaded chest vibe transfers: {self._chest_vibe_transfers}")
             else:
-                if self._verbose:
-                    has_vibe = hasattr(chest_config, "vibe_transfers") if chest_config else "N/A"
-                    print(f"[LLMPromptBuilder] No chest vibe transfers. config={chest_config}, has={has_vibe}")
-        else:
-            if self._verbose:
-                print("[LLMPromptBuilder] No mg_cfg provided, chest vibe transfers will be empty")
+                print("[LLMPromptBuilder] No chest vibe transfers configured")
 
         # Pre-build static content (game rules, coordinate system)
         self._basic_info_cache = self._build_basic_info()
@@ -255,24 +239,17 @@ class LLMPromptBuilder:
         Returns:
             Formatted section with object types available in this mission
         """
-        if self._mg_cfg is None:
+        tags = self._policy_env_info.tags
+        if not tags:
             return ""
 
-        try:
-            id_map = self._mg_cfg.game.id_map()
-            lines = []
+        lines = []
+        lines.append("=== OBJECT TYPES ===")
+        lines.append("Objects you may encounter:")
+        for tag in tags:
+            lines.append(f"  - {tag}")
 
-            # Tags section - what objects exist in this mission
-            lines.append("=== OBJECT TYPES ===")
-            lines.append("Objects you may encounter:")
-            for tag in id_map.tag_names():
-                lines.append(f"  - {tag}")
-
-            return "\n".join(lines)
-        except Exception as e:
-            if self._verbose:
-                print(f"[LLMPromptBuilder] Could not build id_map section: {e}")
-            return ""
+        return "\n".join(lines)
 
     def basic_info_prompt(self) -> str:
         """Get the basic game information prompt.

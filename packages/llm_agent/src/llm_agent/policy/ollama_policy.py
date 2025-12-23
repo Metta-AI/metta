@@ -1,5 +1,12 @@
 """Ollama-based policies for MettaGrid."""
 
+from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
+
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.model_config import validate_model_context
 from llm_agent.policy.llm_agent_policy import LLMAgentPolicy
@@ -13,15 +20,18 @@ class OllamaAgentPolicy(LLMAgentPolicy):
 
     def _init_client(self) -> None:
         """Initialize the Ollama client (uses OpenAI-compatible API)."""
-        from openai import OpenAI
-
         self.client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
 
     def _call(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        """Call Ollama API and return (response, input_tokens, output_tokens)."""
+        openai_messages: list[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content=m["content"])
+            if m["role"] == "user"
+            else ChatCompletionAssistantMessageParam(role="assistant", content=m["content"])
+            for m in messages
+        ]
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=openai_messages,
             temperature=self.temperature,
             max_tokens=150,
         )
@@ -54,7 +64,6 @@ class OllamaMultiAgentPolicy(MultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg=None,
     ):
         super().__init__(policy_env_info)
         self.temperature = temperature
@@ -65,7 +74,6 @@ class OllamaMultiAgentPolicy(MultiAgentPolicy):
         self.debug_summary_interval = (
             int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
         )
-        self.mg_cfg = mg_cfg
 
         self.model = ensure_ollama_model(model)
         self._validate()
@@ -93,10 +101,5 @@ class OllamaMultiAgentPolicy(MultiAgentPolicy):
             context_window_size=self.context_window_size,
             summary_interval=self.summary_interval,
             debug_summary_interval=self.debug_summary_interval,
-            mg_cfg=self.mg_cfg,
             agent_id=agent_id,
         )
-
-
-# Backwards compatibility alias
-LLMOllamaMultiAgentPolicy = OllamaMultiAgentPolicy

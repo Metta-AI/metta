@@ -3,6 +3,8 @@
 import random
 from abc import ABC, abstractmethod
 
+from pathlib import Path
+from llm_agent.policy.prompt_builder import LLMPromptBuilder
 from llm_agent.action_parser import parse_action
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.exploration_tracker import ExplorationTracker
@@ -29,8 +31,8 @@ class LLMAgentPolicy(AgentPolicy, ABC):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg=None,
         agent_id: int = 0,
+        enable_history_tracking: bool = True,
     ):
         super().__init__(policy_env_info)
         self.model = model
@@ -38,14 +40,15 @@ class LLMAgentPolicy(AgentPolicy, ABC):
         self.verbose = verbose
         self.agent_id = agent_id
         self.last_action: str | None = None
+        self.enable_history_tracking = enable_history_tracking
         self.summary_interval = int(summary_interval) if isinstance(summary_interval, str) else summary_interval
         self.debug_summary_interval = (
             int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
         )
 
         self._init_tracking_state()
-        self._init_prompt_builder(policy_env_info, context_window_size, mg_cfg)
-        self._check_assembler_variant(mg_cfg)
+        self._init_prompt_builder(policy_env_info, context_window_size)
+        self._check_assembler_variant(policy_env_info)
         self._init_client()
 
     @abstractmethod
@@ -78,30 +81,17 @@ class LLMAgentPolicy(AgentPolicy, ABC):
         self._steps_in_direction: int = 0
         self._direction_change_threshold: int = 8
 
-    def _init_prompt_builder(self, policy_env_info: PolicyEnvInterface, context_window_size: int, mg_cfg) -> None:
-        """Initialize the prompt builder."""
-        from llm_agent.policy.prompt_builder import LLMPromptBuilder
-
+    def _init_prompt_builder(self, policy_env_info: PolicyEnvInterface, context_window_size: int) -> None:
         self.prompt_builder = LLMPromptBuilder(
             policy_env_info=policy_env_info,
             context_window_size=context_window_size,
-            mg_cfg=mg_cfg,
             verbose=self.verbose,
             agent_id=self.agent_id,
         )
 
-    def _check_assembler_variant(self, mg_cfg) -> None:
-        """Check AssemblerDrawsFromChestsVariant status."""
-        self._assembler_draws_from_chests = False
-        if mg_cfg is None:
-            return
-
-        assembler_cfg = mg_cfg.game.objects.get("assembler")
-        if assembler_cfg is None or not hasattr(assembler_cfg, "chest_search_distance"):
-            return
-
-        chest_dist = assembler_cfg.chest_search_distance
-        self._assembler_draws_from_chests = chest_dist > 0
+    def _check_assembler_variant(self, policy_env_info: PolicyEnvInterface) -> None:
+        """Check AssemblerDrawsFromChestsVariant status using policy_env_info."""
+        self._assembler_draws_from_chests = policy_env_info.assembler_chest_search_distance > 0
 
     def _add_to_messages(self, role: str, content: str) -> None:
         """Add a message to conversation history and prune if needed.
@@ -241,7 +231,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
     def _call_debug_summary_llm(self, prompt: str) -> str:
         """Call LLM for debug summary generation. Uses the same _call() as main policy."""
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
         response, _, _ = self._call(messages)
         return response or "No summary generated"
 
@@ -281,8 +271,6 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         window_summaries = "\n".join(f"  {summary}" for summary in self._history_summaries)
 
         # Load template and substitute variables
-        from pathlib import Path
-
         template_path = Path(__file__).parent / "prompts" / "exploration_history.md"
         template = template_path.read_text()
 
@@ -448,7 +436,13 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         return inventory
 
     def _handle_boundaries(self) -> None:
-        """Handle summary, debug, and context window boundaries."""
+        """Handle summary, debug, and context window boundaries.
+
+        Can be disabled by setting enable_history_tracking=False in constructor.
+        """
+        if not self.enable_history_tracking:
+            return
+
         at_boundary = (self._summary_step_count - 1) % self.summary_interval == 0
         if self._summary_step_count > 1 and at_boundary:
             self._finalize_window_summary()
@@ -488,7 +482,7 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
         if self.verbose:
             print(f"\n[PROMPT Agent {self.agent_id}]\n{user_prompt}\n")
 
-        messages: list[dict[str, str]] = self._get_messages_for_api(user_prompt)
+        messages = self._get_messages_for_api(user_prompt)
 
         self.conversation_history.append(
             {

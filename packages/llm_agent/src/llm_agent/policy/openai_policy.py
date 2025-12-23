@@ -4,6 +4,13 @@ import atexit
 import os
 import sys
 
+from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+)
+
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.model_config import validate_model_context
 from llm_agent.policy.llm_agent_policy import LLMAgentPolicy
@@ -17,16 +24,19 @@ class OpenAIAgentPolicy(LLMAgentPolicy):
 
     def _init_client(self) -> None:
         """Initialize the OpenAI client."""
-        from openai import OpenAI
-
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     def _call(self, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-        """Call OpenAI API and return (response, input_tokens, output_tokens)."""
+        openai_messages: list[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(role="user", content=m["content"])
+            if m["role"] == "user"
+            else ChatCompletionAssistantMessageParam(role="assistant", content=m["content"])
+            for m in messages
+        ]
         is_gpt5_or_o1 = self.model.startswith("gpt-5") or self.model.startswith("o1")
         params = {
             "model": self.model,
-            "messages": messages,
+            "messages": openai_messages,
             "max_completion_tokens": 150 if is_gpt5_or_o1 else None,
             "max_tokens": None if is_gpt5_or_o1 else 150,
             "temperature": None if is_gpt5_or_o1 else self.temperature,
@@ -53,7 +63,6 @@ class OpenAIMultiAgentPolicy(MultiAgentPolicy):
         context_window_size: int = 20,
         summary_interval: int = 5,
         debug_summary_interval: int = 0,
-        mg_cfg=None,
     ):
         super().__init__(policy_env_info)
         self.temperature = temperature
@@ -64,7 +73,6 @@ class OpenAIMultiAgentPolicy(MultiAgentPolicy):
         self.debug_summary_interval = (
             int(debug_summary_interval) if isinstance(debug_summary_interval, str) else debug_summary_interval
         )
-        self.mg_cfg = mg_cfg
 
         if not os.getenv("OPENAI_API_KEY"):
             print(
@@ -107,10 +115,5 @@ class OpenAIMultiAgentPolicy(MultiAgentPolicy):
             context_window_size=self.context_window_size,
             summary_interval=self.summary_interval,
             debug_summary_interval=self.debug_summary_interval,
-            mg_cfg=self.mg_cfg,
             agent_id=agent_id,
         )
-
-
-# Backwards compatibility alias
-LLMGPTMultiAgentPolicy = OpenAIMultiAgentPolicy
