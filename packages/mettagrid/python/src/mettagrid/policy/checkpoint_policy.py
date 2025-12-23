@@ -110,24 +110,6 @@ class CheckpointPolicy(MultiAgentPolicy):
         )
         return checkpoint_dir
 
-    @classmethod
-    def write_checkpoint_uri(
-        cls,
-        *,
-        base_dir: Path,
-        run_name: str,
-        epoch: int,
-        architecture: Any,
-        state_dict: Mapping[str, torch.Tensor],
-    ) -> str:
-        return cls.write_checkpoint_dir(
-            base_dir=base_dir,
-            run_name=run_name,
-            epoch=epoch,
-            architecture=architecture,
-            state_dict=state_dict,
-        ).as_uri()
-
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return self._policy.agent_policy(agent_id)
 
