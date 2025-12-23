@@ -16,7 +16,6 @@ from cogames.cli.base import console
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 
@@ -124,11 +123,7 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
 
     _, env_cfg, _ = get_mission("machina_1")
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = (
-        CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec).wrapped_policy
-        if policy_spec.class_path == CheckpointPolicy.CLASS_PATH
-        else initialize_or_load_policy(policy_env_info, policy_spec)
-    )
+    policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec).wrapped_policy
 
     # Run 1 episode for up to 10 steps to validate the policy works
     env_cfg.game.max_steps = 10

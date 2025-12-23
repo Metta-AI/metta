@@ -90,6 +90,8 @@ class CheckpointPolicy(MultiAgentPolicy):
         *,
         device_override: str | None = None,
     ) -> "CheckpointPolicy":
+        if policy_spec.class_path != cls.CLASS_PATH:
+            raise ValueError(f"Only CheckpointPolicy specs are supported (got {policy_spec.class_path})")
         architecture_spec = policy_spec.init_kwargs.get("architecture_spec")
         if not architecture_spec:
             raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
