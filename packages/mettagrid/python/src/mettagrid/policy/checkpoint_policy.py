@@ -43,10 +43,8 @@ class CheckpointPolicy(MultiAgentPolicy):
     ):
         super().__init__(policy_env_info, device=device)
         self._device = torch.device(device)
-        self._policy_env_info = policy_env_info
         self._architecture_spec = architecture_spec
-        class_path = architecture_spec.split("(", 1)[0].strip()
-        self._architecture = load_symbol(class_path).from_spec(architecture_spec)
+        self._architecture = load_symbol(architecture_spec.split("(", 1)[0].strip()).from_spec(architecture_spec)
         self._policy = self._architecture.make_policy(policy_env_info).to(self._device)
         self._policy.eval()
 
@@ -64,10 +62,9 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def load_policy_data(self, policy_data_path: str) -> None:
         path = Path(policy_data_path).expanduser()
-        state_dict = load_safetensors(path.read_bytes())
-        self._policy.load_state_dict(dict(state_dict))
+        self._policy.load_state_dict(dict(load_safetensors(path.read_bytes())))
         if hasattr(self._policy, "initialize_to_environment"):
-            self._policy.initialize_to_environment(self._policy_env_info, self._device)
+            self._policy.initialize_to_environment(self.policy_env_info, self._device)
         self._policy.eval()
 
     def save_policy_data(self, policy_data_path: str) -> None:
