@@ -89,20 +89,31 @@ def select_backend(
 def set_tf32_precision(mode: str) -> None:
     """Set TF32 behavior for matmul and cuDNN convolutions.
 
-    Uses PyTorch fp32_precision settings for CUDA matmul and cuDNN conv.
+    Uses PyTorch fp32_precision settings when available, falling back to legacy flags.
     """
     if not torch.cuda.is_available():
         return
 
+    def _set_tf32(enabled: bool) -> None:
+        if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
+            torch.backends.cuda.matmul.fp32_precision = "tf32" if enabled else "ieee"
+            cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
+            if cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision"):
+                cudnn_conv.fp32_precision = "tf32" if enabled else "ieee"
+            return
+
+        if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
+            torch.backends.cuda.matmul.allow_tf32 = enabled
+        if hasattr(torch.backends.cudnn, "allow_tf32"):
+            torch.backends.cudnn.allow_tf32 = enabled
+
     mode_lower = mode.lower()
     if mode_lower == "tf32":
         # Enable TF32 for performance
-        torch.backends.cuda.matmul.fp32_precision = "tf32"
-        torch.backends.cudnn.conv.fp32_precision = "tf32"
+        _set_tf32(True)
     else:
         # Disable TF32, use full FP32 precision
-        torch.backends.cuda.matmul.fp32_precision = "ieee"
-        torch.backends.cudnn.conv.fp32_precision = "ieee"
+        _set_tf32(False)
 
 
 def configure_tf32_precision() -> None:
@@ -113,8 +124,7 @@ def configure_tf32_precision() -> None:
         configure_torch_globally()
     except ImportError:
         if torch.cuda.is_available():
-            torch.backends.cuda.matmul.fp32_precision = "tf32"
-            torch.backends.cudnn.conv.fp32_precision = "tf32"
+            set_tf32_precision("tf32")
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]

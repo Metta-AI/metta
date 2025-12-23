@@ -12,6 +12,20 @@ import torch
 _configured = False
 
 
+def _set_tf32_precision(enabled: bool) -> None:
+    if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
+        torch.backends.cuda.matmul.fp32_precision = "tf32" if enabled else "ieee"
+        cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
+        if cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision"):
+            cudnn_conv.fp32_precision = "tf32" if enabled else "ieee"
+        return
+
+    if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
+        torch.backends.cuda.matmul.allow_tf32 = enabled
+    if hasattr(torch.backends.cudnn, "allow_tf32"):
+        torch.backends.cudnn.allow_tf32 = enabled
+
+
 def configure_torch_globally() -> None:
     """Configure PyTorch settings globally (TF32, etc.) for performance.
 
@@ -26,8 +40,7 @@ def configure_torch_globally() -> None:
 
     # Configure TF32 precision for CUDA (performance mode)
     if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = "tf32"
-        torch.backends.cudnn.conv.fp32_precision = "tf32"
+        _set_tf32_precision(True)
 
     _configured = True
 
@@ -41,8 +54,7 @@ def enable_determinism() -> None:
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
     if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = "ieee"
-        torch.backends.cudnn.conv.fp32_precision = "ieee"
+        _set_tf32_precision(False)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
