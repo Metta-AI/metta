@@ -331,9 +331,8 @@ class Runner:
                 raise TypeError(msg)
             status_by_id = {}
             for item in queue_data:
-                if not isinstance(item, dict):
-                    raise TypeError(f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}")
-                status_by_id[str(item.get("job_id"))] = item
+                job_id = item.get("job_id") if isinstance(item, dict) else getattr(item, "job_id", None)
+                status_by_id[str(job_id)] = item
         except Exception as e:
             for job in running:
                 if job.status == JobStatus.RUNNING:
@@ -351,7 +350,8 @@ class Runner:
                     self._finish(job, JobStatus.FAILED, 1, "Job not found in SkyPilot queue")
                 continue
 
-            sky_status = str(sky_job.get("status", "")).upper()
+            status = sky_job.get("status") if isinstance(sky_job, dict) else getattr(sky_job, "status", None)
+            sky_status = str(status or "").upper()
             if "SUCCEEDED" in sky_status:
                 self._finish(job, JobStatus.SUCCEEDED, 0)
             elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
