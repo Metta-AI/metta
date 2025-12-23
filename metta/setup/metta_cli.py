@@ -35,7 +35,6 @@ from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.utils.live_run_monitor import app as run_monitor_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -718,7 +717,23 @@ def cmd_gridworks(ctx: typer.Context):
     subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
-app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
+@app.command(
+    name="run-monitor",
+    help="Monitor training runs.",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def cmd_run_monitor(ctx: typer.Context) -> None:
+    """Launch the live run monitor CLI without importing it at module load time."""
+    from metta.adaptive import live_run_monitor
+
+    live_run_monitor.app(
+        prog_name="metta run-monitor",
+        standalone_mode=False,
+        args=list(ctx.args),
+    )
+
+
 app.add_typer(observatory_app, name="observatory")
 app.add_typer(book_app, name="book")
 app.add_typer(codebase_app, name="codebase")

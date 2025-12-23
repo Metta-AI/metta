@@ -101,7 +101,7 @@ class ThreadWorkerManager(AbstractWorkerManager):
                 finally:
                     # Clean up worker resources
                     if hasattr(worker, "__aexit__"):
-                        await worker.__aexit__(None, None, None)
+                        await worker.__aexit__(None, None, None)  # type: ignore[union-attr]
 
             loop.run_until_complete(run_with_stop_check())
 
