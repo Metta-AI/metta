@@ -10,36 +10,32 @@ COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    curl git build-essential ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv uv python install
+RUN uv python install
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    bash install.sh --profile softmax-docker --non-interactive
+RUN bash install.sh --profile softmax-docker --non-interactive
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update && apt-get install -y --no-install-recommends \
-    apt-transport-https ca-certificates gnupg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 RUN curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN chmod 644 /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 RUN echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.34/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
 RUN chmod 644 /etc/apt/sources.list.d/kubernetes.list
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get update && apt-get install -y kubectl
+RUN apt-get update && apt-get install -y kubectl && rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --all-extras --frozen && \
+RUN uv sync --all-extras --frozen && \
     uv run python -c "import metta.app_backend.eval_task_orchestrator" && \
     uv run python -c "import metta.app_backend.eval_task_worker"
 
