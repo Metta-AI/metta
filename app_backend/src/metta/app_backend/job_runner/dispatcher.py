@@ -1,3 +1,4 @@
+import functools
 import logging
 
 from kubernetes import client, config
@@ -14,6 +15,7 @@ from metta.app_backend.models.job_request import JobRequest, JobType
 logger = logging.getLogger(__name__)
 
 
+@functools.cache
 def get_k8s_client() -> client.BatchV1Api:
     try:
         config.load_incluster_config()
