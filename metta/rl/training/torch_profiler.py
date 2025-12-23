@@ -38,9 +38,15 @@ class TorchProfileSession:
         self._active = False
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
-        self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
+        self._first_profile_epoch = int(getattr(profiler_config, "first_profile_epoch", 300))
+        self._max_profile_epochs = getattr(profiler_config, "max_profile_epochs", None)
+        self._profiles_completed = 0
 
     def on_epoch_end(self, epoch: int) -> None:
+        if self._max_profile_epochs is not None and self._profiles_completed >= self._max_profile_epochs:
+            return
+        if epoch < self._first_profile_epoch:
+            return
         force = (epoch == self._first_profile_epoch) if not self._active else False
         if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
             self._setup_profiler(epoch)
@@ -92,6 +98,7 @@ class TorchProfileSession:
             self._profiler = None
             self._active = False
             self._profile_filename_base = None
+            self._profiles_completed += 1
 
         return False
 

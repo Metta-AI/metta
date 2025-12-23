@@ -118,13 +118,16 @@ class ActionProbs(nn.Module):
     Computes action scores based on a query and action embeddings (keys).
     """
 
+    _max_active_actions = 21
+
     def __init__(self, config: ActionProbsConfig):
         super().__init__()
         self.config = config
         self.num_actions = 0
+        self._active_actions = 0
 
     def _ensure_initialized(self) -> None:
-        if self.num_actions <= 0:
+        if self.num_actions <= 0 or self._active_actions <= 0:
             raise RuntimeError("ActionProbs not initialized; call initialize_to_environment before forward.")
 
     def initialize_to_environment(
@@ -138,14 +141,14 @@ class ActionProbs(nn.Module):
             raise TypeError(msg)
 
         self.num_actions = int(action_space.n)
+        self._active_actions = min(self.num_actions, self._max_active_actions)
 
     def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
         """Sanitize logits and mask past the first 21 actions (keep full action_dim for checkpoint compatibility)."""
         mask_value = -1e9
         logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
-        if logits.size(-1) > 21:
-            logits = logits.clone()
-            logits[..., 21:] = mask_value
+        if logits.size(-1) > self._active_actions:
+            logits[..., self._active_actions :] = mask_value
         return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -160,7 +163,8 @@ class ActionProbs(nn.Module):
 
         self._ensure_initialized()
         logits = self._mask_logits_if_needed(logits)
-        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
+        valid_actions = None if self._active_actions >= logits.size(-1) else self._active_actions
+        action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits, valid_actions=valid_actions)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
@@ -189,7 +193,12 @@ class ActionProbs(nn.Module):
         action_logit_index = action.to(dtype=torch.long)
         self._ensure_initialized()
         logits = self._mask_logits_if_needed(logits)
-        selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
+        valid_actions = None if self._active_actions >= logits.size(-1) else self._active_actions
+        selected_log_probs, entropy, action_log_probs = evaluate_actions(
+            logits,
+            action_logit_index,
+            valid_actions=valid_actions,
+        )
 
         # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
