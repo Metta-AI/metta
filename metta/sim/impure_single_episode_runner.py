@@ -56,7 +56,8 @@ def main():
                         "allow_network": True,  # Until trained policies no longer need network access to hydrate
                     }
                 ),
-            ]
+            ],
+            check=True,
         )
 
         # Copy local pure-runner's results to requested locations
