@@ -7,7 +7,6 @@ be set once globally before any models are created or compiled.
 import os
 
 import torch
-
 from cortex.tf32 import set_tf32_precision
 
 # Flag to ensure we only configure once
