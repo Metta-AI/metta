@@ -42,9 +42,7 @@ class JobRequestCreate(_JobRequestBase):
 
 
 class JobRequestUpdate(SQLModel):
-    status: JobStatus = Field(
-        default=JobStatus.pending, description="Tracks k8s-lifecycle status, not semantic job status"
-    )
+    status: JobStatus | None = Field(default=None, description="Tracks k8s-lifecycle status, not semantic job status")
     worker: str | None = Field(default=None, description="Name of the worker that started the job")
     result: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSONB), description="Contains job-specific results, including possibly errors"
