@@ -11,6 +11,12 @@ var
   uMaxOpacity: Uniform[float32]
   heatmapTexture: Uniform[Sampler2D]
 
+# Module-level OpenGL resources
+var
+  heatmapShader: Shader
+  heatmapVao: GLuint
+  heatmapTextureId: GLuint
+
 proc heatmapVert*(fragmentWorldPos: var Vec2) =
   ## Generate a full-rect in world units to align heatmap with tile grid.
   let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
@@ -58,13 +64,10 @@ proc heatmapFrag*(fragmentWorldPos: Vec2, FragColor: var Vec4) =
 
   FragColor = vec4(r, g, b, opacity)
 
-proc newHeatmapShader*(): HeatmapShader =
-  ## Create a new heatmap shader.
-  result = HeatmapShader()
-  result.currentStep = -1
-
+proc initHeatmapShader*() =
+  ## Initialize the heatmap shader module.
   when defined(emscripten):
-    result.shader = newShader(
+    heatmapShader = newShader(
       (
         "heatmapVert",
         toGLSL(heatmapVert, "300 es", "precision highp float;\n")
@@ -77,32 +80,32 @@ proc newHeatmapShader*(): HeatmapShader =
       )
     )
   else:
-    result.shader = newShader(
+    heatmapShader = newShader(
       ("heatmapVert", toGLSL(heatmapVert, "410", "")),
       ("heatmapFrag", toGLSL(heatmapFrag, "410", ""))
     )
 
   # Create an empty VAO; vertices are generated from gl_VertexID.
-  glGenVertexArrays(1, result.vao.addr)
-  glBindVertexArray(result.vao)
+  glGenVertexArrays(1, heatmapVao.addr)
+  glBindVertexArray(heatmapVao)
   glBindVertexArray(0)
 
   # Create texture for heatmap data (single channel).
-  glGenTextures(1, result.texture.addr)
+  glGenTextures(1, heatmapTextureId.addr)
   glActiveTexture(GL_TEXTURE0)
-  glBindTexture(GL_TEXTURE_2D, result.texture)
+  glBindTexture(GL_TEXTURE_2D, heatmapTextureId)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE.GLint)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE.GLint)
   glBindTexture(GL_TEXTURE_2D, 0)
 
-proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
+proc updateTexture*(heatmap: Heatmap, step: int) =
   ## Upload heatmap data for the given step to the texture.
-  if step == hs.currentStep:
+  if step == heatmap.currentTextureStep:
     return # Already up to date
 
-  hs.currentStep = step
+  heatmap.currentTextureStep = step
 
   # Prepare heatmap data as uint8 array.
   # Store directly without Y flip - texture coordinates will handle mapping.
@@ -119,7 +122,7 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
 
   # Upload to texture.
   glActiveTexture(GL_TEXTURE0)
-  glBindTexture(GL_TEXTURE_2D, hs.texture)
+  glBindTexture(GL_TEXTURE_2D, heatmapTextureId)
   # Set alignment to 1 for tightly packed data (no padding between rows)
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
   glTexImage2D(
@@ -136,7 +139,7 @@ proc updateTexture*(hs: HeatmapShader, heatmap: Heatmap, step: int) =
   glBindTexture(GL_TEXTURE_2D, 0)
 
 proc draw*(
-  hs: HeatmapShader,
+  heatmap: Heatmap,
   mvp: Mat4,
   mapSize: Vec2,
   maxHeat: float32,
@@ -144,25 +147,25 @@ proc draw*(
   maxOpacity: float32 = 0.7
 ) =
   ## Draw the heatmap overlay.
-  if hs.isNil or maxHeat <= 0.0:
+  if maxHeat <= 0.0:
     return
 
-  glUseProgram(hs.shader.programId)
-  hs.shader.setUniform("uMvp", mvp)
-  hs.shader.setUniform("uMapSize", mapSize)
-  hs.shader.setUniform("uMaxHeat", maxHeat)
-  hs.shader.setUniform("uMinOpacity", minOpacity)
-  hs.shader.setUniform("uMaxOpacity", maxOpacity)
+  glUseProgram(heatmapShader.programId)
+  heatmapShader.setUniform("uMvp", mvp)
+  heatmapShader.setUniform("uMapSize", mapSize)
+  heatmapShader.setUniform("uMaxHeat", maxHeat)
+  heatmapShader.setUniform("uMinOpacity", minOpacity)
+  heatmapShader.setUniform("uMaxOpacity", maxOpacity)
   glActiveTexture(GL_TEXTURE0)
-  glBindTexture(GL_TEXTURE_2D, hs.texture)
-  hs.shader.setUniform("heatmapTexture", 0)
-  hs.shader.bindUniforms()
+  glBindTexture(GL_TEXTURE_2D, heatmapTextureId)
+  heatmapShader.setUniform("heatmapTexture", 0)
+  heatmapShader.bindUniforms()
 
   # Enable blending for transparency.
   glEnable(GL_BLEND)
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-  glBindVertexArray(hs.vao)
+  glBindVertexArray(heatmapVao)
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4)
   glBindVertexArray(0)
 

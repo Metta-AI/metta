@@ -103,8 +103,8 @@ proc generateCoordinatePattern(heatmap: var Heatmap) =
     # Update max heat for this step to the actual max coordinate value
     heatmap.maxHeat[step] = maxCoordValue
 
-var testShader = newHeatmapShader()
-testShader.updateTexture(testHeatmap, 0)
+initHeatmapShader()
+updateTexture(testHeatmap, 0)
 
 centerView()
 
@@ -148,7 +148,7 @@ window.onFrame = proc() =
   let mvp = projection * view
 
   # Update and draw heatmap.
-  testShader.updateTexture(testHeatmap, currentStep)
+  updateTexture(testHeatmap, currentStep)
 
   bxy.enterRawOpenGLMode()
 
@@ -156,7 +156,7 @@ window.onFrame = proc() =
   let mapSize = vec2(testReplay.mapSize[0].float32, testReplay.mapSize[1].float32)
 
   if maxHeat > 0:
-    testShader.draw(mvp, mapSize, maxHeat)
+    draw(testHeatmap, mvp, mapSize, maxHeat)
 
   if showDebug:
     bxy.exitRawOpenGLMode()

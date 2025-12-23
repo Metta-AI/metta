@@ -11,6 +11,7 @@ proc newHeatmap*(replay: Replay): Heatmap =
   result.maxSteps = replay.maxSteps
   result.maxHeat = newSeq[int](replay.maxSteps)
   result.data = newSeq[seq[int]](replay.maxSteps)
+  result.currentTextureStep = -1
   for step in 0 ..< replay.maxSteps:
     result.data[step] = newSeq[int](replay.mapSize[0] * replay.mapSize[1])
 

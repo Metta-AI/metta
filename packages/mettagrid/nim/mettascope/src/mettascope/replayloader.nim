@@ -9,7 +9,6 @@ proc onReplayLoaded*() =
   terrainMap = nil
   visibilityMap = nil
   worldHeatmap = nil
-  worldHeatmapShader = nil
 
   # Reset global state for the new replay
   step = 0
@@ -24,8 +23,7 @@ proc onReplayLoaded*() =
   # Initialize heatmap for the new replay
   worldHeatmap = newHeatmap(replay)
   worldHeatmap.initialize(replay)
-  worldHeatmapShader = newHeatmapShader()
-  worldHeatmapShader.updateTexture(worldHeatmap, 0)
+  initHeatmapShader()
   echo "Heatmap initialized: ", worldHeatmap.width, "x", worldHeatmap.height, " (replay: ", replay.mapSize[0], "x", replay.mapSize[1], ")"
 
   needsInitialFit = true

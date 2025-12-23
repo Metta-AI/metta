@@ -33,13 +33,7 @@ type
     height*: int
     maxSteps*: int
     maxHeat*: seq[int] ## Cached max heat per step for normalization
-
-  HeatmapShader* = ref object
-    ## Shader for rendering heatmap overlay.
-    shader*: Shader
-    vao*: GLuint
-    texture*: GLuint
-    currentStep*: int ## Track which step's data is in the texture
+    currentTextureStep*: int = -1 ## Track which step's data is in the texture
 
 var
   sk*: Silky

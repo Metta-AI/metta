@@ -24,7 +24,7 @@ var
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
   worldHeatmap*: Heatmap
-  worldHeatmapShader*: HeatmapShader
+  heatmapShaderInitialized*: bool = false
   needsInitialFit*: bool = true
 
 proc weightedRandomInt*(weights: seq[int]): int =
@@ -626,13 +626,19 @@ proc drawWorldMain*() =
   drawTerrain()
 
   # Draw heatmap if enabled.
-  if settings.showHeatmap and worldHeatmap != nil and worldHeatmapShader != nil:
+  if settings.showHeatmap and worldHeatmap != nil:
+    # Initialize heatmap shader if needed.
+    if not heatmapShaderInitialized:
+      initHeatmapShader()
+      heatmapShaderInitialized = true
+
     # Update heatmap texture if step changed.
-    worldHeatmapShader.updateTexture(worldHeatmap, step)
+    updateTexture(worldHeatmap, step)
     # Draw heatmap overlay.
     bxy.enterRawOpenGLMode()
     let maxHeat = worldHeatmap.getMaxHeat(step).float32
-    worldHeatmapShader.draw(
+    draw(
+      worldHeatmap,
       getProjectionView(),
       vec2(replay.mapSize[0].float32, replay.mapSize[1].float32),
       maxHeat
