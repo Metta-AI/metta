@@ -41,10 +41,13 @@ HELP_TEXT = f"""
 Observatory local development.
 
 [bold]Setup:[/bold]
-  metta observatory kind build    # One-time: create Kind cluster
-  metta observatory postgres up -d
-  metta observatory server        # Terminal 2
-  metta observatory watcher       # Terminal 3
+  metta observatory postgres up -d  # Backgrounded postgres for api server
+  metta observatory server          # API server
+  metta observatory frontend        # Observatory frontend
+
+[bold]Additional setup for jobs:[/bold]
+  metta observatory kind build      # One-time: create Kind cluster for jobs to run in
+  metta observatory watcher         # Watches K8s jobs and updates job status through api server
 
 [bold]Upload policy:[/bold]
   uv run cogames submit -p class=scripted_baseline -n my-policy --server {LOCAL_BACKEND_URL} --skip-validation
