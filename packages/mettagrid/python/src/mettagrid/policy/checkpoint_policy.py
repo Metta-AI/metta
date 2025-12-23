@@ -126,7 +126,6 @@ class CheckpointPolicy(MultiAgentPolicy):
         return self._architecture_spec
 
 
-
 def _write_file_atomic(path: Path, data: bytes) -> None:
     tmp_path = None
     try:
@@ -143,7 +142,6 @@ def _write_file_atomic(path: Path, data: bytes) -> None:
     finally:
         if tmp_path and tmp_path.exists():
             tmp_path.unlink()
-
 
 
 def _write_checkpoint_bundle(
