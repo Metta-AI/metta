@@ -201,10 +201,9 @@ class ActionProbs(nn.Module):
         if "batch" in td.keys() and "bptt" in td.keys():
             batch = td["batch"]
             bptt = td["bptt"]
-            if not (torch.is_tensor(batch) and batch.device.type == "cuda"):
-                batch_size = int(batch.reshape(-1)[0])
-                bptt_size = int(bptt.reshape(-1)[0])
-                td = td.reshape(batch_size, bptt_size)
+            sizes = torch.stack([batch.reshape(-1)[0], bptt.reshape(-1)[0]]).to(device="cpu", dtype=torch.long)
+            batch_size, bptt_size = sizes.tolist()
+            td = td.reshape(batch_size, bptt_size)
 
         return td
 
