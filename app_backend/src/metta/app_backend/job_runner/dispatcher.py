@@ -1,7 +1,5 @@
 import logging
-import os
 
-import urllib3
 from kubernetes import client, config
 
 from metta.app_backend.job_runner.config import (
@@ -21,14 +19,6 @@ def get_k8s_client() -> client.BatchV1Api:
         config.load_incluster_config()
     except config.ConfigException:
         config.load_kube_config()
-
-    # For local dev via Docker, disable SSL verification (cert is for 127.0.0.1, not host.docker.internal)
-    if os.environ.get("KUBERNETES_SKIP_TLS_VERIFY", "").lower() == "true":
-        configuration = client.Configuration.get_default_copy()
-        configuration.verify_ssl = False
-        client.Configuration.set_default(configuration)
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
     return client.BatchV1Api()
 
 
