@@ -52,6 +52,7 @@ from metta.tools.utils.auto_config import (
     auto_stats_server_uri,
     auto_wandb_config,
 )
+from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -145,7 +146,8 @@ class TrainTool(Tool):
             if looks_like_uri or looks_like_path:
                 supervisor_policy_spec = policy_spec_from_uri(sup_uri)
             else:
-                raise ValueError("supervisor_policy_uri must be a checkpoint URI or path")
+                class_path = resolve_policy_class_path(sup_uri)
+                supervisor_policy_spec = PolicySpec(class_path=class_path)
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 

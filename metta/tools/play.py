@@ -14,7 +14,7 @@ from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
@@ -53,11 +53,7 @@ class PlayTool(Tool):
         logger.info(f"Loading policy from URI: {policy_uri}")
 
         policy_spec = policy_spec_from_uri(policy_uri, device=str(device))
-        policy: MettaPolicy = CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            policy_spec,
-            device_override=str(device),
-        ).wrapped_policy
+        policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
         if hasattr(policy, "eval"):
@@ -99,7 +95,7 @@ class PlayTool(Tool):
         agent_policies: list[MultiAgentPolicy] = []
         if s3_path:
             policy_spec = policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True)
-            policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec).wrapped_policy
+            policy = initialize_or_load_policy(policy_env_info, policy_spec)
             agent_policies.append(policy)
             logger.info("Loaded policy from s3 path")
         elif self.policy_uri:
