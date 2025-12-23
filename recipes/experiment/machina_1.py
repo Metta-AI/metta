@@ -1,6 +1,6 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
@@ -24,7 +24,7 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = None,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: PolicyArchitecture | dict[str, Any] | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
@@ -39,6 +39,8 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
     )
+    if isinstance(policy_architecture, dict):
+        policy_architecture = ViTDefaultConfig().model_copy(update=policy_architecture, deep=True)
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
@@ -78,7 +80,7 @@ def train_sweep(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = None,
-    policy_architecture: PolicyArchitecture | None = None,
+    policy_architecture: PolicyArchitecture | dict[str, Any] | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
