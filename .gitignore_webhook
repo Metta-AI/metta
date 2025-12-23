@@ -1,0 +1,5 @@
+webhook_service/.venv/
+webhook_service/__pycache__/
+webhook_service/*.pyc
+webhook_service/*.pyo
+webhook_service/*.pyd
