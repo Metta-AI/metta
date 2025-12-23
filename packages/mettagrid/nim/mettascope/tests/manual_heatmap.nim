@@ -12,7 +12,6 @@ loadExtensions()
 
 let bxy = newBoxy()
 
-# Load font for debug text rendering
 let debugTypeface = readTypeface("./data/fonts/Inter-Regular.ttf")
 
 var
@@ -30,8 +29,8 @@ proc centerView() =
   pos.x = (800.0 - mapWidth) / 2.0
   pos.y = (800.0 - mapHeight) / 2.0
 
-# Create a mock replay with some agents moving around.
 proc createTestReplay(): Replay =
+  ## Create a mock replay with some agents moving around.
   result = Replay()
   result.version = 3
   result.mapSize = (31, 33)
@@ -87,7 +86,6 @@ proc createTestReplay(): Replay =
 
 let testReplay = createTestReplay()
 
-# Create heatmap and shader.
 var testHeatmap = newHeatmap(testReplay)
 testHeatmap.initialize(testReplay)
 
@@ -141,7 +139,6 @@ window.onFrame = proc() =
     let mouseWorld = (window.mousePos.vec2 - pos) / zoomOld
     pos = window.mousePos.vec2 - mouseWorld * zoom
 
-  # Animate if enabled.
   if animating:
     currentStep = (currentStep + 1) mod testReplay.maxSteps
 
@@ -161,7 +158,6 @@ window.onFrame = proc() =
   if maxHeat > 0:
     testShader.draw(mvp, mapSize, maxHeat)
 
-  # Draw debug overlay if enabled
   if showDebug:
     bxy.exitRawOpenGLMode()
 
