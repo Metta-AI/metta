@@ -297,6 +297,24 @@ def load_policy_spec_from_zip(
     return policy_spec
 
 
+def load_policy_spec_from_path(
+    local_path: Path,
+    *,
+    device: str | None = None,
+    remove_downloaded_copy_on_exit: bool = False,
+    force_dest: Optional[Path] = None,
+) -> PolicySpec:
+    if local_path.is_dir():
+        return load_policy_spec_from_local_dir(local_path, device=device)
+
+    return load_policy_spec_from_zip(
+        local_path=local_path,
+        force_dest=force_dest,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        device=device,
+    )
+
+
 def load_policy_spec_from_s3(
     s3_path: str,
     cache_dir: Optional[Path] = None,
@@ -304,24 +322,40 @@ def load_policy_spec_from_s3(
     *,
     device: str | None = None,
 ) -> PolicySpec:
-    """Download a submission archive or checkpoint dir from S3 and return a PolicySpec ready for loading."""
+    """
+    Download a submission archive or checkpoint directory from S3 and return a PolicySpec ready for loading.
+
+    Downloads are cached under a deterministic location derived from the S3 URI hash so
+    repeated calls reuse the same local copy. Zip archives are downloaded as files and
+    extracted into a sibling directory; checkpoint directories are synced into a local
+    cache directory containing the submission spec and any referenced data file.
+    Note: .mpt checkpoints are handled by policy_spec_from_uri (MptPolicy) and are not
+    expected here.
+
+    Args:
+        s3_path: S3 path to a submission archive (e.g., s3://bucket/path/submission.zip)
+            or a checkpoint directory containing policy_spec.json.
+        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache.
+        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up
+            the downloaded file or directory.
+        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0") when
+            the spec declares a device in init_kwargs.
+
+    Returns:
+        PolicySpec with paths resolved to the local extraction/sync directory.
+    """
     local_path = download_policy_spec_from_s3(
         s3_path=s3_path,
         cache_dir=cache_dir,
         remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
     )
 
-    if local_path.is_dir():
-        policy_spec = load_policy_spec_from_local_dir(local_path, device=device)
-    else:
-        policy_spec = load_policy_spec_from_zip(
-            local_path=local_path,
-            force_dest=local_path.with_suffix(".d"),
-            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            device=device,
-        )
-
-    return policy_spec
+    return load_policy_spec_from_path(
+        local_path,
+        device=device,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        force_dest=local_path.with_suffix(".d"),
+    )
 
 
 def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:

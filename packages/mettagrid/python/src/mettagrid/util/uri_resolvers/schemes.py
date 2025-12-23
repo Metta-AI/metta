@@ -277,9 +277,8 @@ def policy_spec_from_uri(
 ):
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
-        load_policy_spec_from_local_dir,
+        load_policy_spec_from_path,
         load_policy_spec_from_s3,
-        load_policy_spec_from_zip,
     )
 
     parsed = resolve_uri(uri)
@@ -306,14 +305,11 @@ def policy_spec_from_uri(
         return spec
 
     if parsed.local_path:
-        if parsed.local_path.is_file():
-            spec = load_policy_spec_from_zip(
-                parsed.local_path,
-                device=device,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            )
-        else:
-            spec = load_policy_spec_from_local_dir(parsed.local_path, device=device)
+        spec = load_policy_spec_from_path(
+            parsed.local_path,
+            device=device,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        )
         if "strict" in spec.init_kwargs:
             spec.init_kwargs["strict"] = strict
         return spec
