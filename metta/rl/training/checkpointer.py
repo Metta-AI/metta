@@ -18,10 +18,6 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_u
 logger = logging.getLogger(__name__)
 
 
-def _load_checkpoint_policy(policy_env_info: PolicyEnvInterface, uri: str) -> CheckpointPolicy:
-    return CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec_from_uri(uri))
-
-
 class CheckpointerConfig(Config):
     epoch_interval: int = Field(default=30, ge=0)
 
@@ -70,7 +66,7 @@ class Checkpointer(TrainerComponent):
                 architecture_spec: str | None = None
                 state_dict: dict[str, torch.Tensor] | None = None
                 if self._distributed.is_master():
-                    policy = _load_checkpoint_policy(policy_env_info, normalized_uri)
+                    policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec_from_uri(normalized_uri))
                     architecture_spec = policy.architecture_spec
                     state_dict = policy.wrapped_policy.state_dict()
                 state_dict = self._distributed.broadcast_from_master(
@@ -99,7 +95,9 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            policy = _load_checkpoint_policy(policy_env_info, candidate_uri).wrapped_policy
+            policy = CheckpointPolicy.from_policy_spec(
+                policy_env_info, policy_spec_from_uri(candidate_uri)
+            ).wrapped_policy
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
