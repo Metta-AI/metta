@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "heavyball>=2.0.0",
-  "mettagrid",
+  "mettagrid==0.2.0.54",
   "packaging>=24.0.0",
   "pufferlib-core",
   "pydantic>=2.11.5",
