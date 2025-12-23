@@ -1,6 +1,6 @@
 import
   vmath,
-  ../src/mettascope/[heatmap, replays]
+  mettascope/[heatmap, replays]
 
 type
   TestMap = object
