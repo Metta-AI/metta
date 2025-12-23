@@ -12,8 +12,7 @@ LABEL_JOB_ID = "job-id"
 class JobDispatchConfig(BaseSettings):
     EPISODE_RUNNER_IMAGE: str = ""
     BACKEND_URL: str = ""
-    # TODO(Nishad): Instead of passing MACHINE_TOKEN in, auto-create it via a SystemTokens table
-    # that has (name, machine_token_foreign_key), unique on name. Gets-or-creates on startup.
+    # TODO: limit the scope of this to only update the job in question
     MACHINE_TOKEN: str = ""
 
 
