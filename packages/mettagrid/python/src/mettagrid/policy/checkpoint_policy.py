@@ -12,7 +12,7 @@ from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME as SUBMISSION_POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 
 def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -27,17 +27,6 @@ def prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict[
             seen_storage.add(data_ptr)
         result[key] = value
     return result
-
-
-def load_state_from_checkpoint_uri(uri: str, *, device: str) -> tuple[str, dict[str, torch.Tensor]]:
-    spec = policy_spec_from_uri(uri, device=device)
-    architecture_spec = spec.init_kwargs.get("architecture_spec")
-    if not architecture_spec:
-        raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
-    if not spec.data_path:
-        raise ValueError("policy_spec.json missing data_path")
-    state_dict = load_safetensors(Path(spec.data_path).read_bytes())
-    return architecture_spec, dict(state_dict)
 
 
 class CheckpointPolicy(MultiAgentPolicy):
@@ -88,23 +77,15 @@ class CheckpointPolicy(MultiAgentPolicy):
     def load_policy_data(self, policy_data_path: str) -> None:
         path = Path(policy_data_path).expanduser()
         if path.is_dir():
-            spec_path = path / CheckpointPolicy.POLICY_SPEC_FILENAME
-            if not spec_path.exists():
-                raise FileNotFoundError(
-                    f"{CheckpointPolicy.POLICY_SPEC_FILENAME} not found in checkpoint directory: {path}"
-                )
-            submission_spec = SubmissionPolicySpec.model_validate_json(spec_path.read_text())
-            if not submission_spec.data_path:
-                raise ValueError(f"{CheckpointPolicy.POLICY_SPEC_FILENAME} missing data_path in {path}")
-            weights_path = path / submission_spec.data_path
-            if not weights_path.exists():
-                raise FileNotFoundError(f"Policy data path does not exist: {weights_path}")
-            weights_blob = weights_path.read_bytes()
-        elif path.is_file() and path.name != CheckpointPolicy.POLICY_SPEC_FILENAME:
-            weights_blob = path.read_bytes()
-        else:
+            raise FileNotFoundError(
+                "Checkpoint data path must be a weights file. "
+                "Resolve checkpoint directories to a policy_spec.json bundle first."
+            )
+        if not path.is_file():
             raise FileNotFoundError(f"Policy data path does not exist: {path}")
-        state_dict = load_safetensors(weights_blob)
+        if path.name == CheckpointPolicy.POLICY_SPEC_FILENAME:
+            raise ValueError(f"Checkpoint data path points at {CheckpointPolicy.POLICY_SPEC_FILENAME}: {path}")
+        state_dict = load_safetensors(path.read_bytes())
         missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=False)
         if self._strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
@@ -188,3 +169,4 @@ def _write_file_atomic(path: Path, data: bytes) -> None:
         if tmp_path.exists():
             tmp_path.unlink()
         raise
+
