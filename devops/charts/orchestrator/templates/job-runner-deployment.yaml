@@ -1,29 +1,29 @@
-{{- if .Values.reconciler.enabled }}
+{{- if .Values.watcher.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "orchestrator.fullname" . }}-reconciler
+  name: {{ include "orchestrator.fullname" . }}-watcher
   labels:
     {{- include "orchestrator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: reconciler
+    app.kubernetes.io/component: watcher
 spec:
   replicas: 1
   selector:
     matchLabels:
       {{- include "orchestrator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: reconciler
+      app.kubernetes.io/component: watcher
   template:
     metadata:
       labels:
         {{- include "orchestrator.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: reconciler
+        app.kubernetes.io/component: watcher
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:
-      - name: reconciler
+      - name: watcher
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.reconciler"]
+        command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.watcher"]
         env:
         - name: BACKEND_URL
           value: {{ .Values.env.BACKEND_URL | quote }}
@@ -33,5 +33,5 @@ spec:
               name: {{ .Values.secrets.machineToken }}
               key: token
         resources:
-          {{- toYaml .Values.reconciler.resources | nindent 10 }}
+          {{- toYaml .Values.watcher.resources | nindent 10 }}
 {{- end }}

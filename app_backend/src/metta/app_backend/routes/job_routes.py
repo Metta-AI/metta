@@ -121,22 +121,17 @@ def create_job_router() -> APIRouter:
 
                 job.status = request.status
 
-                if request.status == JobStatus.dispatched:
-                    job.dispatched_at = datetime.now(UTC)
-
                 if request.status == JobStatus.running:
                     job.running_at = datetime.now(UTC)
                     if request.worker:
                         job.worker = request.worker
-
-                if request.status in (JobStatus.completed, JobStatus.failed):
-                    job.completed_at = datetime.now(UTC)
 
             if request.error is not None:
                 job.error = request.error
 
             if request.result is not None:
                 job.result = request.result
+                job.completed_at = datetime.now(UTC)
 
             await session.commit()
             await session.refresh(job)

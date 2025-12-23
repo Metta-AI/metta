@@ -6,7 +6,7 @@
 # Build image + Kind cluster + create jobs namespace
 metta observatory kind build
 
-# Start postgres + backend + reconciler (uses same image)
+# Start postgres + backend + watcher (uses same image)
 metta observatory backend up -d
 ```
 
@@ -22,8 +22,8 @@ uv run python app_backend/scripts/submit_test_jobs.py
 # Watch k8s jobs
 kubectl get jobs -n jobs -w
 
-# Reconciler logs
-metta observatory backend logs reconciler
+# Watcher logs
+metta observatory backend logs watcher
 
 # Backend logs
 metta observatory backend logs observatory-backend
