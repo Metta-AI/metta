@@ -159,7 +159,6 @@ def _load_policy_spec_from_local_dir(
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device
-    spec.init_kwargs.pop("strict", None)
 
     # Find and add the correct sys.path entry for the class_path in this submission
     # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
