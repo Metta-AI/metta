@@ -2,13 +2,25 @@ from __future__ import annotations
 
 import logging
 import uuid
+from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+from metta.rl.system_config import guess_data_dir
 from mettagrid.util.uri_resolvers.base import MettaParsedScheme, SchemeResolver
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
+
+_SCRIPTED_POLICY_ALIASES = {
+    "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
+    "ladybug": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
+    "thinky": "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    "race_car": "cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
+    "racecar": "cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
+    "starter": "cogames.policy.scripted_agent.starter_agent.StarterPolicy",
+}
 
 
 def _is_uuid(s: str) -> bool:
@@ -86,7 +98,7 @@ class MettaSchemeResolver(SchemeResolver):
         entry = response.entries[0]
         return stats_client.get_policy_version(entry.id)
 
-    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
+    def _get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -110,13 +122,57 @@ class MettaSchemeResolver(SchemeResolver):
 
         return policy_version
 
+    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
+        return self._get_policy_version(uri)
+
+    def _resolve_local_checkpoint_uri(self, run_name: str, version: int | None) -> str | None:
+        checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / run_name / "checkpoints"
+        if not checkpoint_root.exists():
+            return None
+        if version is None:
+            if checkpoint_root.is_dir():
+                return checkpoint_root.as_uri()
+            return None
+        candidate = checkpoint_root / f"{run_name}:v{version}"
+        if candidate.exists():
+            return candidate.as_uri()
+        return None
+
+    def _resolve_scripted_alias(self, name: str) -> str | None:
+        resolved = _SCRIPTED_POLICY_ALIASES.get(name)
+        if resolved:
+            return f"mock://{resolved}"
+        return None
+
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
-        policy_version = self.get_policy_version(uri)
-        # By default we send you to the s3 path that contains the policy spec
+        parsed = self.parse(uri)
+        path_parts = parsed.path.split("/")
+        if len(path_parts) < 2 or path_parts[0] != "policy":
+            raise ValueError(
+                f"Unsupported metta:// URI format: {uri}. "
+                f"Expected metta://policy/<policy_version_id> or metta://policy/<policy_name>"
+            )
+        policy_identifier = path_parts[1]
+
+        if not _is_uuid(policy_identifier):
+            name, version = _parse_policy_identifier(policy_identifier)
+            if version is None:
+                scripted = self._resolve_scripted_alias(name)
+                if scripted:
+                    logger.info("Metta scheme resolver: %s resolved to scripted policy %s", uri, name)
+                    return scripted
+
+            local_uri = self._resolve_local_checkpoint_uri(name, version)
+            if local_uri:
+                logger.info("Metta scheme resolver: %s resolved to local checkpoint %s", uri, local_uri)
+                return local_uri
+
+        policy_version = self._get_policy_version(uri)
         if policy_version.s3_path:
-            logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")
-            return policy_version.s3_path
+            resolved = resolve_uri(policy_version.s3_path).canonical
+            logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)
+            return resolved
 
         raise ValueError(
-            f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission zip in S3."
+            f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission in S3."
         )

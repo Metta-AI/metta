@@ -188,7 +188,7 @@ def test_policy_artifact_reinitializes_environment_dependent_buffers() -> None:
     policy = architecture.make_policy(policy_env_info)
     artifact = MptArtifact(architecture=architecture, state_dict=policy.state_dict())
 
-    reloaded = artifact.instantiate(policy_env_info, "cpu", strict=False)
+    reloaded = artifact.instantiate(policy_env_info, "cpu")
 
     action_component = reloaded.components["action_embedding"]
     expected_indices = tuple(range(len(policy_env_info.action_names)))

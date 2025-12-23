@@ -201,11 +201,11 @@ def download_policy_spec_from_s3(
 ) -> Path:
     """Download a policy from S3 without extracting archives.
 
-    Archives and .mpt files are cached as local files. Checkpoint directories are synced
+    Archives are cached as local files. Checkpoint directories are synced
     into a deterministic local cache directory.
 
     Args:
-        s3_path: S3 path to a submission archive (.zip), .mpt file, or checkpoint directory
+        s3_path: S3 path to a submission archive (.zip) or checkpoint directory
         cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
         remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache entry
 
@@ -217,8 +217,11 @@ def download_policy_spec_from_s3(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
-    if normalized_path.endswith(".zip") or normalized_path.endswith(".mpt"):
-        suffix = ".zip" if normalized_path.endswith(".zip") else ".mpt"
+    if normalized_path.endswith(".mpt"):
+        raise ValueError("MPT checkpoints are deprecated; convert to a checkpoint directory first.")
+
+    if normalized_path.endswith(".zip"):
+        suffix = ".zip"
         digest = hashlib.sha256(normalized_path.encode()).hexdigest()
         tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}{suffix}"
         local_path = cache_dir / f"{digest}{suffix}"
@@ -327,9 +330,6 @@ def load_policy_spec_from_s3(
     repeated calls reuse the same local copy. Zip archives are downloaded as files and
     extracted into a sibling directory; checkpoint directories are synced into a local
     cache directory containing the submission spec and any referenced data file.
-    Note: .mpt checkpoints are handled by policy_spec_from_uri (MptPolicy) and are not
-    expected here.
-
     Args:
         s3_path: S3 path to a submission archive (e.g., s3://bucket/path/submission.zip)
             or a checkpoint directory containing policy_spec.json.

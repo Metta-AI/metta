@@ -13,7 +13,7 @@ from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
-from mettagrid.policy.mpt_policy import parse_uri
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 from mettagrid.util.file import copy_data, read
 
 logger = logging.getLogger(__name__)

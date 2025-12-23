@@ -10,7 +10,11 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
-from mettagrid.policy.checkpoint_policy import architecture_from_spec, prepare_state_dict_for_save
+from mettagrid.policy.checkpoint_policy import (
+    CheckpointPolicy,
+    architecture_from_spec,
+    prepare_state_dict_for_save,
+)
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri_resolvers.schemes import parse_uri
@@ -38,22 +42,36 @@ class MptArtifact:
         self,
         policy_env_info: PolicyEnvInterface,
         device: str = "cpu",
-        *,
-        strict: bool = True,
     ) -> Any:
         torch_device = torch.device(device)
 
         policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(torch_device)
 
-        missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=False)
-        if strict and (missing or unexpected):
-            raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+        policy.load_state_dict(dict(self.state_dict))
 
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, torch_device)
 
         return policy
+
+
+def convert_mpt_to_checkpoint_dir(
+    uri: str,
+    *,
+    output_dir: Path,
+    run_name: str,
+    epoch: int,
+) -> Path:
+    """Convert an .mpt checkpoint into a checkpoint directory bundle."""
+    artifact = load_mpt(uri)
+    return CheckpointPolicy.write_checkpoint_dir(
+        base_dir=output_dir,
+        run_name=run_name,
+        epoch=epoch,
+        architecture=artifact.architecture,
+        state_dict=artifact.state_dict,
+    )
 
 
 def load_mpt(uri: str) -> MptArtifact:
