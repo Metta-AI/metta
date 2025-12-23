@@ -64,18 +64,8 @@ class ImpureSingleEpisodeTool(Tool):
         return 0
 
 
-def run_impure_example(policy_uri: str, results_uri: str, replay_uri: str) -> PureSingleEpisodeTool:
+def run_impure_example(job_id: str) -> ImpureSingleEpisodeTool:
     """
-    ./tools/run.py recipes.experiment.pure_single_episode.run_impure_example \
-        job_id=my-uuid
+    ./tools/run.py recipes.experiment.pure_single_episode.run_impure_example job_id=my-uuid
     """
-    env = Machina1OpenWorldMission.model_copy(deep=True).make_env()
-    return PureSingleEpisodeTool(
-        job=PureSingleEpisodeJob(
-            policy_uris=[policy_uri],
-            assignments=[0] * env.game.num_agents,
-            env=env,
-            results_uri=results_uri,
-            replay_uri=replay_uri,
-        )
-    )
+    return ImpureSingleEpisodeTool(job_id=uuid.UUID(job_id))
