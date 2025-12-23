@@ -19,7 +19,6 @@ from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     eval_task_routes,
-    github_webhook_routes,
     job_routes,
     leaderboard_routes,
     sql_routes,
@@ -127,7 +126,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     jobs_router = job_routes.create_job_router()
-    github_webhook_router = github_webhook_routes.create_github_webhook_router()
 
     app.include_router(eval_task_router)
     app.include_router(sql_router)
@@ -135,7 +133,6 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(sweep_router)
     app.include_router(leaderboard_router)
     app.include_router(jobs_router)
-    app.include_router(github_webhook_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:

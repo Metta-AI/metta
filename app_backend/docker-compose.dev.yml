@@ -26,10 +26,6 @@ services:
       STATS_DB_URI: postgres://postgres:password@postgres:5432/metta
       RUN_MIGRATIONS: "true"
       DEBUG_USER_EMAIL: localdev@example.com
-      ASANA_PAT: ${ASANA_PAT:-}
-      ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
-      ASANA_PROJECT_GID: ${ASANA_PROJECT_GID:-}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
     volumes:
       - ./src:/workspace/metta/app_backend/src
       - ../common/src:/workspace/metta/common/src

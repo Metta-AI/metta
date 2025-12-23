@@ -11,13 +11,6 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     LOGIN_SERVICE_URL: str = "https://softmax.com"
     RUN_MIGRATIONS: bool = Field(default=False, description="Run migrations on startup")
-    GITHUB_WEBHOOK_SECRET: str | None = None
-    ASANA_PAT: str | None = None
-    ASANA_WORKSPACE_GID: str | None = None
-    ASANA_PROJECT_GID: str | None = None
-    ASANA_RETRY_MAX_ATTEMPTS: int = 3
-    ASANA_RETRY_INITIAL_DELAY_MS: float = 500.0
-    ASANA_RETRY_MAX_DELAY_MS: float = 8000.0
 
 
 settings = Settings()
