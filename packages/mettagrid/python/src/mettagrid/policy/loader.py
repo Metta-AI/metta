@@ -7,10 +7,11 @@ import importlib
 import os
 import pkgutil
 import re
+import sys
 from pathlib import Path
 from typing import Optional
 
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PipedPolicyWrapper, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.util.module import load_symbol
@@ -20,6 +21,7 @@ def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
     device_override: str | None = None,
+    sandbox: bool = False,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
@@ -29,18 +31,26 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    policy_spec = policy_spec.model_copy(deep=True)
     kwargs = policy_spec.init_kwargs or {}
     if device_override is not None:
         kwargs["device"] = device_override
+        policy_spec.init_kwargs = kwargs
 
-    try:
-        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
+    if sandbox:
+        policy = PipedPolicyWrapper(policy_spec, policy_env_info, **kwargs)  # type: ignore[call-arg]
+    else:
+        for path in reversed(policy_spec.python_path):
+            if path not in sys.path:
+                sys.path.insert(0, path)
+        policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+        try:
+            policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
+        except TypeError as e:
+            raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
 
-    if policy_spec.data_path:
-        policy.load_policy_data(policy_spec.data_path)
+        if policy_spec.data_path:
+            policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         if isinstance(policy, AgentPolicy):

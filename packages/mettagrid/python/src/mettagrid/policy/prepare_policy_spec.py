@@ -161,14 +161,10 @@ def load_policy_spec_from_local_dir(
     # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
     module_root = _find_package_source_root(extraction_root, spec.class_path)
     if module_root and module_root != extraction_root:
-        sys_path_entry = str(module_root.resolve())
-        if sys_path_entry not in sys.path:
-            sys.path.insert(0, sys_path_entry)
+        spec.python_path.insert(0, str(module_root.resolve()))
 
     # Also add extraction root for backward compatibility
-    sys_path_entry = str(extraction_root.resolve())
-    if sys_path_entry not in sys.path:
-        sys.path.insert(0, sys_path_entry)
+    spec.python_path.insert(0, str(extraction_root.resolve()))
 
     return spec
 

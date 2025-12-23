@@ -1,6 +1,11 @@
 """Base policy classes and interfaces."""
 
 import ctypes
+import io
+import os
+import socket
+import subprocess
+import sys
 from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
@@ -320,6 +325,8 @@ class PolicySpec(BaseModel):
 
     init_kwargs: dict[str, Any] = Field(default_factory=dict)
 
+    python_path: list[str] = Field(default=[], description="Optional PYTHONPATH entries to add when loading the policy")
+
     @property
     def name(self) -> str:
         parts = [
@@ -328,3 +335,87 @@ class PolicySpec(BaseModel):
         if self.data_path:
             parts.append(Path(self.data_path).name)
         return "-".join(parts)
+
+
+class PipedPolicyWrapper(MultiAgentPolicy):
+    def __init__(self, policy_spec: PolicySpec, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+        super().__init__(policy_env_info, **kwargs)
+        self._policy_env_info = policy_env_info
+        self._policy_spec = policy_spec
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return _PipedPolicyWrapper(self._policy_env_info, agent_id, self._policy_spec)
+
+
+class _PipedPolicyWrapper(AgentPolicy):
+    """
+    Launches a subprocess to run a single agent of the given policy.
+
+    Communicates with the subprocess via stdin/stdout using a line-based protocol, described in ./run_one_agent.py.
+    """
+
+    # TODO(rhys): formalize the protocol
+    # TODO(rhys): allow communicating with the subprocess via the network
+
+    def __init__(self, policy_env_info: PolicyEnvInterface, agent_id: int, policy_spec: PolicySpec):
+        super().__init__(policy_env_info=policy_env_info)
+        self._agent_id = agent_id
+        self._step = 0
+        self._process = None
+        self._policy_spec = policy_spec
+        self._socket: socket.socket | None = None
+        self._file: io.TextIOWrapper | None = None
+
+    def reset(self, simulation: Optional[Simulation] = None) -> None:
+        # Each instance of this class is used only once, for a single subprocess. The call to reset
+        # is effectively "init". It comes before the first step, once the simulation is ready to go.
+        # That's our cue to create the subprocess.
+        if self._process is not None:
+            # TODO(rhys): we'll want to hear about the end of the simulation so we know when to kill
+            self._destroy()  # This is still a single-use wrapper, don't reset
+        else:
+            worker = os.path.join(os.path.dirname(__file__), "run_one_agent.py")
+            self._socket, child = socket.socketpair()
+            child.set_inheritable(True)
+            self._file = self._socket.makefile(mode="rw")
+            self._process = subprocess.Popen(
+                [sys.executable, worker, str(child.fileno())],
+                pass_fds=(child.fileno(),),
+            )
+            child.close()
+
+            # Protocol described in ./run_one_agent.py
+            for msg in [
+                "{0:02x}\n".format(self._agent_id),
+                "{0}\n".format(self._policy_spec.model_dump_json()),
+                "{0}\n".format(self.policy_env_info.model_dump_json()),
+                "READY\n",
+            ]:
+                self._file.write(msg)
+            self._file.flush()
+
+            ready = self._file.readline().strip()
+            if ready != "READY":
+                self._destroy()
+                raise RuntimeError("Failed to start agent subprocess")
+        return super().reset(simulation)
+
+    def _destroy(self):
+        if self._process is not None:
+            self._process.kill()
+        if self._socket is not None:
+            self._socket.close()
+
+    def step(self, obs: AgentObservation) -> Action:
+        if self._process is None or self._file is None:
+            return Action(name="noop")
+
+        # Protocol described in ./run_one_agent.py
+        parts = ["{0:02x} {1:08x}".format(self._agent_id, self._step)]
+        for o in obs.tokens:
+            parts.append("{0:02x}{1:02x}{2:02x}".format(o.raw_token[0], o.raw_token[1], o.raw_token[2]))
+        self._file.write(" ".join(parts) + "\n")
+        self._file.flush()
+        action = self._file.readline().strip()
+        self._step += 1
+        return Action(name=action)
