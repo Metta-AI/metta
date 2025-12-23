@@ -31,6 +31,7 @@ class EpisodeRolloutResult(BaseModel):
     replay_path: str | None
     steps: int
     max_steps: int
+    failure_steps: list[int | None] | None = None
 
 
 class MultiEpisodeRolloutResult(BaseModel):
@@ -97,9 +98,9 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
-        # Create a new replay writer for each episode if save_replay is provided
+        rollout: Rollout
+        episode_replay_writer: ReplayLogWriter | None = None
         handlers: list[SimulatorEventHandler] = []
-        episode_replay_writer = None
         if save_replay is not None:
             episode_replay_writer = ReplayLogWriter(save_replay)
             handlers.append(episode_replay_writer)
@@ -128,6 +129,7 @@ def multi_episode_rollout(
             replay_path=replay_path,
             steps=rollout._sim.current_step,
             max_steps=rollout._sim.config.game.max_steps,
+            failure_steps=list(rollout.agent_failure_steps),
         )
 
         episode_results.append(result)
