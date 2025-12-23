@@ -13,11 +13,13 @@ def main():
     parser.add_argument("--server", default="http://localhost:8000", help="Backend URL")
     parser.add_argument("--num-agents", type=int, default=2, help="Number of agents")
     parser.add_argument("--num-jobs", type=int, default=1, help="Number of jobs to submit")
+    parser.add_argument("--policy-uri", help="Policy URI")
     args = parser.parse_args()
 
-    policy_uris = [
-        "metta://policy/04caa067-c13d-4bd0-813b-7e22e0ccc4ed",
-    ]
+    if not args.policy_uri:
+        raise ValueError("Policy URI is required")
+
+    policy_uris = [args.policy_uri]
 
     env = MettaGridConfig.EmptyRoom(num_agents=args.num_agents, width=20, height=20)
 

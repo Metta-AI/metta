@@ -1,15 +1,14 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Callable
+from typing import Annotated
 
 import typer
 from rich.console import Console
 
-from devops.docker.push_image import push_image
-from metta.common.util.constants import DEV_STATS_SERVER_URI, METTA_AWS_ACCOUNT_ID, METTA_AWS_REGION
+from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.observatory.utils import build_img
+from metta.setup.tools.observatory.utils import build_and_load_image
 from metta.setup.utils import error, info, success
 
 repo_root = get_repo_root()
@@ -29,14 +28,6 @@ class Kind:
             ["kubectl", "get", "namespace", namespace], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
         return result.returncode == 0
-
-    def _ensure_docker_img_built(self, img_name: str, load_fn: Callable[[], None]) -> None:
-        result = subprocess.run(["docker", "image", "inspect", img_name], capture_output=True)
-        if result.returncode != 0:
-            info(f"Building {img_name} image...")
-            load_fn()
-        info(f"Loading {img_name} into Kind...")
-        subprocess.run(["kind", "load", "docker-image", img_name, "--name", self.cluster_name], check=True)
 
     def _use_appropriate_context(self) -> None:
         subprocess.run(["kubectl", "config", "use-context", self.context], check=True)
@@ -172,19 +163,6 @@ class Kind:
         return wandb.Api().api_key
 
 
-def build_policy_evaluator_img_internal(
-    tag: str = "metta-policy-evaluator-local:latest", build_args: list[str] | None = None
-):
-    args = build_args or []
-    if "--platform" not in args:
-        args = ["--platform", "linux/amd64"] + args
-    build_img(
-        tag,
-        repo_root / "devops" / "docker" / "Dockerfile.policy_evaluator",
-        args,
-    )
-
-
 class KindLocal(Kind):
     cluster_name = "metta-local"
     namespace = "orchestrator"
@@ -234,7 +212,7 @@ class KindLocal(Kind):
                 subprocess.run(["kind", "create", "cluster", "--name", self.cluster_name], check=True)
         self._use_appropriate_context()
 
-        self._ensure_docker_img_built("metta-policy-evaluator-local:latest", build_policy_evaluator_img_internal)
+        build_and_load_image(force_build=False)
         success("Kind cluster ready")
 
         if not self._check_namespace_exists(self.namespace):
@@ -244,33 +222,6 @@ class KindLocal(Kind):
         if not self._check_namespace_exists("jobs"):
             self._create_namespace("jobs")
         success("jobs namespace ready")
-
-
-class EksProd(Kind):
-    aws_account_id = METTA_AWS_ACCOUNT_ID
-    aws_region = METTA_AWS_REGION
-    cluster_name = "main"
-    namespace = "orchestrator"
-    context = f"arn:aws:eks:{aws_region}:{aws_account_id}:cluster/{cluster_name}"
-    helm_release_name = "orchestrator"
-    helm_chart_path = repo_root / "devops/charts/orchestrator"
-    environment_values_file = None
-
-    def build(self):
-        info("Building AMD64 for EKS...")
-
-        local_image_name = "metta-policy-evaluator-local:latest-amd64"
-
-        build_policy_evaluator_img_internal(
-            tag=local_image_name,
-            build_args=["--platform", "linux/amd64"],
-        )
-        push_image(
-            local_image_name=local_image_name,
-            remote_image_name="metta-policy-evaluator:latest",
-            region=self.aws_region,
-            account_id=self.aws_account_id,
-        )
 
 
 kind_app = typer.Typer(help="Manage Kind cluster", rich_markup_mode="rich", no_args_is_help=True)
