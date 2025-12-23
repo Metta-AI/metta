@@ -49,6 +49,7 @@ class MettaGridPettingZooEnv(ParallelEnv):
         # Initialize first simulation to get space information
         self._sim: Simulation | None = None
         self._sim = self._simulator.new_simulation(cfg, seed=self._seed)
+        assert self._sim is not None
 
         # PettingZoo attributes - agent IDs are integers
         self.possible_agents: List[int] = list(range(self._sim.num_agents))
@@ -84,6 +85,7 @@ class MettaGridPettingZooEnv(ParallelEnv):
 
         # Create new simulation
         self._sim = self._simulator.new_simulation(self._cfg, seed=self._seed)
+        assert self._sim is not None
 
         # Reset agents list to all possible agents
         self.agents = self.possible_agents.copy()
@@ -116,21 +118,23 @@ class MettaGridPettingZooEnv(ParallelEnv):
         Returns:
             Tuple of (observations, rewards, terminations, truncations, infos)
         """
+        sim = self._sim
+        assert sim is not None
         # Set actions for all agents through C++ environment
-        action_array = self._sim._c_sim.actions()
+        action_array = sim._c_sim.actions()
         for agent_id in self.agents:
             if agent_id in actions:
                 action_idx = int(np.asarray(actions[agent_id], dtype=dtype_actions).reshape(()).item())
                 action_array[agent_id] = action_idx
 
         # Execute simulation step
-        self._sim.step()
+        sim.step()
 
         # Get results from C++ environment
-        observations = self._sim._c_sim.observations()
-        rewards = self._sim._c_sim.rewards()
-        terminals = self._sim._c_sim.terminals()
-        truncations = self._sim._c_sim.truncations()
+        observations = sim._c_sim.observations()
+        rewards = sim._c_sim.rewards()
+        terminals = sim._c_sim.terminals()
+        truncations = sim._c_sim.truncations()
 
         # Convert to PettingZoo format (dict keyed by agent ID)
         obs_dict = {agent_id: observations[agent_id] for agent_id in self.agents}

@@ -32,15 +32,20 @@ class AgentInfoComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("agent_info")
+        assert sidebar_panel is not None
         self._set_panel(sidebar_panel)
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
-        return self.state.resource_names
+        resource_names = self.state.resource_names
+        assert resource_names is not None
+        return resource_names
 
     def _get_symbol_map(self) -> dict[str, str]:
         """Get symbol map from state."""
-        return self.state.symbol_map
+        symbol_map = self.state.symbol_map
+        assert symbol_map is not None
+        return symbol_map
 
     def _get_vibes(self) -> Optional[list[str]]:
         """Get vibes from state."""
@@ -48,8 +53,10 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def update(self) -> None:
         """Render the agent info panel using current environment and state."""
+        panel = self._panel
+        assert panel is not None
         if not self.state.is_sidebar_visible("agent_info"):
-            self._panel.clear()
+            panel.clear()
             return
 
         grid_objects = self._sim.grid_objects()
@@ -60,7 +67,7 @@ class AgentInfoComponent(MiniscopeComponent):
             self.state.total_rewards,
             self.state.manual_agents,
         )
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def _build_lines(
         self,

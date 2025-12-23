@@ -120,7 +120,9 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = config
 
     def get_episode_rewards(self) -> np.ndarray:
-        return self._sim.episode_rewards
+        sim = self._sim
+        assert sim is not None
+        return sim.episode_rewards
 
     @property
     def current_simulation(self) -> Simulation:
@@ -154,15 +156,19 @@ class MettaGridPufferEnv(PufferEnv):
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, List[Dict[str, Any]]]:
-        if self._sim._c_sim.terminals().all() or self._sim._c_sim.truncations().all():
+        sim = self._sim
+        assert sim is not None
+        if sim._c_sim.terminals().all() or sim._c_sim.truncations().all():
             self._new_sim()
+            sim = self._sim
+            assert sim is not None
 
         # Gymnasium returns int64 arrays by default when sampling MultiDiscrete spaces,
         # so coerce here to keep callers simple while preserving strict bounds checking.
         actions_to_copy = actions if actions.dtype == dtype_actions else np.asarray(actions, dtype=dtype_actions)
         np.copyto(self._buffers.actions, actions_to_copy, casting="safe")
 
-        self._sim.step()
+        sim.step()
 
         # Do this after step() so that the trainer can use it if needed
         if self._supervisor_policy_spec is not None:
@@ -173,13 +179,15 @@ class MettaGridPufferEnv(PufferEnv):
             self._buffers.rewards,
             self._buffers.terminals,
             self._buffers.truncations,
-            self._sim._context.get("infos", {}),
+            sim._context.get("infos", {}),
         )
 
     def _compute_supervisor_actions(self) -> None:
+        supervisor = self._env_supervisor
+        assert supervisor is not None
         teacher_actions = self._buffers.teacher_actions
         raw_observations = self._buffers.observations
-        self._env_supervisor.step_batch(raw_observations, teacher_actions)
+        supervisor.step_batch(raw_observations, teacher_actions)
 
     def disable_supervisor(self) -> None:
         """Disable supervisor policy to avoid extra forward passes after teacher phase."""
@@ -252,6 +260,8 @@ class MettaGridPufferEnv(PufferEnv):
         from mettagrid.renderer.miniscope.buffer import MapBuffer
         from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
 
+        sim = self._sim
+        assert sim is not None
         symbol_map = DEFAULT_SYMBOL_MAP.copy()
         for obj in self._current_cfg.game.objects.values():
             if obj.render_name:
@@ -260,9 +270,9 @@ class MettaGridPufferEnv(PufferEnv):
 
         return MapBuffer(
             symbol_map=symbol_map,
-            initial_height=self._sim.map_height,
-            initial_width=self._sim.map_width,
-        ).render_full_map(self._sim._c_sim.grid_objects())
+            initial_height=sim.map_height,
+            initial_width=sim.map_width,
+        ).render_full_map(sim._c_sim.grid_objects())
 
     def close(self) -> None:
         """Close the environment."""

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, List, Optional
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
@@ -74,6 +74,12 @@ class MiniscopeComponent(ABC):
             Padded lines
         """
         return [line[:width].ljust(width) for line in lines]
+
+    def _table_to_lines(self, renderable: RenderableType) -> List[str]:
+        """Render a Rich table or other renderable to plain text lines."""
+        with self._console.capture() as capture:
+            self._console.print(renderable)
+        return capture.get().split("\n")
 
     def handle_input(self, ch: str) -> bool:
         """Handle user input for this component."""
