@@ -76,9 +76,9 @@ class MachinaArenaConfig(SceneConfig):
     dungeon_weights: dict[str, float] | None = None
     biome_count: int | None = None
     dungeon_count: int | None = None
-    density_scale: float = 0.9
-    max_biome_zone_fraction: float = 0.28
-    max_dungeon_zone_fraction: float = 0.2
+    density_scale: float = 0.85
+    max_biome_zone_fraction: float = 0.26
+    max_dungeon_zone_fraction: float = 0.19
 
     #### Distributions ####
 
