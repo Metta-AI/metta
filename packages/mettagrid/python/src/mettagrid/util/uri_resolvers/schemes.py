@@ -265,8 +265,8 @@ def policy_spec_from_uri(
 ):
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
+        download_policy_spec_from_s3_as_zip,
         load_policy_spec_from_local_dir,
-        load_policy_spec_from_s3,
         load_policy_spec_from_zip,
     )
 
@@ -284,11 +284,11 @@ def policy_spec_from_uri(
         )
 
     if parsed.scheme == "s3":
-        return load_policy_spec_from_s3(
-            parsed.canonical,
-            device=device,
+        local = download_policy_spec_from_s3_as_zip(
+            s3_path=parsed.canonical,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
+        parsed = resolve_uri(local.as_uri())
 
     if parsed.local_path:
         if parsed.local_path.is_file():
