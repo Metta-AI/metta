@@ -459,10 +459,6 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
             tag: str,
             max_w: int,
             max_h: int,
-            area_count: int,
-            *,
-            order_by: str | None = None,
-            limit: int | None = None,
         ) -> ChildrenAction | None:
             if not configs:
                 return None
@@ -476,35 +472,19 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
                 )
                 for scene_cfg in configs
             ]
-            action_kwargs: dict[str, Any] = {}
-            if order_by is not None:
-                action_kwargs["order_by"] = order_by
-            if limit is not None:
-                action_kwargs["limit"] = limit
             return ChildrenAction(
                 scene=BSPLayout.Config(
-                    area_count=area_count,
+                    area_count=len(configs),
                     children=children,
                 ),
                 where="full",
-                **action_kwargs,
             )
 
         biomes = _make_biomes(cfg.biome_weights)
         dungeons = _make_dungeons(cfg.dungeon_weights)
-        biome_count = cfg.biome_count if cfg.biome_count is not None else len(biomes)
-        dungeon_count = cfg.dungeon_count if cfg.dungeon_count is not None else len(dungeons)
-        biome_layer = _make_layer(biomes, "biome.zone", biome_max_w, biome_max_h, biome_count) if biomes else None
+        biome_layer = _make_layer(biomes, "biome.zone", biome_max_w, biome_max_h) if biomes else None
         dungeon_layer = (
-            _make_layer(
-                dungeons,
-                "dungeon.zone",
-                dungeon_max_w,
-                dungeon_max_h,
-                dungeon_count,
-                order_by="first",
-                limit=1,
-            )
+            _make_layer(dungeons, "dungeon.zone", dungeon_max_w, dungeon_max_h)
             if dungeons
             else None
         )
