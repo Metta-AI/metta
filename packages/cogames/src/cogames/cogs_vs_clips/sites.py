@@ -44,7 +44,6 @@ MACHINA_1 = Site(
     map_builder=MapGen.Config(
         width=88,
         height=88,
-        border_width=1,
         instance=MachinaArena.Config(
             spawn_count=20,
         ),
