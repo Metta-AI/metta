@@ -371,6 +371,13 @@ class GridObjectConfig(Config):
         return self
 
 
+class BuildConfig(Config):
+    """Configuration for building an object when agent has a specific vibe."""
+
+    vibe: str = Field(description="Vibe name that triggers this build")
+    cost: dict[str, int] = Field(default_factory=dict, description="Resource cost to build")
+
+
 class WallConfig(GridObjectConfig):
     """Python wall/block configuration."""
 
@@ -379,6 +386,7 @@ class WallConfig(GridObjectConfig):
     # Please don't use this for anything game related.
     pydantic_type: Literal["wall"] = "wall"
     name: str = Field(default="wall")
+    build: BuildConfig | None = Field(default=None, description="Optional build config for vibe-triggered building")
 
 
 class ProtocolConfig(Config):

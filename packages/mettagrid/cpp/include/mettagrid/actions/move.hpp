@@ -8,6 +8,7 @@
 
 #include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
+#include "actions/build.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
 #include "actions/transfer.hpp"
@@ -51,6 +52,8 @@ public:
 
     // Build vibe->handler map from handlers' vibes fields
     _vibe_handlers.clear();
+    _build_handler = nullptr;
+
     for (const auto& [name, handler] : handlers) {
       if (name == "attack") {
         Attack* attack = dynamic_cast<Attack*>(handler);
@@ -66,6 +69,8 @@ public:
             _vibe_handlers[vibe] = handler;
           }
         }
+      } else if (name == "build") {
+        _build_handler = dynamic_cast<Build*>(handler);
       }
     }
   }
@@ -116,7 +121,12 @@ protected:
 
     // If location is empty, move
     if (_grid->is_empty(target_location.r, target_location.c)) {
-      return _grid->move_object(actor, target_location);
+      bool moved = _grid->move_object(actor, target_location);
+      if (moved) {
+        // Try to build at the previous location after successful move
+        _try_build_at_previous_location(actor, current_location);
+      }
+      return moved;
     }
 
     // Swap with frozen agents (must check before usable since Agent is Usable)
@@ -125,6 +135,8 @@ protected:
       bool swapped = _grid->swap_objects(actor, *target_agent);
       if (swapped) {
         actor.stats.incr("actions.swap");
+        // Try to build at the previous location after successful swap
+        _try_build_at_previous_location(actor, current_location);
       }
       return swapped;
     }
@@ -146,10 +158,18 @@ protected:
   }
 
 private:
+  // Try to build at the previous location after successful move/swap
+  void _try_build_at_previous_location(Agent& actor, const GridLocation& previous_location) {
+    if (_build_handler && _build_handler->has_build_for_vibe(actor.vibe)) {
+      _build_handler->try_build(actor, previous_location);
+    }
+  }
+
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
   std::unordered_map<std::string, ActionHandler*> _handlers;
   std::unordered_map<ObservationType, ActionHandler*> _vibe_handlers;  // vibe -> handler map
+  Build* _build_handler = nullptr;                                     // Build handler for post-move building
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

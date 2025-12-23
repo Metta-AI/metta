@@ -51,19 +51,23 @@ const patternToTile = @[
 ]
 
 proc generateTerrainMap(): TileMap =
-  ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
+  ## Generate a terrain tilemap where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
 
-  var terrainMap = newTileMap(
+  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
+  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
+
+  var newTerrainMap = newTileMap(
     width = width,
     height = height,
     tileSize = 128,
     atlasPath = dataDir & "/terrain/blob7x8.png"
   )
 
-  var asteroidMap: seq[bool] = newSeq[bool](width * height)
+  var asteroidMap = newSeq[bool](width * height)
+
   # Fill the asteroid map with ground (true).
   for y in 0 ..< height:
     for x in 0 ..< width:
@@ -80,43 +84,43 @@ proc generateTerrainMap(): TileMap =
       asteroidMap[pos.y * width + pos.x] = true
 
 
+  # Helper to get asteroid map value with bounds checking.
+  proc get(map: seq[bool], x: int, y: int): int =
+    if x < 0 or y < 0 or x >= width or y >= height:
+      return 0
+    if map[y * width + x]:
+      return 1
+    return 0
+
   # Generate the tile edges.
-  for i in 0 ..< terrainMap.indexData.len:
+  for i in 0 ..< newTerrainMap.indexData.len:
     let x = i mod width
     let y = i div width
-
-    proc get(map: seq[bool], x: int, y: int): int =
-      if x < 0 or y < 0 or x >= width or y >= height:
-        return 1
-      if map[y * width + x]:
-        return 1
-      return 0
 
     var tile: uint8 = 0
     if asteroidMap[y * width + x]:
       tile = 49
     else:
-      let
-        pattern = (
-          1 * asteroidMap.get(x-1, y-1) + # NW
-          2 * asteroidMap.get(x, y-1) + # N
-          4 * asteroidMap.get(x+1, y-1) + # NE
-          8 * asteroidMap.get(x+1, y) + # E
-          16 * asteroidMap.get(x+1, y+1) + # SE
-          32 * asteroidMap.get(x, y+1) + # S
-          64 * asteroidMap.get(x-1, y+1) + # SW
-          128 * asteroidMap.get(x-1, y) # W
-        )
+      let pattern = (
+        1 * asteroidMap.get(x-1, y-1) + # NW
+        2 * asteroidMap.get(x, y-1) + # N
+        4 * asteroidMap.get(x+1, y-1) + # NE
+        8 * asteroidMap.get(x+1, y) + # E
+        16 * asteroidMap.get(x+1, y+1) + # SE
+        32 * asteroidMap.get(x, y+1) + # S
+        64 * asteroidMap.get(x-1, y+1) + # SW
+        128 * asteroidMap.get(x-1, y) # W
+      )
       tile = patternToTile[pattern].uint8
-    terrainMap.indexData[i] = tile
+    newTerrainMap.indexData[i] = tile
 
-    # Randomize the solid tiles:
-    for i in 0 ..< terrainMap.indexData.len:
-      if terrainMap.indexData[i] == 29 or terrainMap.indexData[i] == 18:
-        terrainMap.indexData[i] = (50 + weightedRandomInt(@[100, 50, 25, 10, 5, 2])).uint8
+  # Randomize the solid tiles:
+  for i in 0 ..< newTerrainMap.indexData.len:
+    if newTerrainMap.indexData[i] == 29 or newTerrainMap.indexData[i] == 18:
+      newTerrainMap.indexData[i] = (50 + weightedRandomInt(@[100, 50, 25, 10, 5, 2])).uint8
 
-  terrainMap.setupGPU()
-  return terrainMap
+  newTerrainMap.setupGPU()
+  return newTerrainMap
 
 proc rebuildVisibilityMap*(visibilityMap: TileMap) =
   ## Rebuild the visibility map.
@@ -329,7 +333,7 @@ proc drawObjects*() =
     let pos = thing.location.at().xy
     case typeName
     of "wall":
-      discard
+      discard  # Walls are rendered as terrain tiles
     of "agent":
       let agent = thing
       # Agents don't do orientation anymore.
