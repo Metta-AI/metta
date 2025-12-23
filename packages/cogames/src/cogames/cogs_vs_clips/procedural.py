@@ -483,11 +483,7 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
         biomes = _make_biomes(cfg.biome_weights)
         dungeons = _make_dungeons(cfg.dungeon_weights)
         biome_layer = _make_layer(biomes, "biome.zone", biome_max_w, biome_max_h) if biomes else None
-        dungeon_layer = (
-            _make_layer(dungeons, "dungeon.zone", dungeon_max_w, dungeon_max_h)
-            if dungeons
-            else None
-        )
+        dungeon_layer = _make_layer(dungeons, "dungeon.zone", dungeon_max_w, dungeon_max_h) if dungeons else None
         children: list[ChildrenAction] = []
         children.append(ChildrenAction(scene=base_cfg, where="full"))
         if biome_layer is not None:
