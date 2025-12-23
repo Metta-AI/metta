@@ -11,6 +11,11 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
+<<<<<<< HEAD
+=======
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+>>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -59,7 +64,17 @@ class LogitKickstarter(Loss):
         # Determine action space size
         act_space = self.env.single_action_space
         self.num_actions = int(act_space.n)
+<<<<<<< HEAD
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+=======
+
+        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
+        self.teacher_policy = CheckpointPolicy.from_policy_spec(
+            base_policy_env_info,
+            teacher_spec,
+            device_override=str(self.device),
+        ).wrapped_policy
+>>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
