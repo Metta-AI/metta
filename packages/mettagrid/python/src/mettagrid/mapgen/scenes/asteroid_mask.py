@@ -10,16 +10,6 @@ class AsteroidMaskConfig(SceneConfig):
     chunk_prob: float = 0.6
 
 
-DEFAULT_ASTEROID_MASK = AsteroidMaskConfig(
-    step=3,
-    depth_min=2,
-    depth_max=8,
-    width_min=2,
-    width_max=6,
-    chunk_prob=0.6,
-)
-
-
 class AsteroidMask(Scene[AsteroidMaskConfig]):
     def render(self) -> None:
         grid = self.grid

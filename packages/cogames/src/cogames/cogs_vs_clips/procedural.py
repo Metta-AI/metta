@@ -15,7 +15,7 @@ from mettagrid.mapgen.scene import (
     Scene,
     SceneConfig,
 )
-from mettagrid.mapgen.scenes.asteroid_mask import DEFAULT_ASTEROID_MASK, AsteroidMaskConfig
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
@@ -381,7 +381,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             and cfg.asteroid_mask_enabled
             and min(self.width, self.height) >= ASTEROID_MASK_MIN_SIZE
         ):
-            asteroid_mask = DEFAULT_ASTEROID_MASK.model_copy(deep=True)
+            asteroid_mask = AsteroidMaskConfig()
         if asteroid_mask is not None:
             children.append(ChildrenAction(scene=asteroid_mask, where="full"))
 
