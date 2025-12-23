@@ -93,41 +93,14 @@ class CheckpointPolicy(MultiAgentPolicy):
         target_dir.mkdir(parents=True, exist_ok=True)
         weights_blob = save_safetensors(prepare_state_dict_for_save(self._policy.state_dict()))
         weights_path = target_dir / CheckpointPolicy.WEIGHTS_FILENAME
-        with tempfile.NamedTemporaryFile(
-            dir=weights_path.parent,
-            prefix=f".{weights_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-            tmp.write(weights_blob)
-        try:
-            tmp_path.replace(weights_path)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+        _write_file_atomic(weights_path, weights_blob)
         spec = SubmissionPolicySpec(
             class_path=CheckpointPolicy.CLASS_PATH,
             data_path=CheckpointPolicy.WEIGHTS_FILENAME,
             init_kwargs={"architecture_spec": self._architecture_spec},
         )
         spec_path = target_dir / CheckpointPolicy.POLICY_SPEC_FILENAME
-        spec_data = spec.model_dump_json().encode("utf-8")
-        with tempfile.NamedTemporaryFile(
-            dir=spec_path.parent,
-            prefix=f".{spec_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-            tmp.write(spec_data)
-        try:
-            tmp_path.replace(spec_path)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+        _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
 
     @staticmethod
     def write_checkpoint_dir(
@@ -143,41 +116,14 @@ class CheckpointPolicy(MultiAgentPolicy):
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
         weights_path = checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME
-        with tempfile.NamedTemporaryFile(
-            dir=weights_path.parent,
-            prefix=f".{weights_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-            tmp.write(weights_blob)
-        try:
-            tmp_path.replace(weights_path)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+        _write_file_atomic(weights_path, weights_blob)
         spec = SubmissionPolicySpec(
             class_path=CheckpointPolicy.CLASS_PATH,
             data_path=CheckpointPolicy.WEIGHTS_FILENAME,
             init_kwargs={"architecture_spec": architecture_spec},
         )
         spec_path = checkpoint_dir / CheckpointPolicy.POLICY_SPEC_FILENAME
-        spec_data = spec.model_dump_json().encode("utf-8")
-        with tempfile.NamedTemporaryFile(
-            dir=spec_path.parent,
-            prefix=f".{spec_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-            tmp.write(spec_data)
-        try:
-            tmp_path.replace(spec_path)
-        except Exception:
-            if tmp_path.exists():
-                tmp_path.unlink()
-            raise
+        _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
         return checkpoint_dir
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
@@ -190,3 +136,20 @@ class CheckpointPolicy(MultiAgentPolicy):
     @property
     def wrapped_policy(self) -> Any:
         return self._policy
+
+
+def _write_file_atomic(path: Path, data: bytes) -> None:
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write(data)
+    try:
+        tmp_path.replace(path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
