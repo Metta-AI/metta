@@ -1,3 +1,4 @@
+{{- if .Values.orchestrator.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -69,3 +70,4 @@ spec:
         {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
