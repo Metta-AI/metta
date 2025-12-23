@@ -1,5 +1,6 @@
 import re
 import subprocess
+import textwrap
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Optional
@@ -16,7 +17,10 @@ from softmax.aws.secrets_manager import get_secretsmanager_secret
 VERSION_PATTERN = re.compile(r"^(\d+\.\d+\.\d+(?:\.\d+)?)$")
 DEFAULT_INITIAL_VERSION = "0.0.0.1"
 
-DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME = "discord/channel-webhook/updates"
+AUTOMATED_UPDATES_DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME = "discord/channel-webhook/updates"
+# Once we're ready, we can change this to a channel like "ALB Announcements".
+#  For now, this will go in the same automated updates channel as above.
+PUBLIC_ANNOUNCEMENTS_DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME = "discord/channel-webhook/updates"
 
 
 class Package(StrEnum):
@@ -210,7 +214,7 @@ def _create_and_push_tag_to_monorepo(*, package: str, version: str, remote: str,
     success(f"Pushed tag {tag} to remote '{remote}'")
 
 
-def _post_to_discord(
+def _post_automated_discord_update(
     package: Package,
     version: str,
     tag_name: str,
@@ -218,28 +222,28 @@ def _post_to_discord(
     dry_run: bool,
 ) -> None:
     # Get webhook URL from AWS Secrets Manager.
-    webhook_url = get_secretsmanager_secret(DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME, require_exists=False)
+    webhook_url = get_secretsmanager_secret(
+        AUTOMATED_UPDATES_DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME,
+        require_exists=False,
+    )
     if not webhook_url:
         warning("Discord webhook URL not configured")
         return
-
-    # Validate webhook URL format
     if not webhook_url.startswith("https://discord.com/api/webhooks/"):
         warning("Discord webhook URL doesn't match expected format. Skipping Discord notification.")
         return
 
     # Format release message
-    tag_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/releases/tag/{tag_name}"
-    commit_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/commit/{commit}"
-
+    _tag_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/releases/tag/{tag_name}"
+    _commit_url = f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/commit/{commit}"
     message = f"🚀 **{package.value} v{version}** released!\n\n"
     message += f"Tag: `{tag_name}`\n"
-    message += f"Commit: [{commit[:7]}]({commit_url})\n"
-    message += f"Release: [View on GitHub]({tag_url})\n"
+    message += f"Commit: [{commit[:7]}]({_commit_url})\n"
+    message += f"Release: [View on GitHub]({_tag_url})\n"
+    if _release_workflow_url := _RELEASE_WORKFLOW_URL_FOR_PACKAGE.get(package):
+        message += f"\n📦 Triggered [release workflow]({_release_workflow_url}) to publish to PyPi (takes ~5-10 min)."
 
-    if release_workflow_url := _RELEASE_WORKFLOW_URL_FOR_PACKAGE.get(package):
-        message += f"\n📦 Triggered [release workflow]({release_workflow_url}) to publish to PyPi (takes ~5-10 min)."
-
+    # In dry-run mode, show what would be posted.
     if dry_run:
         info("Would post following message to Discord:")
         print(message)
@@ -248,12 +252,69 @@ def _post_to_discord(
     # Actually post to Discord.
     info("Posting release announcement to Discord...")
     success_flag = send_to_discord(webhook_url, message, suppress_embeds=True)
-
     if not success_flag:
         warning("Failed to post to Discord.")
         return
-
     success("Posted release announcement to Discord.")
+
+
+def _prompt_for_public_discord_announcement(
+    package: Package,
+    version: str,
+    tag_name: str,
+    commit: str,
+    dry_run: bool,
+) -> None:
+    # Get webhook URL from AWS Secrets Manager
+    webhook_url = get_secretsmanager_secret(
+        PUBLIC_ANNOUNCEMENTS_DISCORD_CHANNEL_WEBHOOK_URL_SECRET_NAME,
+        require_exists=False,
+    )
+    if not webhook_url:
+        info("Public Discord webhook URL not configured. Skipping public announcement.")
+        return
+    if not webhook_url.startswith("https://discord.com/api/webhooks/"):
+        warning("Discord webhook URL doesn't match expected format. Skipping Discord notification.")
+        return
+
+    # Ask user if they want to post a public announcement
+    if not typer.confirm("Would you like to post a public announcement about this release?", default=False):
+        info("Skipping public announcement.")
+        return
+
+    # Generate default template message
+    _pypi_url = f"https://pypi.org/project/{package.value}/"
+    template = textwrap.dedent(
+        f"""\
+        📦 **{package.value} v{version}** [released]({_pypi_url})!
+
+        - Added support for [blah]
+        - Bug fix for [blah]
+        """
+    )
+
+    # Open editor for user to compose message
+    info("Opening editor to compose public announcement...")
+    edited_message = typer.edit(template)
+
+    # Bail if message is empty.
+    if edited_message is None or len(edited_message.strip()) == 0:
+        info("No message composed. Skipping public announcement.")
+        return
+
+    # In dry-run mode, show what would be posted.
+    if dry_run:
+        info("Would post following message to public Discord:")
+        print(edited_message)
+        return
+
+    # Actually post to Discord.
+    info("Posting public announcement to Discord...")
+    success_flag = send_to_discord(webhook_url, edited_message, suppress_embeds=True)
+    if not success_flag:
+        warning("Failed to post public announcement to Discord.")
+        return
+    success("Posted public announcement to Discord.")
 
 
 def _push_git_history_to_child_repo(*, package: str, dry_run: bool) -> None:
@@ -363,8 +424,9 @@ def _publish(
 
         _create_and_push_tag_to_monorepo(package=package, version=next_version, remote=remote, dry_run=dry_run)
 
+        # Automated update to internal channel
         try:
-            _post_to_discord(
+            _post_automated_discord_update(
                 package=package,
                 version=next_version,
                 tag_name=next_tag,
@@ -372,7 +434,19 @@ def _publish(
                 dry_run=dry_run,
             )
         except Exception as exc:
-            warning(f"Failed to post to Discord: {exc}")
+            warning(f"Failed to post automated Discord update: {exc}")
+
+        # Optional announcement in public Discord channel
+        try:
+            _prompt_for_public_discord_announcement(
+                package=package,
+                version=next_version,
+                tag_name=next_tag,
+                commit=gitta.get_current_commit(),
+                dry_run=dry_run,
+            )
+        except Exception as exc:
+            warning(f"Failed to handle public Discord announcement: {exc}")
 
     if push_git_history_to_child_repo:
         _push_git_history_to_child_repo(package=package, dry_run=dry_run)
