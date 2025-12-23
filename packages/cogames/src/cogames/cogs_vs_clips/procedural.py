@@ -15,11 +15,13 @@ from mettagrid.mapgen.scene import (
     Scene,
     SceneConfig,
 )
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
 from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
+from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSPConfig, BSPLayout
 from mettagrid.mapgen.scenes.building_distributions import (
@@ -39,7 +41,7 @@ class MachinaArenaConfig(SceneConfig):
     spawn_count: int
 
     # Biome / dungeon structure
-    base_biome: str = "caves"
+    base_biome: str = "plains"
     base_biome_config: dict[str, Any] = {}
 
     # Corner balancing: ensure roughly equal path distance from center to each corner.
@@ -50,7 +52,7 @@ class MachinaArenaConfig(SceneConfig):
     #### Building placement ####
 
     # How much of the map is covered by buildings
-    building_coverage: float = 0.01
+    building_coverage: float = 0.0175
     # Resource placement (building-based API)
     # Defines the set of buildings that can be placed on the map
     building_names: list[str] | None = None
@@ -65,15 +67,18 @@ class MachinaArenaConfig(SceneConfig):
         cross_distance=7,
     )
 
+    # Optional asteroid-shaped boundary mask.
+    asteroid_mask: AsteroidMaskConfig | None = None
+
     #### Layers ####
 
     biome_weights: dict[str, float] | None = None
     dungeon_weights: dict[str, float] | None = None
     biome_count: int | None = None
     dungeon_count: int | None = None
-    density_scale: float = 1.0
-    max_biome_zone_fraction: float = 0.35
-    max_dungeon_zone_fraction: float = 0.25
+    density_scale: float = 0.9
+    max_biome_zone_fraction: float = 0.27
+    max_dungeon_zone_fraction: float = 0.2
 
     #### Distributions ####
 
@@ -98,6 +103,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             "forest": BiomeForestConfig,
             "desert": BiomeDesertConfig,
             "city": BiomeCityConfig,
+            "plains": BiomePlainsConfig,
         }
         if cfg.base_biome not in biome_map:
             raise ValueError(f"Unknown base_biome '{cfg.base_biome}'. Valid: {sorted(biome_map.keys())}")
@@ -158,7 +164,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
 
         # Candidates
         def _make_biome_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
-            defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0}
+            defaults = {"caves": 0.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
             cands: list[RandomSceneCandidate] = []
             if w.get("caves", 0) > 0:
@@ -169,6 +175,8 @@ class MachinaArena(Scene[MachinaArenaConfig]):
                 cands.append(RandomSceneCandidate(scene=BiomeDesertConfig(), weight=w["desert"]))
             if w.get("city", 0) > 0:
                 cands.append(RandomSceneCandidate(scene=BiomeCityConfig(), weight=w["city"]))
+            if w.get("plains", 0) > 0:
+                cands.append(RandomSceneCandidate(scene=BiomePlainsConfig(), weight=w["plains"]))
             return cands
 
         def _make_dungeon_candidates(weights: dict[str, float] | None) -> list[RandomSceneCandidate]:
@@ -297,6 +305,12 @@ class MachinaArena(Scene[MachinaArenaConfig]):
             children.append(biome_layer)
         if dungeon_layer is not None:
             children.append(dungeon_layer)
+
+        asteroid_mask = cfg.asteroid_mask
+        if asteroid_mask is None and min(self.width, self.height) >= 80:
+            asteroid_mask = AsteroidMaskConfig()
+        if asteroid_mask is not None:
+            children.append(ChildrenAction(scene=asteroid_mask, where="full"))
 
         # Resources
         children.append(

@@ -29,9 +29,8 @@ class AsteroidMask(Scene[AsteroidMaskConfig]):
         def _cut_triangle(anchor: int, depth: int, half_w: int, axis: str, reverse: bool) -> None:
             if depth <= 0 or half_w <= 0:
                 return
-            denom = max(1, depth)
             for offset in range(depth):
-                span = int(round(half_w * (1.0 - offset / denom)))
+                span = int(round(half_w * (1.0 - offset / depth)))
                 if span <= 0:
                     continue
                 if axis == "x":
@@ -45,38 +44,21 @@ class AsteroidMask(Scene[AsteroidMaskConfig]):
                     x = width - 1 - offset if reverse else offset
                     grid[y0:y1, x] = "wall"
 
+        def _maybe_cut(anchor: int, axis: str, reverse: bool) -> None:
+            if self.rng.random() >= chunk_prob:
+                return
+            _cut_triangle(
+                anchor,
+                int(self.rng.integers(depth_min, depth_max + 1)),
+                int(self.rng.integers(width_min, width_max + 1)),
+                axis,
+                reverse,
+            )
+
         for x in range(0, width, step):
-            if self.rng.random() < chunk_prob:
-                _cut_triangle(
-                    x,
-                    int(self.rng.integers(depth_min, depth_max + 1)),
-                    int(self.rng.integers(width_min, width_max + 1)),
-                    "x",
-                    False,
-                )
-            if self.rng.random() < chunk_prob:
-                _cut_triangle(
-                    x,
-                    int(self.rng.integers(depth_min, depth_max + 1)),
-                    int(self.rng.integers(width_min, width_max + 1)),
-                    "x",
-                    True,
-                )
+            _maybe_cut(x, "x", False)
+            _maybe_cut(x, "x", True)
 
         for y in range(0, height, step):
-            if self.rng.random() < chunk_prob:
-                _cut_triangle(
-                    y,
-                    int(self.rng.integers(depth_min, depth_max + 1)),
-                    int(self.rng.integers(width_min, width_max + 1)),
-                    "y",
-                    False,
-                )
-            if self.rng.random() < chunk_prob:
-                _cut_triangle(
-                    y,
-                    int(self.rng.integers(depth_min, depth_max + 1)),
-                    int(self.rng.integers(width_min, width_max + 1)),
-                    "y",
-                    True,
-                )
+            _maybe_cut(y, "y", False)
+            _maybe_cut(y, "y", True)

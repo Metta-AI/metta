@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 
@@ -18,7 +18,6 @@ from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.random.int import IntConstantDistribution
 from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
 from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
-from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
 from mettagrid.mapgen.scenes.biome_desert import BiomeDesertConfig
@@ -26,10 +25,7 @@ from mettagrid.mapgen.scenes.biome_forest import BiomeForestConfig
 from mettagrid.mapgen.scenes.biome_plains import BiomePlainsConfig
 from mettagrid.mapgen.scenes.bounded_layout import BoundedLayout
 from mettagrid.mapgen.scenes.bsp import BSPLayout
-from mettagrid.mapgen.scenes.building_distributions import (
-    DistributionConfig,
-    UniformExtractorParams,
-)
+from mettagrid.mapgen.scenes.building_distributions import UniformExtractorParams
 from mettagrid.mapgen.scenes.make_connected import MakeConnected
 from mettagrid.mapgen.scenes.maze import MazeConfig
 from mettagrid.mapgen.scenes.radial_maze import RadialMaze
@@ -53,56 +49,6 @@ __all__ = [
 
 class SequentialMachinaArenaConfig(BaseMachinaArenaConfig):
     _scene_cls = None
-    # Core composition
-    spawn_count: int
-
-    # Biome / dungeon structure
-    base_biome: str = "plains"
-    base_biome_config: dict[str, Any] = {}
-
-    # Corner balancing: ensure roughly equal path distance from center to each corner.
-    balance_corners: bool = False
-    balance_tolerance: float = 3
-    max_balance_shortcuts: int = 10
-
-    #### Building placement ####
-
-    # How much of the map is covered by buildings
-    building_coverage: float = 0.0175
-    # Resource placement (building-based API)
-    # Defines the set of buildings that can be placed on the map
-    building_names: list[str] | None = None
-    # What proportion of buildings are of a type, falls back to default if not set
-    # If building_names is not set, this is used to determine the buildings
-    building_weights: dict[str, float] | None = None
-
-    # Hub config. `spawn_count` will be set based on `spawn_count` in this config.
-    hub: BaseHubConfig = BaseHubConfig(
-        corner_bundle="extractors",
-        cross_bundle="none",
-        cross_distance=7,
-    )
-
-    # Optional asteroid-shaped boundary mask.
-    asteroid_mask: AsteroidMaskConfig | None = None
-
-    #### Layers ####
-
-    biome_weights: dict[str, float] | None = None
-    dungeon_weights: dict[str, float] | None = None
-    biome_count: int | None = None
-    dungeon_count: int | None = None
-    density_scale: float = 0.85
-    max_biome_zone_fraction: float = 0.26
-    max_dungeon_zone_fraction: float = 0.19
-
-    #### Distributions ####
-
-    # How buildings are distributed on the map
-    distribution: DistributionConfig = DistributionConfig()
-
-    # How buildings are distributed on the map per building type, falls back to global distribution if not set
-    building_distributions: dict[str, DistributionConfig] | None = None
 
 
 class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
