@@ -6,9 +6,11 @@ from contextlib import contextmanager, nullcontext
 from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface
-from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
+from mettagrid.policy.prepare_policy_spec import (
+    download_checkpoint_dir_from_s3,
+    download_policy_spec_from_s3_as_zip,
+)
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -92,7 +94,7 @@ def _no_python_sockets():
 
 def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, device: str = "cpu") -> None:
     job = job.model_copy()
-    # Pull each policy onto the local filesystem, leave them as zip files
+    # Pull each policy onto the local filesystem, leaving zip archives unextracted.
     local_uris: list[str] = []
     for uri in job.policy_uris:
         resolved = resolve_uri(uri)
@@ -100,10 +102,16 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
         if resolved.scheme == "file":
             local = resolved.local_path.as_uri()
         elif resolved.scheme == "s3":
-            local = download_policy_spec_from_s3_as_zip(
-                resolved.canonical,
-                remove_downloaded_copy_on_exit=True,
-            ).as_uri()
+            if resolved.canonical.endswith(".zip"):
+                local = download_policy_spec_from_s3_as_zip(
+                    resolved.canonical,
+                    remove_downloaded_copy_on_exit=True,
+                ).as_uri()
+            else:
+                local = download_checkpoint_dir_from_s3(
+                    resolved.canonical,
+                    remove_downloaded_copy_on_exit=True,
+                ).as_uri()
         if local is None:
             raise RuntimeError(f"could not resolve policy {uri}")
         local_uris.append(local)
@@ -131,14 +139,12 @@ def run_pure_single_episode(
     policy_specs = [policy_spec_from_uri(uri) for uri in job.policy_uris]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(job.env)
-    agent_policies: list[AgentPolicy] = []
-    for agent_id, assignment in enumerate(job.assignments):
-        policy = CheckpointPolicy.from_policy_spec(
-            env_interface,
-            policy_specs[assignment],
-            device_override=device,
+    agent_policies: list[AgentPolicy] = [
+        initialize_or_load_policy(env_interface, policy_specs[assignment], device_override=device).agent_policy(
+            agent_id
         )
-        agent_policies.append(policy.wrapped_policy.agent_policy(agent_id))
+        for agent_id, assignment in enumerate(job.assignments)
+    ]
     replay_writer: InMemoryReplayWriter | None = None
     if job.replay_uri is not None:
         replay_writer = InMemoryReplayWriter()
