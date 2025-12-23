@@ -102,18 +102,11 @@ class CheckpointPolicy(MultiAgentPolicy):
         self._policy.eval()
 
     def save_policy_data(self, policy_data_path: str) -> None:
-        target_dir = Path(policy_data_path).expanduser()
-        target_dir.mkdir(parents=True, exist_ok=True)
-        weights_blob = save_safetensors(prepare_state_dict_for_save(self._policy.state_dict()))
-        weights_path = target_dir / CheckpointPolicy.WEIGHTS_FILENAME
-        _write_file_atomic(weights_path, weights_blob)
-        spec = SubmissionPolicySpec(
-            class_path=CheckpointPolicy.CLASS_PATH,
-            data_path=CheckpointPolicy.WEIGHTS_FILENAME,
-            init_kwargs={"architecture_spec": self._architecture_spec},
+        _write_checkpoint_bundle(
+            Path(policy_data_path).expanduser(),
+            architecture_spec=self._architecture_spec,
+            state_dict=self._policy.state_dict(),
         )
-        spec_path = target_dir / POLICY_SPEC_FILENAME
-        _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
 
     @staticmethod
     def write_checkpoint_dir(
@@ -126,17 +119,11 @@ class CheckpointPolicy(MultiAgentPolicy):
     ) -> Path:
         architecture_spec = architecture if isinstance(architecture, str) else architecture.to_spec()
         checkpoint_dir = (base_dir / checkpoint_filename(run_name, epoch)).expanduser().resolve()
-        checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
-        weights_path = checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME
-        _write_file_atomic(weights_path, weights_blob)
-        spec = SubmissionPolicySpec(
-            class_path=CheckpointPolicy.CLASS_PATH,
-            data_path=CheckpointPolicy.WEIGHTS_FILENAME,
-            init_kwargs={"architecture_spec": architecture_spec},
+        _write_checkpoint_bundle(
+            checkpoint_dir,
+            architecture_spec=architecture_spec,
+            state_dict=state_dict,
         )
-        spec_path = checkpoint_dir / POLICY_SPEC_FILENAME
-        _write_file_atomic(spec_path, spec.model_dump_json().encode("utf-8"))
         return checkpoint_dir
 
     @classmethod
@@ -188,3 +175,20 @@ def _write_file_atomic(path: Path, data: bytes) -> None:
         if tmp_path.exists():
             tmp_path.unlink()
         raise
+
+
+def _write_checkpoint_bundle(
+    checkpoint_dir: Path,
+    *,
+    architecture_spec: str,
+    state_dict: Mapping[str, torch.Tensor],
+) -> None:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
+    _write_file_atomic(checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME, weights_blob)
+    spec = SubmissionPolicySpec(
+        class_path=CheckpointPolicy.CLASS_PATH,
+        data_path=CheckpointPolicy.WEIGHTS_FILENAME,
+        init_kwargs={"architecture_spec": architecture_spec},
+    )
+    _write_file_atomic(checkpoint_dir / POLICY_SPEC_FILENAME, spec.model_dump_json().encode("utf-8"))
