@@ -360,7 +360,6 @@ def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> N
     spec_bytes = read(spec_uri)
     (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
 
-<<<<<<< HEAD
     submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
     if submission_spec.data_path:
         data_path = Path(submission_spec.data_path)
@@ -374,10 +373,3 @@ def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> N
         data_uri = f"{base_uri}/{submission_spec.data_path.lstrip('/')}"
         local_data_path.parent.mkdir(parents=True, exist_ok=True)
         local_data_path.write_bytes(read(data_uri))
-=======
-    data_path = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8")).data_path
-    if data_path:
-        local_data_path = extraction_root / data_path
-        local_data_path.parent.mkdir(parents=True, exist_ok=True)
-        local_data_path.write_bytes(s3_read(f"{base_uri}/{data_path.lstrip('/')}"))
->>>>>>> ac77115591 (one more cleanup)
