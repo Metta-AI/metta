@@ -23,6 +23,8 @@ def train(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
+    if eval_variants is None:
+        eval_variants = variants
 
     tt = train_single_mission(
         mission="machina_1.open_world",

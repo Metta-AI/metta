@@ -109,7 +109,7 @@ def set_tf32_precision(mode: str) -> None:
 def configure_tf32_precision() -> None:
     """Ensure TF32 fast paths are enabled."""
     try:
-        from metta.utils.torch_init import configure_torch_globally
+        from metta.rl.torch_init import configure_torch_globally
 
         configure_torch_globally()
     except ImportError:

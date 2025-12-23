@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -10,7 +10,6 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class GRPOConfig(LossConfig):
@@ -105,12 +104,15 @@ class GRPO(Loss):
             return
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for GRPO rollout")
+        env_slice = self._training_env_id(
+            context, error="ComponentContext.training_env_id is required for GRPO rollout"
+        )
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -235,7 +237,6 @@ class GRPO(Loss):
         )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
@@ -9,7 +9,6 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -92,13 +91,14 @@ class SlicedScriptedCloner(Loss):
         td["ppo_mask"] = self.ppo_mask
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs"}
 
     def run_train(
         self,
@@ -136,7 +136,6 @@ class SlicedScriptedCloner(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-        loss = add_dummy_loss_for_unused_params(loss, td=student_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
