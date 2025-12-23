@@ -110,8 +110,6 @@ jobs:
   test:
     name: Smoke test cogames
     needs:
-      # We can reuse the already built wheel for cogames to save time.
-      - build
       # Instead of building the mettagrid wheel locally, which might differ from the version
       #  specified in cogames' pyproject.toml, we let mettagrid get automatically installed
       #  from PyPI. Hence we need to wait for it to be available on PyPI.
@@ -119,6 +117,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: Metta-AI/cogames
+          # For tag pushes: use the tag name (e.g., cogames-v1.2.3)
+          # For manual dispatch: use main branch (since arbitrary branches aren't in child repo)
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+      - name: Verify checked out ref
+        run: |
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.ref_name: ${{ github.ref_name }}"
+          echo "Checked out: $(git describe --tags --always)"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -127,34 +135,21 @@ jobs:
       #  See https://github.com/Metta-AI/metta/actions/runs/20327783664/job/58396495857
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@main
-      - uses: actions/download-artifact@v4
-        with:
-          name: cogames-dist
-          path: dist
-      - name: Install cogames from wheel
+      - name: Install cogames from source
         run: |
-          pip install dist/cogames-*.whl
+          pip install .
       - name: Install pytest
         run: |
           pip install pytest pytest-xdist
-      - name: Prepare isolated test environment
+      - name: Run tests
         run: |
-          # Copy tests to clean directory
-          mkdir -p /tmp/test-isolation
-          cp -r packages/cogames/tests /tmp/test-isolation/
-
-          # Overkill, but wipe the original source code to doubly ensure isolation
-          rm -rf *
-
-      - name: Run tests in isolation
-        working-directory: /tmp/test-isolation
-        run: |
-          # Run from clean directory - no metta/ or other repo packages accessible
           pytest tests/ -v
 
   publish:
     name: Publish to PyPI
-    needs: test
+    needs:
+      - build
+      - test
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
