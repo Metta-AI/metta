@@ -133,7 +133,7 @@ def resolve_policy_data_path(
         return None
     if policy_data_path.startswith("s3://"):
         raise ValueError(
-            "S3 policy data paths are not supported. You may want to supply it through kw.checkpoint_uri instead."
+            "S3 policy data paths are not supported. Use a checkpoint directory URI (policy_spec.json bundle)."
         )
 
     path = Path(policy_data_path).expanduser()
