@@ -43,7 +43,7 @@ def _cleanup_kind_images():
     )
 
 
-def build_and_load_image(force_build: bool = True):
+def build_image(force_build: bool = True):
     image_exists = subprocess.run(["docker", "image", "inspect", IMAGE_NAME], capture_output=True).returncode == 0
 
     if force_build or not image_exists:
@@ -64,7 +64,13 @@ def build_and_load_image(force_build: bool = True):
             cwd=get_repo_root(),
         )
 
+
+def load_image_into_kind(force_load: bool = False):
     old_image_id = _get_kind_image_id(IMAGE_NAME)
+
+    if old_image_id and not force_load:
+        info(f"{IMAGE_NAME} already loaded in Kind, skipping")
+        return
 
     info(f"Loading {IMAGE_NAME} into Kind...")
     subprocess.run(

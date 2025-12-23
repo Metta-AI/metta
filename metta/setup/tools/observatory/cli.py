@@ -12,7 +12,7 @@ from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
 from metta.setup.tools.observatory.kind import kind_app
-from metta.setup.tools.observatory.utils import build_and_load_image
+from metta.setup.tools.observatory.utils import build_image, load_image_into_kind
 from metta.setup.utils import error, info
 
 console = Console()
@@ -71,7 +71,8 @@ Observatory local development.
   metta observatory kind clean
 
 [bold]Rebuild job runner image and upload to kind cluster:[/bold]
-  metta observatory build-image
+  metta observatory setup-kind-images
+  metta observatory setup-kind-images --load-only  # If already built locally
 """
 
 app = typer.Typer(
@@ -141,10 +142,14 @@ def watcher():
     )
 
 
-@app.command(name="build-image", help="Rebuild job runner image and load into Kind")
+@app.command(name="setup-kind-images", help="Rebuild job runner image and load into Kind")
 @handle_errors
-def build_image():
-    build_and_load_image(force_build=True)
+def setup_kind_images(
+    load_only: Annotated[bool, typer.Option("--load-only", "-l", help="Only load image into Kind")] = False,
+):
+    if not load_only:
+        build_image(force_build=True)
+    load_image_into_kind(force_load=True)
     info("Done!")
 
 
