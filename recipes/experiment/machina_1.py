@@ -69,7 +69,6 @@ def train(
     ]
     # Run evals periodically during long runs
     tt.evaluator.epoch_interval = 150
-    tt.evaluator.evaluate_local = True
     return tt
 
 
