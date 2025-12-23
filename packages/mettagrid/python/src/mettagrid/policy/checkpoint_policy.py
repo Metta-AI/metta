@@ -69,8 +69,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         if not policy_spec.data_path:
             raise ValueError("policy_spec.json missing data_path")
         device = device_override or policy_spec.init_kwargs.get("device", "cpu")
-        strict = policy_spec.init_kwargs.get("strict", True)
-        policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device, strict=strict)
+        policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device, strict=True)
         policy.load_policy_data(policy_spec.data_path)
         return policy
 
@@ -169,4 +168,3 @@ def _write_file_atomic(path: Path, data: bytes) -> None:
         if tmp_path.exists():
             tmp_path.unlink()
         raise
-

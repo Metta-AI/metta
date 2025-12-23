@@ -272,7 +272,6 @@ def policy_spec_from_uri(
     uri: str,
     *,
     device: str = "cpu",
-    strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
     from mettagrid.policy.policy import PolicySpec
@@ -290,7 +289,6 @@ def policy_spec_from_uri(
             init_kwargs={
                 "checkpoint_uri": checkpoint_path,
                 "device": device,
-                "strict": strict,
             },
         )
 
@@ -300,8 +298,6 @@ def policy_spec_from_uri(
             device=device,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
-        if "strict" in spec.init_kwargs:
-            spec.init_kwargs["strict"] = strict
         return spec
 
     if parsed.local_path:
@@ -310,8 +306,6 @@ def policy_spec_from_uri(
             device=device,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
-        if "strict" in spec.init_kwargs:
-            spec.init_kwargs["strict"] = strict
         return spec
 
     raise ValueError(f"Cannot load policy spec from URI: {uri}")
