@@ -80,10 +80,9 @@ class FileSchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
-            latest = self._get_latest_checkpoint_uri(parsed)
-            if latest:
-                return latest
+        latest = self._get_latest_checkpoint_uri(parsed)
+        if latest:
+            return latest
 
         return parsed.canonical
 
@@ -148,10 +147,9 @@ class S3SchemeResolver(SchemeResolver):
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
         parsed = self.parse(uri)
-        if not uri.endswith(".mpt"):
-            latest = self._get_latest_checkpoint_uri(parsed)
-            if latest:
-                return latest
+        latest = self._get_latest_checkpoint_uri(parsed)
+        if latest:
+            return latest
 
         return parsed.canonical
 
@@ -186,10 +184,11 @@ class HttpSchemeResolver(SchemeResolver):
 
 
 class MockSchemeResolver(SchemeResolver):
-    """Resolves mock URIs for testing.
+    """Resolves mock URIs for class-path policies.
 
     Supported formats:
       - mock://policy_name
+      - mock://package.module.PolicyClass
     """
 
     @property
@@ -272,47 +271,32 @@ def policy_spec_from_uri(
     uri: str,
     *,
     device: str = "cpu",
-    strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
     from mettagrid.policy.policy import PolicySpec
-    from mettagrid.policy.prepare_policy_spec import (
-        download_policy_spec_from_s3_as_zip,
-        load_policy_spec_from_local_dir,
-        load_policy_spec_from_zip,
-    )
+    from mettagrid.policy.loader import resolve_policy_class_path
+    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_path, load_policy_spec_from_s3
 
     parsed = resolve_uri(uri)
 
     if parsed.canonical.endswith(".mpt"):
-        checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
-        return PolicySpec(
-            class_path="metta.rl.mpt_policy.MptPolicy",
-            init_kwargs={
-                "checkpoint_uri": checkpoint_path,
-                "device": device,
-                "strict": strict,
-            },
-        )
+        raise ValueError("MPT checkpoints are deprecated; convert to a checkpoint directory first.")
+
+    if parsed.scheme == "mock":
+        return PolicySpec(class_path=resolve_policy_class_path(parsed.path))
 
     if parsed.scheme == "s3":
-        local = download_policy_spec_from_s3_as_zip(
-            s3_path=parsed.canonical,
+        return load_policy_spec_from_s3(
+            parsed.canonical,
+            device=device,
             remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
-        parsed = resolve_uri(local.as_uri())
 
     if parsed.local_path:
-        if parsed.local_path.is_file():
-            spec = load_policy_spec_from_zip(
-                parsed.local_path,
-                device=device,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            )
-        else:
-            spec = load_policy_spec_from_local_dir(parsed.local_path, device=device)
-        if "strict" in spec.init_kwargs:
-            spec.init_kwargs["strict"] = strict
-        return spec
+        return load_policy_spec_from_path(
+            parsed.local_path,
+            device=device,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        )
 
     raise ValueError(f"Cannot load policy spec from URI: {uri}")

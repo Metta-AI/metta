@@ -118,7 +118,7 @@ class TestCheckpointManagerFlows:
         metadata = get_checkpoint_metadata(resolve_uri(latest_uri).canonical)
         assert metadata.epoch == 7
 
-    def test_mpt_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+    def test_checkpoint_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Checkpoint policy wrapper must load checkpoint and produce actions."""
         CheckpointPolicy.write_checkpoint_dir(
             base_dir=checkpoint_manager.checkpoint_dir,

@@ -85,7 +85,7 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         return _policy_action_space_cache[policy_path]
     if "://" not in policy_path:
         candidate = Path(policy_path).expanduser()
-        if not candidate.exists() and not policy_path.endswith(".mpt"):
+        if not candidate.exists():
             return None
 
     try:
