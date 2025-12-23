@@ -15,32 +15,106 @@ from metta.setup.utils import error, info
 
 console = Console()
 
+HELP_TEXT = """
+Observatory local development.
+
+[bold]Setup:[/bold]
+  metta observatory kind build    # One-time: create Kind cluster
+  metta observatory postgres up -d
+  metta observatory server        # Terminal 2
+  metta observatory watcher       # Terminal 3
+
+[bold]Submit test jobs:[/bold]
+  uv run python app_backend/scripts/submit_test_jobs.py
+
+[bold]Monitor:[/bold]
+  kubectl get jobs -n jobs -w
+  kubectl logs -n jobs -l app=episode-runner -f
+
+[bold]Teardown:[/bold]
+  metta observatory postgres down
+  metta observatory kind clean
+"""
+
 app = typer.Typer(
-    help="Metta Local Development Commands",
+    help=HELP_TEXT,
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
 
 repo_root = get_repo_root()
 
+LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
+LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
+LOCAL_BACKEND_URL_FROM_KIND = "http://host.docker.internal:8000"
+LOCAL_MACHINE_TOKEN = "local-dev-token"
+
 
 @app.command(
-    name="backend",
+    name="postgres",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
-    help=(
-        "Manage local instance of Observatory Backend. "
-        "Usage: metta observatory backend [build|up|down|restart|logs|enter]"
-    ),
+    help="Manage postgres. Usage: metta observatory postgres [up|down|logs]",
 )
-def observatory_backend(ctx: typer.Context):
-    cmd = ["docker", "compose", "-f", str(get_repo_root() / "app_backend" / "docker-compose.dev.yml")]
+def postgres(ctx: typer.Context):
+    cmd = ["docker", "compose", "-f", str(repo_root / "app_backend" / "docker-compose.dev.yml")]
     if ctx.args:
         cmd.extend(ctx.args)
+    else:
+        cmd.append("up")
 
     try:
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
-        error(f"Failed to launch Stats Server: {e}")
+        error(f"Failed: {e}")
+        raise typer.Exit(1) from e
+    except KeyboardInterrupt:
+        raise typer.Exit(0) from None
+
+
+@app.command(name="server", help="Run the backend server on host")
+def server():
+    env = os.environ.copy()
+    env["STATS_DB_URI"] = LOCAL_DB_URI
+    env["DEBUG_USER_EMAIL"] = "localdev@example.com"
+    env["RUN_MIGRATIONS"] = "true"
+    env["EPISODE_RUNNER_IMAGE"] = "metta-policy-evaluator-local:latest"
+    env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_KIND
+    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+
+    info("Starting backend server...")
+    info(f"  DB: {LOCAL_DB_URI}")
+    info(f"  URL: {LOCAL_BACKEND_URL}")
+
+    try:
+        subprocess.run(
+            ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],
+            env=env,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        error(f"Server failed: {e}")
+        raise typer.Exit(1) from e
+    except KeyboardInterrupt:
+        raise typer.Exit(0) from None
+
+
+@app.command(name="watcher", help="Run the job watcher on host")
+def watcher():
+    env = os.environ.copy()
+    env["BACKEND_URL"] = LOCAL_BACKEND_URL
+    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+
+    info("Starting watcher...")
+    info(f"  Backend: {LOCAL_BACKEND_URL}")
+
+    try:
+        subprocess.run(
+            ["uv", "run", "python", "-m", "metta.app_backend.job_runner.watcher"],
+            env=env,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        error(f"Watcher failed: {e}")
         raise typer.Exit(1) from e
     except KeyboardInterrupt:
         raise typer.Exit(0) from None

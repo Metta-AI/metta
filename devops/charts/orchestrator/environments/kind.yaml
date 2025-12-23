@@ -17,4 +17,4 @@ evalScheduler:
   enabled: false
 
 watcher:
-  enabled: true
+  enabled: false

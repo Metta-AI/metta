@@ -16,8 +16,7 @@ def main():
     args = parser.parse_args()
 
     policy_uris = [
-        "metta://policy/34f8b9be-8c54-494a-86b2-851580f202fc",
-        "metta://policy/2aeee2d7-a294-4f05-afde-f4a4b44ace43",
+        "metta://policy/04caa067-c13d-4bd0-813b-7e22e0ccc4ed",
     ]
 
     env = MettaGridConfig.EmptyRoom(num_agents=args.num_agents, width=20, height=20)
