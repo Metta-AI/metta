@@ -7,7 +7,7 @@ import torch
 from safetensors.torch import load as load_safetensors
 from safetensors.torch import save as save_safetensors
 
-from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.module import load_symbol
@@ -80,6 +80,25 @@ class CheckpointPolicy(MultiAgentPolicy):
         self._architecture = load_symbol(class_path).from_spec(architecture_spec)
         self._policy = self._architecture.make_policy(policy_env_info).to(self._device)
         self._policy.eval()
+
+    @classmethod
+    def from_policy_spec(
+        cls,
+        policy_env_info: PolicyEnvInterface,
+        policy_spec: PolicySpec,
+        *,
+        device_override: str | None = None,
+    ) -> "CheckpointPolicy":
+        architecture_spec = policy_spec.init_kwargs.get("architecture_spec")
+        if not architecture_spec:
+            raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
+        if not policy_spec.data_path:
+            raise ValueError("policy_spec.json missing data_path")
+        device = device_override or policy_spec.init_kwargs.get("device", "cpu")
+        strict = policy_spec.init_kwargs.get("strict", True)
+        policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device, strict=strict)
+        policy.load_policy_data(policy_spec.data_path)
+        return policy
 
     def load_policy_data(self, policy_data_path: str) -> None:
         weights_blob = _resolve_policy_data_path(Path(policy_data_path).expanduser()).read_bytes()

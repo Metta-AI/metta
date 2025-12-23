@@ -4,7 +4,8 @@ from contextlib import contextmanager
 from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -101,12 +102,14 @@ def run_pure_single_episode(
     policy_specs = [policy_spec_from_uri(uri) for uri in job.policy_uris]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(job.env)
-    agent_policies: list[AgentPolicy] = [
-        initialize_or_load_policy(env_interface, policy_specs[assignment], device_override=device).agent_policy(
-            agent_id
+    agent_policies: list[AgentPolicy] = []
+    for agent_id, assignment in enumerate(job.assignments):
+        policy = CheckpointPolicy.from_policy_spec(
+            env_interface,
+            policy_specs[assignment],
+            device_override=device,
         )
-        for agent_id, assignment in enumerate(job.assignments)
-    ]
+        agent_policies.append(policy.wrapped_policy.agent_policy(agent_id))
     replay_writer: InMemoryReplayWriter | None = None
     if job.replay_uri is not None:
         replay_writer = InMemoryReplayWriter()

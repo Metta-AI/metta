@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 from rich.console import Console
 
 from mettagrid import MettaGridConfig
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -46,7 +47,11 @@ def play(
     logger.debug("Starting play session", extra={"game_name": game_name})
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
+    if policy_spec.class_path == checkpoint_class_path:
+        policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec).wrapped_policy
+    else:
+        policy = initialize_or_load_policy(policy_env_info, policy_spec)
     agent_policies = [policy.agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)]
 
     # Set up replay writer if requested

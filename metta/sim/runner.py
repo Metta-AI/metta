@@ -6,6 +6,7 @@ from typing import Any, Callable, Sequence
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
+from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -23,9 +24,18 @@ def _run_single_simulation(
     policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
-    multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
-    ]
+    checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
+    multi_agent_policies: list[MultiAgentPolicy] = []
+    for spec in policy_specs:
+        if spec.class_path == checkpoint_class_path:
+            policy = CheckpointPolicy.from_policy_spec(
+                env_interface,
+                spec,
+                device_override=device_override,
+            ).wrapped_policy
+        else:
+            policy = initialize_or_load_policy(env_interface, spec, device_override=device_override)
+        multi_agent_policies.append(policy)
 
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
