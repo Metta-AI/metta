@@ -257,21 +257,20 @@ def _post_to_discord(
 
 
 def _push_git_history_to_child_repo(*, package: str, dry_run: bool) -> None:
-    if dry_run:
-        info(f"Would push filtered git history for {package} to child repo.")
-        return
+    dry_run_prefix = "[DRY RUN] " if dry_run else ""
+    info(f"{dry_run_prefix}Pushing filtered git history for {package} to child repo...")
 
-    info(f"Pushing filtered git history for {package} to child repo...")
+    cmd = [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"]
+    if dry_run:
+        cmd.append("--dry-run")
+
     try:
-        subprocess.run(
-            [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"],
-            check=True,
-        )
+        subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         error(f"Failed to push to child repo: {exc}")
         raise typer.Exit(exc.returncode) from exc
     else:
-        success(f"Pushed filtered git history for {package} to child repo.")
+        success(f"{dry_run_prefix}Pushed filtered git history for {package} to child repo.")
 
 
 def _publish(
