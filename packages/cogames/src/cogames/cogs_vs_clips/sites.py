@@ -2,7 +2,8 @@
 
 from cogames.cogs_vs_clips.mission import Site
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
+from cogames.cogs_vs_clips.procedural import MachinaArena as ProceduralMachinaArena, RandomTransform
+from cogames.cogs_vs_clips.sequential import MachinaArena as SequentialMachinaArena
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
@@ -33,7 +34,7 @@ TRAINING_FACILITY = Site(
 HELLO_WORLD = Site(
     name="hello_world",
     description="Welcome to space.",
-    map_builder=MapGen.Config(width=100, height=100, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=MapGen.Config(width=100, height=100, instance=ProceduralMachinaArena.Config(spawn_count=20)),
     min_cogs=1,
     max_cogs=20,
 )
@@ -41,7 +42,7 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=MapGen.Config(width=88, height=88, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=MapGen.Config(width=88, height=88, instance=SequentialMachinaArena.Config(spawn_count=20)),
     min_cogs=1,
     max_cogs=20,
 )
