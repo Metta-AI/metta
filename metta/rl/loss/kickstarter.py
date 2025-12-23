@@ -115,11 +115,10 @@ class Kickstarter(Loss):
         student_logits = student_td["logits"].to(dtype=torch.float32)
         teacher_log_probs = F.log_softmax(teacher_logits / temperature, dim=-1).detach()
         student_log_probs = F.log_softmax(student_logits / temperature, dim=-1)
-        # student_probs = torch.exp(student_log_probs)
-        # ks_action_loss = (temperature**2) * (
-        #     (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
-        # )
-        ks_action_loss = -(student_log_probs.exp() * teacher_log_probs).sum(dim=-1).mean()
+        student_probs = torch.exp(student_log_probs)
+        ks_action_loss = (temperature**2) * (
+            (student_probs * (student_log_probs - teacher_log_probs)).sum(dim=-1).mean()
+        )
 
         # value loss
         teacher_value = minibatch["teacher_values"].to(dtype=torch.float32).reshape(B * TT).detach()
