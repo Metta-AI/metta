@@ -2,21 +2,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "orchestrator.fullname" . }}-watcher
+  name: watcher
   labels:
-    {{- include "orchestrator.labels" . | nindent 4 }}
-    app.kubernetes.io/component: watcher
+    app.kubernetes.io/name: watcher
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "orchestrator.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: watcher
+      app.kubernetes.io/name: watcher
   template:
     metadata:
       labels:
-        {{- include "orchestrator.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: watcher
+        app.kubernetes.io/name: watcher
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
       containers:
