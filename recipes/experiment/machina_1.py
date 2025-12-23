@@ -11,7 +11,12 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
-from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
+from recipes.experiment.cogs_v_clips import (
+    _normalize_variant_names,
+    get_cvc_sweep_search_space,
+    make_training_env,
+    train_single_mission,
+)
 
 
 def train(
@@ -46,7 +51,15 @@ def train(
     if env_cfg.game.agent.initial_vibe >= len(full_vibes):
         env_cfg.game.agent.initial_vibe = 0
 
-    eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
+    eval_variant_names = _normalize_variant_names(
+        initial=[eval_difficulty] if eval_difficulty else None,
+        variants=eval_variants,
+    )
+    eval_env = make_training_env(
+        num_cogs=num_cogs,
+        mission="machina_1.open_world",
+        variants=eval_variant_names or None,
+    )
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
