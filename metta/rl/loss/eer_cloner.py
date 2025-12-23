@@ -57,7 +57,9 @@ class EERCloner(Loss):
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
         with torch.no_grad():
             self.policy.forward(td)
+
         env_slice = self._training_env_id(context)
+
         # --- Reward Shaping ---
         # td["rewards"] contains R_{t-1}. We want to add r_lambda * log(pi_teacher(A_{t-1}|S_{t-1})).
         # For cloner, the teacher output is just an action index.
@@ -88,6 +90,7 @@ class EERCloner(Loss):
 
             # Add to rewards in place
             td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
+
         teacher_actions = td["teacher_actions"]
         self.last_teacher_actions[indices] = teacher_actions
         self.has_last_actions[indices] = True
