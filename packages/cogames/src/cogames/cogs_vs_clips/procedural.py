@@ -436,14 +436,3 @@ class MachinaArenaVariant(EnvNodeVariant[MachinaArenaConfig]):
         assert isinstance(env.game.map_builder, MapGen.Config)
         assert isinstance(env.game.map_builder.instance, MachinaArena.Config)
         return env.game.map_builder.instance
-
-
-# Use the sequential MachinaArena implementation while keeping the procedural import path stable.
-from cogames.cogs_vs_clips import sequential as _sequential  # noqa: E402
-
-MachinaArena = _sequential.MachinaArena
-MachinaArenaConfig = _sequential.MachinaArenaConfig
-MachinaArenaVariant = _sequential.MachinaArenaVariant
-BaseHubVariant = _sequential.BaseHubVariant
-RandomTransform = _sequential.RandomTransform
-MapSeedVariant = _sequential.MapSeedVariant
