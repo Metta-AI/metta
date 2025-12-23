@@ -55,10 +55,7 @@ class AsteroidMask(Scene[AsteroidMaskConfig]):
                 reverse,
             )
 
-        for x in range(0, width, step):
-            _maybe_cut(x, "x", False)
-            _maybe_cut(x, "x", True)
-
-        for y in range(0, height, step):
-            _maybe_cut(y, "y", False)
-            _maybe_cut(y, "y", True)
+        for axis, extent in (("x", width), ("y", height)):
+            for anchor in range(0, extent, step):
+                _maybe_cut(anchor, axis, False)
+                _maybe_cut(anchor, axis, True)
