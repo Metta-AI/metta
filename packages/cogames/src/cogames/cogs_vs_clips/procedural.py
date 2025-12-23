@@ -15,7 +15,7 @@ from mettagrid.mapgen.scene import (
     Scene,
     SceneConfig,
 )
-from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMaskConfig
+from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask, AsteroidMaskConfig
 from mettagrid.mapgen.scenes.base_hub import BaseHub, BaseHubConfig
 from mettagrid.mapgen.scenes.biome_caves import BiomeCavesConfig
 from mettagrid.mapgen.scenes.biome_city import BiomeCityConfig
@@ -76,6 +76,16 @@ class MachinaArenaConfig(SceneConfig):
 
     # Optional asteroid-shaped boundary mask.
     asteroid_mask: AsteroidMaskConfig | None = None
+    asteroid_mask_enabled: bool = True
+    asteroid_mask_min_size: int = 80
+    asteroid_mask_default: AsteroidMaskConfig = AsteroidMask.Config(
+        step=3,
+        depth_min=2,
+        depth_max=8,
+        width_min=2,
+        width_max=6,
+        chunk_prob=0.6,
+    )
 
     #### Layers ####
 
@@ -173,7 +183,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         def _make_biome_candidates(
             weights: dict[str, float] | None,
         ) -> tuple[list[SceneConfig], list[RandomSceneCandidate]]:
-            defaults = {"caves": 1.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
+            defaults = {"caves": 0.0, "forest": 1.0, "desert": 1.0, "city": 1.0, "plains": 1.0}
             w = {**defaults, **(weights or {})}
             uniques: list[SceneConfig] = []
             weighted: list[RandomSceneCandidate] = []
@@ -378,8 +388,15 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if dungeon_layer is not None:
             children.append(dungeon_layer)
 
-        if cfg.asteroid_mask is not None:
-            children.append(ChildrenAction(scene=cfg.asteroid_mask, where="full"))
+        asteroid_mask = cfg.asteroid_mask
+        if (
+            asteroid_mask is None
+            and cfg.asteroid_mask_enabled
+            and min(self.width, self.height) >= cfg.asteroid_mask_min_size
+        ):
+            asteroid_mask = cfg.asteroid_mask_default.model_copy(deep=True)
+        if asteroid_mask is not None:
+            children.append(ChildrenAction(scene=asteroid_mask, where="full"))
 
         # Resources
         children.append(

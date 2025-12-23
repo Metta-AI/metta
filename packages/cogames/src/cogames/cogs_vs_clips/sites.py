@@ -4,7 +4,6 @@ from cogames.cogs_vs_clips.mission import Site
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.mapgen.scenes.asteroid_mask import AsteroidMask
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
 TRAINING_FACILITY = Site(
@@ -48,14 +47,6 @@ MACHINA_1 = Site(
         border_width=1,
         instance=MachinaArena.Config(
             spawn_count=20,
-            asteroid_mask=AsteroidMask.Config(
-                step=3,
-                depth_min=2,
-                depth_max=8,
-                width_min=2,
-                width_max=6,
-                chunk_prob=0.6,
-            ),
         ),
     ),
     min_cogs=1,
