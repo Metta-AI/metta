@@ -20,7 +20,6 @@ from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import (
     get_checkpoint_metadata,
-    policy_spec_from_uri,
     resolve_uri,
 )
 
@@ -131,8 +130,7 @@ class TestCheckpointManagerFlows:
         assert latest is not None
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
-        spec = policy_spec_from_uri(latest)
-        policy = CheckpointPolicy.from_policy_spec(env_info, spec, device_override="cpu").wrapped_policy
+        policy = CheckpointPolicy.from_checkpoint_uri(env_info, latest, device_override="cpu").wrapped_policy
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)
