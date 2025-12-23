@@ -163,5 +163,6 @@ class TestTrainerCheckpointIntegration:
 
         env_cfg = Curriculum(training_env_cfg.curriculum).get_task().get_env_cfg()
         env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        spec = policy_spec_from_uri(policy_uri)
-        assert CheckpointPolicy.from_policy_spec(env_info, spec).wrapped_policy.state_dict()
+        assert CheckpointPolicy.from_policy_spec(
+            env_info, policy_spec_from_uri(policy_uri)
+        ).wrapped_policy.state_dict()
