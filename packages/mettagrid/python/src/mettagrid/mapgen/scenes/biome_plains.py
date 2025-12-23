@@ -32,12 +32,7 @@ class BiomePlains(Scene[BiomePlainsConfig]):
         anchors = anchors[rng.random(len(anchors)) <= float(p.cluster_prob)]
         if jitter > 0:
             anchors = anchors + rng.integers(-jitter, jitter + 1, size=anchors.shape)
-        anchors = anchors[
-            (anchors[:, 0] >= 0)
-            & (anchors[:, 0] < W)
-            & (anchors[:, 1] >= 0)
-            & (anchors[:, 1] < H)
-        ]
+        anchors = anchors[(anchors[:, 0] >= 0) & (anchors[:, 0] < W) & (anchors[:, 1] >= 0) & (anchors[:, 1] < H)]
 
         directions = np.array([(1, 0), (-1, 0), (0, 1), (0, -1)], dtype=int)
         cluster_fill = float(p.cluster_fill)

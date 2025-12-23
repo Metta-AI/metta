@@ -6,11 +6,13 @@ from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.procedural import (
     BaseHubVariant,
     EnvNodeVariant,
-    MachinaArenaConfig as BaseMachinaArenaConfig,
     MapGenVariant,
     MapSeedVariant,
     RandomTransform,
     RandomTransformConfig,
+)
+from cogames.cogs_vs_clips.procedural import (
+    MachinaArenaConfig as BaseMachinaArenaConfig,
 )
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.mapgen.area import AreaWhere
@@ -302,6 +304,7 @@ class SequentialMachinaArena(Scene[SequentialMachinaArenaConfig]):
         )
 
         return children
+
 
 class SequentialMachinaArenaVariant(EnvNodeVariant[SequentialMachinaArenaConfig]):
     def compat(self, mission: Mission) -> bool:
