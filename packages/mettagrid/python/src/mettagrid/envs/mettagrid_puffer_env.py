@@ -134,13 +134,6 @@ class MettaGridPufferEnv(PufferEnv):
     def _init_simulation(self) -> Simulation:
         sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
         if self._supervisor_policy_spec is not None:
-<<<<<<< HEAD
-            self._env_supervisor = initialize_or_load_policy(
-                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
-                self._supervisor_policy_spec,
-            )
-<<<<<<< HEAD
-=======
             policy_env_info = PolicyEnvInterface.from_mg_cfg(self._current_cfg)
             checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
             if self._supervisor_policy_spec.class_path == checkpoint_class_path:
@@ -150,10 +143,6 @@ class MettaGridPufferEnv(PufferEnv):
                 ).wrapped_policy
             else:
                 self._env_supervisor = initialize_or_load_policy(policy_env_info, self._supervisor_policy_spec)
-
->>>>>>> 31aa8133d4 (Use CheckpointPolicy directly)
-=======
->>>>>>> aedb368000 (Remove redundant guards and streamline training/sim components (#4426))
             self._compute_supervisor_actions()
         return sim
 
