@@ -72,7 +72,10 @@ class ContextCheckpointer(TrainerComponent):
 
         total_agents = int(context.experience.total_agents)
         device = context.experience.device
-        avg_reward = payload.get("avg_reward", context.config.advantage.reward_centering.initial_reward_mean)
+        default_avg_reward = context.config.advantage.reward_centering.initial_reward_mean
+        avg_reward = payload.get("avg_reward", default_avg_reward)
+        if avg_reward is None:
+            avg_reward = default_avg_reward
         avg_reward = torch.as_tensor(avg_reward).to(device=device, dtype=torch.float32)
         context.state.avg_reward = torch.broadcast_to(avg_reward, (total_agents,)).clone()
 
