@@ -81,8 +81,6 @@ class Checkpointer(TrainerComponent):
                 if local_action_count != action_count:
                     raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 
-                if architecture_spec is None:
-                    raise ValueError("Missing architecture_spec from master")
                 class_path = architecture_spec.split("(", 1)[0].strip()
                 arch = load_symbol(class_path).from_spec(architecture_spec)
                 policy = arch.make_policy(policy_env_info).to(load_device)
