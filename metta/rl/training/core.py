@@ -110,11 +110,6 @@ class CoreTrainingLoop:
                 baseline = avg_reward[agent_ids]
                 td["reward_baseline"] = baseline
 
-                beta = float(context.config.advantage.reward_centering.beta)
-                with torch.no_grad():
-                    avg_reward[agent_ids] = baseline + beta * (rewards.to(dtype=torch.float32) - baseline)
-                context.state.avg_reward = avg_reward
-
                 # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
                 # MPS has two bugs:
                 # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
@@ -142,6 +137,13 @@ class CoreTrainingLoop:
                 context.training_env_id = training_env_id
                 for loss in self.losses.values():
                     loss.rollout(td, context)
+
+            avg_reward = context.state.avg_reward
+            beta = float(context.config.advantage.reward_centering.beta)
+            with torch.no_grad():
+                rewards_f32 = td["rewards"].to(dtype=torch.float32)
+                avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
+            context.state.avg_reward = avg_reward
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()

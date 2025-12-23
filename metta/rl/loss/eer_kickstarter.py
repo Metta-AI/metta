@@ -7,7 +7,6 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
@@ -128,20 +127,6 @@ class EERKickstarter(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
-
-        centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
-        advantages = compute_advantage(
-            minibatch["values"],
-            centered_rewards,
-            minibatch["dones"],
-            torch.ones_like(minibatch["values"]),
-            torch.zeros_like(minibatch["values"], device=self.device),
-            self.trainer_cfg.advantage.gamma,
-            self.trainer_cfg.advantage.gae_lambda,
-            self.device,
-        )
-
-        minibatch["advantages"] = advantages
 
         student_full_log_probs = student_td["full_log_probs"]
         teacher_full_log_probs = minibatch["teacher_full_log_probs"]

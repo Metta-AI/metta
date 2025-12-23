@@ -9,7 +9,6 @@ from torchrl.data import Composite, UnboundedDiscrete
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 
@@ -109,19 +108,6 @@ class EERCloner(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         policy_td = shared_loss_data["policy_td"]
-
-        centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
-        advantages = compute_advantage(
-            minibatch["values"],
-            centered_rewards,
-            minibatch["dones"],
-            torch.ones_like(minibatch["values"]),
-            torch.zeros_like(minibatch["values"], device=self.device),
-            self.trainer_cfg.advantage.gamma,
-            self.trainer_cfg.advantage.gae_lambda,
-            self.device,
-        )
-        minibatch["advantages"] = advantages
 
         # Supervised Loss: Maximize log probability of the teacher's action -> L = - log(pi_student(a_teacher | s))
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
