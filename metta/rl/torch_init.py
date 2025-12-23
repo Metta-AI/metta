@@ -18,6 +18,8 @@ def _set_tf32_precision(enabled: bool) -> None:
         cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
         if cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision"):
             cudnn_conv.fp32_precision = "tf32" if enabled else "ieee"
+        elif hasattr(torch.backends.cudnn, "allow_tf32"):
+            torch.backends.cudnn.allow_tf32 = enabled
         return
 
     if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
