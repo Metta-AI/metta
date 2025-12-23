@@ -73,8 +73,8 @@ class PolicyEnvInterface(BaseModel):
     obs_height: int
     assembler_protocols: list  # Assembler protocols for recipe initialization
     tag_id_to_name: dict[int, str]  # Tag ID to name mapping for observation parsing
-    chest_vibe_transfers: dict[str, dict[str, int]]  # Chest vibe name -> output resources
-    assembler_chest_search_distance: int  # Distance assembler searches for chests (0 = disabled)
+    chest_vibe_transfers: dict[str, dict[str, int]] = {}  # Chest vibe name -> output resources
+    assembler_chest_search_distance: int = 0  # Distance assembler searches for chests (0 = disabled)
 
     @property
     def action_names(self) -> list[str]:
