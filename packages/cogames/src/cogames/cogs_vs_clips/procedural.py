@@ -36,8 +36,6 @@ from mettagrid.mapgen.scenes.random_scene import RandomScene, RandomSceneCandida
 
 HubBundle = Literal["extractors", "none", "custom"]
 
-ASTEROID_MASK_MIN_SIZE = 80
-
 
 class MachinaArenaConfig(SceneConfig):
     # Core composition
@@ -379,7 +377,7 @@ class MachinaArena(Scene[MachinaArenaConfig]):
         if (
             asteroid_mask is None
             and cfg.asteroid_mask_enabled
-            and min(self.width, self.height) >= ASTEROID_MASK_MIN_SIZE
+            and min(self.width, self.height) >= 80
         ):
             asteroid_mask = AsteroidMaskConfig()
         if asteroid_mask is not None:
