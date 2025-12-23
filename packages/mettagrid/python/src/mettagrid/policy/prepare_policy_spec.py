@@ -342,11 +342,7 @@ def load_policy_spec_from_s3(
     Returns:
         PolicySpec with paths resolved to the local extraction/sync directory.
     """
-<<<<<<< HEAD
     local_path = download_policy_spec_from_s3_as_zip(
-=======
-    local_path = download_policy_spec_from_s3(
->>>>>>> 3652074142 (Harden checkpoint bundle writes and spec loading)
         s3_path=s3_path,
         cache_dir=cache_dir,
         remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
@@ -361,7 +357,8 @@ def load_policy_spec_from_s3(
 
 
 def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:
-    spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
+    base_uri = checkpoint_dir_uri.rstrip("/")
+    spec_uri = f"{base_uri}/{POLICY_SPEC_FILENAME}"
     spec_bytes = read(spec_uri)
     (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
 
@@ -375,6 +372,6 @@ def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> N
         local_data_path = (extraction_root / data_path).resolve()
         if extraction_root != local_data_path and extraction_root not in local_data_path.parents:
             raise ValueError(f"Checkpoint data_path escapes cache dir: {submission_spec.data_path}")
-        data_uri = f"{checkpoint_dir_uri.rstrip('/')}/{submission_spec.data_path.lstrip('/')}"
+        data_uri = f"{base_uri}/{submission_spec.data_path.lstrip('/')}"
         local_data_path.parent.mkdir(parents=True, exist_ok=True)
         local_data_path.write_bytes(read(data_uri))

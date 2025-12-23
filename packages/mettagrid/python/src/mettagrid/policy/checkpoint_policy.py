@@ -56,13 +56,7 @@ class CheckpointPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         policy_spec: PolicySpec,
     ) -> "CheckpointPolicy":
-        if policy_spec.class_path != cls.CLASS_PATH:
-            raise ValueError(f"Only CheckpointPolicy specs are supported (got {policy_spec.class_path})")
-        architecture_spec = policy_spec.init_kwargs.get("architecture_spec")
-        if not architecture_spec:
-            raise ValueError("policy_spec.json missing init_kwargs.architecture_spec")
-        if not policy_spec.data_path:
-            raise ValueError("policy_spec.json missing data_path")
+        architecture_spec = policy_spec.init_kwargs["architecture_spec"]
         device = policy_spec.init_kwargs.get("device", "cpu")
         policy = cls(policy_env_info, architecture_spec=architecture_spec, device=device)
         policy.load_policy_data(policy_spec.data_path)
@@ -70,15 +64,6 @@ class CheckpointPolicy(MultiAgentPolicy):
 
     def load_policy_data(self, policy_data_path: str) -> None:
         path = Path(policy_data_path).expanduser()
-        if path.is_dir():
-            raise FileNotFoundError(
-                "Checkpoint data path must be a weights file. "
-                "Resolve checkpoint directories to a policy_spec.json bundle first."
-            )
-        if not path.is_file():
-            raise FileNotFoundError(f"Policy data path does not exist: {path}")
-        if path.name == POLICY_SPEC_FILENAME:
-            raise ValueError(f"Checkpoint data path points at {POLICY_SPEC_FILENAME}: {path}")
         state_dict = load_safetensors(path.read_bytes())
         self._policy.load_state_dict(dict(state_dict))
         if hasattr(self._policy, "initialize_to_environment"):
