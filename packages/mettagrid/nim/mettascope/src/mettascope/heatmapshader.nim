@@ -11,7 +11,6 @@ var
   uMaxOpacity: Uniform[float32]
   heatmapTexture: Uniform[Sampler2D]
 
-# Module-level OpenGL resources
 var
   heatmapShader: Shader
   heatmapVao: GLuint
