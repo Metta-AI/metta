@@ -194,11 +194,11 @@ class ChangeVibeActionConfig(ActionConfig):
 
     action_handler: str = Field(default="change_vibe")
     number_of_vibes: int = Field(default=0, ge=0, le=255)
-    vibes: list[str] | None = Field(default=None)
+    vibes: list[Vibe] | None = Field(default=None)
 
     def _actions(self) -> list[Action]:
         if self.vibes is not None:
-            return [self.ChangeVibe(Vibe(name=vibe)) for vibe in self.vibes]
+            return [self.ChangeVibe(vibe) for vibe in self.vibes]
         return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
 
     def ChangeVibe(self, vibe: Vibe) -> Action:
@@ -268,6 +268,17 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
     )
+    loot: list[str] = Field(
+        default_factory=list,
+        description="Convenience field: resources to steal (merged into success.loot).",
+    )
+
+    @model_validator(mode="after")
+    def _merge_loot_into_success(self) -> "AttackActionConfig":
+        """Merge top-level loot into success.loot for convenience."""
+        if self.loot:
+            self.success.loot = list(set(self.success.loot + self.loot))
+        return self
 
     def _actions(self) -> list[Action]:
         # Attack only triggers via move, no standalone actions
@@ -304,6 +315,10 @@ class TransferActionConfig(ActionConfig):
     vibe_transfers: list[VibeTransfer] = Field(
         default_factory=list,
         description="List of vibe transfer configs specifying actor/target resource effects",
+    )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Convenience field: vibes that can trigger transfer (used with vibe_transfers)",
     )
 
     def _actions(self) -> list[Action]:
@@ -500,6 +515,42 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
+class MarketTerminalConfig(Config):
+    """Configuration for a single market terminal (one per direction).
+
+    When an agent moves onto a market from a direction with a terminal configured,
+    the terminal determines whether the agent buys or sells the vibed resource.
+    """
+
+    sell: bool = Field(default=False, description="True = sell to market, False = buy from market")
+    amount: int = Field(default=1, ge=1, description="Max amount to trade per transaction")
+
+
+class MarketConfig(GridObjectConfig):
+    """Python market configuration.
+
+    Markets allow agents to buy and sell resources using hearts as currency.
+    When an agent vibes a resource and moves onto the market, they buy or sell
+    based on which terminal they enter from. Price is calculated as 100/sqrt(inventory).
+    Hearts cannot be bought or sold.
+    """
+
+    pydantic_type: Literal["market"] = "market"
+    name: str = Field(default="market")
+
+    # Terminal configs by direction (south, north, east, west)
+    terminals: dict[CardinalDirection, MarketTerminalConfig] = Field(
+        default_factory=dict,
+        description="Terminal configurations by direction. E.g., {'south': MarketTerminalConfig(sell=True, amount=10)}",
+    )
+
+    # Inventory configuration for market stock
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
+
+    # Currency resource name
+    currency_resource: str = Field(default="heart", description="Resource used as currency (cannot be traded)")
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -532,6 +583,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[WallConfig, Tag("wall")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
+            Annotated[MarketConfig, Tag("market")],
         ],
         Discriminator("pydantic_type"),
     ]
@@ -602,7 +654,9 @@ class GameConfig(Config):
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
         self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
-        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
+        # Only set vibe_names from VIBES if not already provided by user
+        if not self.vibe_names:
+            self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
         return self
 
     def id_map(self) -> "IdMap":

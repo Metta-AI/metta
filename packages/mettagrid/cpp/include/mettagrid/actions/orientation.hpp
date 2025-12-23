@@ -47,6 +47,30 @@ constexpr int ORIENTATION_DELTAS_Y[8] = {
     1    // Southeast
 };
 
+// Get the opposite direction (180 degrees)
+inline Orientation opposite_direction(Orientation orient) {
+  switch (orient) {
+    case North:
+      return South;
+    case South:
+      return North;
+    case West:
+      return East;
+    case East:
+      return West;
+    case Northwest:
+      return Southeast;
+    case Northeast:
+      return Southwest;
+    case Southwest:
+      return Northeast;
+    case Southeast:
+      return Northwest;
+    default:
+      return orient;
+  }
+}
+
 // Get the orientation 90 degrees clockwise
 inline Orientation getClockwise(Orientation orient) {
   switch (orient) {
