@@ -36,7 +36,7 @@ COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   uv sync --no-install-workspace --frozen
 
 COPY . .
