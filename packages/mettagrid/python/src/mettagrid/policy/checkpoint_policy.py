@@ -103,7 +103,7 @@ class CheckpointPolicy(MultiAgentPolicy):
     def load_policy_data(self, policy_data_path: str) -> None:
         weights_blob = _resolve_policy_data_path(Path(policy_data_path).expanduser()).read_bytes()
         state_dict = load_safetensors(weights_blob)
-        missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=self._strict)
+        missing, unexpected = self._policy.load_state_dict(dict(state_dict), strict=False)
         if self._strict and (missing or unexpected):
             raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
         if hasattr(self._policy, "initialize_to_environment"):
