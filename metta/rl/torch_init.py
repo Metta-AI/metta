@@ -7,6 +7,7 @@ be set once globally before any models are created or compiled.
 import os
 
 import torch
+import torch._functorch.config as functorch_config
 
 # Flag to ensure we only configure once
 _configured = False
@@ -23,6 +24,8 @@ def configure_torch_globally() -> None:
 
     if _configured:
         return
+
+    functorch_config.donated_buffer = False
 
     # Configure TF32 precision for CUDA (performance mode)
     if torch.cuda.is_available():
