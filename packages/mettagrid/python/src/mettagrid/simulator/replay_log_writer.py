@@ -21,19 +21,17 @@ class InMemoryReplayWriter(SimulatorEventHandler):
     """EventHandler that maintains a list of completed replay results in memory, and does not write them anywhere"""
 
     def __init__(self):
-        self._episode_replay: EpisodeReplay | None = None
+        super().__init__()
+        self._episode_replay: EpisodeReplay
         self._completed_replays: list[EpisodeReplay] = []
 
     def on_episode_start(self) -> None:
-        assert self._sim is not None  # This should be set by Rollout
         self._episode_replay = EpisodeReplay(self._sim)
 
     def get_completed_replays(self) -> list[EpisodeReplay]:
         return self._completed_replays
 
     def on_step(self) -> None:
-        assert self._episode_replay is not None
-        assert self._sim is not None
         self._episode_replay.log_step(
             self._sim.current_step,
             self._sim._c_sim.actions(),  # type: ignore[attr-defined]
@@ -41,9 +39,7 @@ class InMemoryReplayWriter(SimulatorEventHandler):
         )
 
     def on_episode_end(self) -> None:
-        assert self._episode_replay is not None
         self._completed_replays.append(self._episode_replay)
-        self._episode_replay = None
 
 
 class ReplayLogWriter(InMemoryReplayWriter):
@@ -55,27 +51,22 @@ class ReplayLogWriter(InMemoryReplayWriter):
         Args:
             replay_dir: Local directory where replays will be written. Must exist.
         """
+        super().__init__()
         self._replay_dir = replay_dir
-        self._episode_id = None
-        self._episode_replay: EpisodeReplay | None = None
+        self._episode_id: str
         self.episodes: Dict[str, EpisodeReplay] = {}
         self._episode_urls: Dict[str, str] = {}
         self._episode_paths: Dict[str, str] = {}
 
     def on_episode_start(self) -> None:
         """Start recording a new episode."""
-        assert self._sim is not None
         self._episode_id = str(uuid.uuid4())
         self._episode_replay = EpisodeReplay(self._sim)
-        assert self._episode_id is not None
         self.episodes[self._episode_id] = self._episode_replay
         logger.debug("Started recording episode %s", self._episode_id)
 
     def on_episode_end(self) -> None:
         """Write the replay to storage and clean up."""
-        assert self._episode_replay is not None
-        assert self._sim is not None
-        assert self._episode_id is not None
         replay_path = f"{self._replay_dir}/{self._episode_id}.json.z"
         self._episode_replay.write_replay(replay_path)
         url = http_url(replay_path)

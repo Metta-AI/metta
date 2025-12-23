@@ -73,10 +73,10 @@ class Simulation:
         # Create C++ config
         try:
             c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
-        except Exception as e:
-            logger.error(f"Error creating C++ config: {e}")
-            logger.error(f"Game config: {game_config_dict}")
-            raise e
+        except Exception:
+            logger.exception("Error creating C++ config")
+            logger.error("Game config: %s", game_config_dict)
+            raise
 
         # Create C++ environment
         with self._timer("sim.init.create_c_sim"):
@@ -281,8 +281,6 @@ class Simulator:
     def new_simulation(
         self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
     ) -> Simulation:
-        assert self._current_simulation is None, "A simulation is already running"
-
         # Initialize invariants on first simulation
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
