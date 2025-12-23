@@ -26,7 +26,7 @@ from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
 from typing_extensions import TypeVar
 
-import metta.utils.torch_init  # noqa: F401
+import metta.rl.torch_init  # noqa: F401
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.schema import get_pydantic_field_info
@@ -323,26 +323,6 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 # Tool Resolution
 # --------------------------------------------------------------------------------------
-
-
-def list_all_recipes(console: Console) -> None:
-    """List all available recipes and their tools."""
-    console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
-
-    recipes = recipe_registry.get_all()
-
-    if not recipes:
-        console.print("[yellow]No recipes found.[/yellow]")
-        return
-
-    for recipe in sorted(recipes, key=lambda r: r.module_name):
-        maker_names = recipe.get_all_tool_maker_names()
-
-        if maker_names:
-            console.print(f"[bold]{recipe.short_name}[/bold]")
-            for maker_name in sorted(maker_names):
-                console.print(f"  └─ {maker_name}")
-            console.print()
 
 
 def list_module_tools(module_path: str, console: Console) -> bool:

@@ -5,6 +5,7 @@ Both local development (metta ci) and GitHub Actions call this same tool.
 
 GitHub Actions workflow calls individual stages:
   - uv run metta ci --stage lint
+  - uv run metta ci --stage pyright
   - uv run metta ci --stage python-tests-and-benchmarks
   - uv run metta ci --stage cpp-tests
   - uv run metta ci --stage cpp-benchmarks
@@ -188,6 +189,21 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, 
     return CheckResult("Recipe Tests", passed)
 
 
+_CHECK_PYRIGHT_PACKAGES = [
+    "packages/cogames",
+    "app_backend",
+]
+
+
+def _run_pyright(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    _ensure_no_extra_args("pyright", extra_args)
+    _print_header("Pyright")
+
+    cmd = ["uv", "run", "pyright", *_CHECK_PYRIGHT_PACKAGES]
+    passed = _run_command(cmd, "Pyright", verbose=verbose)
+    return CheckResult("Pyright", passed)
+
+
 def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
@@ -207,6 +223,7 @@ StageRunner = Callable[[bool, Sequence[str] | None, str | None, bool], CheckResu
 
 stages: dict[str, StageRunner] = {
     "lint": lambda v, args, name, _: _run_lint(verbose=v, extra_args=args),
+    "pyright": lambda v, args, name, _: _run_pyright(verbose=v, extra_args=args),
     "python-tests-and-benchmarks": lambda v, args, name, _: _run_python_tests(verbose=v, extra_args=args),
     "cpp-tests": lambda v, args, name, _: _run_cpp_tests(verbose=v, extra_args=args),
     "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),

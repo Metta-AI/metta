@@ -78,6 +78,7 @@ class TestBulkEpisodeUpload:
                 (policy_name, "test_user", Jsonb({})),
             )
             row = await result.fetchone()
+            assert row is not None
             policy_id = row[0]
 
             # Create policy version
@@ -90,6 +91,7 @@ class TestBulkEpisodeUpload:
                 (policy_id, 1, Jsonb({"type": "test"}), Jsonb({})),
             )
             row = await result.fetchone()
+            assert row is not None
             return row[0]
 
     @pytest_asyncio.fixture
@@ -170,6 +172,7 @@ class TestBulkEpisodeUpload:
         async with stats_repo.connect() as con:
             result = await con.execute("SELECT COUNT(*) FROM episodes WHERE primary_pv_id = %s", (pv_response.id,))
             row = await result.fetchone()
+            assert row is not None
             assert row[0] >= 1
 
     @pytest.mark.asyncio
@@ -219,6 +222,7 @@ class TestBulkEpisodeUpload:
         async with stats_repo.connect() as con:
             result = await con.execute("SELECT COUNT(*) FROM episodes")
             row = await result.fetchone()
+            assert row is not None
             assert row[0] >= 3
 
     @pytest.mark.asyncio

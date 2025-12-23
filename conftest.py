@@ -6,7 +6,7 @@ suppress_noisy_logs()
 
 import pytest
 
-from metta.common.test_support import docker_client_fixture
+from metta.common.tests_support import docker_client_fixture
 
 
 def pytest_configure(config):

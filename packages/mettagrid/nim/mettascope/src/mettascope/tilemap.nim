@@ -362,7 +362,7 @@ proc draw*(
   # Set uniforms
   tileMap.shader.setUniform("mvp", mvp)
   tileMap.shader.setUniform("mapSize", vec2(tileMap.width.float32, tileMap.height.float32))
-  tileMap.shader.setUniform("tileSize", 64.0f)  # Tile size in pixels.
+  tileMap.shader.setUniform("tileSize", tileMap.tileSize.float32)  # Tile size in pixels.
   tileMap.shader.setUniform("zoom", zoom)
   tileMap.shader.setUniform("zoomThreshold", zoomThreshold)
   tileMap.shader.setUniform("tint", vec4(tint.r, tint.g, tint.b, tint.a))

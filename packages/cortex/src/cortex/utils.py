@@ -89,8 +89,8 @@ def select_backend(
 def set_tf32_precision(mode: str) -> None:
     """Set TF32 behavior for matmul and cuDNN convolutions.
 
-    Uses PyTorch 2.9+ new API: torch.backends.cuda.matmul.fp32_precision
-    and torch.backends.cudnn.conv.fp32_precision.
+    Uses legacy PyTorch flags: torch.backends.cuda.matmul.allow_tf32
+    and torch.backends.cudnn.allow_tf32.
     """
     if not torch.cuda.is_available():
         return
@@ -98,25 +98,24 @@ def set_tf32_precision(mode: str) -> None:
     mode_lower = mode.lower()
     if mode_lower == "tf32":
         # Enable TF32 for performance
-        torch.backends.cuda.matmul.fp32_precision = "tf32"
-        torch.backends.cudnn.conv.fp32_precision = "tf32"
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
     else:
-        # Disable TF32, use full FP32 precision (ieee)
-        torch.backends.cuda.matmul.fp32_precision = "ieee"
-        torch.backends.cudnn.conv.fp32_precision = "ieee"
+        # Disable TF32, use full FP32 precision
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
 
 
 def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled using the recommended API."""
+    """Ensure TF32 fast paths are enabled."""
     try:
-        from metta.utils.torch_init import configure_torch_globally
+        from metta.rl.torch_init import configure_torch_globally
 
         configure_torch_globally()
     except ImportError:
         if torch.cuda.is_available():
-            # Use PyTorch 2.9+ new API
-            torch.backends.cuda.matmul.fp32_precision = "tf32"
-            torch.backends.cudnn.conv.fp32_precision = "tf32"
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]

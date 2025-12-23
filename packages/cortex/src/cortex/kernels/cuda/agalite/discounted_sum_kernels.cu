@@ -1,6 +1,7 @@
 // CUDA kernels for AGaLiTe discounted sum recurrence
 
 #include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <type_traits>
 #include <vector>
 
@@ -75,10 +76,15 @@ at::Tensor discounted_sum_forward_cuda(at::Tensor start_state,
 
   const int threads = 256;
   const int blocks = (N + threads - 1) / threads;
+  const auto stream = at::cuda::getCurrentCUDAStream();
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      x.scalar_type(), "agalite_discounted_sum_forward_cuda", [&] {
-        discounted_sum_forward_kernel<scalar_t><<<blocks, threads>>>(
+  AT_DISPATCH_FLOATING_TYPES_AND2(
+      at::ScalarType::Half,
+      at::ScalarType::BFloat16,
+      x.scalar_type(),
+      "agalite_discounted_sum_forward_cuda",
+      [&] {
+        discounted_sum_forward_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
             start_state.data_ptr<scalar_t>(),
             x.data_ptr<scalar_t>(),
             discounts.data_ptr<scalar_t>(),
@@ -86,6 +92,7 @@ at::Tensor discounted_sum_forward_cuda(at::Tensor start_state,
             T,
             N);
       });
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
 
   return output;
 }
@@ -103,10 +110,15 @@ std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
 
   const int threads = 256;
   const int blocks = (N + threads - 1) / threads;
+  const auto stream = at::cuda::getCurrentCUDAStream();
 
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-      grad_out.scalar_type(), "agalite_discounted_sum_backward_cuda", [&] {
-        discounted_sum_backward_kernel<scalar_t><<<blocks, threads>>>(
+  AT_DISPATCH_FLOATING_TYPES_AND2(
+      at::ScalarType::Half,
+      at::ScalarType::BFloat16,
+      grad_out.scalar_type(),
+      "agalite_discounted_sum_backward_cuda",
+      [&] {
+        discounted_sum_backward_kernel<scalar_t><<<blocks, threads, 0, stream>>>(
             grad_out.data_ptr<scalar_t>(),
             discounts.data_ptr<scalar_t>(),
             output.data_ptr<scalar_t>(),
@@ -117,6 +129,7 @@ std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
             T,
             N);
       });
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
 
   std::vector<at::Tensor> grads;
   grads.reserve(3);
@@ -127,4 +140,3 @@ std::vector<at::Tensor> discounted_sum_backward_cuda(const at::Tensor& grad_out,
 }
 
 }  // namespace agalite_cuda_ds
-

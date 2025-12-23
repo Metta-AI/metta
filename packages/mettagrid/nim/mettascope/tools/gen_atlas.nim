@@ -7,7 +7,8 @@ generatePixelAtlas(
     "data/agents",
     "data/objects",
     "data/view",
-    "data/ui"
+    "data/ui",
+    "data/minimap"
   ],
   outputImagePath = "data/atlas.png",
   outputJsonPath = "data/atlas.json"

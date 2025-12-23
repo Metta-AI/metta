@@ -264,7 +264,11 @@ def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
 ):
     from mettagrid.policy.policy import PolicySpec
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.prepare_policy_spec import (
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_s3,
+        load_policy_spec_from_zip,
+    )
 
     parsed = resolve_uri(uri)
 
@@ -281,10 +285,18 @@ def policy_spec_from_uri(
 
     if parsed.scheme == "s3":
         return load_policy_spec_from_s3(
-            parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+            parsed.canonical,
+            device=device,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
 
     if parsed.local_path:
+        if parsed.local_path.is_file():
+            return load_policy_spec_from_zip(
+                parsed.local_path,
+                device=device,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
     raise ValueError(f"Cannot load policy spec from URI: {uri}")

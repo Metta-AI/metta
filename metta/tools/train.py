@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 import platform
 from datetime import timedelta
@@ -125,7 +126,7 @@ class TrainTool(Tool):
                 )
                 self.checkpointer.epoch_interval = self.evaluator.epoch_interval
 
-        if self.evaluator and self.evaluator.evaluate_local:
+        if self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
             logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
             self.system.nccl_timeout = timedelta(hours=4)
@@ -171,6 +172,12 @@ class TrainTool(Tool):
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
+
+        if distributed_helper.is_master():
+            total_params = sum(param.numel() for param in policy.parameters())
+            trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
+            logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
+
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
@@ -255,8 +262,6 @@ class TrainTool(Tool):
         if autotune_cfg and getattr(autotune_cfg, "enabled", False):
             components.append(UpdateEpochAutoTuner(autotune_cfg))
 
-        stats_component: TrainerComponent | None = None
-
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
             reporting_enabled = stats_config.report_to_wandb or stats_config.report_to_console
@@ -268,9 +273,7 @@ class TrainTool(Tool):
                 stats_config,
                 wandb_run=wandb_run,
             )
-
-            if stats_component is not None:
-                components.append(stats_component)
+            components.append(stats_component)
 
             components.append(policy_checkpointer)
 
@@ -316,8 +319,6 @@ class TrainTool(Tool):
             )
 
         for component in components:
-            if component is None:
-                continue
             trainer.register(component)
 
         if wandb_run is not None and distributed_helper.is_master():

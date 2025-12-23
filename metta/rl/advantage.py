@@ -2,7 +2,6 @@
 
 import importlib
 from contextlib import nullcontext
-from typing import Optional
 
 import einops
 import torch
@@ -25,8 +24,8 @@ def compute_advantage(
     gamma: float,
     gae_lambda: float,
     device: torch.device,
-    vtrace_rho_clip: Optional[float] = 1.0,
-    vtrace_c_clip: Optional[float] = 1.0,
+    vtrace_rho_clip: float = 1.0,
+    vtrace_c_clip: float = 1.0,
 ) -> Tensor:
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
 

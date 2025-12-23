@@ -37,10 +37,11 @@ def print_configs(
             # Replace map_data with simplified ascii_map representation
             if "map" in cvc_data and cvc_data["map"] and "map_data" in cvc_data["map"]:
                 # Try to get width/height from the actual config object if available
-                try:
-                    width = mission_cfg.map.width
-                    height = mission_cfg.map.height
-                except (AttributeError, KeyError):
+                map_obj = getattr(mission_cfg, "map", None)
+                if map_obj is not None:
+                    width = getattr(map_obj, "width", cvc_data["map"].get("width", "?"))
+                    height = getattr(map_obj, "height", cvc_data["map"].get("height", "?"))
+                else:
                     width = cvc_data["map"].get("width", "?")
                     height = cvc_data["map"].get("height", "?")
                 cvc_data["map"]["map_data"] = f"ascii_map({width}, {height})"
@@ -56,12 +57,9 @@ def print_configs(
         # Replace map_data with simplified ascii_map representation
         if "game" in mg_data and "map_builder" in mg_data["game"] and "map_data" in mg_data["game"]["map_builder"]:
             # Try to get width/height from the actual config object if available
-            try:
-                width = env_cfg.game.map_builder.width
-                height = env_cfg.game.map_builder.height
-            except (AttributeError, KeyError):
-                width = mg_data["game"]["map_builder"].get("width", "?")
-                height = mg_data["game"]["map_builder"].get("height", "?")
+            map_builder = env_cfg.game.map_builder
+            width = getattr(map_builder, "width", mg_data["game"]["map_builder"].get("width", "?"))
+            height = getattr(map_builder, "height", mg_data["game"]["map_builder"].get("height", "?"))
             mg_data["game"]["map_builder"]["map_data"] = f"ascii_map({width}, {height})"
         console.print(json.dumps(mg_data, indent=2))
     console.print()  # Add separator line after configs

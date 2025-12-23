@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import List, Literal, Optional
 
 import torch
-from cortex.stacks import build_hf_stack_config
+from cortex.stacks import build_hf_stack_config, build_llama_stack_config_from_model
+from transformers import AutoConfig, AutoModelForCausalLM
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
@@ -23,14 +24,16 @@ class SmolLLMConfig(PolicyArchitecture):
 
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
+    num_layers: Optional[int] = None
     model_name: str = "HuggingFaceTB/SmolLM2-135M"
     max_sequence_length: int = 32
     dtype: Literal["float32", "float16", "bfloat16"] = "bfloat16"
     attn_implementation: Optional[str] = "flash_attention_2"
     mem_len: int = 128
+    init_from_pretrained: bool = True
 
     tokens_key: str = "smollm_tokens"
-    logits_key: str = "smollm_logits"
+    logits_key: str = "logits"
     values_key: str = "values"
 
     _token_embed_dim: int = 8
@@ -53,14 +56,26 @@ class SmolLLMConfig(PolicyArchitecture):
         return resolve_torch_dtype(self.dtype)
 
     def build_components(self) -> List[ComponentConfig]:
-        stack_cfg = build_hf_stack_config(
-            self.model_name,
-            trust_remote_code=True,
-            dtype=self._resolve_dtype(),
-            attn_implementation=self.attn_implementation,
-            mem_len=int(self.mem_len),
-            compile_blocks=False,
-        )
+        if self.init_from_pretrained:
+            stack_cfg = build_hf_stack_config(
+                self.model_name,
+                trust_remote_code=True,
+                dtype=self._resolve_dtype(),
+                attn_implementation=self.attn_implementation,
+                num_layers=self.num_layers,
+                mem_len=int(self.mem_len),
+                compile_blocks=False,
+            )
+        else:
+            stack_cfg = _build_hf_stack_config_from_scratch(
+                self.model_name,
+                trust_remote_code=True,
+                dtype=self._resolve_dtype(),
+                attn_implementation=self.attn_implementation,
+                num_layers=self.num_layers,
+                mem_len=int(self.mem_len),
+                compile_blocks=False,
+            )
         hf_hidden = int(stack_cfg.d_hidden)
 
         feat_dim = self._token_embed_dim + (4 * self._fourier_freqs) + 1
@@ -115,3 +130,37 @@ class SmolLLMConfig(PolicyArchitecture):
         ]
 
         return components
+
+
+def _build_hf_stack_config_from_scratch(
+    model_name: str,
+    *,
+    trust_remote_code: bool = False,
+    dtype: Optional[torch.dtype] = None,
+    attn_implementation: Optional[str] = None,
+    num_layers: Optional[int] = None,
+    mem_len: int = 0,
+    compile_blocks: bool = False,
+) -> object:
+    """Build a CortexStackConfig matching a HF model's architecture but with random initialization."""
+    config = AutoConfig.from_pretrained(model_name, trust_remote_code=trust_remote_code)
+
+    if attn_implementation is not None and hasattr(config, "attn_implementation"):
+        config.attn_implementation = attn_implementation  # type: ignore[attr-defined]
+
+    model = AutoModelForCausalLM.from_config(config)
+
+    if dtype is not None:
+        model = model.to(dtype=dtype)
+
+    model.eval()
+
+    model_type = getattr(model.config, "model_type", None)
+    if model_type != "llama":
+        msg = f"_build_hf_stack_config_from_scratch currently supports LLaMA; got model_type={model_type}"
+        raise NotImplementedError(msg)
+
+    if num_layers is not None and num_layers > 0:
+        model.model.layers = model.model.layers[:num_layers]  # type: ignore[attr-defined]
+
+    return build_llama_stack_config_from_model(model, mem_len=mem_len, compile_blocks=compile_blocks)

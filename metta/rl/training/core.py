@@ -9,7 +9,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,14 @@ class CoreTrainingLoop:
                 target_device = td.device
                 td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-                td["rewards"] = r.to(device=target_device, non_blocking=True)
+                rewards = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = rewards
+                agent_ids = self._gather_env_indices(training_env_id, td.device)
+                td["training_env_ids"] = agent_ids.unsqueeze(1)
+
+                avg_reward = context.state.avg_reward
+                baseline = avg_reward[agent_ids]
+                td["reward_baseline"] = baseline
 
                 # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
                 # MPS has two bugs:
@@ -116,13 +123,12 @@ class CoreTrainingLoop:
                     td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
-                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
                 # Row-aligned state: provide row slot id and position within row
                 row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
                 t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td, env)
+                self.add_last_action_to_td(td)
 
                 self._ensure_rollout_metadata(td)
 
@@ -131,6 +137,13 @@ class CoreTrainingLoop:
                 context.training_env_id = training_env_id
                 for loss in self.losses.values():
                     loss.rollout(td, context)
+
+            avg_reward = context.state.avg_reward
+            beta = float(context.config.advantage.reward_centering.beta)
+            with torch.no_grad():
+                rewards_f32 = td["rewards"].to(dtype=torch.float32)
+                avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
+            context.state.avg_reward = avg_reward
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
@@ -141,9 +154,6 @@ class CoreTrainingLoop:
                 )
 
             actions_column = raw_actions.view(-1, 1)
-
-            if self.last_action is None:
-                raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
 
             if self.last_action.device != actions_column.device:
                 self.last_action = self.last_action.to(device=actions_column.device)
@@ -172,9 +182,6 @@ class CoreTrainingLoop:
                 raw_infos.extend(infos_list)
 
             total_steps += num_steps
-
-        if last_env_id is None:
-            raise RuntimeError("Rollout completed without receiving any environment data")
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
@@ -231,9 +238,6 @@ class CoreTrainingLoop:
         Returns:
             Dictionary of loss statistics
         """
-        training_env_id = context.training_env_id
-        assert training_env_id is not None, "Training environment ID is required"
-
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
@@ -243,9 +247,10 @@ class CoreTrainingLoop:
 
         for _ in range(update_epochs):
             if "values" in self.experience.buffer.keys():
+                centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
                 advantages = compute_advantage(
                     self.experience.buffer["values"],
-                    self.experience.buffer["rewards"],
+                    centered_rewards,
                     self.experience.buffer["dones"],
                     torch.ones_like(self.experience.buffer["values"]),
                     torch.zeros_like(self.experience.buffer["values"], device=self.device),
@@ -282,7 +287,10 @@ class CoreTrainingLoop:
                 policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
                 shared_loss_mb_data["policy_td"] = policy_td
 
+                used_keys: set[str] = set()
                 for _loss_name, loss_obj in self.losses.items():
+                    if loss_obj._loss_gate_allows("train", context):
+                        used_keys.update(loss_obj.policy_output_keys(policy_td))
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
                         shared_loss_mb_data, context, mb_idx
                     )
@@ -292,6 +300,11 @@ class CoreTrainingLoop:
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
                     break
+
+                # Ensure all policy outputs participate in the graph even if some heads
+                # aren't used by the active losses (e.g., BC-only runs). This avoids
+                # DDP unused-parameter errors without relying on find_unused_parameters.
+                total_loss = add_dummy_loss_for_unused_params(total_loss, td=policy_td, used_keys=used_keys)
 
                 total_loss.backward()
 
@@ -329,23 +342,17 @@ class CoreTrainingLoop:
 
         return losses_stats, epochs_trained
 
-    def on_epoch_start(self, context: ComponentContext) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the start of each epoch.
 
         Args:
             context: Shared trainer context providing epoch state
         """
         for loss in self.losses.values():
-            loss.on_new_training_run(context)
+            loss.on_epoch_start(context)
 
-    def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
-        env_ids = td["training_env_ids"]
-        if env_ids.dim() == 2:
-            env_ids = env_ids.squeeze(-1)
-
-        if env_ids.numel() == 0:
-            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int32, device=td.device)
-            return
+    def add_last_action_to_td(self, td: TensorDict) -> None:
+        env_ids = td["training_env_ids"].squeeze(-1)
 
         max_env_id = int(env_ids.max().item())
         target_length = max_env_id + 1

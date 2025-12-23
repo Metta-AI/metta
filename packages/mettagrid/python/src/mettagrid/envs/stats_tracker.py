@@ -21,13 +21,11 @@ class StatsTracker(SimulatorEventHandler):
 
     def on_episode_start(self) -> None:
         super().on_episode_start()
-        assert self._sim is not None
         self._sim._context["infos"] = {}
         self._episode_start_ts = datetime.datetime.now()
 
     def on_episode_end(self) -> None:
         super().on_episode_end()
-        assert self._sim is not None
 
         # Get episode rewards and stats
         episode_rewards = self._sim.episode_rewards
@@ -116,7 +114,6 @@ class StatsTracker(SimulatorEventHandler):
 
     def _add_timing_info(self) -> None:
         """Add timing information to infos."""
-        assert self._sim is not None
         timer = self._sim._timer
         elapsed_times = timer.get_all_elapsed()
         thread_idle_time = elapsed_times.pop("thread_idle", 0)
@@ -153,7 +150,6 @@ class StatsTracker(SimulatorEventHandler):
 
     def _update_label_completions(self, moving_avg_window: int = 500) -> None:
         """Update label completions."""
-        assert self._sim is not None
         label = self._sim.config.label
 
         # keep track of a list of the last 500 labels

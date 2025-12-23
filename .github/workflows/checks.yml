@@ -181,7 +181,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "metta-cli"
+          install-mode: "testing"
 
       - name: Run linting and formatting
         run: uv run python .github/scripts/run_ci_stage.py lint
@@ -264,6 +264,12 @@ jobs:
             ARGS+=(--skip-package app_backend)
           fi
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
+
+      - name: Python type checking
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py pyright
 
   recipe-tests:
     name: "Tests - Recipes"

@@ -127,6 +127,12 @@ class CortexTD(nn.Module):
         self.in_key = config.in_key
         self.out_key = config.out_key
 
+        self._storage_dtype: torch.dtype = resolve_torch_dtype(config.dtype)
+        compute_override = getattr(config, "compute_dtype", None)
+        self._compute_dtype: Optional[torch.dtype] = (
+            resolve_torch_dtype(compute_override) if compute_override is not None else None
+        )
+
         scfg: CortexStackConfig = config.stack_cfg
         stack = build_cortex(scfg)
         stack_hidden = int(stack.cfg.d_hidden)  # type: ignore[attr-defined]
@@ -135,16 +141,13 @@ class CortexTD(nn.Module):
                 f"CortexTDConfig.d_hidden ({config.d_hidden}) does not match stack.cfg.d_hidden ({stack_hidden})."
             )
 
+        if self._storage_dtype is not None and self._storage_dtype is not torch.float32:
+            stack = stack.to(dtype=self._storage_dtype)
+
         self.stack: CortexStack = stack
         self.d_hidden: int = int(config.d_hidden)
         self.out_features: Optional[int] = config.out_features
         self.key_prefix: str = config.key_prefix
-
-        self._storage_dtype: torch.dtype = resolve_torch_dtype(config.dtype)
-        compute_override = getattr(config, "compute_dtype", None)
-        self._compute_dtype: Optional[torch.dtype] = (
-            resolve_torch_dtype(compute_override) if compute_override is not None else None
-        )
 
         self._state_treedef: Optional[Any] = None
         self._leaf_shapes: List[Tuple[int, ...]] = []
@@ -154,6 +157,8 @@ class CortexTD(nn.Module):
             layers.append(nn.Linear(self.d_hidden, self.out_features))
             layers.append(self._make_activation(self.config.output_nonlinearity))
         self._out: nn.Module = nn.Sequential(*layers) if layers else nn.Identity()
+        if self._storage_dtype is not None and self._storage_dtype is not torch.float32:
+            self._out = self._out.to(dtype=self._storage_dtype)
 
         self._rollout_store_leaves: List[torch.Tensor] = []
         self._row_store_leaves: List[torch.Tensor] = []

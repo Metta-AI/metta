@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -11,15 +11,14 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class PPOActorConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
-    # Entropy term weight tuned from CvC sweep winner
-    ent_coef: float = Field(default=0.027574, ge=0)
+    clip_coef: float = Field(default=0.22017136216163635, gt=0, le=1.0)
+    # Entropy term weight from sweep
+    ent_coef: float = Field(default=0.010000, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -56,6 +55,9 @@ class PPOActor(Loss):
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -95,9 +97,10 @@ class PPOActor(Loss):
             # If we are using a quantile critic in our policy
             values = values.mean(dim=-1)
 
+        centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
         adv = compute_advantage(
             values,
-            minibatch["rewards"],
+            centered_rewards,
             minibatch["dones"],
             importance_sampling_ratio,
             shared_loss_data["advantages"],
@@ -124,7 +127,6 @@ class PPOActor(Loss):
         entropy_loss = entropy.mean()
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         # Compute metrics
         with torch.no_grad():

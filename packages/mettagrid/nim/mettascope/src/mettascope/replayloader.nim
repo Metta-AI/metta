@@ -28,7 +28,6 @@ proc onReplayLoaded*() =
   worldHeatmapShader.updateTexture(worldHeatmap, 0)
   echo "Heatmap initialized: ", worldHeatmap.width, "x", worldHeatmap.height, " (replay: ", replay.mapSize[0], "x", replay.mapSize[1], ")"
 
-  fitVisibleMap(worldMapZoomInfo)
+  needsInitialFit = true
 
   echo "Replay loaded: ", replay.fileName
-
