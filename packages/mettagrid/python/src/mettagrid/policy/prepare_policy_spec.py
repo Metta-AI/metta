@@ -5,6 +5,8 @@ from __future__ import annotations
 import atexit
 import hashlib
 import logging
+import os
+import secrets
 import shutil
 import stat
 import subprocess
@@ -15,13 +17,14 @@ from typing import Optional
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.file import local_copy, read
+from mettagrid.util.file import read as s3_read
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
 
 _registered_cleanup_dirs: set[Path] = set()
+_registered_cleanup_files: set[Path] = set()
 
 
 def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
@@ -179,6 +182,121 @@ def _cleanup_cache_dir(cache_dir: Path) -> None:
         shutil.rmtree(cache_dir, ignore_errors=True)
 
 
+def _schedule_cleanup_cache_file(path: Path) -> None:
+    if path not in _registered_cleanup_files:
+        _registered_cleanup_files.add(path)
+        atexit.register(_cleanup_cache_file, path)
+
+
+def _cleanup_cache_file(path: Path) -> None:
+    """atexit handler to clean up a single file."""
+    if path.exists():
+        os.remove(path)
+
+
+def download_policy_spec_from_s3(
+    s3_path: str,
+    cache_dir: Optional[Path] = None,
+    remove_downloaded_copy_on_exit: bool = False,
+) -> Path:
+    """Download a policy from S3 without extracting archives.
+
+    Archives and .mpt files are cached as local files. Checkpoint directories are synced
+    into a deterministic local cache directory.
+
+    Args:
+        s3_path: S3 path to a submission archive (.zip), .mpt file, or checkpoint directory
+        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
+        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache entry
+
+    Returns:
+        Local path to the downloaded zip file or checkpoint directory.
+    """
+    if cache_dir is None:
+        cache_dir = DEFAULT_POLICY_CACHE_DIR
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    normalized_path = s3_path.rstrip("/")
+    if normalized_path.endswith(".zip") or normalized_path.endswith(".mpt"):
+        suffix = ".zip" if normalized_path.endswith(".zip") else ".mpt"
+        digest = hashlib.sha256(normalized_path.encode()).hexdigest()
+        tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}{suffix}"
+        local_path = cache_dir / f"{digest}{suffix}"
+
+        if local_path.exists():
+            return local_path
+
+        _schedule_cleanup_cache_file(tmp_local_path)
+        if remove_downloaded_copy_on_exit:
+            _schedule_cleanup_cache_file(local_path)
+
+        # download at a temporary path and use atomic rename so we don't see partial results
+        with open(tmp_local_path, mode="wb") as f:
+            data = s3_read(normalized_path)
+            f.write(data)
+            f.close()
+        os.rename(tmp_local_path, local_path)
+
+        return local_path
+
+    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()[:16]
+    marker_file = extraction_root / ".checkpoint_sync_complete"
+    if not marker_file.exists():
+        extraction_root.mkdir(parents=True, exist_ok=True)
+        _sync_s3_checkpoint_dir(normalized_path, extraction_root)
+        marker_file.touch()
+
+    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+        _registered_cleanup_dirs.add(extraction_root)
+        atexit.register(_cleanup_cache_dir, extraction_root)
+
+    return extraction_root
+
+
+def load_policy_spec_from_zip(
+    local_path: Path,
+    cache_dir: Optional[Path] = None,
+    force_dest: Optional[Path] = None,
+    remove_downloaded_copy_on_exit: bool = False,
+    device: str | None = None,
+) -> PolicySpec:
+    """
+    Extract a submission archive from a local zip file.
+
+    Extracts the archive in a deterministic cache location based on the URI hash,
+    allowing reuse across calls with the same URI.
+
+    Args:
+        local_path: S3 path to the submission archive (e.g., file://./submission.zip)
+        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
+        force_dest: Extract to caller-selected directory
+        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache directory
+        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
+
+    """
+    if cache_dir is None:
+        cache_dir = DEFAULT_POLICY_CACHE_DIR
+
+    extraction_root = force_dest
+    if extraction_root is None:
+        extraction_root = (cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()).with_suffix(".d")
+    marker_file = extraction_root / ".extraction_complete"
+
+    if not marker_file.exists():
+        extraction_root.mkdir(parents=True, exist_ok=True)
+        _extract_submission_archive(local_path, extraction_root)
+        marker_file.touch()
+
+        # Only schedule cleanup when we're the ones that created the dir
+        if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+            _registered_cleanup_dirs.add(extraction_root)
+            atexit.register(_cleanup_cache_dir, extraction_root)
+
+    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
+
+    return policy_spec
+
+
 def load_policy_spec_from_s3(
     s3_path: str,
     cache_dir: Optional[Path] = None,
@@ -186,52 +304,29 @@ def load_policy_spec_from_s3(
     *,
     device: str | None = None,
 ) -> PolicySpec:
-    """Download a submission archive or checkpoint dir from S3 and return a PolicySpec ready for loading.
+    """Download a submission archive or checkpoint dir from S3 and return a PolicySpec ready for loading."""
+    local_path = download_policy_spec_from_s3(
+        s3_path=s3_path,
+        cache_dir=cache_dir,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+    )
 
-    Downloads into a deterministic cache location based on the URI hash, allowing
-    reuse across calls with the same URI.
-
-    Args:
-        s3_path: S3 path to a submission archive (.zip) or checkpoint directory
-        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
-        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache directory
-        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
-
-    Returns:
-        PolicySpec with paths resolved to the local extraction directory
-    """
-    if cache_dir is None:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
-
-    normalized_path = s3_path.rstrip("/")
-    is_archive = normalized_path.endswith(".zip")
-
-    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()[:16]
-    marker_file = extraction_root / (".extraction_complete" if is_archive else ".checkpoint_sync_complete")
-
-    if not marker_file.exists():
-        extraction_root.mkdir(parents=True, exist_ok=True)
-
-        if is_archive:
-            with local_copy(normalized_path) as local_archive:
-                _extract_submission_archive(local_archive, extraction_root)
-        else:
-            _sync_s3_checkpoint_dir(normalized_path, extraction_root)
-
-        marker_file.touch()
-
-    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
-
-    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-        _registered_cleanup_dirs.add(extraction_root)
-        atexit.register(_cleanup_cache_dir, extraction_root)
+    if local_path.is_dir():
+        policy_spec = load_policy_spec_from_local_dir(local_path, device=device)
+    else:
+        policy_spec = load_policy_spec_from_zip(
+            local_path=local_path,
+            force_dest=local_path.with_suffix(".d"),
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            device=device,
+        )
 
     return policy_spec
 
 
 def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:
     spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
-    spec_bytes = read(spec_uri)
+    spec_bytes = s3_read(spec_uri)
     (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
 
     submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
@@ -246,4 +341,4 @@ def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> N
             raise ValueError(f"Checkpoint data_path escapes cache dir: {submission_spec.data_path}")
         data_uri = f"{checkpoint_dir_uri.rstrip('/')}/{submission_spec.data_path.lstrip('/')}"
         local_data_path.parent.mkdir(parents=True, exist_ok=True)
-        local_data_path.write_bytes(read(data_uri))
+        local_data_path.write_bytes(s3_read(data_uri))

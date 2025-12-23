@@ -275,29 +275,47 @@ def policy_spec_from_uri(
     strict: bool = True,
     remove_downloaded_copy_on_exit: bool = False,
 ):
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.policy import PolicySpec
+    from mettagrid.policy.prepare_policy_spec import (
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_s3,
+        load_policy_spec_from_zip,
+    )
 
-    def _override_strict(spec):
+    parsed = resolve_uri(uri)
+
+    if parsed.canonical.endswith(".mpt"):
+        checkpoint_path = str(parsed.local_path) if parsed.local_path else parsed.canonical
+        return PolicySpec(
+            class_path="mettagrid.policy.mpt_policy.MptPolicy",
+            init_kwargs={
+                "checkpoint_uri": checkpoint_path,
+                "device": device,
+                "strict": strict,
+            },
+        )
+
+    if parsed.scheme == "s3":
+        spec = load_policy_spec_from_s3(
+            parsed.canonical,
+            device=device,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        )
         if "strict" in spec.init_kwargs:
             spec.init_kwargs["strict"] = strict
         return spec
 
-    parsed = resolve_uri(uri)
-
-    if parsed.scheme == "s3":
-        if parsed.canonical.endswith("/policy_spec.json"):
-            raise ValueError("Provide a checkpoint directory, not policy_spec.json")
-        return _override_strict(
-            load_policy_spec_from_s3(
-                parsed.canonical,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-                device=device,
-            )
-        )
-
     if parsed.local_path:
         if parsed.local_path.is_file():
-            raise ValueError("Provide a checkpoint directory, not policy_spec.json")
-        return _override_strict(load_policy_spec_from_local_dir(parsed.local_path, device=device))
+            spec = load_policy_spec_from_zip(
+                parsed.local_path,
+                device=device,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
+        else:
+            spec = load_policy_spec_from_local_dir(parsed.local_path, device=device)
+        if "strict" in spec.init_kwargs:
+            spec.init_kwargs["strict"] = strict
+        return spec
 
-    raise ValueError("Provide a checkpoint directory")
+    raise ValueError(f"Cannot load policy spec from URI: {uri}")
