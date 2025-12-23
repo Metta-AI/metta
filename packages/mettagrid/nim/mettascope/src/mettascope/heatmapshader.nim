@@ -1,5 +1,5 @@
 import
-  std/[math],
+  std/[math, strutils],
   opengl, boxy/[shaders], shady, vmath, pixie,
   heatmap, common
 
