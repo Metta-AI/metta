@@ -101,7 +101,14 @@ class CoreTrainingLoop:
                 target_device = td.device
                 td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-                td["rewards"] = r.to(device=target_device, non_blocking=True)
+                rewards = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = rewards
+                agent_ids = self._gather_env_indices(training_env_id, td.device)
+                td["training_env_ids"] = agent_ids.unsqueeze(1)
+
+                avg_reward = context.state.avg_reward
+                baseline = avg_reward[agent_ids]
+                td["reward_baseline"] = baseline
 
                 # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
                 # MPS has two bugs:
@@ -116,7 +123,6 @@ class CoreTrainingLoop:
                     td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
-                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
                 # Row-aligned state: provide row slot id and position within row
                 row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
                 t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
@@ -131,6 +137,13 @@ class CoreTrainingLoop:
                 context.training_env_id = training_env_id
                 for loss in self.losses.values():
                     loss.rollout(td, context)
+
+            avg_reward = context.state.avg_reward
+            beta = float(context.config.advantage.reward_centering.beta)
+            with torch.no_grad():
+                rewards_f32 = td["rewards"].to(dtype=torch.float32)
+                avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
+            context.state.avg_reward = avg_reward
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
@@ -234,9 +247,10 @@ class CoreTrainingLoop:
 
         for _ in range(update_epochs):
             if "values" in self.experience.buffer.keys():
+                centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
                 advantages = compute_advantage(
                     self.experience.buffer["values"],
-                    self.experience.buffer["rewards"],
+                    centered_rewards,
                     self.experience.buffer["dones"],
                     torch.ones_like(self.experience.buffer["values"]),
                     torch.zeros_like(self.experience.buffer["values"], device=self.device),

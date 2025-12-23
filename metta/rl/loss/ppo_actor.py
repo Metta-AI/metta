@@ -97,9 +97,10 @@ class PPOActor(Loss):
             # If we are using a quantile critic in our policy
             values = values.mean(dim=-1)
 
+        centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
         adv = compute_advantage(
             values,
-            minibatch["rewards"],
+            centered_rewards,
             minibatch["dones"],
             importance_sampling_ratio,
             shared_loss_data["advantages"],
