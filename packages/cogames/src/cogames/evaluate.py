@@ -70,14 +70,14 @@ def evaluate(
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
         env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
-        policy_instances: list[MultiAgentPolicy] = []
-        for spec in policy_specs:
-            if spec.class_path == checkpoint_class_path:
-                policy = CheckpointPolicy.from_policy_spec(env_interface, spec).wrapped_policy
-            else:
-                policy = initialize_or_load_policy(env_interface, spec)
-            policy_instances.append(policy)
+        policy_instances: list[MultiAgentPolicy] = [
+            (
+                CheckpointPolicy.from_policy_spec(env_interface, spec).wrapped_policy
+                if spec.class_path == CheckpointPolicy.CLASS_PATH
+                else initialize_or_load_policy(env_interface, spec)
+            )
+            for spec in policy_specs
+        ]
 
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)

@@ -24,18 +24,14 @@ def _run_single_simulation(
     policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
-    checkpoint_class_path = f"{CheckpointPolicy.__module__}.{CheckpointPolicy.__name__}"
-    multi_agent_policies: list[MultiAgentPolicy] = []
-    for spec in policy_specs:
-        if spec.class_path == checkpoint_class_path:
-            policy = CheckpointPolicy.from_policy_spec(
-                env_interface,
-                spec,
-                device_override=device_override,
-            ).wrapped_policy
-        else:
-            policy = initialize_or_load_policy(env_interface, spec, device_override=device_override)
-        multi_agent_policies.append(policy)
+    multi_agent_policies: list[MultiAgentPolicy] = [
+        (
+            CheckpointPolicy.from_policy_spec(env_interface, spec, device_override=device_override).wrapped_policy
+            if spec.class_path == CheckpointPolicy.CLASS_PATH
+            else initialize_or_load_policy(env_interface, spec, device_override=device_override)
+        )
+        for spec in policy_specs
+    ]
 
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
