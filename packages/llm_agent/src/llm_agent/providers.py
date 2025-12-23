@@ -1,8 +1,9 @@
 """LLM provider utilities for model selection and availability checks."""
 
 import subprocess
-from openai import OpenAI
 import sys
+
+from openai import OpenAI
 
 
 def check_ollama_available() -> bool:

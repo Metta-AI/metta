@@ -2,12 +2,12 @@
 
 import random
 from abc import ABC, abstractmethod
-
 from pathlib import Path
-from llm_agent.policy.prompt_builder import LLMPromptBuilder
+
 from llm_agent.action_parser import parse_action
 from llm_agent.cost_tracker import CostTracker
 from llm_agent.exploration_tracker import ExplorationTracker
+from llm_agent.policy.prompt_builder import LLMPromptBuilder
 from llm_agent.utils import pos_to_dir
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
