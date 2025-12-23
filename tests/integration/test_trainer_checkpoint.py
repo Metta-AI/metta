@@ -20,7 +20,7 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata
+from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
 
@@ -163,7 +163,5 @@ class TestTrainerCheckpointIntegration:
 
         env_cfg = Curriculum(training_env_cfg.curriculum).get_task().get_env_cfg()
         env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        assert (
-            CheckpointPolicy.from_checkpoint_uri(env_info, policy_uri, device_override=system_cfg.device)
-            .wrapped_policy.state_dict()
-        )
+        spec = policy_spec_from_uri(policy_uri)
+        assert CheckpointPolicy.from_policy_spec(env_info, spec).wrapped_policy.state_dict()
