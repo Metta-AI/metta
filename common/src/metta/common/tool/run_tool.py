@@ -533,6 +533,10 @@ constructor/function vs configuration overrides based on introspection.
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
                 if name in nested_cli:
                     provided = nested_cli[name]
+                    if name == "policy_architecture" and isinstance(provided, dict) and p.default is not inspect._empty:
+                        # Let policy_architecture.* flow to Tool overrides so sweeps can
+                        # tweak architecture params without injecting raw dicts.
+                        continue
 
                     # If the parameter has a default dict or BaseModel, start from it and merge overrides.
                     base: Any | None = None
