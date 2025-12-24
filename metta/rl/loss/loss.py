@@ -145,6 +145,7 @@ class Loss:
     loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
+    _metric_mb_idx: int | None = field(default=None, init=False, repr=False)
 
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
@@ -205,7 +206,11 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        return self.run_train(shared_loss_data, ctx, mb_idx)
+        self._metric_mb_idx = mb_idx
+        try:
+            return self.run_train(shared_loss_data, ctx, mb_idx)
+        finally:
+            self._metric_mb_idx = None
 
     def run_train(
         self,
@@ -248,6 +253,10 @@ class Loss:
 
     def track_metric(self, key: str, value: Tensor | float) -> None:
         """Track a scalar metric."""
+        interval = getattr(self.trainer_cfg, "loss_metric_interval", 1)
+        if interval > 1 and self._metric_mb_idx is not None:
+            if self._metric_mb_idx % interval != 0:
+                return
         _track_metric(self.loss_tracker, key, value)
 
     def metric_mean(self, key: str) -> float:

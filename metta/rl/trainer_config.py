@@ -89,6 +89,7 @@ class TrainerConfig(Config):
 
     # Debug/perf toggles.
     synchronize_after_optimizer_step: bool = False
+    loss_metric_interval: int = Field(default=1, ge=1)
     update_epochs: int = Field(default=1, gt=0)
     scale_batches_by_world_size: bool = False
 
