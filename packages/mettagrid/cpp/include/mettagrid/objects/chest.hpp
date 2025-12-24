@@ -1,6 +1,7 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_HPP_
 
+#include <algorithm>
 #include <set>
 #include <unordered_map>
 #include <vector>
@@ -125,15 +126,15 @@ public:
       throw std::runtime_error("Observation encoder not set for chest");
     }
     std::vector<PartialObservationToken> features;
-    features.reserve(1 + this->inventory.get().size() + this->tag_ids.size() + (this->vibe != 0 ? 1 : 0));
+    features.reserve(1 + this->inventory.get().size() * this->obs_encoder->get_num_inventory_tokens() +
+                     this->tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
     if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
-    // Add current inventory (inv:resource)
+    // Add current inventory using multi-token encoding
     for (const auto& [item, amount] : this->inventory.get()) {
       assert(amount > 0);
-      ObservationType item_observation_feature = this->obs_encoder->get_inventory_feature_id(item);
-      features.push_back({item_observation_feature, static_cast<ObservationType>(amount)});
+      this->obs_encoder->append_inventory_tokens(features, item, amount);
     }
 
     // Emit tag features
