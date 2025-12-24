@@ -285,8 +285,8 @@ def policy_spec_from_uri(
     device: str = "cpu",
     remove_downloaded_copy_on_exit: bool = False,
 ):
-    from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.loader import resolve_policy_class_path
+    from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
         download_checkpoint_dir_from_s3,
         download_policy_spec_from_s3_as_zip,

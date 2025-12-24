@@ -173,6 +173,4 @@ class MettaSchemeResolver(SchemeResolver):
             logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)
             return resolved
 
-        raise ValueError(
-            f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission in S3."
-        )
+        raise ValueError(f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission in S3.")

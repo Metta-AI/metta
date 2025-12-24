@@ -331,8 +331,6 @@ def load_policy_spec_from_path(
     )
 
 
-
-
 def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:
     spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
     spec_bytes = s3_read(spec_uri)

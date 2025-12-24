@@ -55,7 +55,9 @@ def describe_policy_arg(with_proportion: bool):
     console.print("  - s3://bucket/path/to/checkpoints/run:v5")
     console.print("  - file:///path/to/checkpoints/run:v5 or /path/to/checkpoints/run:v5")
     if with_proportion:
-        console.print("  - [light_slate_grey]proportion[/light_slate_grey]: optional float specifying the population share.\n")
+        console.print(
+            "  - [light_slate_grey]proportion[/light_slate_grey]: optional float specifying the population share.\n"
+        )
 
 
 def _translate_error(e: Exception) -> str:
