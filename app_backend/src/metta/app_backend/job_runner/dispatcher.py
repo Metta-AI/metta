@@ -71,7 +71,7 @@ def create_episode_job(job: JobRequest) -> str:
                                 str(job.id),
                             ],
                             env=[
-                                client.V1EnvVar(name="BACKEND_URL", value=cfg.BACKEND_URL),
+                                client.V1EnvVar(name="STATS_SERVER_URI", value=cfg.STATS_SERVER_URI),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
                             ],
                             resources=client.V1ResourceRequirements(

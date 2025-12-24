@@ -8,7 +8,7 @@ image:
   pullPolicy: IfNotPresent
 
 env:
-  BACKEND_URL: "http://host.docker.internal:8000"
+  STATS_SERVER_URI: "http://host.docker.internal:8000"
 
 datadog:
   enabled: false

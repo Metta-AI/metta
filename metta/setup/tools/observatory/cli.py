@@ -106,7 +106,7 @@ def server():
     env["DEBUG_USER_EMAIL"] = "localdev@example.com"
     env["RUN_MIGRATIONS"] = "true"
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
-    env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_K8S
+    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting backend server...")
@@ -125,11 +125,11 @@ def server():
 @handle_errors
 def watcher():
     env = os.environ.copy()
-    env["BACKEND_URL"] = LOCAL_BACKEND_URL
+    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting watcher...")
-    info(f"  Backend: {LOCAL_BACKEND_URL}")
+    info(f"  Stats server: {LOCAL_BACKEND_URL}")
 
     subprocess.run(
         ["uv", "run", "python", "-m", "metta.app_backend.job_runner.watcher"],
