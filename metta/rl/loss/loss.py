@@ -23,6 +23,16 @@ class MetricAccumulator:
     total: Tensor | float = 0.0
     count: int = 0
 
+    def append(self, value: Tensor | float) -> None:
+        self.add(value)
+
+    def extend(self, values: list[Tensor | float]) -> None:
+        for value in values:
+            self.add(value)
+
+    def __len__(self) -> int:
+        return self.count
+
     def add(self, value: Tensor | float) -> None:
         if torch.is_tensor(value):
             value = value.detach()
