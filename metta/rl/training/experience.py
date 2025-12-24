@@ -260,7 +260,8 @@ class Experience:
         idx = torch.multinomial(prio_probs, self.minibatch_segments)
         minibatch = self.buffer[idx].clone()
 
-        return minibatch, idx, all_prio_is_weights[idx, None]
+        prio_is_weights = all_prio_is_weights[idx, None].expand(-1, self.bptt_horizon)
+        return minibatch, idx, prio_is_weights
 
     def sample(
         self,

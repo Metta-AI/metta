@@ -194,7 +194,7 @@ def _cleanup_cache_file(path: Path) -> None:
         os.remove(path)
 
 
-def download_policy_spec_from_s3(
+def download_policy_spec_from_s3_as_zip(
     s3_path: str,
     cache_dir: Optional[Path] = None,
     remove_downloaded_copy_on_exit: bool = False,
@@ -276,42 +276,5 @@ def load_policy_spec_from_zip(
             atexit.register(_cleanup_cache_dir, extraction_root)
 
     policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
-
-    return policy_spec
-
-
-def load_policy_spec_from_s3(
-    s3_path: str,
-    cache_dir: Optional[Path] = None,
-    remove_downloaded_copy_on_exit: bool = False,
-    *,
-    device: str | None = None,
-) -> PolicySpec:
-    """Download a submission archive from S3 and return a PolicySpec ready for loading.
-
-    Downloads the archive to a deterministic cache location based on the URI hash,
-    allowing reuse across calls with the same URI.
-
-    Args:
-        s3_path: S3 path to the submission archive (e.g., s3://bucket/path/submission.zip)
-        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
-        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache directory
-        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
-
-    Returns:
-        PolicySpec with paths resolved to the local extraction directory
-    """
-    local_path = download_policy_spec_from_s3(
-        s3_path=s3_path,
-        cache_dir=cache_dir,
-        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-    )
-
-    policy_spec = load_policy_spec_from_zip(
-        local_path=local_path,
-        force_dest=local_path.with_suffix(".d"),
-        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-        device=device,
-    )
 
     return policy_spec

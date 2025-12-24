@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 import uuid
@@ -101,6 +102,7 @@ class EpisodeReplay:
         self.total_rewards = np.zeros(sim.num_agents)
         # Map object IDs to their index in self.objects for consistent ordering
         self._object_id_to_index: dict[int, int] = {}
+        self.set_compression("zlib")
 
         self._validate_non_empty_string_list(sim.action_names, "action_names")
         self._validate_non_empty_string_list(sim.resource_names, "item_names")
@@ -116,6 +118,16 @@ class EpisodeReplay:
             "mg_config": sim.config.model_dump(mode="json"),
             "objects": self.objects,
         }
+
+    def set_compression(self, compression: str):
+        if compression == "zlib":
+            self._compression = zlib.compress
+            self._content_type = "application/x-compress"
+        elif compression == "gzip":
+            self._compression = gzip.compress
+            self._content_type = "application/gzip"
+        else:
+            raise ValueError(f"unknown compression {compression!r}, try 'zlib' or 'gzip'")
 
     def log_step(self, current_step: int, actions: np.ndarray, rewards: np.ndarray):
         """Log a single step of the episode."""
@@ -191,9 +203,9 @@ class EpisodeReplay:
         """Writes a replay to a file."""
         replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
-        compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
+        compressed_data = self._compression(replay_bytes)  # Compress the bytes
 
-        write_data(path, compressed_data, content_type="application/x-compress")
+        write_data(path, compressed_data, content_type=self._content_type)
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:

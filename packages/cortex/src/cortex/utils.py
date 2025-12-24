@@ -10,6 +10,8 @@ from typing import Callable
 import torch
 from torch._dynamo import disable
 
+from cortex.tf32 import set_tf32_precision
+
 logger = logging.getLogger(__name__)
 
 _disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
@@ -86,26 +88,6 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-def set_tf32_precision(mode: str) -> None:
-    """Set TF32 behavior for matmul and cuDNN convolutions.
-
-    Uses legacy PyTorch flags: torch.backends.cuda.matmul.allow_tf32
-    and torch.backends.cudnn.allow_tf32.
-    """
-    if not torch.cuda.is_available():
-        return
-
-    mode_lower = mode.lower()
-    if mode_lower == "tf32":
-        # Enable TF32 for performance
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-    else:
-        # Disable TF32, use full FP32 precision
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
-
-
 def configure_tf32_precision() -> None:
     """Ensure TF32 fast paths are enabled."""
     try:
@@ -113,9 +95,7 @@ def configure_tf32_precision() -> None:
 
         configure_torch_globally()
     except ImportError:
-        if torch.cuda.is_available():
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
+        set_tf32_precision("tf32")
 
 
 __all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]

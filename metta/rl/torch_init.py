@@ -7,6 +7,7 @@ be set once globally before any models are created or compiled.
 import os
 
 import torch
+from cortex.tf32 import set_tf32_precision
 
 # Flag to ensure we only configure once
 _configured = False
@@ -25,9 +26,7 @@ def configure_torch_globally() -> None:
         return
 
     # Configure TF32 precision for CUDA (performance mode)
-    if torch.cuda.is_available():
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
+    set_tf32_precision(True)
 
     _configured = True
 
@@ -40,9 +39,7 @@ def enable_determinism() -> None:
     """
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(True)
-    if torch.cuda.is_available():
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
+    set_tf32_precision(False)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
