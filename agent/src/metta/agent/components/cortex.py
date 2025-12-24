@@ -409,8 +409,7 @@ class CortexTD(nn.Module):
             if max_slot > cap:
                 raise RuntimeError(f"[CortexTD] slot out of bounds: need<{max_slot} cap={cap}")
             gathered = src.index_select(0, slot_ids_clamped)
-            if not bool(valid_mask.all()):
-                gathered[~valid_mask] = 0
+            gathered[~valid_mask] = 0
             gathered_leaves.append(gathered.to(dtype=dtype, device=device))
         return optree.tree_unflatten(self._state_treedef, gathered_leaves)
 
