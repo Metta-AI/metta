@@ -35,9 +35,9 @@ ADDITIONAL_HEART_COST = _BASE_STATION.additional_heart_cost
 def _make_simulation() -> Simulation:
     cfg = MettaGridConfig.EmptyRoom(num_agents=4, with_walls=True)
     cfg.game.resource_names = RESOURCES
-    cfg.game.agent.default_resource_limit = 255
-    cfg.game.agent.resource_limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
-    cfg.game.agent.initial_inventory = {name: 0 for name in RESOURCES}
+    cfg.game.agent.inventory.default_limit = 255
+    cfg.game.agent.inventory.limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
+    cfg.game.agent.inventory.initial = {name: 0 for name in RESOURCES}
 
     cfg.game.actions.noop.enabled = True
     cfg.game.actions.move.enabled = True

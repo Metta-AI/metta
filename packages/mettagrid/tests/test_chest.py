@@ -1,4 +1,4 @@
-from mettagrid.config.mettagrid_config import ChestConfig, MettaGridConfig, ResourceLimitsConfig
+from mettagrid.config.mettagrid_config import ChestConfig, InventoryConfig, MettaGridConfig, ResourceLimitsConfig
 from mettagrid.simulator import Simulation
 
 
@@ -10,16 +10,18 @@ class TestChest:
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True)
 
         cfg.game.resource_names = ["gold"]
-        cfg.game.agent.initial_inventory = {"gold": 5}
+        cfg.game.agent.inventory.initial = {"gold": 5}
 
         cfg.game.objects["chest"] = ChestConfig(
             vibe_transfers={
                 "down": {"gold": 1},  # When showing deposit vibe, deposit 1 gold
                 "up": {"gold": -1},  # When showing withdraw vibe, withdraw 1 gold
             },
-            resource_limits={
-                "gold": ResourceLimitsConfig(limit=100, resources=["gold"]),
-            },
+            inventory=InventoryConfig(
+                limits={
+                    "gold": ResourceLimitsConfig(limit=100, resources=["gold"]),
+                },
+            ),
         )
 
         cfg = cfg.with_ascii_map(

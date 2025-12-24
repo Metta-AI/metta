@@ -54,9 +54,9 @@ def test_inventory_heart_tune_caps_initial_inventory_to_limits():
     env = mission.make_env()
     agent = env.game.agent
 
-    # Find energy limit from resource_limits list
-    energy_limit = agent.get_limit_for_resource("energy")
-    assert agent.initial_inventory["energy"] == energy_limit
+    # Find energy limit from inventory.limits
+    energy_limit = agent.inventory.get_limit("energy")
+    assert agent.inventory.initial["energy"] == energy_limit
 
 
 def _station_configs(mission: Mission) -> list[CvCStationConfig]:
