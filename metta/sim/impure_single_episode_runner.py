@@ -45,7 +45,7 @@ def main():
             pure_job_spec = {
                 "job": job.model_copy(
                     deep=True, update={"results_uri": local_results_uri, "replay_uri": local_replay_uri}
-                ),
+                ).model_dump(),
                 "device": "cpu",
                 "allow_network": True,  # Until trained policies no longer need network access to hydrate
             }
