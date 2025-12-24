@@ -5,23 +5,16 @@ import subprocess
 from typing import Annotated
 
 import typer
-import yaml
 from rich.console import Console
 
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
 from metta.setup.tools.observatory.kind import kind_app
-from metta.setup.tools.observatory.utils import build_image, load_image_into_kind
+from metta.setup.tools.observatory.utils import LOCAL_METTA_POLICY_EVAL_IMG_NAME, build_image, load_image_into_kind
 from metta.setup.utils import error, info
 
 console = Console()
-
-
-def get_kind_values() -> dict:
-    values_path = get_repo_root() / "devops/charts/orchestrator/environments/kind.yaml"
-    with open(values_path) as f:
-        return yaml.safe_load(f)
 
 
 def handle_errors(fn):
@@ -102,21 +95,18 @@ def postgres(ctx: typer.Context):
 @app.command(name="server", help="Run the backend server on host")
 @handle_errors
 def server():
-    kind_values = get_kind_values()
-    episode_runner_image = kind_values["episodeRunner"]["image"]
-
     env = os.environ.copy()
     env["STATS_DB_URI"] = LOCAL_DB_URI
     env["DEBUG_USER_EMAIL"] = "localdev@example.com"
     env["RUN_MIGRATIONS"] = "true"
-    env["EPISODE_RUNNER_IMAGE"] = episode_runner_image
+    env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
     env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_KIND
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting backend server...")
     info(f"  DB: {LOCAL_DB_URI}")
     info(f"  URL: {LOCAL_BACKEND_URL}")
-    info(f"  Episode runner image: {episode_runner_image}")
+    info(f"  Episode runner image: {LOCAL_METTA_POLICY_EVAL_IMG_NAME}")
 
     subprocess.run(
         ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],

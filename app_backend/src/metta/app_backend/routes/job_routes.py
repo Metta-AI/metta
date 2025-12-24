@@ -34,7 +34,7 @@ def create_job_router() -> APIRouter:
         db_jobs = []
         async with get_session() as session:
             for job_create in jobs:
-                db_job = JobRequest(**job_create.model_dump(), user_id=user)
+                db_job = JobRequest(**job_create.model_dump(), user_id=user, status=JobStatus.pending)
                 session.add(db_job)
                 db_jobs.append(db_job)
             await session.commit()

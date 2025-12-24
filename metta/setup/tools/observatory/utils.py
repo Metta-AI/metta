@@ -5,7 +5,7 @@ from pathlib import Path
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import info
 
-IMAGE_NAME = "metta-policy-evaluator-local:latest"
+LOCAL_METTA_POLICY_EVAL_IMG_NAME = "metta-policy-evaluator-local:latest"
 KIND_CLUSTER_NAME = "metta-local"
 
 
@@ -61,17 +61,20 @@ def _get_local_image_id(image_name: str) -> str | None:
 
 
 def build_image(force_build: bool = True):
-    image_exists = subprocess.run(["docker", "image", "inspect", IMAGE_NAME], capture_output=True).returncode == 0
-    old_image_id = _get_local_image_id(IMAGE_NAME) if image_exists else None
+    image_exists = (
+        subprocess.run(["docker", "image", "inspect", LOCAL_METTA_POLICY_EVAL_IMG_NAME], capture_output=True).returncode
+        == 0
+    )
+    old_image_id = _get_local_image_id(LOCAL_METTA_POLICY_EVAL_IMG_NAME) if image_exists else None
 
     if force_build or not image_exists:
-        info(f"Building {IMAGE_NAME}...")
+        info(f"Building {LOCAL_METTA_POLICY_EVAL_IMG_NAME}...")
         subprocess.run(
             [
                 "docker",
                 "build",
                 "-t",
-                IMAGE_NAME,
+                LOCAL_METTA_POLICY_EVAL_IMG_NAME,
                 "-f",
                 "devops/docker/Dockerfile.policy_evaluator",
                 "--platform",
@@ -82,27 +85,27 @@ def build_image(force_build: bool = True):
             cwd=get_repo_root(),
         )
         if old_image_id:
-            new_image_id = _get_local_image_id(IMAGE_NAME)
+            new_image_id = _get_local_image_id(LOCAL_METTA_POLICY_EVAL_IMG_NAME)
             if new_image_id != old_image_id:
                 info(f"Removing old image {old_image_id[:12]}...")
                 subprocess.run(["docker", "rmi", old_image_id], capture_output=True)
 
 
 def load_image_into_kind(force_load: bool = False):
-    old_image_id = _get_kind_image_id(IMAGE_NAME)
+    old_image_id = _get_kind_image_id(LOCAL_METTA_POLICY_EVAL_IMG_NAME)
 
     if old_image_id and not force_load:
-        info(f"{IMAGE_NAME} already loaded in Kind, skipping")
+        info(f"{LOCAL_METTA_POLICY_EVAL_IMG_NAME} already loaded in Kind, skipping")
         return
 
-    info(f"Loading {IMAGE_NAME} into Kind...")
+    info(f"Loading {LOCAL_METTA_POLICY_EVAL_IMG_NAME} into Kind...")
     subprocess.run(
-        ["kind", "load", "docker-image", IMAGE_NAME, "--name", KIND_CLUSTER_NAME],
+        ["kind", "load", "docker-image", LOCAL_METTA_POLICY_EVAL_IMG_NAME, "--name", KIND_CLUSTER_NAME],
         check=True,
     )
 
     if old_image_id:
-        new_image_id = _get_kind_image_id(IMAGE_NAME)
+        new_image_id = _get_kind_image_id(LOCAL_METTA_POLICY_EVAL_IMG_NAME)
         if new_image_id != old_image_id:
             info(f"Removing old image {old_image_id[:12]} from Kind...")
             subprocess.run(
