@@ -1,4 +1,7 @@
 import logging
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Literal, TypedDict
 from uuid import UUID
 
@@ -22,6 +25,50 @@ from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
 
+HEALTH_PORT = 8080
+HEALTH_TIMEOUT_SECONDS = 120
+WATCH_TIMEOUT_SECONDS = 30
+
+_last_heartbeat: float = 0.0
+_heartbeat_lock = threading.Lock()
+
+
+def _update_heartbeat():
+    global _last_heartbeat
+    with _heartbeat_lock:
+        _last_heartbeat = time.time()
+
+
+def _is_healthy() -> bool:
+    with _heartbeat_lock:
+        return (time.time() - _last_heartbeat) < HEALTH_TIMEOUT_SECONDS
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health" or self.path == "/healthz":
+            if _is_healthy():
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+            else:
+                self.send_response(503)
+                self.end_headers()
+                self.wfile.write(b"unhealthy: watch loop stale")
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass
+
+
+def _start_health_server():
+    server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info(f"Health server started on port {HEALTH_PORT}")
+
 
 # kubernetes-stubs V1WatchEventDict uses Any for object; we define our own for V1Job typing
 class K8sJobWatchEvent(TypedDict):
@@ -36,6 +83,8 @@ def run_watcher():
     observatory_auth_config.save_token(cfg.MACHINE_TOKEN, cfg.BACKEND_URL)
     stats_client = StatsClient(cfg.BACKEND_URL)
     stats_client._validate_authenticated()
+
+    _start_health_server()
 
     logger.info(f"Watcher started: backend_url={cfg.BACKEND_URL}, namespace={JOB_NAMESPACE}")
 
@@ -59,6 +108,7 @@ def watch_jobs(stats_client: StatsClient):
         return
     resource_version = job_list.metadata.resource_version
     logger.info(f"Starting watch from resourceVersion={resource_version}")
+    _update_heartbeat()
 
     w = watch.Watch()
     event: K8sJobWatchEvent
@@ -67,7 +117,9 @@ def watch_jobs(stats_client: StatsClient):
         namespace=JOB_NAMESPACE,
         label_selector=label_selector,
         resource_version=resource_version,
+        timeout_seconds=WATCH_TIMEOUT_SECONDS,
     ):
+        _update_heartbeat()
         event_type = event["type"]
         k8s_job = event["object"]
         if not k8s_job.metadata or not k8s_job.metadata.name or not k8s_job.metadata.labels:
@@ -129,16 +181,12 @@ def update_job_status(
         current = stats_client.get_job(job_id)
         if current.status == status:
             return
-        if is_terminal(current.status):
+        if current.status in (JobStatus.completed, JobStatus.failed):
             return
 
         stats_client.update_job(job_id, JobRequestUpdate(status=status, error=error, worker=worker))
     except Exception as e:
         logger.error(f"Failed to update job {job_id} status to {status}: {e}")
-
-
-def is_terminal(status: JobStatus) -> bool:
-    return status in (JobStatus.completed, JobStatus.failed)
 
 
 def delete_k8s_job(job_name: str):
