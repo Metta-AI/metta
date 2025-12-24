@@ -47,13 +47,14 @@ class ObsTokenPadStrip(nn.Module):
         self._remapping_active = False
         self.register_buffer("_positions_cache", torch.empty(0, dtype=torch.int64), persistent=False)
         self._feature_normalizations_override: dict[int, float] | None = None
+        self._drop_feature_ids: torch.Tensor | None = None
 
     def feature_normalizations_override(self) -> dict[int, float] | None:
         return self._feature_normalizations_override
 
     @staticmethod
     def _is_inventory_power_feature(name: str) -> bool:
-        return bool(re.match(r"^inv:[^:]+:p\\d+$", name))
+        return bool(re.match(r"^inv:[^:]+:p\d+$", name))
 
     def _build_legacy_feature_map(self, features_list: list) -> tuple[dict[str, int], dict[int, float]]:
         legacy_name_to_id: dict[str, int] = {}
@@ -86,11 +87,13 @@ class ObsTokenPadStrip(nn.Module):
             UNKNOWN_FEATURE_ID = 255
             legacy_map, legacy_norms = self._build_legacy_feature_map(features_list)
             feature_remap: dict[int, int] = {}
+            drop_feature_ids = torch.zeros(256, dtype=torch.bool, device=device)
 
             for props in features_list:
                 name = props.name
                 if self._is_inventory_power_feature(name):
                     feature_remap[props.id] = UNKNOWN_FEATURE_ID
+                    drop_feature_ids[props.id] = True
                     continue
                 if name in legacy_map:
                     legacy_id = legacy_map[name]
@@ -103,6 +106,7 @@ class ObsTokenPadStrip(nn.Module):
                 current_features = {feat.name: feat for feat in features_list}
                 self._apply_feature_remapping(feature_remap, current_features, UNKNOWN_FEATURE_ID, device)
             self._feature_normalizations_override = legacy_norms
+            self._drop_feature_ids = drop_feature_ids if drop_feature_ids.any() else None
             return "Created inventory power-token remapping"
 
         if not hasattr(self, "original_feature_mapping"):
@@ -167,6 +171,10 @@ class ObsTokenPadStrip(nn.Module):
             observations = observations.unsqueeze(0)
             td[self.in_key] = observations
 
+        if self._drop_feature_ids is not None:
+            observations = self._drop_inventory_power_tokens(observations, self._drop_feature_ids)
+            td[self.in_key] = observations
+
         M = observations.shape[1]
 
         # Apply feature remapping if active
@@ -205,6 +213,28 @@ class ObsTokenPadStrip(nn.Module):
         td[self.out_key] = observations
         td["obs_mask"] = obs_mask
         return td
+
+    @staticmethod
+    def _drop_inventory_power_tokens(observations: torch.Tensor, drop_feature_ids: torch.Tensor) -> torch.Tensor:
+        feature_ids = observations[..., 1].long()
+        keep_mask = ~drop_feature_ids[feature_ids]
+        if keep_mask.all():
+            return observations
+
+        B, M, _ = observations.shape
+        device = observations.device
+        dtype = observations.dtype
+        pad_row = torch.tensor([255, 255, 0], dtype=dtype, device=device)
+        output = observations.new_empty((B, M, 3))
+        for b in range(B):
+            kept = observations[b][keep_mask[b]]
+            kept_count = kept.shape[0]
+            if kept_count < M:
+                output[b, :kept_count] = kept
+                output[b, kept_count:] = pad_row
+            else:
+                output[b] = kept[:M]
+        return output
 
 
 class ObsAttrValNorm(nn.Module):
