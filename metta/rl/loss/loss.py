@@ -18,49 +18,13 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-@dataclass(slots=True)
-class MetricAccumulator:
-    total: Tensor | float = 0.0
-    count: int = 0
-
-    def append(self, value: Tensor | float) -> None:
-        self.add(value)
-
-    def extend(self, values: list[Tensor | float]) -> None:
-        for value in values:
-            self.add(value)
-
-    def __len__(self) -> int:
-        return self.count
-
-    def add(self, value: Tensor | float) -> None:
-        if torch.is_tensor(value):
-            value = value.detach()
-            if value.numel() != 1:
-                value = value.mean()
-            if self.count == 0:
-                self.total = value
-            elif torch.is_tensor(self.total):
-                self.total = self.total + value
-            else:
-                self.total = value + torch.tensor(float(self.total), device=value.device, dtype=value.dtype)
-        else:
-            if torch.is_tensor(self.total):
-                self.total = self.total + torch.tensor(float(value), device=self.total.device, dtype=self.total.dtype)
-            else:
-                self.total = float(self.total) + float(value)
-        self.count += 1
-
-    def mean(self) -> Tensor | float:
-        if self.count == 0:
-            return 0.0
-        if torch.is_tensor(self.total):
-            return self.total / self.count
-        return self.total / self.count
-
-
-def _track_metric(tracker: dict[str, MetricAccumulator], key: str, value: Tensor | float) -> None:
-    tracker[key].add(value)
+def _track_metric(tracker: dict[str, list[float]], key: str, value: Tensor | float) -> None:
+    if torch.is_tensor(value):
+        if value.numel() != 1:
+            value = value.mean()
+        tracker[key].append(float(value.item()))
+    else:
+        tracker[key].append(float(value))
 
 
 def analyze_loss_alignment(
@@ -68,7 +32,7 @@ def analyze_loss_alignment(
     name1: str,
     name2: str,
     params: list[Tensor],
-    tracker: dict[str, MetricAccumulator],
+    tracker: dict[str, list[float]],
 ) -> None:
     """
     Computes alignment metrics between two losses stored in shared_data.
@@ -178,7 +142,7 @@ class Loss:
 
     policy_experience_spec: Composite | None = None
     replay: Experience | None = None
-    loss_tracker: dict[str, MetricAccumulator] | None = None
+    loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
 
@@ -186,7 +150,7 @@ class Loss:
 
     def __post_init__(self) -> None:
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
-        self.loss_tracker = defaultdict(MetricAccumulator)
+        self.loss_tracker = defaultdict(list)
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
 
@@ -280,28 +244,18 @@ class Loss:
 
     def stats(self) -> dict[str, float]:
         """Aggregate tracked statistics into mean values."""
-        stats: dict[str, float] = {}
-        for key, acc in self.loss_tracker.items():
-            mean = acc.mean()
-            if torch.is_tensor(mean):
-                stats[key] = float(mean.detach().cpu().item())
-            else:
-                stats[key] = float(mean)
-        return stats
+        return {k: (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
 
     def track_metric(self, key: str, value: Tensor | float) -> None:
-        """Track a scalar metric without per-minibatch GPU syncs."""
+        """Track a scalar metric."""
         _track_metric(self.loss_tracker, key, value)
 
     def metric_mean(self, key: str) -> float:
         """Return a mean value for a tracked metric."""
-        acc = self.loss_tracker.get(key)
-        if acc is None:
+        values = self.loss_tracker.get(key)
+        if not values:
             return 0.0
-        mean = acc.mean()
-        if torch.is_tensor(mean):
-            return float(mean.detach().cpu().item())
-        return float(mean)
+        return float(sum(values) / len(values))
 
     def zero_loss_tracker(self) -> None:
         """Zero all values in the loss tracker."""

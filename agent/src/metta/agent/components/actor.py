@@ -214,8 +214,7 @@ class ActionProbs(nn.Module):
         if "batch" in td.keys() and "bptt" in td.keys():
             batch = td["batch"]
             bptt = td["bptt"]
-            if not torch.is_tensor(batch):
-                td = td.reshape(_metadata_to_int(batch, name="batch"), _metadata_to_int(bptt, name="bptt"))
+            td = td.reshape(_metadata_to_int(batch, name="batch"), _metadata_to_int(bptt, name="bptt"))
 
         return td
 

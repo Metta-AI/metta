@@ -25,32 +25,12 @@ def accumulate_rollout_stats(
     # Batch process info dictionaries
     for i in raw_infos:
         for k, v in unroll_nested_dict(i):
-            # Detach any tensors before accumulating to prevent memory leaks.
+            # Detach any tensors before accumulating to prevent memory leaks
             if torch.is_tensor(v):
-                v = v.detach()
+                v = v.detach().cpu().item() if v.numel() == 1 else v.detach().cpu().numpy()
             elif isinstance(v, np.ndarray) and v.size == 1:
                 v = v.item()
             infos[k].append(v)
-
-    # Batch convert tensors/arrays after aggregation to minimize per-item syncs.
-    for k, v in list(infos.items()):
-        if not v:
-            continue
-        if all(torch.is_tensor(item) for item in v):
-            if all(item.numel() == 1 for item in v):
-                stacked = torch.stack([item.reshape(()) for item in v])
-                infos[k] = stacked.cpu().numpy()
-            else:
-                try:
-                    stacked = torch.stack(v)
-                    infos[k] = stacked.cpu().numpy()
-                except RuntimeError:
-                    infos[k] = [item.detach().cpu().numpy() for item in v]
-        elif all(isinstance(item, np.ndarray) for item in v):
-            try:
-                infos[k] = np.stack(v)
-            except ValueError:
-                infos[k] = v
 
     # Batch process stats
     for k, v in infos.items():
