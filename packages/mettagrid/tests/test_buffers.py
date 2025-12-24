@@ -12,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     WallConfig,
 )
+from mettagrid.config.vibes import VIBES
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -63,7 +64,7 @@ def create_minimal_simulation(max_steps=10, width=5, height=5, config_overrides:
             noop=NoopActionConfig(enabled=True),
             move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(enabled=False),
-            change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=True, vibes=VIBES[:4]),
         ),
         objects={"wall": WallConfig()},
         agent=AgentConfig(),
