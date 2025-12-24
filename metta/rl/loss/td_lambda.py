@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import torch
-from torch import Tensor
-
 from cortex.utils import select_backend
+from torch import Tensor
 
 
 def td_lambda_reverse_scan_pytorch(delta: Tensor, mask_next: Tensor, gamma_lambda: float) -> Tensor:
