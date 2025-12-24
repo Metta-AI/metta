@@ -1,6 +1,8 @@
+import pytest
 import torch
 
 from metta.rl.loss.ppo_critic import _td_lambda_error
+from metta.rl.loss.td_lambda import td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
 
 
 def test_td_lambda_error_matches_simple_sum_without_terminals() -> None:
@@ -54,3 +56,22 @@ def test_td_lambda_error_is_differentiable_wrt_values() -> None:
 
     assert values.grad is not None
     assert float(values.grad.abs().sum().item()) > 0.0
+
+
+def test_td_lambda_reverse_scan_cuda_matches_pytorch() -> None:
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    device = torch.device("cuda")
+    torch.manual_seed(0)
+
+    batch_size = 8
+    time_steps = 64
+    delta = torch.randn((batch_size, time_steps), device=device, dtype=torch.float32)
+    mask_next = (torch.rand((batch_size, time_steps), device=device) > 0.2).to(torch.float32)
+    gamma_lambda = 0.97 * 0.95
+
+    out_cuda = td_lambda_reverse_scan_cuda(delta, mask_next, gamma_lambda)
+    out_pytorch = td_lambda_reverse_scan_pytorch(delta, mask_next, gamma_lambda)
+
+    torch.testing.assert_close(out_cuda, out_pytorch, rtol=1e-4, atol=1e-4)
