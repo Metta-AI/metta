@@ -33,7 +33,6 @@ class TestAgentResourceSharing:
         cfg.game.actions.move.enabled = True
         cfg.game.actions.noop.enabled = True
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 10
 
         sim = Simulation(cfg)
 

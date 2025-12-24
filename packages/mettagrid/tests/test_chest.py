@@ -37,7 +37,6 @@ class TestChest:
 
         # Enable actions
         cfg.game.actions.change_vibe.enabled = True
-        cfg.game.actions.change_vibe.number_of_vibes = 100  # make sure it's high enough for up and down.
         cfg.game.actions.move.enabled = True
 
         sim = Simulation(cfg)

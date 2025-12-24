@@ -6,7 +6,6 @@ from mettagrid.config.mettagrid_config import (
     GameConfig,
     WallConfig,
 )
-from mettagrid.config.vibes import VIBES
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
@@ -36,15 +35,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if "obs" in config_dict and "features" in config_dict["obs"]:
             config_dict["obs"] = config_dict["obs"].copy()
             config_dict["obs"].pop("features", None)
-        # Keep vibe_names in sync with number_of_vibes; favor the explicit count.
+        # Keep vibe_names in sync with vibes; favor the vibes list.
         config_dict.pop("vibe_names", None)
-        change_vibe_cfg = config_dict.setdefault("actions", {}).setdefault("change_vibe", {})
-        change_vibe_cfg["number_of_vibes"] = change_vibe_cfg.get("number_of_vibes") or len(VIBES)
         game_config = GameConfig(**config_dict)
 
     # Ensure runtime object has consistent vibes.
-    game_config.actions.change_vibe.number_of_vibes = game_config.actions.change_vibe.number_of_vibes or len(VIBES)
-    game_config.vibe_names = [vibe.name for vibe in VIBES[: game_config.actions.change_vibe.number_of_vibes]]
+    game_config.vibe_names = [vibe.name for vibe in game_config.actions.change_vibe.vibes]
 
     # Set up resource mappings
     resource_names = list(game_config.resource_names)
@@ -56,8 +52,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Set up vibe mappings from the change_vibe action config.
     # The C++ bindings expect dense uint8 identifiers, so keep a name->id lookup.
-    num_vibes = game_config.actions.change_vibe.number_of_vibes
-    supported_vibes = VIBES[:num_vibes]
+    supported_vibes = game_config.actions.change_vibe.vibes
     vibe_name_to_id = {vibe.name: i for i, vibe in enumerate(supported_vibes)}
 
     objects_cpp_params = {}  # params for CppWallConfig
@@ -462,9 +457,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
-    action_params["number_of_vibes"] = (
-        actions_config.change_vibe.number_of_vibes if actions_config.change_vibe.enabled else 0
-    )
+    num_vibes = len(actions_config.change_vibe.vibes) if actions_config.change_vibe.enabled else 0
+    action_params["number_of_vibes"] = num_vibes
     actions_cpp_params["change_vibe"] = CppChangeVibeActionConfig(**action_params)
 
     game_cpp_params["actions"] = actions_cpp_params
