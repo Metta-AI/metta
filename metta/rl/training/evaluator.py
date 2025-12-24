@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import io
 import logging
 import os
 import uuid
-import zipfile
 from typing import Any, Optional
 
 import torch
@@ -27,9 +25,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -139,30 +135,19 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
-    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy_spec.json."""
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr(POLICY_SPEC_FILENAME, policy_spec.model_dump_json())
-        return buffer.getvalue()
-
-    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
-        """Upload a submission zip to S3 and return the s3_path."""
-        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
-        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
+    def _upload_submission_zip(self, policy_uri: str) -> str | None:
+        """Return the S3 checkpoint directory to use as the submission path."""
+        parsed = resolve_uri(policy_uri)
+        if parsed.scheme != "s3":
             return None
-
-        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
-        zip_data = self._create_submission_zip(policy_spec)
-        write_data(submission_path, zip_data, content_type="application/zip")
-        logger.info("Uploaded submission zip to %s", submission_path)
-        return submission_path
+        return parsed.canonical
 
     def _create_policy_version(
         self,
         *,
         stats_client: StatsClient,
         policy_spec: PolicySpec,
+        policy_uri: str,
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
@@ -176,7 +161,7 @@ class Evaluator(TrainerComponent):
         )
 
         # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_spec)
+        s3_path = self._upload_submission_zip(policy_uri)
 
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
@@ -209,6 +194,7 @@ class Evaluator(TrainerComponent):
             policy_version_id = self._create_policy_version(
                 stats_client=self._stats_client,
                 policy_spec=policy_spec,
+                policy_uri=policy_uri,
                 epoch=epoch,
                 agent_step=agent_step,
             )
