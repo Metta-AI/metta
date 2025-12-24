@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 
@@ -154,13 +154,18 @@ class HRMReasoning(nn.Module):
             x = x.unsqueeze(1)
 
         # Get environment ID (single ID per batch, like LSTM)
-        training_env_ids = td.get("training_env_ids", None)
-        if training_env_ids is not None:
-            flat_env_ids = training_env_ids.reshape(-1)
+        training_env_id_start = td.get("training_env_id_start", None)
+        if isinstance(training_env_id_start, NonTensorData):
+            training_env_id_start = int(training_env_id_start.data)
+        elif training_env_id_start is None:
+            training_env_ids = td.get("training_env_ids", None)
+            if training_env_ids is not None:
+                flat_env_ids = training_env_ids.reshape(-1)
+            else:
+                flat_env_ids = torch.arange(batch_size, device=device)
+            training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
         else:
-            flat_env_ids = torch.arange(batch_size, device=device)
-
-        training_env_id_start = int(flat_env_ids[0].item()) if flat_env_ids.numel() else 0
+            training_env_id_start = int(training_env_id_start)
 
         # Retrieve or initialize hidden states for this environment
         if training_env_id_start in self.carry:

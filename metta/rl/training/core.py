@@ -104,6 +104,7 @@ class CoreTrainingLoop:
                 td["rewards"] = rewards
                 agent_ids = self._gather_env_indices(training_env_id, td.device)
                 td["training_env_ids"] = agent_ids.unsqueeze(1)
+                td.set("training_env_id_start", NonTensorData(training_env_id.start))
 
                 avg_reward = context.state.avg_reward
                 baseline = avg_reward[agent_ids]
