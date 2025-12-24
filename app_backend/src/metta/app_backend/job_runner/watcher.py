@@ -80,13 +80,13 @@ def run_watcher():
     cfg = get_dispatch_config()
     get_k8s_client()  # initialize cached client
 
-    observatory_auth_config.save_token(cfg.MACHINE_TOKEN, cfg.BACKEND_URL)
-    stats_client = StatsClient(cfg.BACKEND_URL)
+    observatory_auth_config.save_token(cfg.MACHINE_TOKEN, cfg.STATS_SERVER_URI)
+    stats_client = StatsClient(cfg.STATS_SERVER_URI)
     stats_client._validate_authenticated()
 
     _start_health_server()
 
-    logger.info(f"Watcher started: backend_url={cfg.BACKEND_URL}, namespace={JOB_NAMESPACE}")
+    logger.info(f"Watcher started: stats_server_uri={cfg.STATS_SERVER_URI}, namespace={JOB_NAMESPACE}")
 
     try:
         while True:

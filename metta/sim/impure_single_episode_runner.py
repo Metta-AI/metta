@@ -10,6 +10,7 @@ from uuid import UUID
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
+from metta.common.util.log_config import init_logging, suppress_noisy_logs
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
@@ -25,9 +26,9 @@ def main():
         sys.exit(1)
 
     job_id = UUID(sys.argv[1])
-    observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["BACKEND_URL"])
+    observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["STATS_SERVER_URI"])
 
-    stats_client = StatsClient.create(os.environ["BACKEND_URL"])
+    stats_client = StatsClient.create(os.environ["STATS_SERVER_URI"])
 
     try:
         job_data = stats_client.get_job(job_id)
@@ -53,7 +54,7 @@ def main():
             temp_file.flush()
             subprocess.run(
                 [
-                    "python",
+                    sys.executable,
                     "-m",
                     "metta.sim.pure_single_episode_runner",
                     temp_file.name,
@@ -73,13 +74,13 @@ def main():
         results = PureSingleEpisodeResult.model_validate_json(read(local_results_uri))
 
         policy_version_ids: list[uuid.UUID | None] = []
-        backend_url = os.environ["BACKEND_URL"]
+        stats_server_uri = os.environ["STATS_SERVER_URI"]
         for policy_uri in job.policy_uris:
             parsed = parse_uri(policy_uri, allow_none=False)
             if parsed.scheme != "metta":
                 policy_version_ids.append(None)
             else:
-                policy_version = MettaSchemeResolver(backend_url).get_policy_version(policy_uri)
+                policy_version = MettaSchemeResolver(stats_server_uri).get_policy_version(policy_uri)
                 policy_version_ids.append(policy_version.id)
 
         episode_id = write_single_episode_to_observatory(
@@ -102,5 +103,6 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    init_logging()
+    suppress_noisy_logs()
     main()

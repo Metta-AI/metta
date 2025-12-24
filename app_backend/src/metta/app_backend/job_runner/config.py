@@ -11,7 +11,7 @@ LABEL_JOB_ID = "job-id"
 
 class JobDispatchConfig(BaseSettings):
     EPISODE_RUNNER_IMAGE: str = ""
-    BACKEND_URL: str = ""
+    STATS_SERVER_URI: str = ""
     # TODO: limit the scope of this to only update the job in question
     MACHINE_TOKEN: str = ""
 
