@@ -222,11 +222,11 @@ def make_random_maps_curriculum(
 
     if initial_inventory_buckets:
         # Bucket over agent's starting inventory
-        tasks.add_bucket("game.agent.initial_inventory.carbon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.heart", [0, 1, 2])
+        tasks.add_bucket("game.agent.inventory.initial.carbon", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.oxygen", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.germanium", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.silicon", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.heart", [0, 1, 2])
 
     # Configure learning progress algorithm
     if algorithm_config is None:
