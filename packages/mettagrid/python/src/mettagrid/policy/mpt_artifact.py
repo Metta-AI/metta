@@ -41,6 +41,7 @@ class MptArtifact:
         device: str = "cpu",
         *,
         strict: bool = True,
+        allow_legacy_architecture: bool = False,
     ) -> Any:
         torch_device = torch.device(device)
 
@@ -53,7 +54,7 @@ class MptArtifact:
             if strict and (missing or unexpected):
                 raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
         except RuntimeError as exc:
-            if not strict:
+            if not strict or not allow_legacy_architecture:
                 raise
             fixed = _maybe_rebuild_policy_for_legacy_vit(self.architecture, self.state_dict, policy_env_info)
             if fixed is None:
