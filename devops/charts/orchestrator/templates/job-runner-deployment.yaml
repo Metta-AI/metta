@@ -22,6 +22,17 @@ spec:
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["/workspace/metta/.venv/bin/python", "-m", "metta.app_backend.job_runner.watcher"]
+        ports:
+        - containerPort: 8080
+          name: health
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
         env:
         - name: BACKEND_URL
           value: {{ .Values.env.BACKEND_URL | quote }}

@@ -41,14 +41,6 @@ def _get_kind_image_id(image_name: str) -> str | None:
     return None
 
 
-def _cleanup_kind_images():
-    info("Cleaning up old images in Kind...")
-    subprocess.run(
-        ["docker", "exec", f"{KIND_CLUSTER_NAME}-control-plane", "crictl", "rmi", "--prune"],
-        capture_output=True,
-    )
-
-
 def _get_local_image_id(image_name: str) -> str | None:
     result = subprocess.run(
         ["docker", "images", "-q", image_name],
@@ -112,5 +104,3 @@ def load_image_into_kind(force_load: bool = False):
                 ["docker", "exec", f"{KIND_CLUSTER_NAME}-control-plane", "crictl", "rmi", old_image_id],
                 capture_output=True,
             )
-
-    _cleanup_kind_images()
