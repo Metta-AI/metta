@@ -87,11 +87,10 @@ class Checkpointer(TrainerComponent):
                     .make_policy(policy_env_info)
                     .to(load_device)
                 )
-                if hasattr(policy, "initialize_to_environment"):
-                    policy.initialize_to_environment(policy_env_info, load_device)
                 missing, unexpected = policy.load_state_dict(state_dict, strict=True)
                 if missing or unexpected:
                     raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                policy.initialize_to_environment(policy_env_info, load_device)
 
                 if self._distributed.is_master():
                     self._latest_policy_uri = normalized_uri
