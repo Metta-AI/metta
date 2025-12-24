@@ -40,8 +40,6 @@ class RewardCenteringConfig(Config):
 
 
 class AdvantageConfig(Config):
-    method: Literal["vtrace", "delta_lambda"] = "delta_lambda"
-
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 

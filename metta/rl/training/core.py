@@ -244,7 +244,13 @@ class CoreTrainingLoop:
             loss.zero_loss_tracker()
 
         advantage_cfg = context.config.advantage
-        advantage_method = getattr(advantage_cfg, "method", "delta_lambda")
+        ppo_critic = self.losses.get("ppo_critic")
+        use_delta_lambda = (
+            ppo_critic is not None
+            and getattr(ppo_critic.cfg, "critic_update", None) == "gtd_lambda"
+            and ppo_critic._loss_gate_allows("train", context)
+        )
+        advantage_method = "delta_lambda" if use_delta_lambda else "vtrace"
 
         epochs_trained = 0
 
@@ -306,21 +312,21 @@ class CoreTrainingLoop:
 
                 if advantage_method == "delta_lambda":
                     if "values" not in sampled_mb.keys():
-                        shared_loss_mb_data["advantages_pg"] = shared_loss_mb_data["advantages"]
-                    else:
-                        new_values = policy_td["values"]
-                        if new_values.dim() == 3 and new_values.shape[-1] == 1:
-                            new_values = new_values.squeeze(-1)
-                        new_values = new_values.reshape(sampled_mb["values"].shape)
+                        raise RuntimeError("delta_lambda advantages require minibatch['values']")
 
-                        centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
-                        shared_loss_mb_data["advantages_pg"] = compute_delta_lambda(
-                            values=new_values,
-                            rewards=centered_rewards,
-                            dones=sampled_mb["dones"],
-                            gamma=float(advantage_cfg.gamma),
-                            gae_lambda=float(advantage_cfg.gae_lambda),
-                        )
+                    new_values = policy_td["values"]
+                    if new_values.dim() == 3 and new_values.shape[-1] == 1:
+                        new_values = new_values.squeeze(-1)
+                    new_values = new_values.reshape(sampled_mb["values"].shape)
+
+                    centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                    shared_loss_mb_data["advantages_pg"] = compute_delta_lambda(
+                        values=new_values,
+                        rewards=centered_rewards,
+                        dones=sampled_mb["dones"],
+                        gamma=float(advantage_cfg.gamma),
+                        gae_lambda=float(advantage_cfg.gae_lambda),
+                    )
                 else:
                     values_for_adv = sampled_mb["values"] if "values" in sampled_mb.keys() else None
                     if values_for_adv is not None:
