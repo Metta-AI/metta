@@ -195,10 +195,10 @@ class ChangeVibeActionConfig(ActionConfig):
     """Change vibe action configuration."""
 
     action_handler: str = Field(default="change_vibe")
-    number_of_vibes: int = Field(default=0, ge=0, le=255)
+    vibes: list[Vibe] = Field(default_factory=lambda: list(VIBES))
 
     def _actions(self) -> list[Action]:
-        return [self.ChangeVibe(vibe) for vibe in VIBES[: self.number_of_vibes]]
+        return [self.ChangeVibe(vibe) for vibe in self.vibes]
 
     def ChangeVibe(self, vibe: Vibe) -> Action:
         return Action(name=f"change_vibe_{vibe.name}")
@@ -459,8 +459,7 @@ class GameConfig(Config):
 
     @model_validator(mode="after")
     def _compute_feature_ids(self) -> "GameConfig":
-        self.actions.change_vibe.number_of_vibes = self.actions.change_vibe.number_of_vibes or len(VIBES)
-        self.vibe_names = [vibe.name for vibe in VIBES[: self.actions.change_vibe.number_of_vibes]]
+        self.vibe_names = [vibe.name for vibe in self.actions.change_vibe.vibes]
         return self
 
     def id_map(self) -> "IdMap":
@@ -488,7 +487,7 @@ class MettaGridConfig(Config):
     ) -> "MettaGridConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
-        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig(number_of_vibes=len(VIBES)))
+        actions = ActionsConfig(move=MoveActionConfig(), change_vibe=ChangeVibeActionConfig())
         objects = {}
         if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(render_symbol="⬛")
