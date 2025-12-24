@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from metta.rl.loss.ppo_critic import _td_lambda_error
-from metta.rl.loss.td_lambda import td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
+from metta.rl.advantage import compute_delta_lambda, td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
 
 
 def test_td_lambda_error_matches_simple_sum_without_terminals() -> None:
@@ -10,7 +9,7 @@ def test_td_lambda_error_matches_simple_sum_without_terminals() -> None:
     rewards = torch.tensor([[0.0, 1.0, 2.0, 3.0]], dtype=torch.float32)
     dones = torch.zeros_like(values)
 
-    delta_lambda = _td_lambda_error(
+    delta_lambda = compute_delta_lambda(
         values=values,
         rewards=rewards,
         dones=dones,
@@ -27,7 +26,7 @@ def test_td_lambda_error_resets_on_done() -> None:
     rewards = torch.tensor([[0.0, 1.0, 2.0, 3.0]], dtype=torch.float32)
     dones = torch.tensor([[0.0, 0.0, 1.0, 0.0]], dtype=torch.float32)
 
-    delta_lambda = _td_lambda_error(
+    delta_lambda = compute_delta_lambda(
         values=values,
         rewards=rewards,
         dones=dones,
@@ -44,7 +43,7 @@ def test_td_lambda_error_is_differentiable_wrt_values() -> None:
     rewards = torch.randn((2, 5), dtype=torch.float32)
     dones = torch.zeros_like(values)
 
-    delta_lambda = _td_lambda_error(
+    delta_lambda = compute_delta_lambda(
         values=values,
         rewards=rewards,
         dones=dones,

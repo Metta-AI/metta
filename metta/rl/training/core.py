@@ -6,7 +6,7 @@ from pydantic import ConfigDict
 from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage
+from metta.rl.advantage import compute_advantage, compute_delta_lambda
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
@@ -243,27 +243,37 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.zero_loss_tracker()
 
+        advantage_cfg = context.config.advantage
+        advantage_method = getattr(advantage_cfg, "method", "delta_lambda")
+
         epochs_trained = 0
 
         for _ in range(update_epochs):
             if "values" in self.experience.buffer.keys():
+                values_for_adv = self.experience.buffer["values"]
+                if values_for_adv.dim() > 2:
+                    values_for_adv = values_for_adv.mean(dim=-1)
                 centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
-                advantages = compute_advantage(
-                    self.experience.buffer["values"],
+                advantages_full = compute_advantage(
+                    values_for_adv,
                     centered_rewards,
                     self.experience.buffer["dones"],
-                    torch.ones_like(self.experience.buffer["values"]),
-                    torch.zeros_like(self.experience.buffer["values"], device=self.device),
-                    self.context.config.advantage.gamma,
-                    self.context.config.advantage.gae_lambda,
+                    torch.ones_like(values_for_adv),
+                    torch.zeros_like(values_for_adv, device=self.device),
+                    advantage_cfg.gamma,
+                    advantage_cfg.gae_lambda,
                     self.device,
-                    self.context.config.advantage.vtrace_rho_clip,
-                    self.context.config.advantage.vtrace_c_clip,
+                    advantage_cfg.vtrace_rho_clip,
+                    advantage_cfg.vtrace_c_clip,
                 )
             else:
                 # Value-free setups still need a tensor shaped like the buffer for sampling.
-                advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
-            self.experience.buffer["advantages_full"] = advantages
+                advantages_full = torch.zeros(
+                    self.experience.buffer.batch_size,
+                    device=self.device,
+                    dtype=torch.float32,
+                )
+            self.experience.buffer["advantages_full"] = advantages_full
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
@@ -278,14 +288,65 @@ class CoreTrainingLoop:
                     epoch=context.epoch,
                     total_timesteps=context.config.total_timesteps,
                     batch_size=context.config.batch_size,
-                    advantages=advantages,
+                    advantages=advantages_full,
                 )
                 if mb_idx == 0:
-                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
+                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages_full)
 
                 policy_td = shared_loss_mb_data["sampled_mb"]
                 policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
                 shared_loss_mb_data["policy_td"] = policy_td
+
+                sampled_mb = shared_loss_mb_data["sampled_mb"]
+                if "act_log_prob" in sampled_mb.keys() and "act_log_prob" in policy_td.keys():
+                    old_logprob = sampled_mb["act_log_prob"]
+                    new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+                    logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+                    shared_loss_mb_data["importance_sampling_ratio"] = logratio.exp()
+
+                if advantage_method == "delta_lambda":
+                    if "values" not in sampled_mb.keys():
+                        shared_loss_mb_data["advantages_pg"] = shared_loss_mb_data["advantages"]
+                    else:
+                        new_values = policy_td["values"]
+                        if new_values.dim() == 3 and new_values.shape[-1] == 1:
+                            new_values = new_values.squeeze(-1)
+                        new_values = new_values.reshape(sampled_mb["values"].shape)
+
+                        centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                        shared_loss_mb_data["advantages_pg"] = compute_delta_lambda(
+                            values=new_values,
+                            rewards=centered_rewards,
+                            dones=sampled_mb["dones"],
+                            gamma=float(advantage_cfg.gamma),
+                            gae_lambda=float(advantage_cfg.gae_lambda),
+                        )
+                else:
+                    values_for_adv = sampled_mb["values"] if "values" in sampled_mb.keys() else None
+                    if values_for_adv is not None:
+                        if values_for_adv.dim() > 2:
+                            values_for_adv = values_for_adv.mean(dim=-1)
+
+                        importance_sampling_ratio = shared_loss_mb_data.get("importance_sampling_ratio", None)
+                        if importance_sampling_ratio is None:
+                            importance_sampling_ratio = torch.ones_like(values_for_adv)
+
+                        with torch.no_grad():
+                            centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                            shared_loss_mb_data["advantages_pg"] = compute_advantage(
+                                values_for_adv,
+                                centered_rewards,
+                                sampled_mb["dones"],
+                                importance_sampling_ratio,
+                                shared_loss_mb_data["advantages"].clone(),
+                                advantage_cfg.gamma,
+                                advantage_cfg.gae_lambda,
+                                self.device,
+                                advantage_cfg.vtrace_rho_clip,
+                                advantage_cfg.vtrace_c_clip,
+                            )
+                    else:
+                        shared_loss_mb_data["advantages_pg"] = shared_loss_mb_data["advantages"]
 
                 used_keys: set[str] = set()
                 for _loss_name, loss_obj in self.losses.items():

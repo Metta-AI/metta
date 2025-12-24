@@ -10,32 +10,7 @@ from typing_extensions import Literal
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
-from metta.rl.loss.td_lambda import td_lambda_reverse_scan
 from metta.rl.training import ComponentContext, TrainingEnvironment
-
-
-def _td_lambda_error(
-    *,
-    values: Tensor,
-    rewards: Tensor,
-    dones: Tensor,
-    gamma: float,
-    gae_lambda: float,
-) -> Tensor:
-    _, tt = values.shape
-    delta_lambda = torch.zeros_like(values)
-    if tt <= 1:
-        return delta_lambda
-
-    terminal_next = dones[:, 1:]
-    mask_next = 1.0 - terminal_next
-
-    delta = rewards[:, 1:] + gamma * mask_next * values[:, 1:] - values[:, :-1]  # [B, TT-1]
-
-    gamma_lambda = float(gamma * gae_lambda)
-    delta_lambda[:, :-1] = td_lambda_reverse_scan(delta, mask_next, gamma_lambda)
-
-    return delta_lambda
 
 
 class PPOCriticConfig(LossConfig):
@@ -130,28 +105,17 @@ class PPOCritic(Loss):
         # Keep the full advantages around for explained variance logging and prioritized sampling.
         old_values = minibatch["values"]
         if self.cfg.critic_update == "gtd_lambda":
-            policy_td = shared_loss_data.get("policy_td", None)
-            if policy_td is None:
-                raise RuntimeError("PPOCritic requires shared_loss_data['policy_td'] for critic_update='gtd_lambda'")
+            policy_td = shared_loss_data["policy_td"]
             if "h_values" not in policy_td.keys():
                 raise RuntimeError("Policy must output 'h_values' for critic_update='gtd_lambda'")
 
-            new_values = policy_td["values"].view(old_values.shape)
+            new_values = policy_td["values"].reshape(old_values.shape)
             h_values = policy_td["h_values"]
             if h_values.dim() == 3 and h_values.shape[-1] == 1:
                 h_values = h_values.squeeze(-1)
-            h_values = h_values.view(old_values.shape)
+            h_values = h_values.reshape(old_values.shape)
 
-            centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
-            delta_lambda = _td_lambda_error(
-                values=new_values,
-                rewards=centered_rewards,
-                dones=minibatch["dones"],
-                gamma=float(self.trainer_cfg.advantage.gamma),
-                gae_lambda=float(self.trainer_cfg.advantage.gae_lambda),
-            )
-            shared_loss_data["advantages"] = delta_lambda.detach()
-            shared_loss_data["advantages_source"] = "delta_lambda"
+            delta_lambda = shared_loss_data["advantages_pg"]
 
             # Use only valid transitions (t=0..TT-2). The last step is padding.
             dl = delta_lambda[:, :-1]
@@ -184,7 +148,7 @@ class PPOCritic(Loss):
             # Update values in experience buffer for advantage_full recomputation + EV logging.
             update_td = TensorDict(
                 {
-                    "values": new_values.view(minibatch["values"].shape).detach(),
+                    "values": new_values.reshape(minibatch["values"].shape).detach(),
                 },
                 batch_size=minibatch.batch_size,
             )
