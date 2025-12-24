@@ -336,24 +336,24 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if hearts > 0:
             agent_cfg = env.game.agent
-            agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+            agent_cfg.inventory.initial = dict(agent_cfg.inventory.initial)
 
             def _limit_for(resource: str) -> int:
-                return agent_cfg.get_limit_for_resource(resource)
+                return agent_cfg.inventory.get_limit(resource)
 
             for resource_name, per_heart_value in per_heart.items():
-                current = int(agent_cfg.initial_inventory.get(resource_name, 0))
+                current = int(agent_cfg.inventory.initial.get(resource_name, 0))
                 target = current + per_heart_value * hearts
                 cap = _limit_for(resource_name)
-                agent_cfg.initial_inventory[resource_name] = min(cap, target)
+                agent_cfg.inventory.initial[resource_name] = min(cap, target)
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            hearts_limit = agent_cfg.resource_limits.get("heart")
+            hearts_limit = agent_cfg.inventory.limits.get("heart")
             if hearts_limit is None:
                 hearts_limit = ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"])
             hearts_limit.limit = max(int(hearts_limit.limit), int(self.heart_capacity))
-            agent_cfg.resource_limits["heart"] = hearts_limit
+            agent_cfg.inventory.limits["heart"] = hearts_limit
 
 
 class ChestHeartTuneVariant(MissionVariant):
@@ -376,10 +376,10 @@ class ChestHeartTuneVariant(MissionVariant):
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
-        start = dict(chest_cfg.initial_inventory)
+        start = dict(chest_cfg.inventory.initial)
         for k, v in per_heart.items():
             start[k] = start.get(k, 0) + v * hearts
-        chest_cfg.initial_inventory = start
+        chest_cfg.inventory.initial = start
 
 
 class ExtractorHeartTuneVariant(MissionVariant):

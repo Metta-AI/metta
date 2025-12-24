@@ -6,6 +6,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     GameConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -30,12 +31,14 @@ def create_test_sim(initial_inventory: dict[str, int] | None = None) -> Simulati
         actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
         objects={"wall": WallConfig()},
         agent=AgentConfig(
-            resource_limits={
-                "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
-                "stone": ResourceLimitsConfig(limit=10, resources=["stone"]),
-                "iron": ResourceLimitsConfig(limit=10, resources=["iron"]),
-            },
-            initial_inventory=initial_inventory,
+            inventory=InventoryConfig(
+                limits={
+                    "wood": ResourceLimitsConfig(limit=10, resources=["wood"]),
+                    "stone": ResourceLimitsConfig(limit=10, resources=["stone"]),
+                    "iron": ResourceLimitsConfig(limit=10, resources=["iron"]),
+                },
+                initial=initial_inventory,
+            ),
         ),
     )
 
