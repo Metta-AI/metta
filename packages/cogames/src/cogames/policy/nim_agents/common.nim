@@ -31,7 +31,7 @@ type
     vibes*: Vibes
     assemblerProtocols*: seq[AssemblerProtocol]
     inventoryTokenBase*: int
-    inventoryPowerFeatures*: Table[int, seq[int]]
+    inventoryPowerFeatures*: Table[int, array[2, int]]
 
   FeatureValue* = object
     featureId*: int
@@ -367,9 +367,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
     result.assemblerProtocols = config.assemblerProtocols
-    result.inventoryPowerFeatures = initTable[int, seq[int]]()
+    result.inventoryPowerFeatures = initTable[int, array[2, int]]()
     var inventoryBaseIds = initTable[string, int]()
-    var inventoryPowerIds = initTable[string, seq[int]]()
+    var inventoryPowerIds = initTable[string, array[2, int]]()
 
     for feature in config.obsFeatures:
       if feature.name.startsWith("inv:"):
@@ -383,13 +383,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
           if resource.len > 0 and powerStr.len > 0 and powerStr.allCharsInSet({'0' .. '9'}):
             let power = parseInt(powerStr)
             if power > 0:
-              var powers = inventoryPowerIds.getOrDefault(resource, @[])
-              let oldLen = powers.len
-              if oldLen < power:
-                powers.setLen(power)
-                for index in oldLen ..< power:
-                  powers[index] = -1
-              powers[power - 1] = feature.id
+              var powers = inventoryPowerIds.getOrDefault(resource, [-1, -1])
+              if power <= 2:
+                powers[power - 1] = feature.id
               inventoryPowerIds[resource] = powers
               continue
         else:
@@ -672,13 +668,15 @@ proc getInventory*(
   if result == -1:
     result = 0
   if cfg.inventoryTokenBase > 1 and inventoryId in cfg.inventoryPowerFeatures:
-    var multiplier = cfg.inventoryTokenBase
-    for powerId in cfg.inventoryPowerFeatures[inventoryId]:
-      if powerId > -1:
-        let powerValue = cfg.getFeature(visible, powerId, location)
-        if powerValue > -1:
-          result += powerValue * multiplier
-      multiplier *= cfg.inventoryTokenBase
+    let powers = cfg.inventoryPowerFeatures[inventoryId]
+    if powers[0] > -1:
+      let powerValue = cfg.getFeature(visible, powers[0], location)
+      if powerValue > -1:
+        result += powerValue * cfg.inventoryTokenBase
+    if powers[1] > -1:
+      let powerValue = cfg.getFeature(visible, powers[1], location)
+      if powerValue > -1:
+        result += powerValue * cfg.inventoryTokenBase * cfg.inventoryTokenBase
 
 proc getOtherInventory*(
   cfg: Config,
