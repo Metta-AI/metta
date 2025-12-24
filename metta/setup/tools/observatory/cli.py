@@ -10,8 +10,8 @@ from rich.console import Console
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.observatory.kind import kind_app
-from metta.setup.tools.observatory.utils import LOCAL_METTA_POLICY_EVAL_IMG_NAME, build_image, load_image_into_kind
+from metta.setup.tools.observatory.local_k8s import local_k8s_app
+from metta.setup.tools.observatory.utils import LOCAL_METTA_POLICY_EVAL_IMG_NAME
 from metta.setup.utils import error, info
 
 console = Console()
@@ -33,21 +33,28 @@ def handle_errors(fn):
 
 LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
 LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
-LOCAL_BACKEND_URL_FROM_KIND = "http://host.docker.internal:8000"
+LOCAL_BACKEND_URL_FROM_K8S = "http://host.docker.internal:8000"
 LOCAL_MACHINE_TOKEN = "local-dev-token"
 
 
 HELP_TEXT = f"""
 Observatory local development.
 
+[bold]Prerequisites (one-time OrbStack setup):[/bold]
+  1. Install OrbStack: https://orbstack.dev/download
+  2. Enable Kubernetes in OrbStack:
+     orb config set k8s.enable true
+  3. Restart OrbStack (or run: orbctl stop && orbctl start)
+  4. Verify: kubectl config get-contexts | grep orbstack
+
 [bold]Setup:[/bold]
-  metta observatory postgres up -d  # Backgrounded postgres for api server
-  metta observatory server          # API server
-  metta observatory frontend        # Observatory frontend
+  metta observatory postgres up -d   # Backgrounded postgres for api server
+  metta observatory server           # API server
+  metta observatory frontend         # Observatory frontend
 
 [bold]Additional setup for jobs:[/bold]
-  metta observatory kind build      # One-time: create Kind cluster for jobs to run in
-  metta observatory watcher         # Watches K8s jobs and updates job status through api server
+  metta observatory local-k8s setup  # Build image and create namespaces
+  metta observatory watcher          # Watches k8s jobs and updates status via api server
 
 [bold]Upload policy:[/bold]
   uv run cogames submit -p class=scripted_baseline --server {LOCAL_BACKEND_URL} --skip-validation -n <your-policy-name>
@@ -56,16 +63,15 @@ Observatory local development.
   uv run python app_backend/scripts/submit_test_jobs.py --policy-uri metta://policy/<your-policy-name>
 
 [bold]Monitor:[/bold]
-  kubectl get pods -n jobs -w
-  kubectl logs -n jobs -l app=episode-runner -f
+  kubectl --context orbstack get pods -n jobs -w
+  kubectl --context orbstack logs -n jobs -l app=episode-runner -f
 
 [bold]Teardown:[/bold]
   metta observatory postgres down
-  metta observatory kind clean
+  metta observatory local-k8s clean
 
-[bold]Rebuild job runner image and upload to kind cluster:[/bold]
-  metta observatory setup-kind-images
-  metta observatory setup-kind-images --load-only  # If already built locally
+[bold]Rebuild job runner image:[/bold]
+  metta observatory local-k8s build-image
 """
 
 app = typer.Typer(
@@ -100,7 +106,7 @@ def server():
     env["DEBUG_USER_EMAIL"] = "localdev@example.com"
     env["RUN_MIGRATIONS"] = "true"
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
-    env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_KIND
+    env["BACKEND_URL"] = LOCAL_BACKEND_URL_FROM_K8S
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting backend server...")
@@ -132,17 +138,6 @@ def watcher():
     )
 
 
-@app.command(name="setup-kind-images", help="Rebuild job runner image and load into Kind")
-@handle_errors
-def setup_kind_images(
-    load_only: Annotated[bool, typer.Option("--load-only", "-l", help="Only load image into Kind")] = False,
-):
-    if not load_only:
-        build_image(force_build=True)
-    load_image_into_kind(force_load=True)
-    info("Done!")
-
-
 @app.command(name="frontend")
 @handle_errors
 def frontend(
@@ -165,7 +160,7 @@ def frontend(
     subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=get_repo_root() / "observatory")
 
 
-app.add_typer(kind_app, name="kind")
+app.add_typer(local_k8s_app, name="local-k8s")
 
 
 def main():
