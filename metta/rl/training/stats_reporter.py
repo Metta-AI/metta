@@ -553,7 +553,14 @@ class StatsReporter(TrainerComponent):
 
             ppo_critic_cfg = loss_configs.get("ppo_critic")
             if ppo_critic_cfg is not None:
-                for attr in ("vf_coef", "vf_clip_coef", "clip_vloss"):
+                for attr in (
+                    "vf_coef",
+                    "vf_clip_coef",
+                    "clip_vloss",
+                    "critic_update",
+                    "aux_coef",
+                    "beta",
+                ):
                     value = getattr(ppo_critic_cfg, attr, None)
                     if value is None:
                         continue
