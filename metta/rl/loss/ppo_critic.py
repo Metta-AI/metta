@@ -10,6 +10,7 @@ from typing_extensions import Literal
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
+from metta.rl.loss.td_lambda import td_lambda_reverse_scan
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
@@ -31,10 +32,8 @@ def _td_lambda_error(
 
     delta = rewards[:, 1:] + gamma * mask_next * values[:, 1:] - values[:, :-1]  # [B, TT-1]
 
-    running = torch.zeros_like(delta[:, -1])
-    for t in range(tt - 2, -1, -1):
-        running = delta[:, t] + (gamma * gae_lambda) * mask_next[:, t] * running
-        delta_lambda[:, t] = running
+    gamma_lambda = float(gamma * gae_lambda)
+    delta_lambda[:, :-1] = td_lambda_reverse_scan(delta, mask_next, gamma_lambda)
 
     return delta_lambda
 
