@@ -2,7 +2,6 @@
 
 from typing import Collection, Tuple
 
-import torch
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
@@ -10,8 +9,6 @@ from torchrl.data import Composite
 
 def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
     """Attach required sequence metadata to ``td`` if missing."""
-
-    total = batch_size * time_steps
     if "batch" not in td.keys():
         td.set("batch", NonTensorData(batch_size))
     if "bptt" not in td.keys():

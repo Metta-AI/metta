@@ -57,7 +57,6 @@ class CoreTrainingLoop:
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
-        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
 
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
@@ -196,31 +195,10 @@ class CoreTrainingLoop:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
-        device = td.device
         if "batch" not in td.keys():
-            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
+            td.set("batch", NonTensorData(batch_elems))
         if "bptt" not in td.keys():
-            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-
-    def _get_constant_tensor(
-        self,
-        name: str,
-        shape: tuple[int, ...],
-        value: int,
-        device: torch.device,
-    ) -> torch.Tensor:
-        if not shape:
-            shape = (1,)
-        key = (name, shape, int(value), str(device))
-        cached = self._metadata_cache.get(key)
-        if cached is None or cached.device != device:
-            if value == 1:
-                tensor = torch.ones(shape, dtype=torch.long, device=device)
-            else:
-                tensor = torch.full(shape, value, dtype=torch.long, device=device)
-            self._metadata_cache[key] = tensor
-            return tensor
-        return cached
+            td.set("bptt", NonTensorData(1))
 
     def training_phase(
         self,

@@ -1,17 +1,30 @@
 import math
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 from gymnasium.spaces import Discrete
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from tensordict.nn import TensorDictModule as TDM
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+
+def _metadata_to_int(value: Any, *, name: str) -> int:
+    if isinstance(value, NonTensorData):
+        return int(value.data)
+    if torch.is_tensor(value):
+        if value.numel() == 1:
+            return int(value.item())
+        return int(value.reshape(-1)[0].item())
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid {name} metadata: {value}") from exc
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -202,7 +215,7 @@ class ActionProbs(nn.Module):
             batch = td["batch"]
             bptt = td["bptt"]
             if not torch.is_tensor(batch):
-                td = td.reshape(int(batch), int(bptt))
+                td = td.reshape(_metadata_to_int(batch, name="batch"), _metadata_to_int(bptt, name="bptt"))
 
         return td
 

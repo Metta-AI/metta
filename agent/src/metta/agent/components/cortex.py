@@ -11,7 +11,7 @@ from cortex.factory import build_cortex
 from cortex.stacks import CortexStack
 from einops import rearrange
 from pydantic import ConfigDict, model_validator
-from tensordict import TensorDict, TensorDictBase
+from tensordict import NonTensorData, TensorDict, TensorDictBase
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.components.component_config import ComponentConfig
@@ -77,6 +77,19 @@ def _as_reset_mask(
         return None
     resets_bool = (dones.bool() | truncateds.bool()).to(device=device)
     return resets_bool.view(B) if TT == 1 else resets_bool.view(B, TT)
+
+
+def _metadata_to_int(value: Any, *, name: str) -> int:
+    if isinstance(value, NonTensorData):
+        return int(value.data)
+    if torch.is_tensor(value):
+        if value.numel() == 1:
+            return int(value.item())
+        return int(value.reshape(-1)[0].item())
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid {name} metadata: {value}") from exc
 
 
 class CortexTDConfig(ComponentConfig):
@@ -221,8 +234,8 @@ class CortexTD(nn.Module):
         storage_dtype = self._storage_dtype
         compute_dtype = self._resolve_compute_dtype(x.dtype)
 
-        TT = int(td["bptt"])
-        B = int(td["batch"])
+        TT = _metadata_to_int(td.get("bptt", 1), name="bptt")
+        B = _metadata_to_int(td.get("batch", x.shape[0]), name="batch")
 
         self._init_template_if_needed(B=B, device=device, dtype=storage_dtype)
 
