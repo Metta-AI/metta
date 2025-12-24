@@ -42,6 +42,25 @@ def create_episode_job(job: JobRequest) -> str:
         # "compute": "fargate",
     }
 
+    volumes: list[client.V1Volume] = []
+    volume_mounts: list[client.V1VolumeMount] = []
+
+    if cfg.LOCAL_DEV_MOUNTS:
+        for i, mount in enumerate(cfg.LOCAL_DEV_MOUNTS.split(",")):
+            parts = mount.strip().split(":")
+            if len(parts) != 2:
+                logger.warning(f"Invalid mount format: {mount}, expected 'host:container'")
+                continue
+            host_path, container_path = parts
+            vol_name = f"local-mount-{i}"
+            volumes.append(
+                client.V1Volume(
+                    name=vol_name,
+                    host_path=client.V1HostPathVolumeSource(path=host_path),
+                )
+            )
+            volume_mounts.append(client.V1VolumeMount(name=vol_name, mount_path=container_path))
+
     k8s_job = client.V1Job(
         metadata=client.V1ObjectMeta(
             name=job_name,
@@ -59,6 +78,7 @@ def create_episode_job(job: JobRequest) -> str:
                 metadata=client.V1ObjectMeta(labels=labels),
                 spec=client.V1PodSpec(
                     restart_policy="Never",
+                    volumes=volumes if volumes else None,
                     containers=[
                         client.V1Container(
                             name="worker",
@@ -73,7 +93,13 @@ def create_episode_job(job: JobRequest) -> str:
                             env=[
                                 client.V1EnvVar(name="STATS_SERVER_URI", value=cfg.STATS_SERVER_URI),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
-                            ],
+                            ]
+                            + (
+                                [client.V1EnvVar(name="AWS_PROFILE", value=cfg.LOCAL_DEV_AWS_PROFILE)]
+                                if cfg.LOCAL_DEV_MOUNTS and cfg.LOCAL_DEV_AWS_PROFILE
+                                else []
+                            ),
+                            volume_mounts=volume_mounts if volume_mounts else None,
                             resources=client.V1ResourceRequirements(
                                 requests={"cpu": "3", "memory": "3Gi"},
                                 limits={"cpu": "4", "memory": "6Gi"},

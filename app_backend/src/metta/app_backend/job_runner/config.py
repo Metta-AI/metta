@@ -14,6 +14,11 @@ class JobDispatchConfig(BaseSettings):
     STATS_SERVER_URI: str = ""
     # TODO: limit the scope of this to only update the job in question
     MACHINE_TOKEN: str = ""
+    # Local dev mode: comma-separated host:container mount pairs
+    # e.g. "~/.aws:/root/.aws,path/to/repo:/workspace/metta"
+    # AWS_PROFILE is also passed to job pods when LOCAL_DEV_MOUNTS is set
+    LOCAL_DEV_MOUNTS: str = ""
+    LOCAL_DEV_AWS_PROFILE: str = ""
 
 
 @lru_cache
