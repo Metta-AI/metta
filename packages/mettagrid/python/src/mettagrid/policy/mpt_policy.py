@@ -31,13 +31,13 @@ class MptPolicy(MultiAgentPolicy):
 
         artifact = load_mpt(checkpoint_uri)
         self._architecture = artifact.architecture
-
         self._policy = artifact.instantiate(
             policy_env_info,
             device=device,
             strict=strict,
             allow_legacy_architecture=allow_legacy_architecture,
         )
+        self._architecture = artifact.architecture
         self._policy.eval()
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
