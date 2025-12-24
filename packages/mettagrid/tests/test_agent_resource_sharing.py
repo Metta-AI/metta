@@ -19,7 +19,7 @@ class TestAgentResourceSharing:
 
         # Configure resources and sharing via vibe_transfers
         cfg.game.resource_names = ["energy", "water", "food"]
-        cfg.game.agent.initial_inventory = {"energy": 10, "water": 8, "food": 6}
+        cfg.game.agent.inventory.initial = {"energy": 10, "water": 8, "food": 6}
 
         # Configure vibe_transfers to share half of energy and water when using default vibe
         cfg.game.agent.vibe_transfers = {

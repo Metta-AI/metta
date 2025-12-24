@@ -533,6 +533,6 @@ def describe_mission(mission_name: str, game_config: MettaGridConfig, mission_cf
 
     # Display agent configuration
     console.print("\n[bold]Agent Configuration:[/bold]")
-    console.print(f"  • Default resource limit: {game_config.game.agent.default_resource_limit}")
-    if game_config.game.agent.resource_limits:
-        console.print(f"  • Resource limits: {game_config.game.agent.resource_limits}")
+    console.print(f"  • Default resource limit: {game_config.game.agent.inventory.default_limit}")
+    if game_config.game.agent.inventory.limits:
+        console.print(f"  • Resource limits: {game_config.game.agent.inventory.limits}")

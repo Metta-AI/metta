@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     AttackActionConfig,
     ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -43,10 +44,10 @@ def test_exception_when_laser_not_in_inventory():
             change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 
@@ -83,10 +84,10 @@ def test_no_exception_when_resources_in_inventory():
             change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 
