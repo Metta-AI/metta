@@ -367,6 +367,7 @@ def write_eval_results_to_observatory(
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
+            conn.execute("CHECKPOINT")
             logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
             response = stats_client.bulk_upload_episodes(str(duckdb_path))
             logger.info(
@@ -429,6 +430,7 @@ def write_single_episode_to_observatory(
             job=job,
             results=results,
         )
+        conn.execute("CHECKPOINT")
         response = stats_client.bulk_upload_episodes(str(db_path))
         logger.info(f"Uploaded episode: {response.episodes_created} episodes at {response.duckdb_s3_uri}")
     return episode_id
