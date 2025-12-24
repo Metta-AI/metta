@@ -8,9 +8,9 @@ from typing import Any, Dict, Optional
 import torch
 
 from metta.rl.system_config import SystemConfig
+from metta.rl.checkpoint_bundle import write_checkpoint_dir
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
@@ -83,11 +83,12 @@ class CheckpointManager:
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_dir = CheckpointPolicy.write_checkpoint_dir(
+        checkpoint_dir = write_checkpoint_dir(
             base_dir=self.checkpoint_dir,
             run_name=self.run_name,
             epoch=epoch,
-            architecture=architecture,
+            policy_class_path=architecture.class_path,
+            architecture_spec=architecture.to_spec(),
             state_dict=state_dict,
         )
 

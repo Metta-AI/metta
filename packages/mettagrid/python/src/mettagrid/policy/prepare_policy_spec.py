@@ -215,7 +215,7 @@ def download_policy_spec_from_s3_as_zip(
 
     normalized_path = s3_path.rstrip("/")
     if normalized_path.endswith(".mpt"):
-        raise ValueError("MPT checkpoints are deprecated; convert to a checkpoint directory first.")
+        raise ValueError("MPT checkpoints are not supported; use a policy_spec bundle instead.")
 
     if not normalized_path.endswith(".zip"):
         raise ValueError("Expected a .zip submission archive; use download_checkpoint_dir_from_s3 for directories.")
@@ -253,7 +253,7 @@ def download_checkpoint_dir_from_s3(
 
     normalized_path = s3_path.rstrip("/")
     if normalized_path.endswith(".mpt"):
-        raise ValueError("MPT checkpoints are deprecated; convert to a checkpoint directory first.")
+        raise ValueError("MPT checkpoints are not supported; use a policy_spec bundle instead.")
     if normalized_path.endswith(".zip"):
         raise ValueError("Expected a checkpoint directory, not a .zip archive.")
 

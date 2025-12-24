@@ -7,10 +7,11 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy, PolicyArchitecture
+from metta.rl.checkpoint_bundle import load_checkpoint_state
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
@@ -65,10 +66,11 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 payload: dict[str, object] | None = None
                 if self._distributed.is_master():
-                    policy = CheckpointPolicy.from_policy_spec(policy_env_info, policy_spec_from_uri(normalized_uri))
+                    policy_spec = policy_spec_from_uri(normalized_uri)
+                    architecture_spec, state_dict = load_checkpoint_state(policy_spec)
                     payload = {
-                        "architecture_spec": policy.architecture_spec,
-                        "state_dict": {k: v.cpu() for k, v in policy.wrapped_policy.state_dict().items()},
+                        "architecture_spec": architecture_spec,
+                        "state_dict": {k: v.cpu() for k, v in state_dict.items()},
                         "action_count": len(policy_env_info.actions.actions()),
                     }
                 payload = self._distributed.broadcast_from_master(payload)
@@ -97,9 +99,11 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            policy = CheckpointPolicy.from_policy_spec(
-                policy_env_info, policy_spec_from_uri(candidate_uri)
-            ).wrapped_policy
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(candidate_uri),
+                device_override=str(load_device),
+            )
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy

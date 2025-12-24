@@ -2,7 +2,7 @@
 
 This package provides a pluggable URI resolution system for handling different resource schemes.
 
-Checkpoint URIs point at a checkpoint directory containing `policy_spec.json`.
+Checkpoint URIs point at a checkpoint directory (or `.zip` archive) containing `policy_spec.json`.
 
 ## Usage
 
@@ -22,7 +22,7 @@ if info:
 
 # Resolve a URI (normalizes and finds latest checkpoint if applicable)
 parsed = resolve_uri("file:///path/to/checkpoints:latest")
-print(parsed.canonical)  # "file:///path/to/checkpoints/run:v5"
+print(parsed.canonical)  # "file:///path/to/checkpoints/run:v5" or ".zip"
 
 # Get full checkpoint metadata (resolves URI first)
 metadata = get_checkpoint_metadata("s3://bucket/checkpoints/my-run:v5")

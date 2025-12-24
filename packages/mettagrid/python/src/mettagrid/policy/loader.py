@@ -30,32 +30,35 @@ def initialize_or_load_policy(
         Initialized policy instance
     """
 
-    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
-    # We're planning to remove kwargs from the policy spec, maybe in January
-    # 2026. We may want to support passing arguments, but they shouldn't take
-    # the form of arbitrary kwargs where the policy author and our execution
-    # code need to share a namespace.
     kwargs = policy_spec.init_kwargs or {}
+    architecture_spec = kwargs.get("architecture_spec")
+    if architecture_spec is not None:
+        policy = _initialize_from_architecture_spec(policy_env_info, policy_spec, device_override)
+    else:
+        policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+        # We're planning to remove kwargs from the policy spec, maybe in January
+        # 2026. We may want to support passing arguments, but they shouldn't take
+        # the form of arbitrary kwargs where the policy author and our execution
+        # code need to share a namespace.
+        kwarg_overrides = {}
+        if device_override is not None:
+            kwarg_overrides["device"] = device_override
 
-    kwarg_overrides = {}
-    if device_override is not None:
-        kwarg_overrides["device"] = device_override
+        if len(kwarg_overrides) > 0:
+            kwargs = kwargs.copy()
+            class_params = inspect.signature(policy_class.__init__).parameters
+            allows_all = any((p.kind == inspect.Parameter.VAR_KEYWORD for p in class_params.values()))
+            for name in kwarg_overrides:
+                if allows_all or (name in class_params):
+                    kwargs[name] = kwarg_overrides[name]
 
-    if len(kwarg_overrides) > 0:
-        kwargs = kwargs.copy()
-        class_params = inspect.signature(policy_class.__init__).parameters
-        allows_all = any((p.kind == inspect.Parameter.VAR_KEYWORD for p in class_params.values()))
-        for name in kwarg_overrides:
-            if allows_all or (name in class_params):
-                kwargs[name] = kwarg_overrides[name]
+        try:
+            policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
+        except TypeError as e:
+            raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
 
-    try:
-        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
-
-    if policy_spec.data_path:
-        policy.load_policy_data(policy_spec.data_path)
+        if policy_spec.data_path:
+            policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         if isinstance(policy, AgentPolicy):
@@ -66,6 +69,47 @@ def initialize_or_load_policy(
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
     return policy
+
+
+def _initialize_from_architecture_spec(
+    policy_env_info: PolicyEnvInterface,
+    policy_spec: PolicySpec,
+    device_override: str | None = None,
+) -> MultiAgentPolicy:
+    kwargs = policy_spec.init_kwargs or {}
+    architecture_spec = kwargs.get("architecture_spec")
+    if architecture_spec is None:
+        raise ValueError("architecture_spec missing from policy spec")
+
+    policy_architecture = _load_policy_architecture(architecture_spec)
+    policy = policy_architecture.make_policy(policy_env_info)
+
+    device = device_override or kwargs.get("device")
+    if device is not None and hasattr(policy, "to"):
+        import torch
+
+        policy = policy.to(torch.device(device))
+
+    if policy_spec.data_path:
+        from safetensors.torch import load as load_safetensors
+
+        state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+        policy.load_state_dict(dict(state_dict))
+
+    if hasattr(policy, "initialize_to_environment"):
+        import torch
+
+        target_device = torch.device(device) if device is not None else torch.device("cpu")
+        policy.initialize_to_environment(policy_env_info, target_device)
+
+    return policy
+
+
+def _load_policy_architecture(spec: str):
+    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=False)
+    if policy_architecture is None:
+        raise ImportError("PolicyArchitecture is required to load architecture-based checkpoints")
+    return policy_architecture.from_spec(spec)
 
 
 def resolve_policy_class_path(policy: str) -> str:

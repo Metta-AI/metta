@@ -13,10 +13,11 @@ import mettagrid.builder.envs as eb
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import PolicyArchitecture
+from metta.rl.checkpoint_bundle import write_checkpoint_dir
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import (
     get_checkpoint_metadata,
@@ -69,11 +70,12 @@ class TestCheckpointManagerFlows:
     ):
         """During training resume, we need to find the latest checkpoint."""
         for epoch in [1, 5, 10]:
-            CheckpointPolicy.write_checkpoint_dir(
+            write_checkpoint_dir(
                 base_dir=checkpoint_manager.checkpoint_dir,
                 run_name=checkpoint_manager.run_name,
                 epoch=epoch,
-                architecture=mock_policy_architecture,
+                policy_class_path=mock_policy_architecture.class_path,
+                architecture_spec=mock_policy_architecture.to_spec(),
                 state_dict=mock_agent.state_dict(),
             )
 
@@ -83,11 +85,12 @@ class TestCheckpointManagerFlows:
 
     def test_trainer_state_save_and_restore(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Trainer state must be saved alongside policy for proper resume."""
-        CheckpointPolicy.write_checkpoint_dir(
+        write_checkpoint_dir(
             base_dir=checkpoint_manager.checkpoint_dir,
             run_name=checkpoint_manager.run_name,
             epoch=5,
-            architecture=mock_policy_architecture,
+            policy_class_path=mock_policy_architecture.class_path,
+            architecture_spec=mock_policy_architecture.to_spec(),
             state_dict=mock_agent.state_dict(),
         )
 
@@ -106,11 +109,12 @@ class TestCheckpointManagerFlows:
     def test_resolve_latest_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """The :latest suffix is used by eval tools to find the newest checkpoint."""
         for epoch in [1, 7, 3]:
-            CheckpointPolicy.write_checkpoint_dir(
+            write_checkpoint_dir(
                 base_dir=checkpoint_manager.checkpoint_dir,
                 run_name=checkpoint_manager.run_name,
                 epoch=epoch,
-                architecture=mock_policy_architecture,
+                policy_class_path=mock_policy_architecture.class_path,
+                architecture_spec=mock_policy_architecture.to_spec(),
                 state_dict=mock_agent.state_dict(),
             )
 
@@ -118,13 +122,14 @@ class TestCheckpointManagerFlows:
         metadata = get_checkpoint_metadata(resolve_uri(latest_uri).canonical)
         assert metadata.epoch == 7
 
-    def test_checkpoint_policy_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
-        """Checkpoint policy wrapper must load checkpoint and produce actions."""
-        CheckpointPolicy.write_checkpoint_dir(
+    def test_checkpoint_bundle_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
+        """Checkpoint bundle must load and produce actions."""
+        write_checkpoint_dir(
             base_dir=checkpoint_manager.checkpoint_dir,
             run_name=checkpoint_manager.run_name,
             epoch=1,
-            architecture=mock_policy_architecture,
+            policy_class_path=mock_policy_architecture.class_path,
+            architecture_spec=mock_policy_architecture.to_spec(),
             state_dict=mock_agent.state_dict(),
         )
         latest = checkpoint_manager.get_latest_checkpoint()
@@ -132,7 +137,7 @@ class TestCheckpointManagerFlows:
 
         env_info = PolicyEnvInterface.from_mg_cfg(eb.make_navigation(num_agents=2))
         spec = policy_spec_from_uri(latest)
-        policy = CheckpointPolicy.from_policy_spec(env_info, spec).wrapped_policy
+        policy = initialize_or_load_policy(env_info, spec)
 
         obs_shape = env_info.observation_space.shape
         env_obs = torch.zeros((env_info.num_agents, *obs_shape), dtype=torch.uint8)

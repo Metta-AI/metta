@@ -296,7 +296,7 @@ def policy_spec_from_uri(
     parsed = resolve_uri(uri)
 
     if parsed.canonical.endswith(".mpt"):
-        raise ValueError("MPT checkpoints are deprecated; convert to a checkpoint directory first.")
+        raise ValueError("MPT checkpoints are not supported; use a policy_spec bundle instead.")
 
     if parsed.scheme == "mock":
         return PolicySpec(class_path=resolve_policy_class_path(parsed.path))
