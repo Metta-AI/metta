@@ -81,11 +81,13 @@ class ObsTokenPadStrip(nn.Module):
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
-        if not hasattr(self, "original_feature_mapping"):
-            self.original_feature_mapping = {props.name: props.id for props in features_list}
 
         if self._ignore_inventory_power_tokens:
             UNKNOWN_FEATURE_ID = 255
+            stored_log = None
+            if not hasattr(self, "original_feature_mapping"):
+                self.original_feature_mapping = {props.name: props.id for props in features_list}
+                stored_log = f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
             legacy_map, legacy_norms = self._build_legacy_feature_map(features_list)
             feature_remap: dict[int, int] = {}
 
@@ -105,6 +107,8 @@ class ObsTokenPadStrip(nn.Module):
                 current_features = {feat.name: feat for feat in features_list}
                 self._apply_feature_remapping(feature_remap, current_features, UNKNOWN_FEATURE_ID, device)
             self._feature_normalizations_override = legacy_norms
+            if stored_log:
+                return f"{stored_log}; Created inventory power-token remapping"
             return "Created inventory power-token remapping"
 
         if not hasattr(self, "original_feature_mapping"):
