@@ -1,6 +1,6 @@
 
 import
-  std/[strformat, strutils, tables, sets, options, algorithm],
+  std/[strformat, strutils, tables, sets, options],
   fidget2/measure,
   jsony
 
@@ -23,10 +23,6 @@ type
     obsFeatures*: seq[ConfigFeature]
     assemblerProtocols*: seq[AssemblerProtocol]
 
-  InventoryPowerFeature* = object
-    power*: int
-    featureId*: int
-
   Config* = object
     config*: PolicyConfig
     actions*: Actions
@@ -35,7 +31,7 @@ type
     vibes*: Vibes
     assemblerProtocols*: seq[AssemblerProtocol]
     inventoryTokenBase*: int
-    inventoryPowerFeatures*: Table[int, seq[InventoryPowerFeature]]
+    inventoryPowerFeatures*: Table[int, seq[int]]
 
   FeatureValue* = object
     featureId*: int
@@ -371,9 +367,9 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
     result.assemblerProtocols = config.assemblerProtocols
-    result.inventoryPowerFeatures = initTable[int, seq[InventoryPowerFeature]]()
+    result.inventoryPowerFeatures = initTable[int, seq[int]]()
     var inventoryBaseIds = initTable[string, int]()
-    var inventoryPowerIds = initTable[string, seq[InventoryPowerFeature]]()
+    var inventoryPowerIds = initTable[string, seq[int]]()
 
     for feature in config.obsFeatures:
       if feature.name.startsWith("inv:"):
@@ -388,7 +384,12 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
             let power = parseInt(powerStr)
             if power > 0:
               var powers = inventoryPowerIds.getOrDefault(resource, @[])
-              powers.add(InventoryPowerFeature(power: power, featureId: feature.id))
+              let oldLen = powers.len
+              if oldLen < power:
+                powers.setLen(power)
+                for index in oldLen ..< power:
+                  powers[index] = -1
+              powers[power - 1] = feature.id
               inventoryPowerIds[resource] = powers
               continue
         else:
@@ -483,9 +484,7 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
 
     for resource, powers in inventoryPowerIds:
       if resource in inventoryBaseIds:
-        var sortedPowers = powers
-        sortedPowers.sort(proc(a, b: InventoryPowerFeature): int = cmp(a.power, b.power))
-        result.inventoryPowerFeatures[inventoryBaseIds[resource]] = sortedPowers
+        result.inventoryPowerFeatures[inventoryBaseIds[resource]] = powers
 
     for id, name in config.actions:
       case name:
@@ -674,16 +673,12 @@ proc getInventory*(
     result = 0
   if cfg.inventoryTokenBase > 1 and inventoryId in cfg.inventoryPowerFeatures:
     var multiplier = cfg.inventoryTokenBase
-    var currentPower = 1
-    for powerFeature in cfg.inventoryPowerFeatures[inventoryId]:
-      while currentPower < powerFeature.power:
-        multiplier *= cfg.inventoryTokenBase
-        currentPower += 1
-      let powerValue = cfg.getFeature(visible, powerFeature.featureId, location)
-      if powerValue > -1:
-        result += powerValue * multiplier
+    for powerId in cfg.inventoryPowerFeatures[inventoryId]:
+      if powerId > -1:
+        let powerValue = cfg.getFeature(visible, powerId, location)
+        if powerValue > -1:
+          result += powerValue * multiplier
       multiplier *= cfg.inventoryTokenBase
-      currentPower += 1
 
 proc getOtherInventory*(
   cfg: Config,
