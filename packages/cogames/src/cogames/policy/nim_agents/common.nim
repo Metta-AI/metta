@@ -30,6 +30,8 @@ type
     tags*: Tags
     vibes*: Vibes
     assemblerProtocols*: seq[AssemblerProtocol]
+    inventoryTokenBase*: int
+    inventoryPowerFeatures*: Table[int, seq[int]]
 
   FeatureValue* = object
     featureId*: int
@@ -365,8 +367,30 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
     var config = environmentConfig.fromJson(PolicyConfig)
     result = Config(config: config)
     result.assemblerProtocols = config.assemblerProtocols
+    result.inventoryPowerFeatures = initTable[int, seq[int]]()
+    var inventoryBaseIds = initTable[string, int]()
+    var inventoryPowerIds = initTable[string, seq[int]]()
 
     for feature in config.obsFeatures:
+      if feature.name.startsWith("inv:"):
+        if result.inventoryTokenBase == 0:
+          result.inventoryTokenBase = int(feature.normalization)
+        let suffix = feature.name[4 .. ^1]
+        let powerIndex = suffix.rfind(":p")
+        if powerIndex != -1:
+          let resource = suffix[0 ..< powerIndex]
+          let powerStr = suffix[powerIndex + 2 .. ^1]
+          if resource.len > 0 and powerStr.len > 0 and powerStr.allCharsInSet({'0' .. '9'}):
+            let power = parseInt(powerStr)
+            if power > 0:
+              var powers = inventoryPowerIds.getOrDefault(resource, @[])
+              if powers.len < power:
+                powers.setLen(power)
+              powers[power - 1] = feature.id
+              inventoryPowerIds[resource] = powers
+              continue
+        else:
+          inventoryBaseIds[suffix] = feature.id
       case feature.name:
       of "agent:group":
         result.features.group = feature.id
@@ -454,6 +478,10 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
         result.features.protocolOutputScrambler = feature.id
       else:
         echo "Unknown feature: ", feature.name
+
+    for resource, powers in inventoryPowerIds:
+      if resource in inventoryBaseIds:
+        result.inventoryPowerFeatures[inventoryBaseIds[resource]] = powers
 
     for id, name in config.actions:
       case name:
@@ -640,6 +668,13 @@ proc getInventory*(
   # Missing inventory is 0.
   if result == -1:
     result = 0
+  if cfg.inventoryTokenBase > 1 and inventoryId in cfg.inventoryPowerFeatures:
+    var multiplier = cfg.inventoryTokenBase
+    for powerId in cfg.inventoryPowerFeatures[inventoryId]:
+      let powerValue = cfg.getFeature(visible, powerId, location)
+      if powerValue > -1:
+        result += powerValue * multiplier
+      multiplier *= cfg.inventoryTokenBase
 
 proc getOtherInventory*(
   cfg: Config,
@@ -648,11 +683,7 @@ proc getOtherInventory*(
   inventoryId: int
 ): int =
   ## Get the other inventory of the visible map.
-  if location in map:
-    for featureValue in map[location]:
-      if featureValue.featureId == inventoryId:
-        return featureValue.value
-  return 0
+  cfg.getInventory(map, inventoryId, location)
 
 proc getVibe*(cfg: Config, visible: Table[Location, seq[FeatureValue]], location: Location): int =
   ## Get the vibe of the visible map.
