@@ -148,6 +148,8 @@ class SLCheckpointedKickstarter(Loss):
         filename = checkpoint_filename(run_name, epoch)
 
         if parsed.scheme == "file" and parsed.local_path:
+            if parsed.local_path.is_file():
+                raise ValueError("Provide a checkpoint directory, not policy_spec.json")
             path = parsed.local_path.parent / filename
             return f"file://{path}"
         elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
