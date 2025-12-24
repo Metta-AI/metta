@@ -136,7 +136,7 @@ class Evaluator(TrainerComponent):
         return epoch % interval == 0
 
     def _upload_submission_zip(self, policy_uri: str) -> str | None:
-        """Return the S3 checkpoint directory to use as the submission path."""
+        """Return the S3 checkpoint artifact (directory or zip) to use as the submission path."""
         parsed = resolve_uri(policy_uri)
         if parsed.scheme != "s3":
             return None

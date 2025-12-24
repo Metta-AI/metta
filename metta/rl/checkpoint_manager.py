@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -10,8 +11,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.checkpoint_policy import CheckpointPolicy
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.file import write_data
+from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -92,21 +92,38 @@ class CheckpointManager:
         )
 
         if self._remote_prefix:
-            remote_dir = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}"
-            write_data(
-                f"{remote_dir}/{CheckpointPolicy.WEIGHTS_FILENAME}",
-                (checkpoint_dir / CheckpointPolicy.WEIGHTS_FILENAME).read_bytes(),
-            )
-            write_data(
-                f"{remote_dir}/{POLICY_SPEC_FILENAME}",
-                (checkpoint_dir / POLICY_SPEC_FILENAME).read_bytes(),
-                content_type="application/json",
-            )
-            logger.debug("Policy checkpoint saved remotely to %s", remote_dir)
-            return remote_dir
+            remote_zip = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}.zip"
+            zip_path = self._create_checkpoint_zip(checkpoint_dir)
+            try:
+                write_file(remote_zip, str(zip_path), content_type="application/zip")
+            finally:
+                zip_path.unlink(missing_ok=True)
+            logger.debug("Policy checkpoint saved remotely to %s", remote_zip)
+            return remote_zip
 
         logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
         return checkpoint_dir.as_uri()
+
+    @staticmethod
+    def _create_checkpoint_zip(checkpoint_dir: Path) -> Path:
+        with tempfile.NamedTemporaryFile(
+            dir=checkpoint_dir.parent,
+            prefix=f".{checkpoint_dir.name}.",
+            suffix=".zip",
+            delete=False,
+        ) as tmp_file:
+            zip_path = Path(tmp_file.name)
+
+        try:
+            with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in checkpoint_dir.rglob("*"):
+                    if file_path.is_file():
+                        zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
+        except Exception:
+            zip_path.unlink(missing_ok=True)
+            raise
+
+        return zip_path
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"

@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
@@ -70,7 +70,7 @@ def evaluate(
     for mission_name, env_cfg in missions:
         env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
         policy_instances: list[MultiAgentPolicy] = [
-            CheckpointPolicy.from_policy_spec(env_interface, spec).wrapped_policy for spec in policy_specs
+            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
         ]
 
         progress_label = f"Simulating ({mission_name})"

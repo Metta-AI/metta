@@ -39,7 +39,7 @@ from mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Simulation, Simulator
@@ -135,7 +135,7 @@ class MettaGridPufferEnv(PufferEnv):
         if self._supervisor_policy_spec is not None:
             policy_env_info = PolicyEnvInterface.from_mg_cfg(self._current_cfg)
             spec = self._supervisor_policy_spec
-            self._env_supervisor = CheckpointPolicy.from_policy_spec(policy_env_info, spec).wrapped_policy
+            self._env_supervisor = initialize_or_load_policy(policy_env_info, spec)
             self._compute_supervisor_actions()
         return sim
 

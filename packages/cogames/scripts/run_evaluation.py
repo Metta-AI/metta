@@ -39,7 +39,6 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from mettagrid.policy.checkpoint_policy import CheckpointPolicy
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -216,20 +215,12 @@ def load_policy(
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
         policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        return CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            policy_spec,
-            device_override=str(device),
-        ).wrapped_policy
+        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
         policy_spec = policy_spec_from_uri(policy_path, device=str(device))
-        return CheckpointPolicy.from_policy_spec(
-            policy_env_info,
-            policy_spec,
-            device_override=str(device),
-        ).wrapped_policy
+        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=None)
     return initialize_or_load_policy(policy_env_info, policy_spec)

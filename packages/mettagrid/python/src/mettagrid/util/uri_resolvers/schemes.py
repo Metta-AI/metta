@@ -27,7 +27,7 @@ class FileSchemeResolver(SchemeResolver):
       - /absolute/path/to/run:v5  (bare path, no scheme)
       - relative/path/to/run:v5   (bare path, no scheme)
       - ~/path/to/run:v5          (expands ~)
-      - /path/to/checkpoints:latest (resolves to highest epoch checkpoint dir)
+      - /path/to/checkpoints:latest (resolves to highest epoch checkpoint dir or zip)
     """
 
     @property
@@ -58,11 +58,16 @@ class FileSchemeResolver(SchemeResolver):
 
         best: tuple[int, str] | None = None
         for entry in parsed.local_path.iterdir():
-            if not entry.is_dir():
+            uri = None
+            if entry.is_dir():
+                if not (entry / "policy_spec.json").exists():
+                    continue
+                uri = entry.as_uri()
+            elif entry.is_file() and entry.suffix == ".zip":
+                uri = entry.as_uri()
+            else:
                 continue
-            if not (entry / "policy_spec.json").exists():
-                continue
-            uri = entry.as_uri()
+
             info = self.parse(uri).checkpoint_info
             if info and (best is None or info[1] > best[0]):
                 best = (info[1], uri)
@@ -93,6 +98,7 @@ class S3SchemeResolver(SchemeResolver):
     Supported formats:
       - s3://bucket/path/to/checkpoints:latest (resolves to highest epoch checkpoint)
       - s3://bucket/path/to/run:v5 (checkpoint dir with policy_spec.json)
+      - s3://bucket/path/to/run:v5.zip (checkpoint zip)
     """
 
     @property
@@ -124,12 +130,18 @@ class S3SchemeResolver(SchemeResolver):
             return None
         best: tuple[int, str] | None = None
         for obj in response["Contents"]:
-            if not obj["Key"].endswith("policy_spec.json"):
+            uri = None
+            key = obj["Key"]
+            if key.endswith("policy_spec.json"):
+                key_dir = key.removesuffix("/policy_spec.json")
+                if not key_dir:
+                    continue
+                uri = f"s3://{parsed.bucket}/{key_dir}"
+            elif key.endswith(".zip"):
+                uri = f"s3://{parsed.bucket}/{key}"
+            else:
                 continue
-            key_dir = obj["Key"].removesuffix("/policy_spec.json")
-            if not key_dir:
-                continue
-            uri = f"s3://{parsed.bucket}/{key_dir}"
+
             info = self.parse(uri).checkpoint_info
             if info and (best is None or info[1] > best[0]):
                 best = (info[1], uri)
