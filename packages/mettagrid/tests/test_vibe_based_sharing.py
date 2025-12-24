@@ -27,7 +27,7 @@ class TestVibeBasedSharing:
 
         # Configure resources and sharing
         cfg.game.resource_names = ["charger", "water", "food"]
-        cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
+        cfg.game.agent.inventory.initial = {"charger": 10, "water": 8, "food": 6}
 
         # Configure vibe_transfers: when agent has "charger" vibe, transfer 5 charger
         # Only resources listed here participate in transfers
@@ -127,7 +127,7 @@ class TestVibeBasedSharing:
         )
 
         cfg.game.resource_names = ["charger", "water", "food"]
-        cfg.game.agent.initial_inventory = {"charger": 10, "water": 8, "food": 6}
+        cfg.game.agent.inventory.initial = {"charger": 10, "water": 8, "food": 6}
 
         # No vibe_transfers configured - no resources will be shared
         cfg.game.agent.vibe_transfers = {}

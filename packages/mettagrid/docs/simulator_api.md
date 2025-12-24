@@ -265,9 +265,11 @@ obs = agent.observation
 for token in obs.tokens:
     if token.feature.name == "object_type":
         print(f"Object at ({token.col()}, {token.row()}): {token.value}")
-    elif token.feature.name.startswith("inv:"):
-        resource = token.feature.name[4:]  # Remove "inv:" prefix
-        print(f"Inventory {resource}: {token.value}")
+
+# For inventory, use the agent.inventory property which handles the encoding
+inventory = agent.inventory
+for resource, amount in inventory.items():
+    print(f"Inventory {resource}: {amount}")
 ```
 
 ## Event Handling

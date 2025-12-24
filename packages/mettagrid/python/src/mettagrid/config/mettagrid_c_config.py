@@ -64,7 +64,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # These are the baseline settings for all agents
     default_agent_config_dict = game_config.agent.model_dump()
-    default_resource_limit = default_agent_config_dict["default_resource_limit"]
+    default_resource_limit = default_agent_config_dict["inventory"]["default_limit"]
 
     # If no agents specified, create default agents with appropriate team IDs
     if not game_config.agents:
@@ -139,8 +139,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
             stat_reward_max[stat_name] = v
 
+        # Get inventory config
+        inv_config = agent_props.get("inventory", {})
+
         # Process potential initial inventory
-        initial_inventory = {resource_name_to_id[k]: min(v, 255) for k, v in agent_props["initial_inventory"].items()}
+        initial_inventory = {resource_name_to_id[k]: v for k, v in inv_config.get("initial", {}).items()}
 
         # Map team IDs to conventional group names
         team_names = {0: "red", 1: "blue", 2: "green", 3: "yellow", 4: "purple", 5: "orange"}
@@ -148,28 +151,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         # Convert tag names to IDs for first agent in team
         tag_ids = [tag_name_to_id[tag] for tag in first_agent.tags]
 
-        # Convert soul bound resources from names to IDs
-        soul_bound_resources = [
-            resource_name_to_id[resource_name] for resource_name in agent_props.get("soul_bound_resources", [])
-        ]
-
-        # Convert inventory regeneration amounts from names to IDs (vibe -> resource -> amount)
-        # "default" is a special key that maps to vibe ID 0 (used as fallback for any vibe)
+        # Convert vibe-keyed inventory regeneration amounts from names to IDs
+        # Format: {vibe_name: {resource_name: amount}} -> {vibe_id: {resource_id: amount}}
         inventory_regen_amounts = {}
-        for vibe_name, resource_amounts in agent_props.get("inventory_regen_amounts", {}).items():
-            if vibe_name == "default":
-                vibe_id = 0  # "default" always maps to vibe ID 0
-            else:
-                vibe_id = vibe_name_to_id[vibe_name]
-            inventory_regen_amounts[vibe_id] = {
+        for vibe_name, resource_amounts in inv_config.get("regen_amounts", {}).items():
+            vibe_id = vibe_name_to_id[vibe_name]
+            resource_amounts_cpp = {
                 resource_name_to_id[resource_name]: amount for resource_name, amount in resource_amounts.items()
             }
-
-        diversity_tracked_resources = [
-            resource_name_to_id[resource_name]
-            for resource_name in agent_props.get("diversity_tracked_resources", [])
-            if resource_name in resource_name_to_id
-        ]
+            inventory_regen_amounts[vibe_id] = resource_amounts_cpp
 
         # Convert vibe_transfers: vibe -> resource -> delta
         vibe_transfers_map = {}
@@ -177,6 +167,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             vibe_id = vibe_name_to_id[vibe_name]
             resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
             vibe_transfers_map[vibe_id] = resource_deltas_cpp
+
+        # Convert diversity_tracked_resources to IDs
+        diversity_tracked_resources = [
+            resource_name_to_id[resource_name]
+            for resource_name in agent_props.get("diversity_tracked_resources", [])
+            if resource_name in resource_name_to_id
+        ]
 
         # Build damage config if present
         damage_config_py = agent_props.get("damage")
@@ -204,7 +201,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # First, handle explicitly configured limits (both individual and grouped)
         configured_resources = set()
-        for resource_limit in agent_props["resource_limits"].values():
+        for resource_limit in inv_config.get("limits", {}).values():
             # Convert resource names to IDs
             resource_ids = [resource_name_to_id[name] for name in resource_limit["resources"]]
             # Convert modifier names to IDs
@@ -214,7 +211,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 for name, bonus in modifiers_dict.items()
                 if name in resource_name_to_id
             }
-            base_limit = min(resource_limit["limit"], 255)
+            base_limit = resource_limit["limit"]
             limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
             configured_resources.update(resource_limit["resources"])
 
@@ -222,9 +219,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for resource_name in resource_names:
             if resource_name not in configured_resources:
                 limit_defs.append(
-                    CppLimitDef(
-                        resources=[resource_name_to_id[resource_name]], base_limit=min(default_resource_limit, 255)
-                    )
+                    CppLimitDef(resources=[resource_name_to_id[resource_name]], base_limit=default_resource_limit)
                 )
 
         inventory_config = CppInventoryConfig()
@@ -240,10 +235,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
             initial_inventory=initial_inventory,
-            soul_bound_resources=soul_bound_resources,
             inventory_regen_amounts=inventory_regen_amounts,
-            diversity_tracked_resources=diversity_tracked_resources,
             vibe_transfers=vibe_transfers_map,
+            diversity_tracked_resources=diversity_tracked_resources,
             damage_config=cpp_damage_config,
         )
         cpp_agent_config.tag_ids = tag_ids
@@ -332,15 +326,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 }
                 vibe_transfers_map[vibe_id] = resource_deltas_cpp
 
-            # Convert initial inventory
+            # Convert initial inventory from nested inventory config
             initial_inventory_cpp = {}
-            for resource, amount in object_config.initial_inventory.items():
+            for resource, amount in object_config.inventory.initial.items():
                 resource_id = resource_name_to_id[resource]
-                initial_inventory_cpp[resource_id] = min(amount, 255)
+                initial_inventory_cpp[resource_id] = amount
 
             # Create inventory config with limits and modifiers
             limit_defs = []
-            for resource_limit in object_config.resource_limits.values():
+            for resource_limit in object_config.inventory.limits.values():
                 # resources is always a list of strings
                 resource_list = resource_limit.resources
 
@@ -354,9 +348,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         if name in resource_name_to_id
                     }
                     limit_defs.append(
-                        CppLimitDef(
-                            resources=resource_ids, base_limit=min(resource_limit.limit, 255), modifiers=modifier_ids
-                        )
+                        CppLimitDef(resources=resource_ids, base_limit=resource_limit.limit, modifiers=modifier_ids)
                     )
 
             inventory_config = CppInventoryConfig()
@@ -389,6 +381,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         game_cpp_params["obs_width"] = obs_config["width"]
         game_cpp_params["obs_height"] = obs_config["height"]
         game_cpp_params["num_observation_tokens"] = obs_config["num_tokens"]
+        game_cpp_params["token_value_base"] = obs_config.get("token_value_base", 256)
         # Note: token_dim is not used by C++ GameConfig, it's only used in Python
 
     # Convert observation features from Python to C++

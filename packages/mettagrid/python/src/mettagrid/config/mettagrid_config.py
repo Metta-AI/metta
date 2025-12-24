@@ -65,6 +65,32 @@ class ResourceLimitsConfig(Config):
     )
 
 
+class InventoryConfig(Config):
+    """Inventory configuration for agents and chests."""
+
+    default_limit: int = Field(default=65535, ge=0, description="Default resource limit")
+    limits: dict[str, ResourceLimitsConfig] = Field(
+        default_factory=dict,
+        description="Resource-specific limits",
+    )
+    initial: dict[str, int] = Field(default_factory=dict, description="Initial inventory")
+    regen_amounts: dict[str, dict[str, int]] = Field(
+        default_factory=dict,
+        description=(
+            "Vibe-dependent inventory regeneration. Maps vibe name to resource amounts. "
+            "Use 'default' for fallback when agent's vibe isn't specified. "
+            "Example: {'default': {'energy': 1}, 'weapon': {'energy': 2}}"
+        ),
+    )
+
+    def get_limit(self, resource_name: str) -> int:
+        """Get the resource limit for a given resource name."""
+        for limit_config in self.limits.values():
+            if resource_name in limit_config.resources:
+                return limit_config.limit
+        return self.default_limit
+
+
 class DamageConfig(Config):
     """Damage configuration for agents.
 
@@ -103,49 +129,23 @@ class DamageConfig(Config):
 class AgentConfig(Config):
     """Python agent configuration."""
 
-    default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str, ResourceLimitsConfig] = Field(
-        default_factory=dict,
-        description="Resource limits for this agent",
-    )
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
     rewards: AgentRewards = Field(default_factory=AgentRewards)
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
-    initial_inventory: dict[str, int] = Field(default_factory=dict)
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
-    soul_bound_resources: list[str] = Field(
-        default_factory=list, description="Resources that cannot be stolen during attacks"
-    )
-    inventory_regen_amounts: dict[str, dict[str, int]] = Field(
-        default_factory=dict,
-        description=(
-            "Vibe-dependent inventory regeneration. Maps vibe name to resource amounts. "
-            "Use 'default' for fallback when agent's vibe isn't specified. "
-            "Example: {'default': {'energy': 1}, 'weapon': {'energy': 2}}"
-        ),
+    vibe_transfers: dict[str, dict[str, int]] = Field(
+        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
-    )
-    vibe_transfers: dict[str, dict[str, int]] = Field(
-        default_factory=dict, description="Maps vibe name to resource deltas for agent-to-agent sharing"
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
     damage: Optional[DamageConfig] = Field(
         default=None,
         description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
     )
-
-    def get_limit_for_resource(self, resource_name: str) -> int:
-        """Get the resource limit for a given resource name.
-
-        Returns the limit from resource_limits if found, otherwise returns default_resource_limit.
-        """
-        for resource_limit in self.resource_limits.values():
-            if resource_name in resource_limit.resources:
-                return resource_limit.limit
-        return self.default_resource_limit
 
 
 class ActionConfig(Config):
@@ -355,25 +355,7 @@ class ChestConfig(GridObjectConfig):
         ),
     )
 
-    # Initial inventory for each resource
-    initial_inventory: dict[str, int] = Field(
-        default_factory=dict, description="Initial inventory for each resource type"
-    )
-
-    # Resource limits for the chest's inventory
-    resource_limits: dict[str, ResourceLimitsConfig] = Field(
-        default_factory=dict, description="Resource limits for this chest"
-    )
-
-    def get_limit(self, resource_name: str) -> Optional[int]:
-        """Get the resource limit for a given resource name.
-
-        Returns the limit from resource_limits if found, otherwise returns None.
-        """
-        for resource_limit in self.resource_limits.values():
-            if resource_name in resource_limit.resources:
-                return resource_limit.limit
-        return None
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
 class ClipperConfig(Config):
@@ -453,7 +435,7 @@ class GameConfig(Config):
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     objects: dict[str, AnyGridObjectConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
-    # E.g., templates can use params as a place where values are expected to be written,
+    # E.g., templates can use params as a place  where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
