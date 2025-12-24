@@ -1,0 +1,76 @@
+import pytest
+import torch
+
+from metta.rl.advantage import compute_delta_lambda, td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
+
+
+def test_td_lambda_error_matches_simple_sum_without_terminals() -> None:
+    values = torch.zeros((1, 4), dtype=torch.float32)
+    rewards = torch.tensor([[0.0, 1.0, 2.0, 3.0]], dtype=torch.float32)
+    dones = torch.zeros_like(values)
+
+    delta_lambda = compute_delta_lambda(
+        values=values,
+        rewards=rewards,
+        dones=dones,
+        gamma=1.0,
+        gae_lambda=1.0,
+    )
+
+    expected = torch.tensor([[6.0, 5.0, 3.0, 0.0]], dtype=torch.float32)
+    torch.testing.assert_close(delta_lambda, expected)
+
+
+def test_td_lambda_error_resets_on_done() -> None:
+    values = torch.zeros((1, 4), dtype=torch.float32)
+    rewards = torch.tensor([[0.0, 1.0, 2.0, 3.0]], dtype=torch.float32)
+    dones = torch.tensor([[0.0, 0.0, 1.0, 0.0]], dtype=torch.float32)
+
+    delta_lambda = compute_delta_lambda(
+        values=values,
+        rewards=rewards,
+        dones=dones,
+        gamma=1.0,
+        gae_lambda=1.0,
+    )
+
+    expected = torch.tensor([[3.0, 2.0, 3.0, 0.0]], dtype=torch.float32)
+    torch.testing.assert_close(delta_lambda, expected)
+
+
+def test_td_lambda_error_is_differentiable_wrt_values() -> None:
+    values = torch.randn((2, 5), dtype=torch.float32, requires_grad=True)
+    rewards = torch.randn((2, 5), dtype=torch.float32)
+    dones = torch.zeros_like(values)
+
+    delta_lambda = compute_delta_lambda(
+        values=values,
+        rewards=rewards,
+        dones=dones,
+        gamma=0.9,
+        gae_lambda=0.8,
+    )
+    loss = delta_lambda.sum()
+    loss.backward()
+
+    assert values.grad is not None
+    assert float(values.grad.abs().sum().item()) > 0.0
+
+
+def test_td_lambda_reverse_scan_cuda_matches_pytorch() -> None:
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    device = torch.device("cuda")
+    torch.manual_seed(0)
+
+    batch_size = 8
+    time_steps = 64
+    delta = torch.randn((batch_size, time_steps), device=device, dtype=torch.float32)
+    mask_next = (torch.rand((batch_size, time_steps), device=device) > 0.2).to(torch.float32)
+    gamma_lambda = 0.97 * 0.95
+
+    out_cuda = td_lambda_reverse_scan_cuda(delta, mask_next, gamma_lambda)
+    out_pytorch = td_lambda_reverse_scan_pytorch(delta, mask_next, gamma_lambda)
+
+    torch.testing.assert_close(out_cuda, out_pytorch, rtol=1e-4, atol=1e-4)
