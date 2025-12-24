@@ -108,11 +108,23 @@ def server():
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+    aws_path = os.path.expanduser("~/.aws")
+    # Mount source dirs individually to preserve container's .venv
+    # Note: packages/ excluded because it contains platform-specific compiled binaries (.so)
+    source_mounts = [
+        f"{aws_path}:/root/.aws",
+        f"{repo_root}/metta:/workspace/metta/metta",
+        f"{repo_root}/app_backend:/workspace/metta/app_backend",
+        f"{repo_root}/common:/workspace/metta/common",
+    ]
+    env["LOCAL_DEV_MOUNTS"] = ",".join(source_mounts)
+    env["LOCAL_DEV_AWS_PROFILE"] = "softmax"
 
     info("Starting backend server...")
     info(f"  DB: {LOCAL_DB_URI}")
     info(f"  URL: {LOCAL_BACKEND_URL}")
     info(f"  Episode runner image: {LOCAL_METTA_POLICY_EVAL_IMG_NAME}")
+    info("  Local dev mounts: ~/.aws, metta/, app_backend/, common/")
 
     subprocess.run(
         ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],
