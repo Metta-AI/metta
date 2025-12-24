@@ -7,8 +7,8 @@ from typing import Any, Dict, Optional
 
 import torch
 
-from metta.rl.system_config import SystemConfig
 from metta.rl.checkpoint_bundle import write_checkpoint_dir
+from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.util.file import write_file

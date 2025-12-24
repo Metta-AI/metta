@@ -144,7 +144,7 @@ class MettaSchemeResolver(SchemeResolver):
             return f"mock://{resolved}"
         return None
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec(self, uri: str) -> str:
         parsed = self.parse(uri)
         path_parts = parsed.path.split("/")
         if len(path_parts) < 2 or path_parts[0] != "policy":

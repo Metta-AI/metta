@@ -24,4 +24,4 @@ class TestMettaURIs:
     def test_resolve_metta_uri_invalid_format(self):
         resolver = MettaSchemeResolver()
         with pytest.raises(ValueError, match="Unsupported metta:// URI format"):
-            resolver.get_path_to_policy_spec_or_mpt("metta://invalid")
+            resolver.get_path_to_policy_spec("metta://invalid")

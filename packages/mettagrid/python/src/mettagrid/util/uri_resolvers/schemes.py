@@ -73,7 +73,7 @@ class FileSchemeResolver(SchemeResolver):
                 best = (info[1], uri)
         return best[1] if best else None
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):
@@ -147,7 +147,7 @@ class S3SchemeResolver(SchemeResolver):
                 best = (info[1], uri)
         return best[1] if best else None
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
+    def get_path_to_policy_spec(self, uri: str) -> str:
         if uri.endswith(":latest"):
             base_uri = uri[:-7]
             if base_uri.endswith("/"):
@@ -263,7 +263,7 @@ def resolve_uri(uri: str) -> ParsedScheme:
     resolver = _get_resolver(uri)
     if not resolver:
         raise ValueError("Unsupported URI")
-    resolved_uri_str = resolver.get_path_to_policy_spec_or_mpt(uri)
+    resolved_uri_str = resolver.get_path_to_policy_spec(uri)
     return parse_uri(resolved_uri_str, allow_none=False)
 
 

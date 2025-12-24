@@ -84,11 +84,10 @@ def _initialize_from_architecture_spec(
     policy_architecture = _load_policy_architecture(architecture_spec)
     policy = policy_architecture.make_policy(policy_env_info)
 
-    device = device_override or kwargs.get("device")
-    if device is not None and hasattr(policy, "to"):
-        import torch
+    device = device_override or kwargs.get("device", "cpu")
+    import torch
 
-        policy = policy.to(torch.device(device))
+    policy = policy.to(torch.device(device))
 
     if policy_spec.data_path:
         from safetensors.torch import load as load_safetensors
@@ -96,11 +95,7 @@ def _initialize_from_architecture_spec(
         state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
         policy.load_state_dict(dict(state_dict))
 
-    if hasattr(policy, "initialize_to_environment"):
-        import torch
-
-        target_device = torch.device(device) if device is not None else torch.device("cpu")
-        policy.initialize_to_environment(policy_env_info, target_device)
+    policy.initialize_to_environment(policy_env_info, torch.device(device))
 
     return policy
 
