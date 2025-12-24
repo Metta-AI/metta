@@ -1,13 +1,12 @@
 from typing import Any, Optional
 
-from typing_extensions import Literal
-
 import numpy as np
 import torch
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from typing_extensions import Literal
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
