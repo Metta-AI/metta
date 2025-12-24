@@ -81,6 +81,8 @@ class ObsTokenPadStrip(nn.Module):
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
+        if not hasattr(self, "original_feature_mapping"):
+            self.original_feature_mapping = {props.name: props.id for props in features_list}
 
         if self._ignore_inventory_power_tokens:
             UNKNOWN_FEATURE_ID = 255
