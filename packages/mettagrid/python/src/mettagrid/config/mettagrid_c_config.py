@@ -489,6 +489,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
+        align=transfer_cfg.align,
     )
 
     # Process change_vibe - always add to map
