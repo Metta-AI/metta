@@ -113,9 +113,10 @@ protected:
                        1,                               // group_id
                        "test_group",                    // group_name
                        100,                             // freeze_duration
-                       create_test_inventory_config(),  // resource_limits
-                       create_test_stats_rewards(),     // stats_rewards
-                       create_test_stats_reward_max(),  // stats_reward_max
+                       0,                               // initial_vibe
+                       create_test_inventory_config(),  // inventory_config
+                       create_test_stats_rewards(),     // stat_rewards
+                       create_test_stats_reward_max(),  // stat_reward_max
                        {});                             // initial_inventory
   }
 
