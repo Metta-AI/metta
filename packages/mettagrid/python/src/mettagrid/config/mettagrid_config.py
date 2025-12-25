@@ -358,6 +358,10 @@ class GridObjectConfig(Config):
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+    commons: Optional[str] = Field(
+        default=None,
+        description="Name of commons this object belongs to. Adds 'commons:{name}' tag automatically.",
+    )
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
@@ -368,6 +372,11 @@ class GridObjectConfig(Config):
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
             self.tags = [self.render_name]
+        # Add commons tag if commons is set
+        if self.commons:
+            commons_tag = f"commons:{self.commons}"
+            if commons_tag not in self.tags:
+                self.tags = self.tags + [commons_tag]
         return self
 
 
@@ -472,6 +481,20 @@ class ClipperConfig(Config):
     )
 
 
+class CommonsConfig(Config):
+    """
+    Configuration for a shared inventory (Commons).
+
+    Commons provides a shared inventory that multiple grid objects can access.
+    Objects are associated with a commons via tags of the form "commons:{name}".
+    Grid objects can specify commons="name" in their config to automatically add
+    this tag.
+    """
+
+    name: str = Field(description="Unique name for this commons")
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
+
+
 AnyGridObjectConfig = SerializeAsAny[
     Annotated[
         Union[
@@ -534,6 +557,12 @@ class GameConfig(Config):
 
     # Global clipper system
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
+
+    # Commons - shared inventories that grid objects can belong to
+    commons: list[CommonsConfig] = Field(
+        default_factory=list,
+        description="List of commons (shared inventories) that grid objects can belong to",
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))
