@@ -89,17 +89,17 @@ void Agent::on_inventory_change(InventoryItem item, InventoryDelta delta) {
 
 void Agent::update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount) {
   const size_t index = static_cast<size_t>(item);
-  if (index >= diversity_tracked_mask.size() || diversity_tracked_mask[index] == 0) {
+  if (index >= this->diversity_tracked_mask.size() || this->diversity_tracked_mask[index] == 0) {
     return;
   }
 
-  const bool had = tracked_resource_presence[index] != 0;
+  const bool had = this->tracked_resource_presence[index] != 0;
   const bool has = amount > 0;
 
   if (had != has) {
-    tracked_resource_presence[index] = has ? 1 : 0;
-    tracked_resource_diversity += has ? 1 : static_cast<std::size_t>(-1);
-    this->stats.set("inventory.diversity", static_cast<float>(tracked_resource_diversity));
+    this->tracked_resource_presence[index] = has ? 1 : 0;
+    this->tracked_resource_diversity += has ? 1 : static_cast<std::size_t>(-1);
+    this->stats.set("inventory.diversity", static_cast<float>(this->tracked_resource_diversity));
   }
 }
 
