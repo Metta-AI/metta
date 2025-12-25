@@ -76,7 +76,6 @@ public:
         return false;
       }
     }
-    if (!_enabled) return false;  // Transfer action is disabled
     if (!target_object) return false;
 
     Agent* target = dynamic_cast<Agent*>(target_object);
