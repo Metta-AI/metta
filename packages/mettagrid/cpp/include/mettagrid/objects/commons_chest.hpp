@@ -11,6 +11,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/alignable.hpp"
 #include "objects/chest.hpp"
 #include "objects/chest_config.hpp"
 #include "objects/commons.hpp"
@@ -21,8 +22,8 @@
 #include "systems/stats_tracker.hpp"
 
 // CommonsChest is like Chest but uses the commons inventory instead of its own.
-// It inherits from Chest but overrides methods to use commons_inventory().
-class CommonsChest : public Chest {
+// It inherits from Chest and Alignable to access commons_inventory().
+class CommonsChest : public Chest, public Alignable {
 private:
   // Transfer multiple resources using the COMMONS inventory instead of own inventory.
   // Positive delta = deposit from agent to commons
