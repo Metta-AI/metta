@@ -1054,8 +1054,18 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("resource_names", &MettaGrid::resource_names)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
+  // Bind AOEEffectConfig for AOE effects on any object
+  py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>())
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def_readwrite("aoe", &GridObjectConfig::aoe);
 
   bind_wall_config(m);
 
