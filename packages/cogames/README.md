@@ -68,6 +68,11 @@ We'll train a simple starter policy. `easy_hearts` uses three variants to simpli
 # Play an episode of the easy_hearts mission with a scripted policy
 cogames play -m easy_hearts -p class=baseline
 
+# Play with an LLM policy (requires Ollama running locally, or API keys for gpt/claude)
+cogames play -m hello_world -p class=llm-ollama
+cogames play -m hello_world -p class=llm-openai
+cogames play -m hello_world -p class=llm-anthropic
+
 # Try the scripted policy on a set of eval missions
 cogames run -S integrated_evals -p class=baseline
 
