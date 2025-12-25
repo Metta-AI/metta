@@ -647,10 +647,62 @@ void MettaGrid::_step() {
           }
         }
       }
+    }
+  }
 
-      // Apply AOE cell effects from the grid at the agent's location
-      const auto& cell_effect = _grid->effect_at(agent->location.r, agent->location.c);
-      for (const auto& [item, delta] : cell_effect.resource_deltas) {
+  // Apply AOE cell effects from the grid at each agent's location
+  const std::string commons_tag_prefix = "commons:";
+  for (auto* agent : _agents) {
+    // Use individual effect sources for commons-aware filtering
+    const auto& cell_effects = _grid->effect_sources_at(agent->location.r, agent->location.c);
+    Commons* agent_commons = agent->getCommons();
+
+    // Get agent's commons name for tag-based comparison
+    std::string agent_commons_name;
+    if (agent_commons) {
+      agent_commons_name = agent_commons->name;
+    }
+
+    for (const auto& source : cell_effects.sources) {
+      const auto* config = source.config;
+      if (!config) {
+        continue;
+      }
+
+      // Check commons membership filtering
+      // First try Alignable interface (for agents), then check tags (for walls, etc.)
+      bool same_commons = false;
+
+      if (auto* source_alignable = dynamic_cast<Alignable*>(source.owner)) {
+        // Source is Alignable (e.g., another agent)
+        same_commons = (agent_commons != nullptr && source_alignable->getCommons() == agent_commons);
+      } else if (source.owner && !agent_commons_name.empty()) {
+        // Source is not Alignable (e.g., Wall), check tags for commons
+        for (int tag_id : source.owner->tag_ids) {
+          auto tag_it = _game_config.tag_id_map.find(tag_id);
+          if (tag_it != _game_config.tag_id_map.end()) {
+            const std::string& tag_name = tag_it->second;
+            if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+              std::string source_commons_name = tag_name.substr(commons_tag_prefix.length());
+              if (source_commons_name == agent_commons_name) {
+                same_commons = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Apply members_only and ignore_members filters
+      if (config->members_only && !same_commons) {
+        continue;  // Skip: effect only for members, but agent is not a member
+      }
+      if (config->ignore_members && same_commons) {
+        continue;  // Skip: effect ignores members, and agent is a member
+      }
+
+      // Apply the effect
+      for (const auto& [item, delta] : config->resource_deltas) {
         agent->inventory.update(item, delta);
       }
     }
@@ -1063,11 +1115,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // Bind AOEEffectConfig for AOE effects on any object
   py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
       .def(py::init<>())
-      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&>(),
+      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&, bool, bool>(),
            py::arg("range") = 1,
-           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>())
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("members_only") = false,
+           py::arg("ignore_members") = false)
       .def_readwrite("range", &AOEEffectConfig::range)
-      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas);
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas)
+      .def_readwrite("members_only", &AOEEffectConfig::members_only)
+      .def_readwrite("ignore_members", &AOEEffectConfig::ignore_members);
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
