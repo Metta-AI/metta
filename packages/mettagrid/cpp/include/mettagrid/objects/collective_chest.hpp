@@ -11,6 +11,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/alignable.hpp"
 #include "objects/chest.hpp"
 #include "objects/chest_config.hpp"
 #include "objects/collective.hpp"
@@ -21,16 +22,16 @@
 #include "systems/stats_tracker.hpp"
 
 // CollectiveChest is like Chest but uses the collective inventory instead of its own.
-// It inherits from Chest but overrides methods to use collective_inventory().
-class CollectiveChest : public Chest {
+// It inherits from Chest and Alignable to access collective_inventory().
+class CollectiveChest : public Chest, public Alignable {
 private:
-  // Transfer multiple resources using the COMMONS inventory instead of own inventory.
-  // Positive delta = deposit from agent to commons
-  // Negative delta = withdraw from commons to agent
+  // Transfer multiple resources using the COLLECTIVE inventory instead of own inventory.
+  // Positive delta = deposit from agent to collective
+  // Negative delta = withdraw from collective to agent
   bool transfer_resources_to_collective(Agent& agent, const std::unordered_map<InventoryItem, int>& resource_deltas) {
     Inventory* collective_inv = collective_inventory();
     if (!collective_inv) {
-      return false;  // No commons assigned
+      return false;  // No collective assigned
     }
 
     bool any_transfer = false;
@@ -41,14 +42,14 @@ private:
             HasInventory::transfer_resources(agent.inventory, *collective_inv, resource, delta, true);
         if (transferred > 0) {
           any_transfer = true;
-          agent.stats.add("commons_chest." + agent.stats.resource_name(resource) + ".deposited_by_agent", transferred);
+          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".deposited_by_agent", transferred);
         }
       } else if (delta < 0) {
         InventoryDelta transferred =
             HasInventory::transfer_resources(*collective_inv, agent.inventory, resource, -delta, true);
         if (transferred > 0) {
           any_transfer = true;
-          agent.stats.add("commons_chest." + agent.stats.resource_name(resource) + ".withdrawn_by_agent", transferred);
+          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".withdrawn_by_agent", transferred);
         }
       }
     }
@@ -61,23 +62,23 @@ public:
 
   virtual ~CollectiveChest() = default;
 
-  // Override to return commons inventory instead of own inventory
+  // Override to return collective inventory instead of own inventory
   virtual Inventory* get_accessible_inventory() override {
     return collective_inventory();
   }
 
-  // Override onUse to use commons inventory instead of own inventory
+  // Override onUse to use collective inventory instead of own inventory
   virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
     if (!grid) {
       return false;
     }
 
-    // Check if we have a commons assigned
+    // Check if we have a collective assigned
     if (!getCollective()) {
       return false;
     }
 
-    // Use vibe_transfers configuration (same as Chest, but with commons inventory)
+    // Use vibe_transfers configuration (same as Chest, but with collective inventory)
     if (!vibe_transfers.empty()) {
       ObservationType agent_vibe = actor.vibe;
       auto vibe_it = vibe_transfers.find(agent_vibe);
@@ -94,10 +95,10 @@ public:
     return false;
   }
 
-  // Override obs_features to observe the commons inventory
+  // Override obs_features to observe the collective inventory
   virtual std::vector<PartialObservationToken> obs_features() const override {
     if (!this->obs_encoder) {
-      throw std::runtime_error("Observation encoder not set for commons_chest");
+      throw std::runtime_error("Observation encoder not set for collective_chest");
     }
 
     Inventory* collective_inv = const_cast<CollectiveChest*>(this)->collective_inventory();
@@ -108,7 +109,7 @@ public:
       features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
     }
 
-    // Add commons inventory using multi-token encoding (if commons exists)
+    // Add collective inventory using multi-token encoding (if collective exists)
     if (collective_inv) {
       for (const auto& [item, amount] : collective_inv->get()) {
         if (amount > 0) {
