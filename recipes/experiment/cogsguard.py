@@ -30,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AlignActionConfig,
     AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
@@ -46,6 +47,8 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
+    TransferActionConfig,
+    VibeTransfer,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -99,7 +102,7 @@ def supply_depot_config(map_name: str) -> CommonsChestConfig:
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
-        commons="cogs",
+        # commons="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
         aoes=[
             AOEEffectConfig(
@@ -171,6 +174,18 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
+            transfer=TransferActionConfig(
+                enabled=True,
+                vibe_transfers=[
+                    VibeTransfer(vibe="heart", target={}, actor={"heart": -1}),
+                ],
+            ),
+            align=AlignActionConfig(
+                enabled=True,
+                vibe="heart",
+                cost={"heart": 1},
+                commons_cost={},
+            ),
         ),
         agent=AgentConfig(
             commons="cogs",
@@ -193,7 +208,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "oxygen": 50,
                     "carbon": 50,
                     "germanium": 50,
-                    "heart": 1000,
+                    "heart": 5,
                 },
                 regen_amounts={
                     "default": {
