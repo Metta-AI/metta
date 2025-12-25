@@ -31,7 +31,6 @@ Agent::Agent(GridCoord r,
       inventory_regen_amounts(config.inventory_regen_amounts),
       damage_config(config.damage_config),
       resource_names(resource_names),
-      vibe_transfers(config.vibe_transfers),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_diversity(0) {
@@ -178,31 +177,11 @@ bool Agent::check_and_apply_damage(std::mt19937& rng) {
 }
 
 bool Agent::onUse(Agent& actor, ActionArg arg) {
-  // Look up transfers for the actor's vibe
-  auto vibe_it = actor.vibe_transfers.find(actor.vibe);
-  if (vibe_it == actor.vibe_transfers.end()) {
-    return false;  // No transfers configured for this vibe
-  }
-
-  // Transfer each configured resource
-  bool any_transfer_occurred = false;
-  const auto& resource_deltas = vibe_it->second;
-  for (const auto& [resource, amount] : resource_deltas) {
-    if (amount > 0) {
-      // Transfer from actor to receiver (this)
-      InventoryQuantity actor_amount = actor.inventory.amount(resource);
-      InventoryQuantity share_attempted_amount = std::min(static_cast<InventoryQuantity>(amount), actor_amount);
-      if (share_attempted_amount > 0) {
-        InventoryDelta successful_share_amount = this->inventory.update(resource, share_attempted_amount);
-        actor.inventory.update(resource, -successful_share_amount);
-        if (successful_share_amount > 0) {
-          any_transfer_occurred = true;
-        }
-      }
-    }
-  }
-
-  return any_transfer_occurred;
+  // Agent-to-agent transfers are now handled by the Transfer action handler.
+  // This method returns false to indicate no default use action.
+  (void)actor;
+  (void)arg;
+  return false;
 }
 
 std::vector<PartialObservationToken> Agent::obs_features() const {
