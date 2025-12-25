@@ -364,12 +364,24 @@ class AOEEffectConfig(Config):
     """Configuration for Area of Effect (AOE) resource effects.
 
     When attached to a grid object, agents within range receive the resource_deltas each tick.
+
+    Commons filtering:
+    - members_only: If True, effect only applies to agents with the same commons as the source object
+    - ignore_members: If True, effect is skipped for agents with the same commons as the source object
     """
 
     range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
     resource_deltas: dict[str, int] = Field(
         default_factory=dict,
         description="Resource changes per tick for agents in range. Positive = gain, negative = lose.",
+    )
+    members_only: bool = Field(
+        default=False,
+        description="If True, effect only applies to agents with the same commons as the source object",
+    )
+    ignore_members: bool = Field(
+        default=False,
+        description="If True, effect is skipped for agents with the same commons as the source object",
     )
 
 

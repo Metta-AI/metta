@@ -40,7 +40,7 @@ def _convert_aoe_config(
     if aoe is None:
         return None
     resource_deltas = {resource_name_to_id[k]: int(v) for k, v in aoe.resource_deltas.items()}
-    return CppAOEEffectConfig(aoe.range, resource_deltas)
+    return CppAOEEffectConfig(aoe.range, resource_deltas, aoe.members_only, aoe.ignore_members)
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
