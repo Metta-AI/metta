@@ -225,7 +225,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             initial_inventory=initial_inventory,
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
-            initial_vibe=agent_props.get("initial_vibe", 0),
             damage_config=cpp_damage_config,
         )
         cpp_agent_config.tag_ids = tag_ids
