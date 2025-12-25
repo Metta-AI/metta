@@ -1019,10 +1019,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
-  bind_change_vibe_action_config(m);
-  bind_move_action_config(m);
   bind_vibe_transfer_effect(m);
   bind_transfer_action_config(m);
+  bind_change_vibe_action_config(m);
+  bind_move_action_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);
