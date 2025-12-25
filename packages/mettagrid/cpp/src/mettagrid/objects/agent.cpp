@@ -109,12 +109,36 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 
   float new_stat_reward = 0;
+  const std::string commons_prefix = "commons.";
 
   for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
-    float stat_value = this->stats.get(stat_name);
-    if (game_stats_tracker) {
-      stat_value += game_stats_tracker->get(stat_name);
+    float stat_value = 0;
+
+    // Check if this is a commons inventory stat (e.g., "commons.carbon.amount")
+    if (stat_name.rfind(commons_prefix, 0) == 0 && stat_name.size() > commons_prefix.size()) {
+      // Parse: "commons.{resource}.amount" -> extract resource name
+      std::string remainder = stat_name.substr(commons_prefix.size());
+      size_t dot_pos = remainder.find('.');
+      if (dot_pos != std::string::npos) {
+        std::string resource_name = remainder.substr(0, dot_pos);
+        // Look up the resource in the agent's commons inventory
+        Inventory* commons_inv = this->commons_inventory();
+        if (commons_inv) {
+          // Need to find the resource ID from the name
+          int resource_id = this->stats.resource_id(resource_name);
+          if (resource_id >= 0) {
+            stat_value = static_cast<float>(commons_inv->amount(static_cast<InventoryItem>(resource_id)));
+          }
+        }
+      }
+    } else {
+      // Regular stat lookup
+      stat_value = this->stats.get(stat_name);
+      if (game_stats_tracker) {
+        stat_value += game_stats_tracker->get(stat_name);
+      }
     }
+
     float stats_reward = stat_value * reward_per_unit;
     if (this->stat_reward_max.count(stat_name) > 0) {
       stats_reward = std::min(stats_reward, this->stat_reward_max.at(stat_name));

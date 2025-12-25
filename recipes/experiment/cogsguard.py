@@ -11,13 +11,8 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.stations import (
-    CarbonExtractorConfig,
-    ChargerConfig,
     CvCStationConfig,
     CvCWallConfig,
-    GermaniumExtractorConfig,
-    OxygenExtractorConfig,
-    SiliconExtractorConfig,
 )
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -38,6 +33,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChangeVibeActionConfig,
     ChestConfig,
+    CommonsChestConfig,
     CommonsConfig,
     DamageConfig,
     GameConfig,
@@ -93,6 +89,31 @@ class ColonyConfig(GridObjectConfig):
     pass
 
 
+def supply_depot_config(map_name: str) -> CommonsChestConfig:
+    """Supply depot that receives element resources via default vibe into commons."""
+    return CommonsChestConfig(
+        name="supply_depot",
+        map_name=map_name,
+        render_symbol="📦",
+        commons="cogs",
+        vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+    )
+
+
+def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> ChestConfig:
+    """Chest containing a resource that can be withdrawn via default vibe."""
+    return ChestConfig(
+        name=f"{resource}_chest",
+        map_name=map_name,
+        render_symbol="📦",
+        inventory=InventoryConfig(
+            limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
+            initial={resource: amount},
+        ),
+        vibe_transfers={"default": {resource: -255}},  # negative = withdraw
+    )
+
+
 class CogAssemblerConfig(CvCStationConfig):
     def station_cfg(self) -> AssemblerConfig:
         # gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
@@ -125,12 +146,13 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             building_coverage=0.1,
         ),
     )
+    vibe_names = [vibe.name for vibe in vibes]
     game = GameConfig(
         map_builder=map_builder,
         max_steps=1000,
         num_agents=num_agents,
         resource_names=resources,
-        vibe_names=[vibe.name for vibe in vibes],
+        vibe_names=vibe_names,
         global_obs=GlobalObsConfig(),
         actions=ActionsConfig(
             move=MoveActionConfig(
@@ -140,6 +162,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
         ),
         agent=AgentConfig(
+            commons="cogs",
             inventory=InventoryConfig(
                 limits={
                     "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
@@ -180,6 +203,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "battery": 0.01,
                     "gear": 0.1,
                 },
+                commons_inventory={
+                    "carbon": 0.01,
+                    "oxygen": 0.01,
+                    "germanium": 0.01,
+                    "silicon": 0.01,
+                },
             ),
             damage=DamageConfig(
                 threshold={"damage": 200},
@@ -191,17 +220,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
         objects={
             "wall": CvCWallConfig().station_cfg(),
             "assembler": CogAssemblerConfig().station_cfg().model_copy(update={"commons": "cogs"}),
-            "charger": ChargerConfig().station_cfg(),
-            "chest": ChestConfig(
-                commons="cogs",
-                vibe_transfers={
-                    "default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                },
-            ),
-            "carbon_extractor": CarbonExtractorConfig().station_cfg(),
-            "oxygen_extractor": OxygenExtractorConfig(efficiency=200).station_cfg(),
-            "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
-            "silicon_extractor": SiliconExtractorConfig().station_cfg(),
+            "charger": supply_depot_config("charger"),
+            "chest": supply_depot_config("chest"),
+            "carbon_extractor": resource_chest_config("carbon_extractor", "carbon"),
+            "oxygen_extractor": resource_chest_config("oxygen_extractor", "oxygen"),
+            "germanium_extractor": resource_chest_config("germanium_extractor", "germanium"),
+            "silicon_extractor": resource_chest_config("silicon_extractor", "silicon"),
         },
         commons=[
             CommonsConfig(
