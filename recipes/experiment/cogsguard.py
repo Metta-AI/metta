@@ -30,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
     ChestConfig,
@@ -90,13 +91,20 @@ class ColonyConfig(GridObjectConfig):
 
 
 def supply_depot_config(map_name: str) -> CommonsChestConfig:
-    """Supply depot that receives element resources via default vibe into commons."""
+    """Supply depot that receives element resources via default vibe into commons.
+
+    Also emits AOE effect that restores energy and reduces damage for nearby agents.
+    """
     return CommonsChestConfig(
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
         commons="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+        aoe=AOEEffectConfig(
+            range=20,
+            resource_deltas={"energy": 100, "damage": -100},
+        ),
     )
 
 
