@@ -53,7 +53,17 @@ class PackedCoordinate:
         """Check if packed value represents empty location."""
         ...
 
-class GridObjectConfig: ...
+class AOEEffectConfig:
+    def __init__(
+        self,
+        range: int = 1,
+        resource_deltas: dict[int, int] = {},
+    ) -> None: ...
+    range: int
+    resource_deltas: dict[int, int]
+
+class GridObjectConfig:
+    aoe: Optional[AOEEffectConfig]
 
 class LimitDef:
     def __init__(
@@ -82,6 +92,7 @@ class WallConfig(GridObjectConfig):
     type_name: str
     tag_ids: list[int]
     initial_vibe: int
+    aoe: Optional[AOEEffectConfig]
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -158,6 +169,7 @@ class AssemblerConfig(GridObjectConfig):
     start_clipped: bool
     chest_search_distance: int
     initial_vibe: int
+    aoe: Optional[AOEEffectConfig]
 
 class ChestConfig(GridObjectConfig):
     def __init__(
@@ -173,6 +185,7 @@ class ChestConfig(GridObjectConfig):
     initial_inventory: dict[int, int]
     inventory_config: InventoryConfig
     initial_vibe: int
+    aoe: Optional[AOEEffectConfig]
 
 class CommonsChestConfig(ChestConfig):
     def __init__(
