@@ -239,9 +239,11 @@ class TransferActionConfig(ActionConfig):
         required_resources: dict[int, int] = {},
         vibe_transfers: dict[int, VibeTransferEffect] = {},
         enabled: bool = True,
+        align: bool = False,
     ) -> None: ...
     vibe_transfers: dict[int, VibeTransferEffect]
     enabled: bool
+    align: bool
 
 class ChangeVibeActionConfig(ActionConfig):
     def __init__(
