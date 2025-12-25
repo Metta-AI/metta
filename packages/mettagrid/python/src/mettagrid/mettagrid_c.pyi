@@ -89,6 +89,7 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
+        initial_vibe: int = 0,
         inventory_config: InventoryConfig = ...,
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
@@ -100,6 +101,7 @@ class AgentConfig(GridObjectConfig):
     type_id: int
     type_name: str
     tag_ids: list[int]
+    initial_vibe: int
     group_id: int
     group_name: str
     freeze_duration: int
