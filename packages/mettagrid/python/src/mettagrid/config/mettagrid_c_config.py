@@ -1,5 +1,8 @@
+from typing import Optional
+
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
+    AOEEffectConfig,
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
@@ -9,6 +12,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
@@ -27,6 +31,16 @@ from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
+
+
+def _convert_aoe_config(
+    aoe: Optional[AOEEffectConfig], resource_name_to_id: dict[str, int]
+) -> Optional[CppAOEEffectConfig]:
+    """Convert Python AOEEffectConfig to C++ AOEEffectConfig."""
+    if aoe is None:
+        return None
+    resource_deltas = {resource_name_to_id[k]: int(v) for k, v in aoe.resource_deltas.items()}
+    return CppAOEEffectConfig(aoe.range, resource_deltas)
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -264,6 +278,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
+            cpp_wall_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -316,6 +331,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
+            cpp_assembler_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, (ChestConfig, CollectiveChestConfig)):
@@ -372,6 +388,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
+            cpp_chest_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
