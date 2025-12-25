@@ -24,6 +24,7 @@
 #include "core/types.hpp"
 #include "objects/assembler.hpp"
 #include "objects/chest.hpp"
+#include "objects/commons.hpp"
 #include "systems/clipper.hpp"
 #include "systems/packed_coordinate.hpp"
 
@@ -146,6 +147,10 @@ private:
 
   // Global systems
   std::unique_ptr<Clipper> _clipper;
+
+  // Commons objects - owned by MettaGrid
+  std::vector<std::unique_ptr<Commons>> _commons;
+  std::unordered_map<std::string, Commons*> _commons_by_name;
 
   // Pre-computed goal_obs tokens per agent (when enabled)
   std::vector<std::vector<PartialObservationToken>> _agent_goal_obs_tokens;
