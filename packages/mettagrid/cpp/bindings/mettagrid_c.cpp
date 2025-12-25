@@ -23,6 +23,7 @@
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/alignable.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
@@ -96,12 +97,17 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _commons.push_back(std::move(commons));
   }
 
-  // Associate grid objects with their commons based on tags
+  // Associate alignable objects with their commons based on tags
   // Tags of the form "commons:name" indicate membership
+  // Only objects that implement Alignable can belong to a commons
   const std::string commons_tag_prefix = "commons:";
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
+
+    // Try to cast to Alignable - only alignable objects can have a commons
+    Agent* agent = dynamic_cast<Agent*>(obj);
+    if (!agent) continue;  // Only agents are alignable for now
 
     // Check for commons tags
     for (int tag_id : obj->tag_ids) {
@@ -113,7 +119,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
           std::string commons_name = tag_name.substr(commons_tag_prefix.length());
           auto commons_it = _commons_by_name.find(commons_name);
           if (commons_it != _commons_by_name.end()) {
-            obj->setCommons(commons_it->second);
+            agent->setCommons(commons_it->second);
           }
         }
       }

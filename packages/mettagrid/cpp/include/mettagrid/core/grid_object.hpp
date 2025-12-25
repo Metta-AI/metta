@@ -10,10 +10,6 @@
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
 
-// Forward declarations
-class Commons;
-class Inventory;
-
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
 using Vibe = ObservationType;
@@ -64,9 +60,6 @@ struct GridObjectConfig {
 };
 
 class GridObject : public HasVibe {
-private:
-  Commons* _commons = nullptr;
-
 public:
   GridObjectId id{};
   GridLocation location{};
@@ -91,14 +84,6 @@ public:
   virtual std::vector<PartialObservationToken> obs_features() const {
     return {};  // Default: no observable features
   }
-
-  // Commons support
-  void setCommons(Commons* commons);
-  void clearCommons();
-  Commons* getCommons() const {
-    return _commons;
-  }
-  Inventory* commons_inventory() const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_

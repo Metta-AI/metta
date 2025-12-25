@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/grid_object.hpp"
+#include "objects/alignable.hpp"
 #include "objects/commons.hpp"
 #include "objects/commons_config.hpp"
 #include "objects/inventory_config.hpp"
@@ -18,8 +19,8 @@ CommonsConfig create_test_commons_config(const std::string& name, InventoryQuant
   return config;
 }
 
-// Simple GridObject subclass for testing
-class TestGridObject : public GridObject {
+// Simple GridObject subclass for testing that is also Alignable
+class TestGridObject : public GridObject, public Alignable {
 public:
   TestGridObject() = default;
 };
@@ -99,8 +100,8 @@ void test_commons_remove_member() {
   std::cout << "✓ Commons removeMember test passed" << std::endl;
 }
 
-void test_gridobject_set_commons() {
-  std::cout << "Testing GridObject setCommons..." << std::endl;
+void test_alignable_set_commons() {
+  std::cout << "Testing Alignable setCommons..." << std::endl;
 
   CommonsConfig config = create_test_commons_config("test_commons");
   Commons commons(config);
@@ -117,11 +118,11 @@ void test_gridobject_set_commons() {
   assert(obj.commons_inventory() == &commons.inventory);
   assert(commons.memberCount() == 1);
 
-  std::cout << "✓ GridObject setCommons test passed" << std::endl;
+  std::cout << "✓ Alignable setCommons test passed" << std::endl;
 }
 
-void test_gridobject_clear_commons() {
-  std::cout << "Testing GridObject clearCommons..." << std::endl;
+void test_alignable_clear_commons() {
+  std::cout << "Testing Alignable clearCommons..." << std::endl;
 
   CommonsConfig config = create_test_commons_config("test_commons");
   Commons commons(config);
@@ -139,11 +140,11 @@ void test_gridobject_clear_commons() {
   obj.clearCommons();
   assert(obj.getCommons() == nullptr);
 
-  std::cout << "✓ GridObject clearCommons test passed" << std::endl;
+  std::cout << "✓ Alignable clearCommons test passed" << std::endl;
 }
 
-void test_gridobject_switch_commons() {
-  std::cout << "Testing GridObject switching commons..." << std::endl;
+void test_alignable_switch_commons() {
+  std::cout << "Testing Alignable switching commons..." << std::endl;
 
   CommonsConfig config1 = create_test_commons_config("commons1");
   CommonsConfig config2 = create_test_commons_config("commons2");
@@ -161,7 +162,7 @@ void test_gridobject_switch_commons() {
   assert(commons1.memberCount() == 0);  // Removed from old
   assert(commons2.memberCount() == 1);  // Added to new
 
-  std::cout << "✓ GridObject switching commons test passed" << std::endl;
+  std::cout << "✓ Alignable switching commons test passed" << std::endl;
 }
 
 void test_commons_inventory_access() {
@@ -218,9 +219,9 @@ int main() {
   test_commons_initial_inventory();
   test_commons_add_member();
   test_commons_remove_member();
-  test_gridobject_set_commons();
-  test_gridobject_clear_commons();
-  test_gridobject_switch_commons();
+  test_alignable_set_commons();
+  test_alignable_clear_commons();
+  test_alignable_switch_commons();
   test_commons_inventory_access();
   test_multiple_objects_share_commons();
 

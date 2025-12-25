@@ -12,11 +12,11 @@
 #include "objects/inventory.hpp"
 
 // Forward declaration
-class GridObject;
+class Alignable;
 
 class Commons : public HasInventory {
 private:
-  std::vector<GridObject*> _members;
+  std::vector<Alignable*> _members;
 
 public:
   std::string name;
@@ -36,14 +36,14 @@ public:
   virtual ~Commons() = default;
 
   // Add a member to this commons
-  void addMember(GridObject* obj) {
+  void addMember(Alignable* obj) {
     if (obj && std::find(_members.begin(), _members.end(), obj) == _members.end()) {
       _members.push_back(obj);
     }
   }
 
   // Remove a member from this commons
-  void removeMember(GridObject* obj) {
+  void removeMember(Alignable* obj) {
     auto it = std::find(_members.begin(), _members.end(), obj);
     if (it != _members.end()) {
       _members.erase(it);
@@ -51,7 +51,7 @@ public:
   }
 
   // Get all members
-  const std::vector<GridObject*>& members() const {
+  const std::vector<Alignable*>& members() const {
     return _members;
   }
 

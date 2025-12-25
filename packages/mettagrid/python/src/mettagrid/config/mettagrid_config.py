@@ -301,6 +301,10 @@ class TransferActionConfig(ActionConfig):
         default_factory=list,
         description="List of vibe transfer configs specifying actor/target resource effects",
     )
+    align: bool = Field(
+        default=False,
+        description="If true, transfer also aligns the target's commons to the actor's commons",
+    )
 
     def _actions(self) -> list[Action]:
         # Transfer doesn't create standalone actions - it's triggered by move
