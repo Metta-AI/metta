@@ -23,7 +23,8 @@ public:
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, cfg.aoes);
   }
 
-  std::vector<PartialObservationToken> obs_features() const override {
+  std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
+    (void)observer_agent_id;  // Unused for walls
     std::vector<PartialObservationToken> features;
     features.reserve(1 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
