@@ -54,7 +54,7 @@ def base_config():
             change_vibe=ChangeVibeActionConfig(),
             attack=AttackActionConfig(
                 enabled=False,  # No standalone attack actions
-                vibes=["swords"],  # Attack triggers on move when agent has swords vibe
+                vibes=["charger"],  # Attack triggers on move when agent has charger vibe
                 consumed_resources={"laser": 1},
                 defense_resources={"armor": 1},
                 success=AttackOutcome(freeze=10),
@@ -157,8 +157,8 @@ def test_swap_with_frozen_agent(make_sim, adjacent_agents_map):
     assert not get_agent_frozen_status(sim, 0), "Agent 0 should not start frozen"
     assert not get_agent_frozen_status(sim, 1), "Agent 1 should not start frozen"
 
-    # Agent 0 changes vibe to "swords" to enable attack on move
-    sim.agent(0).set_action("change_vibe_swords")
+    # Agent 0 changes vibe to "charger" to enable attack on move
+    sim.agent(0).set_action("change_vibe_charger")
     sim.agent(1).set_action("noop")
     sim.step()
 
