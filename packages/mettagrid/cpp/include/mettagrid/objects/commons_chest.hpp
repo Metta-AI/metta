@@ -96,7 +96,8 @@ public:
   }
 
   // Override obs_features to observe the commons inventory
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
+    (void)observer_agent_id;  // Unused for commons_chests
     if (!this->obs_encoder) {
       throw std::runtime_error("Observation encoder not set for commons_chest");
     }

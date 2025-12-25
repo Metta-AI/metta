@@ -125,7 +125,8 @@ public:
     return false;
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const override {
+  virtual std::vector<PartialObservationToken> obs_features(unsigned int observer_agent_id = UINT_MAX) const override {
+    (void)observer_agent_id;  // Unused for chests
     if (!this->obs_encoder) {
       throw std::runtime_error("Observation encoder not set for chest");
     }
