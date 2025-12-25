@@ -14,7 +14,34 @@ using std::unique_ptr;
 using std::vector;
 using GridType = std::vector<std::vector<GridObject*>>;
 
-// Accumulated resource effects at a single grid cell
+// A single AOE effect source at a cell
+struct AOEEffectSource {
+  GridObject* owner;              // The object that owns this effect (for commons checking)
+  const AOEEffectConfig* config;  // Pointer to the effect configuration
+
+  AOEEffectSource(GridObject* owner, const AOEEffectConfig* config) : owner(owner), config(config) {}
+};
+
+// Collection of AOE effect sources at a single grid cell
+struct CellEffects {
+  std::vector<AOEEffectSource> sources;
+
+  void add_source(GridObject* owner, const AOEEffectConfig* config) {
+    sources.emplace_back(owner, config);
+  }
+
+  void remove_source(GridObject* owner) {
+    sources.erase(
+        std::remove_if(sources.begin(), sources.end(), [owner](const AOEEffectSource& s) { return s.owner == owner; }),
+        sources.end());
+  }
+
+  bool empty() const {
+    return sources.empty();
+  }
+};
+
+// Legacy CellEffect for backward compatibility - accumulated resource effects
 struct CellEffect {
   std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;
 
@@ -42,11 +69,17 @@ public:
 
 private:
   GridType grid;
-  std::vector<std::vector<CellEffect>> _effects;
+  std::vector<std::vector<CellEffect>> _effects;          // Legacy: accumulated effects (for simple AOE)
+  std::vector<std::vector<CellEffects>> _effect_sources;  // New: individual effect sources per cell
 
 public:
   Grid(GridCoord height, GridCoord width)
-      : height(height), width(width), objects(), grid(), _effects(height, std::vector<CellEffect>(width)) {
+      : height(height),
+        width(width),
+        objects(),
+        grid(),
+        _effects(height, std::vector<CellEffect>(width)),
+        _effect_sources(height, std::vector<CellEffects>(width)) {
     grid.resize(height, std::vector<GridObject*>(width, nullptr));
 
     // Reserve space for objects to avoid frequent reallocations
@@ -78,7 +111,7 @@ public:
     this->grid[obj->location.r][obj->location.c] = obj;
 
     // Register AOE effects if configured
-    obj->aoe.init(this);
+    obj->aoe.init(this, obj);  // Pass owner for commons checking
     obj->aoe.register_effects(obj->location.r, obj->location.c);
 
     return true;
@@ -150,12 +183,57 @@ public:
     return grid[row][col] == nullptr;
   }
 
-  // Get the effect at a cell
+  // Get the legacy accumulated effect at a cell (for simple AOE without commons filtering)
   const CellEffect& effect_at(GridCoord r, GridCoord c) const {
     return _effects[r][c];
   }
 
-  // Apply AOE effects from a source at (center_r, center_c) with given radius
+  // Get the individual effect sources at a cell (for AOE with commons filtering)
+  const CellEffects& effect_sources_at(GridCoord r, GridCoord c) const {
+    return _effect_sources[r][c];
+  }
+
+  // Register an individual AOE effect source at cells within range
+  void register_aoe_source(GridCoord center_r,
+                           GridCoord center_c,
+                           unsigned int radius,
+                           GridObject* owner,
+                           const AOEEffectConfig* config) {
+    int r_start = std::max(0, static_cast<int>(center_r) - static_cast<int>(radius));
+    int r_end = std::min(static_cast<int>(height), static_cast<int>(center_r) + static_cast<int>(radius) + 1);
+    int c_start = std::max(0, static_cast<int>(center_c) - static_cast<int>(radius));
+    int c_end = std::min(static_cast<int>(width), static_cast<int>(center_c) + static_cast<int>(radius) + 1);
+
+    for (int r = r_start; r < r_end; ++r) {
+      for (int c = c_start; c < c_end; ++c) {
+        int dr = std::abs(r - static_cast<int>(center_r));
+        int dc = std::abs(c - static_cast<int>(center_c));
+        if (dr + dc <= static_cast<int>(radius)) {
+          _effect_sources[r][c].add_source(owner, config);
+        }
+      }
+    }
+  }
+
+  // Unregister an AOE effect source from cells within range
+  void unregister_aoe_source(GridCoord center_r, GridCoord center_c, unsigned int radius, GridObject* owner) {
+    int r_start = std::max(0, static_cast<int>(center_r) - static_cast<int>(radius));
+    int r_end = std::min(static_cast<int>(height), static_cast<int>(center_r) + static_cast<int>(radius) + 1);
+    int c_start = std::max(0, static_cast<int>(center_c) - static_cast<int>(radius));
+    int c_end = std::min(static_cast<int>(width), static_cast<int>(center_c) + static_cast<int>(radius) + 1);
+
+    for (int r = r_start; r < r_end; ++r) {
+      for (int c = c_start; c < c_end; ++c) {
+        int dr = std::abs(r - static_cast<int>(center_r));
+        int dc = std::abs(c - static_cast<int>(center_c));
+        if (dr + dc <= static_cast<int>(radius)) {
+          _effect_sources[r][c].remove_source(owner);
+        }
+      }
+    }
+  }
+
+  // Apply AOE effects from a source at (center_r, center_c) with given radius (legacy method)
   // If adding=true, adds effects; if false, removes them
   void apply_aoe(GridCoord center_r,
                  GridCoord center_c,
