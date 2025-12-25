@@ -11,7 +11,10 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AlignActionConfig,
     ChangeVibeActionConfig,
+    CommonsChestConfig,
+    CommonsConfig,
     GameConfig,
     InventoryConfig,
     MettaGridConfig,
@@ -327,3 +330,155 @@ class TestVibeConfigValidation:
             cfg = MettaGridConfig(game=game_config)
             cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=[["agent.agent", "agent.agent"]])
             Simulation(cfg)
+
+
+class TestAlignableObjectAlignment:
+    """Test alignment of alignable objects (e.g., CommonsChest) via transfer action."""
+
+    def _create_agent_chest_sim(self, align: bool = True) -> Simulation:
+        """Create a simulation with an agent and a CommonsChest for testing alignment."""
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "agent.agent", ".", "chest", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        game_config = GameConfig(
+            max_steps=50,
+            num_agents=1,
+            obs=ObsConfig(width=3, height=3, num_tokens=100),
+            resource_names=["energy", "heart"],
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(enabled=True),
+                change_vibe=ChangeVibeActionConfig(enabled=True),
+                transfer=TransferActionConfig(
+                    enabled=True,
+                    vibe_transfers=[
+                        VibeTransfer(vibe=HEART_VIBE_NAME, target={}, actor={}),
+                    ],
+                ),
+                align=AlignActionConfig(
+                    enabled=align,
+                    vibe=HEART_VIBE_NAME,
+                    cost={},
+                    commons_cost={},
+                ),
+            ),
+            agent=AgentConfig(
+                commons="cogs",
+                rewards=AgentRewards(),
+                inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
+            ),
+            objects={
+                "wall": WallConfig(),
+                "chest": CommonsChestConfig(
+                    name="chest",
+                    # No commons initially - the chest is unaligned
+                    vibe_transfers={"default": {"energy": 100}},
+                ),
+            },
+            commons=[
+                CommonsConfig(
+                    name="cogs",
+                    inventory=InventoryConfig(initial={"energy": 0, "heart": 0}),
+                ),
+            ],
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+
+        return Simulation(cfg, seed=42)
+
+    def _get_objects_by_type(self, sim: Simulation) -> dict:
+        """Helper to get objects organized by type."""
+        objects = sim.grid_objects()
+        result = {"agents": [], "chests": []}
+        for obj in objects.values():
+            if "agent_id" in obj:
+                result["agents"].append(obj)
+            elif obj.get("type_name") == "chest":
+                result["chests"].append(obj)
+        return result
+
+    def test_align_chest_to_agent_commons_with_heart_vibe(self):
+        """Test that moving onto a CommonsChest with heart vibe aligns it to agent's commons."""
+        sim = self._create_agent_chest_sim(align=True)
+
+        # Initial state: agent has commons, chest doesn't
+        objs = self._get_objects_by_type(sim)
+        assert objs["agents"][0].get("commons_id") == 0, "Agent should start with commons_id=0"
+        assert objs["chests"][0].get("commons_id") is None, "Chest should start unaligned"
+
+        # Agent changes vibe to heart_a
+        sim.agent(0).set_action("change_vibe_heart_a")
+        sim.step()
+
+        # Verify vibe is set
+        objs = self._get_objects_by_type(sim)
+        assert objs["agents"][0]["vibe"] == 10, (
+            f"Agent should have heart_a vibe (id=10), got {objs['agents'][0]['vibe']}"
+        )
+
+        # Agent moves east (to empty space)
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Agent moves east again onto the chest - should trigger alignment
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Check that chest is now aligned to agent's commons
+        objs = self._get_objects_by_type(sim)
+        assert objs["chests"][0].get("commons_id") == 0, (
+            f"Chest should be aligned to agent's commons (id=0), got {objs['chests'][0].get('commons_id')}"
+        )
+
+    def test_no_alignment_without_heart_vibe(self):
+        """Test that moving onto a CommonsChest without heart vibe does NOT align it."""
+        sim = self._create_agent_chest_sim(align=True)
+
+        # Initial state
+        objs = self._get_objects_by_type(sim)
+        assert objs["chests"][0].get("commons_id") is None, "Chest should start unaligned"
+
+        # Agent moves east (to empty space) - keeping default vibe
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Agent moves east again onto the chest - should NOT trigger alignment (wrong vibe)
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Chest should still be unaligned
+        objs = self._get_objects_by_type(sim)
+        assert objs["chests"][0].get("commons_id") is None, (
+            f"Chest should remain unaligned without heart vibe, got commons_id={objs['chests'][0].get('commons_id')}"
+        )
+
+    def test_no_alignment_when_align_disabled(self):
+        """Test that alignment doesn't happen when align=False."""
+        sim = self._create_agent_chest_sim(align=False)
+
+        # Initial state
+        objs = self._get_objects_by_type(sim)
+        assert objs["chests"][0].get("commons_id") is None, "Chest should start unaligned"
+
+        # Agent changes vibe to heart_a
+        sim.agent(0).set_action("change_vibe_heart_a")
+        sim.step()
+
+        # Agent moves east (to empty space)
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Agent moves east again onto the chest - should NOT align (align=False)
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+        # Chest should still be unaligned
+        objs = self._get_objects_by_type(sim)
+        assert objs["chests"][0].get("commons_id") is None, (
+            f"Chest should remain unaligned when align=False, got commons_id={objs['chests'][0].get('commons_id')}"
+        )
