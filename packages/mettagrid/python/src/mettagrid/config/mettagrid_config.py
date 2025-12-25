@@ -39,6 +39,9 @@ class AgentRewards(Config):
     # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, float] = Field(default_factory=dict)
+    # commons_inventory rewards agents based on the inventory of the commons they belong to
+    commons_inventory: dict[str, float] = Field(default_factory=dict)
+    commons_inventory_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
@@ -134,6 +137,10 @@ class AgentConfig(Config):
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
+    commons: Optional[str] = Field(
+        default=None,
+        description="Name of commons this agent belongs to. Adds 'commons:{name}' tag automatically.",
+    )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
@@ -143,6 +150,15 @@ class AgentConfig(Config):
         default=None,
         description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
     )
+
+    @model_validator(mode="after")
+    def _add_commons_tag(self) -> "AgentConfig":
+        # Add commons tag if commons is set
+        if self.commons:
+            commons_tag = f"commons:{self.commons}"
+            if commons_tag not in self.tags:
+                self.tags = self.tags + [commons_tag]
+        return self
 
 
 class ActionConfig(Config):
@@ -455,6 +471,13 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
+class CommonsChestConfig(ChestConfig):
+    """Python commons chest configuration - like chest but uses commons inventory."""
+
+    pydantic_type: Literal["commons_chest"] = "commons_chest"
+    name: str = Field(default="commons_chest")
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -501,6 +524,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[WallConfig, Tag("wall")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
+            Annotated[CommonsChestConfig, Tag("commons_chest")],
         ],
         Discriminator("pydantic_type"),
     ]

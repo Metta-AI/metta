@@ -13,6 +13,12 @@ public:
   virtual ~HasInventory() = default;
   Inventory inventory;
 
+  // Returns the inventory to display/access. Override in subclasses that use
+  // a different inventory (e.g., CommonsChest uses commons inventory).
+  virtual Inventory* get_accessible_inventory() {
+    return &inventory;
+  }
+
   // Callback method called when inventory changes
   // Override this method in derived classes to react to inventory changes
   virtual void on_inventory_change(InventoryItem item, InventoryDelta delta) {}
