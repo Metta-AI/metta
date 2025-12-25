@@ -32,9 +32,6 @@ from mettagrid.test_support.map_builders import ObjectNameMapBuilder
 CHARGER_VIBE_NAME = "charger"  # VIBES[1].name
 HEART_VIBE_NAME = "heart_a"  # VIBES[10].name
 
-# Number of vibes we need for tests (at least 11 to include heart_a at index 10)
-NUM_VIBES_FOR_TESTS = 11
-
 
 def create_two_agent_sim(
     vibe_transfers: list[VibeTransfer] | None = None,
@@ -55,7 +52,7 @@ def create_two_agent_sim(
         actions=ActionsConfig(
             noop=NoopActionConfig(),
             move=MoveActionConfig(enabled=True),
-            change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=NUM_VIBES_FOR_TESTS),
+            change_vibe=ChangeVibeActionConfig(enabled=True),
             transfer=TransferActionConfig(
                 enabled=True,
                 vibe_transfers=vibe_transfers or [],
