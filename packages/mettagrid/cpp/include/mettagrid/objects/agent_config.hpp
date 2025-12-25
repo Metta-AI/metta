@@ -34,6 +34,7 @@ struct AgentConfig : public GridObjectConfig {
               unsigned char group_id,
               const std::string& group_name,
               unsigned char freeze_duration = 0,
+              ObservationType initial_vibe = 0,
               const InventoryConfig& inventory_config = InventoryConfig(),
               const std::unordered_map<std::string, RewardType>& stat_rewards = {},
               const std::unordered_map<std::string, RewardType>& stat_reward_max = {},
@@ -42,7 +43,7 @@ struct AgentConfig : public GridObjectConfig {
                   inventory_regen_amounts = {},
               const std::vector<InventoryItem>& diversity_tracked_resources = {},
               const DamageConfig& damage_config = DamageConfig())
-      : GridObjectConfig(type_id, type_name, 0),
+      : GridObjectConfig(type_id, type_name, initial_vibe),
         group_id(group_id),
         group_name(group_name),
         freeze_duration(freeze_duration),
@@ -87,6 +88,7 @@ inline void bind_agent_config(py::module& m) {
                     unsigned char,
                     const std::string&,
                     unsigned char,
+                    ObservationType,
                     const InventoryConfig&,
                     const std::unordered_map<std::string, RewardType>&,
                     const std::unordered_map<std::string, RewardType>&,
@@ -99,6 +101,7 @@ inline void bind_agent_config(py::module& m) {
            py::arg("group_id"),
            py::arg("group_name"),
            py::arg("freeze_duration") = 0,
+           py::arg("initial_vibe") = 0,
            py::arg("inventory_config") = InventoryConfig(),
            py::arg("stat_rewards") = std::unordered_map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::unordered_map<std::string, RewardType>(),
@@ -110,6 +113,7 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("tag_ids", &AgentConfig::tag_ids)
+      .def_readwrite("initial_vibe", &AgentConfig::initial_vibe)
       .def_readwrite("group_name", &AgentConfig::group_name)
       .def_readwrite("group_id", &AgentConfig::group_id)
       .def_readwrite("freeze_duration", &AgentConfig::freeze_duration)
