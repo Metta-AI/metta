@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "core/grid_object.hpp"
@@ -13,6 +14,26 @@ using std::unique_ptr;
 using std::vector;
 using GridType = std::vector<std::vector<GridObject*>>;
 
+// Accumulated resource effects at a single grid cell
+struct CellEffect {
+  std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;
+
+  void add(InventoryItem item, InventoryDelta delta) {
+    resource_deltas[item] += delta;
+    if (resource_deltas[item] == 0) {
+      resource_deltas.erase(item);
+    }
+  }
+
+  void subtract(InventoryItem item, InventoryDelta delta) {
+    add(item, -delta);
+  }
+
+  bool empty() const {
+    return resource_deltas.empty();
+  }
+};
+
 class Grid {
 public:
   const GridCoord height;
@@ -21,29 +42,20 @@ public:
 
 private:
   GridType grid;
+  std::vector<std::vector<CellEffect>> _effects;
 
 public:
   Grid(GridCoord height, GridCoord width)
-      : height(height),
-        width(width),
-        objects(),  // Initialize objects in member init list
-        grid() {    // Initialize grid in member init list
+      : height(height), width(width), objects(), grid(), _effects(height, std::vector<CellEffect>(width)) {
     grid.resize(height, std::vector<GridObject*>(width, nullptr));
 
     // Reserve space for objects to avoid frequent reallocations
-    // Assume ~50% of grid cells will contain objects
     size_t estimated_objects = static_cast<size_t>(height) * width / 2;
-
-    // Cap preallocation at ~100MB of pointer memory
     constexpr size_t MAX_PREALLOCATED_OBJECTS = 12'500'000;
     size_t reserved_objects = std::min(estimated_objects, MAX_PREALLOCATED_OBJECTS);
-
     objects.reserve(reserved_objects);
 
     // GridObjectId "0" is reserved to mean empty space (GridObject pointer = nullptr).
-    // By pushing nullptr at index 0, we ensure that:
-    //   1. Grid initialization with zeros automatically represents empty spaces
-    //   2. Object IDs match their index in the objects vector (no off-by-one adjustments)
     objects.push_back(nullptr);
   }
 
@@ -64,6 +76,11 @@ public:
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
     this->grid[obj->location.r][obj->location.c] = obj;
+
+    // Register AOE effects if configured
+    obj->aoe.init(this);
+    obj->aoe.register_effects(obj->location.r, obj->location.c);
+
     return true;
   }
 
@@ -93,6 +110,30 @@ public:
     return true;
   }
 
+  // Remove an object from the grid. Returns true if successful.
+  // Note: The object's ID slot in the objects vector becomes null but is not reused,
+  // keeping all other IDs stable.
+  inline bool remove_object(GridObject& obj) {
+    if (!is_valid_location(obj.location)) {
+      return false;
+    }
+    if (grid[obj.location.r][obj.location.c] != &obj) {
+      return false;  // Object not at expected location
+    }
+
+    // Call on_remove for cleanup (includes AOE unregistration)
+    obj.on_remove();
+
+    // Clear the grid cell
+    grid[obj.location.r][obj.location.c] = nullptr;
+
+    // Release the object (unique_ptr becomes null but slot remains)
+    if (obj.id < objects.size()) {
+      objects[obj.id].reset();
+    }
+    return true;
+  }
+
   inline GridObject* object(GridObjectId obj_id) const {
     assert(obj_id < objects.size() && "Invalid object ID");
     return objects[obj_id].get();
@@ -107,6 +148,41 @@ public:
 
   inline bool is_empty(GridCoord row, GridCoord col) const {
     return grid[row][col] == nullptr;
+  }
+
+  // Get the effect at a cell
+  const CellEffect& effect_at(GridCoord r, GridCoord c) const {
+    return _effects[r][c];
+  }
+
+  // Apply AOE effects from a source at (center_r, center_c) with given radius
+  // If adding=true, adds effects; if false, removes them
+  void apply_aoe(GridCoord center_r,
+                 GridCoord center_c,
+                 unsigned int radius,
+                 const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas,
+                 bool adding) {
+    int r_start = std::max(0, static_cast<int>(center_r) - static_cast<int>(radius));
+    int r_end = std::min(static_cast<int>(height), static_cast<int>(center_r) + static_cast<int>(radius) + 1);
+    int c_start = std::max(0, static_cast<int>(center_c) - static_cast<int>(radius));
+    int c_end = std::min(static_cast<int>(width), static_cast<int>(center_c) + static_cast<int>(radius) + 1);
+
+    for (int r = r_start; r < r_end; ++r) {
+      for (int c = c_start; c < c_end; ++c) {
+        // Manhattan distance for AOE range
+        int dr = std::abs(r - static_cast<int>(center_r));
+        int dc = std::abs(c - static_cast<int>(center_c));
+        if (dr + dc <= static_cast<int>(radius)) {
+          for (const auto& [item, delta] : resource_deltas) {
+            if (adding) {
+              _effects[r][c].add(item, delta);
+            } else {
+              _effects[r][c].subtract(item, delta);
+            }
+          }
+        }
+      }
+    }
   }
 };
 
