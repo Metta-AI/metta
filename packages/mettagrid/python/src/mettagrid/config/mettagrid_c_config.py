@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AlignActionConfig as CppAlignActionConfig
 from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
@@ -535,6 +536,23 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
+    )
+
+    # Process align action
+    align_cfg = actions_config.align
+    align_vibe_id = 0
+    if align_cfg.vibe and align_cfg.vibe in vibe_name_to_id:
+        align_vibe_id = vibe_name_to_id[align_cfg.vibe]
+    elif align_cfg.vibe and align_cfg.enabled:
+        raise ValueError(f"Unknown vibe name '{align_cfg.vibe}' in align.vibe")
+    align_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.cost.items()}
+    align_collective_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.collective_cost.items()}
+    actions_cpp_params["align"] = CppAlignActionConfig(
+        required_resources={resource_name_to_id[k]: int(v) for k, v in align_cfg.required_resources.items()},
+        vibe=align_vibe_id,
+        cost=align_cost_cpp,
+        collective_cost=align_collective_cost_cpp,
+        enabled=align_cfg.enabled,
     )
 
     # Process change_vibe - always add to map

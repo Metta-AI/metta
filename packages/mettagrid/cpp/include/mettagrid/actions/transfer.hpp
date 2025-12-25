@@ -79,10 +79,6 @@ public:
     }
     if (!target_object) return false;
 
-    Agent* target = dynamic_cast<Agent*>(target_object);
-    if (!target) return false;             // Can only transfer with agents
-    if (target->frozen > 0) return false;  // Can't transfer with frozen agents, allow swap
-
     auto vibe_it = _vibe_transfers.find(actor.vibe);
     if (vibe_it == _vibe_transfers.end()) {
       return false;  // No transfer configured for this vibe
@@ -90,76 +86,74 @@ public:
 
     const VibeTransferEffect& effect = vibe_it->second;
     const std::string& actor_group = actor.group_name;
-    const std::string& target_group = target->group_name;
 
-    // 1. Check if actor has resources to give (negative deltas)
-    // Cast inventory amounts to int to avoid truncation when delta exceeds uint16_t range
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta < 0 && static_cast<int>(actor.inventory.amount(resource)) < -delta) {
-        return false;  // Actor doesn't have enough resources to give
-      }
-    }
+    Agent* target = dynamic_cast<Agent*>(target_object);
 
-    // 2. Check if target has resources to give (negative deltas)
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta < 0 && static_cast<int>(target->inventory.amount(resource)) < -delta) {
-        return false;  // Target doesn't have enough resources to give
-      }
-    }
+    // If target is an agent, handle resource transfers
+    if (target) {
+      if (target->frozen > 0) return false;  // Can't transfer with frozen agents, allow swap
 
-    // 3. Check if actor has capacity for receiving resources (positive deltas)
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta > 0) {
-        int free = static_cast<int>(actor.inventory.free_space(resource));
-        if (delta > free) {
-          return false;  // Actor doesn't have capacity to receive
+      const std::string& target_group = target->group_name;
+
+      // 1. Check if actor has resources to give (negative deltas)
+      // Cast inventory amounts to int to avoid truncation when delta exceeds uint16_t range
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta < 0 && static_cast<int>(actor.inventory.amount(resource)) < -delta) {
+          return false;  // Actor doesn't have enough resources to give
         }
       }
-    }
 
-    // 4. Check if target has capacity for receiving resources (positive deltas)
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta > 0) {
-        int free = static_cast<int>(target->inventory.free_space(resource));
-        if (delta > free) {
-          return false;  // Target doesn't have capacity to receive
+      // 2. Check if target has resources to give (negative deltas)
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta < 0 && static_cast<int>(target->inventory.amount(resource)) < -delta) {
+          return false;  // Target doesn't have enough resources to give
         }
       }
-    }
 
-    // 5. Update actor and target resources
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta != 0) {
-        InventoryDelta actual = actor.inventory.update(resource, delta);
-        if (actual != 0) {
-          _log_transfer(actor, resource, actual, "self");
+      // 3. Check if actor has capacity for receiving resources (positive deltas)
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta > 0) {
+          int free = static_cast<int>(actor.inventory.free_space(resource));
+          if (delta > free) {
+            return false;  // Actor doesn't have capacity to receive
+          }
         }
       }
-    }
 
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta != 0) {
-        InventoryDelta actual = target->inventory.update(resource, delta);
-        if (actual != 0) {
-          _log_transfer(actor, resource, actual, "to." + target_group);
+      // 4. Check if target has capacity for receiving resources (positive deltas)
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta > 0) {
+          int free = static_cast<int>(target->inventory.free_space(resource));
+          if (delta > free) {
+            return false;  // Target doesn't have capacity to receive
+          }
         }
       }
-    }
 
-    // Align target's collective to actor's collective if enabled
-    if (_align) {
-      Collective* actor_collective = actor.getCollective();
-      Collective* target_collective = target->getCollective();
-      if (actor_collective != nullptr && actor_collective != target_collective) {
-        target->setCollective(actor_collective);
-        actor.stats.incr(_action_prefix(actor_group) + "aligned");
-        // Refresh AOE registrations since collective membership changed
-        _grid->refresh_aoe_registrations();
+      // 5. Update actor and target resources
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta != 0) {
+          InventoryDelta actual = actor.inventory.update(resource, delta);
+          if (actual != 0) {
+            _log_transfer(actor, resource, actual, "self");
+          }
+        }
       }
+
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta != 0) {
+          InventoryDelta actual = target->inventory.update(resource, delta);
+          if (actual != 0) {
+            _log_transfer(actor, resource, actual, "to." + target_group);
+          }
+        }
+      }
+
+      actor.stats.incr(_action_prefix(actor_group) + "count");
+      return true;
     }
 
-    actor.stats.incr(_action_prefix(actor_group) + "count");
-    return true;
+    return false;
   }
 
 protected:

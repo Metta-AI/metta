@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/align.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
@@ -108,7 +109,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
 
-    // Try to cast to Alignable - only alignable objects can have a collective
+    // Try to cast to Alignable - any alignable object can have a collective
     Alignable* alignable = dynamic_cast<Alignable*>(obj);
     if (!alignable) continue;
 
@@ -342,14 +343,25 @@ void MettaGrid::init_action_handlers() {
     _action_handlers.push_back(action);
   }
 
+  // Align
+  auto align_config = std::static_pointer_cast<const AlignActionConfig>(_game_config.actions.at("align"));
+  auto align = std::make_unique<Align>(*align_config, &_game_config);
+  align->init(_grid.get(), &_rng);
+  if (align->priority > _max_action_priority) _max_action_priority = align->priority;
+  for (const auto& action : align->actions()) {
+    _action_handlers.push_back(action);
+  }
+
   // Register vibe-triggered action handlers with Move
   std::unordered_map<std::string, ActionHandler*> handlers;
   handlers["attack"] = attack.get();
   handlers["transfer"] = transfer.get();
+  handlers["align"] = align.get();
   move_ptr->set_action_handlers(handlers);
 
   _action_handler_impl.push_back(std::move(attack));
   _action_handler_impl.push_back(std::move(transfer));
+  _action_handler_impl.push_back(std::move(align));
 
   // ChangeVibe
   auto change_vibe_config =
@@ -964,6 +976,20 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       // obj_dict["resource_limits"] = resource_limits_dict;
     }
 
+    // Add commons info for alignable objects
+    if (auto* alignable = dynamic_cast<Alignable*>(obj)) {
+      Commons* commons = alignable->getCommons();
+      if (commons) {
+        // Find the commons index in _commons
+        for (size_t i = 0; i < _commons.size(); ++i) {
+          if (_commons[i].get() == commons) {
+            obj_dict["commons_id"] = static_cast<int>(i);
+            break;
+          }
+        }
+      }
+    }
+
     // Add assembler-specific info
     if (auto* assembler = dynamic_cast<Assembler*>(obj)) {
       obj_dict["cooldown_remaining"] = assembler->cooldown_remaining();
@@ -1210,6 +1236,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_attack_action_config(m);
   bind_vibe_transfer_effect(m);
   bind_transfer_action_config(m);
+  bind_align_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

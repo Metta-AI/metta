@@ -30,7 +30,10 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AlignActionConfig,
+    AOEEffectConfig,
     AssemblerConfig,
+    AttackActionConfig,
     ChangeVibeActionConfig,
     ChestConfig,
     CollectiveChestConfig,
@@ -44,6 +47,8 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
+    TransferActionConfig,
+    VibeTransfer,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -153,6 +158,29 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
+            attack=AttackActionConfig(
+                consumed_resources={"energy": 7},
+                defense_resources={"energy": 0},
+                weapon_resources={"weapon": 10},
+                armor_resources={"shield": 15},
+                loot=["heart"],
+                enabled=False,
+                vibes=["weapon"],  # Attack triggered when agent has weapon vibe
+            ),
+            transfer=TransferActionConfig(
+                vibe_transfers=[
+                    VibeTransfer(vibe="battery", target={"energy": 50}, actor={"energy": -50}),
+                    VibeTransfer(vibe="heart", target={"heart": 1}, actor={"heart": -1}),
+                    VibeTransfer(vibe="gear", target={"damage": -100}, actor={"energy": -10}),
+                ],
+                vibes=["battery", "heart", "gear"],  # Transfer triggered for these vibes
+            ),
+            align=AlignActionConfig(
+                enabled=True,
+                vibe="heart",
+                cost={"heart": 1},
+                collective_cost={},
+            ),
         ),
         agent=AgentConfig(
             collective="cogs",
@@ -175,7 +203,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "oxygen": 50,
                     "carbon": 50,
                     "germanium": 50,
-                    "heart": 1000,
+                    "heart": 5,
                 },
                 regen_amounts={
                     "default": {

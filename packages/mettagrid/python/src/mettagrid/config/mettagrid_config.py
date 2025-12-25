@@ -323,6 +323,32 @@ class TransferActionConfig(ActionConfig):
         return []
 
 
+class AlignActionConfig(ActionConfig):
+    """Python align action configuration.
+
+    Align is triggered by move when the agent's vibe matches the configured vibe.
+    It aligns the target's commons to the actor's commons.
+    """
+
+    action_handler: str = Field(default="align")
+    vibe: str = Field(
+        default="",
+        description="Vibe name that triggers align on move",
+    )
+    cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cost to the actor for aligning (resource name -> amount)",
+    )
+    commons_cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cost deducted from the actor's commons (resource name -> amount)",
+    )
+
+    def _actions(self) -> list[Action]:
+        # Align doesn't create standalone actions - it's triggered by move
+        return []
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -334,13 +360,12 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
+    align: AlignActionConfig = Field(default_factory=lambda: AlignActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
-        return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
-            [],
-        )
+        action_configs = [self.noop, self.move, self.attack, self.transfer, self.align, self.change_vibe]
+        return sum([action.actions() for action in action_configs], [])
 
 
 class GlobalObsConfig(Config):
