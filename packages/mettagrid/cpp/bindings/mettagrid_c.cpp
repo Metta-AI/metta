@@ -26,6 +26,8 @@
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
+#include "objects/commons.hpp"
+#include "objects/commons_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/protocol.hpp"
@@ -86,6 +88,37 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   init_action_handlers();
 
   _init_grid(game_config, map);
+
+  // Initialize commons from config
+  for (const auto& [name, commons_cfg] : game_config.commons) {
+    auto commons = std::make_unique<Commons>(*commons_cfg, &resource_names, &game_config.feature_ids);
+    _commons_by_name[name] = commons.get();
+    _commons.push_back(std::move(commons));
+  }
+
+  // Associate grid objects with their commons based on tags
+  // Tags of the form "commons:name" indicate membership
+  const std::string commons_tag_prefix = "commons:";
+  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    auto obj = _grid->object(obj_id);
+    if (!obj) continue;
+
+    // Check for commons tags
+    for (int tag_id : obj->tag_ids) {
+      auto tag_it = game_config.tag_id_map.find(tag_id);
+      if (tag_it != game_config.tag_id_map.end()) {
+        const std::string& tag_name = tag_it->second;
+        if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+          // Extract commons name from tag
+          std::string commons_name = tag_name.substr(commons_tag_prefix.length());
+          auto commons_it = _commons_by_name.find(commons_name);
+          if (commons_it != _commons_by_name.end()) {
+            obj->setCommons(commons_it->second);
+          }
+        }
+      }
+    }
+  }
 
   // Pre-compute goal_obs tokens for each agent
   if (_global_obs_config.goal_obs) {
@@ -1014,6 +1047,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // We're, like 80% sure on this reasoning.
 
   bind_inventory_config(m);
+  bind_commons_config(m);
   bind_agent_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);

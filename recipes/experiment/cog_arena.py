@@ -41,6 +41,7 @@ from mettagrid.config.mettagrid_config import (
     BuildConfig,
     ChangeVibeActionConfig,
     ChestConfig,
+    CommonsConfig,
     DamageConfig,
     DemolishConfig,
     GameConfig,
@@ -230,12 +231,13 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
         inventory_regen_interval=1,
         objects={
             "wall": CvCWallConfig().station_cfg(),
-            "assembler": CogAssemblerConfig().station_cfg(),
+            "assembler": CogAssemblerConfig().station_cfg().model_copy(update={"commons": "cogs"}),
             "charger": ChargerConfig().station_cfg(),
             "chest": ChestConfig(
+                commons="cogs",
                 vibe_transfers={
                     "default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                }
+                },
             ),
             "market": MarketConfig(
                 terminals={
@@ -271,6 +273,26 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 ),
             ),
         },
+        commons=[
+            CommonsConfig(
+                name="cogs",
+                inventory=InventoryConfig(
+                    limits={
+                        "resources": ResourceLimitsConfig(
+                            limit=10000, resources=["carbon", "oxygen", "germanium", "silicon"]
+                        ),
+                        "hearts": ResourceLimitsConfig(limit=65535, resources=["heart"]),
+                    },
+                    initial={
+                        "carbon": 0,
+                        "oxygen": 0,
+                        "germanium": 0,
+                        "silicon": 0,
+                        "heart": 0,
+                    },
+                ),
+            ),
+        ],
     )
 
     env = MettaGridConfig(game=game)
