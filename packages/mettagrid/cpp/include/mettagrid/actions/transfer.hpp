@@ -92,15 +92,16 @@ public:
     const std::string& target_group = target->group_name;
 
     // 1. Check if actor has resources to give (negative deltas)
+    // Cast inventory amounts to int to avoid truncation when delta exceeds uint16_t range
     for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta < 0 && actor.inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
+      if (delta < 0 && static_cast<int>(actor.inventory.amount(resource)) < -delta) {
         return false;  // Actor doesn't have enough resources to give
       }
     }
 
     // 2. Check if target has resources to give (negative deltas)
     for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta < 0 && target->inventory.amount(resource) < static_cast<InventoryQuantity>(-delta)) {
+      if (delta < 0 && static_cast<int>(target->inventory.amount(resource)) < -delta) {
         return false;  // Target doesn't have enough resources to give
       }
     }
@@ -108,8 +109,8 @@ public:
     // 3. Check if actor has capacity for receiving resources (positive deltas)
     for (const auto& [resource, delta] : effect.actor_deltas) {
       if (delta > 0) {
-        InventoryQuantity free = actor.inventory.free_space(resource);
-        if (static_cast<InventoryQuantity>(delta) > free) {
+        int free = static_cast<int>(actor.inventory.free_space(resource));
+        if (delta > free) {
           return false;  // Actor doesn't have capacity to receive
         }
       }
@@ -118,8 +119,8 @@ public:
     // 4. Check if target has capacity for receiving resources (positive deltas)
     for (const auto& [resource, delta] : effect.target_deltas) {
       if (delta > 0) {
-        InventoryQuantity free = target->inventory.free_space(resource);
-        if (static_cast<InventoryQuantity>(delta) > free) {
+        int free = static_cast<int>(target->inventory.free_space(resource));
+        if (delta > free) {
           return false;  // Target doesn't have capacity to receive
         }
       }

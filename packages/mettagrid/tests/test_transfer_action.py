@@ -243,6 +243,56 @@ class TestVibeTriggeredTransfer:
             f"Agent 1 energy should be unchanged. Was {agent1_energy_before}, now {agent1_energy_after}"
         )
 
+    def test_transfer_fails_with_large_delta_exceeding_inventory(self):
+        """Test that transfer correctly fails when delta exceeds uint16_t range.
+
+        This tests the fix for integer overflow: if delta is cast to uint16_t before comparison,
+        values exceeding 65535 would be truncated (e.g., 70000 becomes 4464).
+        The fix casts inventory amounts to int instead, preserving the full delta value.
+        """
+        # Configure transfer that requires 70000 energy (exceeds uint16_t max of 65535)
+        # Actor only has 5000 energy - transfer should fail
+        sim = create_two_agent_sim(
+            vibe_transfers=[
+                VibeTransfer(vibe=CHARGER_VIBE_NAME, target={"energy": 70000}, actor={"energy": -70000}),
+            ],
+            initial_inventory={"energy": 5000, "heart": 10},
+        )
+
+        # Agent 0 changes vibe to "charger"
+        sim.agent(0).set_action("change_vibe_charger")
+        sim.agent(1).set_action("noop")
+        sim.step()
+
+        # Get inventories before attempted transfer
+        objects = sim.grid_objects()
+        agents = sorted([obj for obj in objects.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
+        energy_idx = sim.resource_names.index("energy")
+        agent0_energy_before = agents[0]["inventory"][energy_idx]
+        agent1_energy_before = agents[1]["inventory"][energy_idx]
+
+        # Agent 0 moves east into Agent 1 - should NOT trigger transfer
+        # (agent only has 5000 energy, needs 70000)
+        sim.agent(0).set_action("move_east")
+        sim.agent(1).set_action("noop")
+        sim.step()
+
+        # Check that no transfer occurred (validation correctly rejected it)
+        objects_after = sim.grid_objects()
+        agents_after = sorted([obj for obj in objects_after.values() if "agent_id" in obj], key=lambda x: x["agent_id"])
+
+        agent0_energy_after = agents_after[0]["inventory"][energy_idx]
+        agent1_energy_after = agents_after[1]["inventory"][energy_idx]
+
+        # Energy should be unchanged (transfer failed due to insufficient resources)
+        assert agent0_energy_after == agent0_energy_before, (
+            f"Agent 0 energy should be unchanged. Was {agent0_energy_before}, now {agent0_energy_after}. "
+            "Transfer should have been rejected because agent doesn't have 70000 energy."
+        )
+        assert agent1_energy_after == agent1_energy_before, (
+            f"Agent 1 energy should be unchanged. Was {agent1_energy_before}, now {agent1_energy_after}"
+        )
+
 
 class TestVibeConfigValidation:
     """Test configuration validation for transfer vibes."""
