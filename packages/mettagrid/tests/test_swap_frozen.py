@@ -51,7 +51,7 @@ def base_config():
                     "west",
                 ]
             ),
-            change_vibe=ChangeVibeActionConfig(number_of_vibes=34),
+            change_vibe=ChangeVibeActionConfig(),
             attack=AttackActionConfig(
                 enabled=False,  # No standalone attack actions
                 vibes=["swords"],  # Attack triggers on move when agent has swords vibe
