@@ -54,7 +54,7 @@ class TestVibeTriggeredAttack:
             actions=ActionsConfig(
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(),
-                change_vibe=ChangeVibeActionConfig(number_of_vibes=10),
+                change_vibe=ChangeVibeActionConfig(),
                 attack=AttackActionConfig(
                     enabled=False,  # Disable direct attack actions
                     vibes=["charger"],  # Attack triggers on move when agent has charger vibe
@@ -118,7 +118,7 @@ class TestVibeTriggeredAttack:
             actions=ActionsConfig(
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(),
-                change_vibe=ChangeVibeActionConfig(number_of_vibes=10),
+                change_vibe=ChangeVibeActionConfig(),
                 attack=AttackActionConfig(
                     enabled=False,
                     vibes=["charger"],  # Attack only triggers with charger vibe
@@ -172,7 +172,7 @@ class TestVibeActionWithEmptyTarget:
             actions=ActionsConfig(
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(),
-                change_vibe=ChangeVibeActionConfig(number_of_vibes=10),
+                change_vibe=ChangeVibeActionConfig(),
                 attack=AttackActionConfig(
                     enabled=False,
                     vibes=["charger"],
