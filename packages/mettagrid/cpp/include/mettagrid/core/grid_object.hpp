@@ -12,8 +12,9 @@
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
 
-// Forward declaration for AOEHelper
+// Forward declarations for AOEHelper
 class Grid;
+class GridObject;
 
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
@@ -56,10 +57,15 @@ public:
 struct AOEEffectConfig {
   unsigned int range = 1;                                             // Radius of effect (Manhattan distance)
   std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;  // Per-tick resource changes
+  bool members_only = false;                                          // Only affect objects with matching commons
+  bool ignore_members = false;                                        // Ignore objects with matching commons
 
   AOEEffectConfig() = default;
-  AOEEffectConfig(unsigned int range, const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas)
-      : range(range), resource_deltas(resource_deltas) {}
+  AOEEffectConfig(unsigned int range,
+                  const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas,
+                  bool members_only = false,
+                  bool ignore_members = false)
+      : range(range), resource_deltas(resource_deltas), members_only(members_only), ignore_members(ignore_members) {}
 };
 
 struct GridObjectConfig {
@@ -75,14 +81,18 @@ struct GridObjectConfig {
   virtual ~GridObjectConfig() = default;
 };
 
+// Forward declaration for Alignable (to check commons membership)
+class Alignable;
+
 // Helper class for managing AOE effects on grid objects
 class AOEHelper {
 public:
   AOEHelper() = default;
 
-  // Initialize with grid reference
-  void init(Grid* grid) {
+  // Initialize with grid reference and owner
+  void init(Grid* grid, GridObject* owner) {
     _grid = grid;
+    _owner = owner;
   }
 
   // Set the AOE config (call from object constructor)
@@ -106,9 +116,15 @@ public:
     return _config;
   }
 
+  // Get the owner object
+  GridObject* owner() const {
+    return _owner;
+  }
+
 private:
   const AOEEffectConfig* _config = nullptr;
   Grid* _grid = nullptr;
+  GridObject* _owner = nullptr;  // The object that owns this AOE effect
   bool _registered = false;
   GridCoord _location_r = 0;
   GridCoord _location_c = 0;

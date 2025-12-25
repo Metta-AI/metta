@@ -102,8 +102,9 @@ def supply_depot_config(map_name: str) -> CommonsChestConfig:
         commons="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
         aoe=AOEEffectConfig(
-            range=20,
+            range=10,
             resource_deltas={"energy": 100, "damage": -100},
+            members_only=True,
         ),
     )
 

@@ -58,9 +58,13 @@ class AOEEffectConfig:
         self,
         range: int = 1,
         resource_deltas: dict[int, int] = {},
+        members_only: bool = False,
+        ignore_members: bool = False,
     ) -> None: ...
     range: int
     resource_deltas: dict[int, int]
+    members_only: bool
+    ignore_members: bool
 
 class GridObjectConfig:
     aoe: Optional[AOEEffectConfig]
