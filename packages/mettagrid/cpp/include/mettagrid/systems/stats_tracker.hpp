@@ -32,6 +32,16 @@ public:
     return (*_resource_names)[item];
   }
 
+  // Get resource ID from name, returns -1 if not found
+  int resource_id(const std::string& name) const {
+    for (size_t i = 0; i < _resource_names->size(); ++i) {
+      if ((*_resource_names)[i] == name) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  }
+
   void add(const std::string& key, float amount) {
     _stats[key] += amount;
   }
