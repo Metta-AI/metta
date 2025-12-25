@@ -647,6 +647,12 @@ void MettaGrid::_step() {
           }
         }
       }
+
+      // Apply AOE cell effects from the grid at the agent's location
+      const auto& cell_effect = _grid->effect_at(agent->location.r, agent->location.c);
+      for (const auto& [item, delta] : cell_effect.resource_deltas) {
+        agent->inventory.update(item, delta);
+      }
     }
   }
 
