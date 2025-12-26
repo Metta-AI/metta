@@ -507,3 +507,4 @@ npx expo start
 
 ## Project Structure
 ```
+Ingrdnt/
