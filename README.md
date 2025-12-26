@@ -504,3 +504,5 @@ npx expo start
 5. Run on your device:
 - Install the Expo Go app on your iOS or Android device
 - Scan the QR code from your terminal
+
+## Project Structure
