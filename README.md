@@ -581,3 +581,4 @@ npx expo build:ios
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ### Steps to Contribute
+1. Fork the repository
