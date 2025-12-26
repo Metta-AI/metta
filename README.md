@@ -460,3 +460,4 @@ Ingrdnt is a React Native mobile application that helps users make informed deci
 
 ## Features
 - 📸 Scan ingredient labels with your camera
+- 🔍 Instant ingredient analysis
