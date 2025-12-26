@@ -511,3 +511,4 @@ Ingrdnt/
 ├── src/
 │   ├── screens/      # App screens
 │   ├── navigation/   # Navigation setup
+│   ├── theme/        # Theme configuration
