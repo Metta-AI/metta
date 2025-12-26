@@ -478,3 +478,5 @@ Ingrdnt is a React Native mobile application that helps users make informed deci
 - Node.js (v14 or higher)
 - npm or yarn
 - Expo CLI
+
+### Setup
