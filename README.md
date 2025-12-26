@@ -551,3 +551,5 @@ Each ingredient is checked against a comprehensive database to identify potentia
 
 ### Smart Alternatives
 For harmful ingredients, the app suggests healthier alternatives with similar properties.
+
+## Configuration
