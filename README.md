@@ -517,3 +517,5 @@ Ingrdnt/
 ├── data/            # JSON data files
 └── App.js           # Entry point
 ```
+
+## Screens
