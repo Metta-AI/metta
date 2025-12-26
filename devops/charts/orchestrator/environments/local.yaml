@@ -1,3 +1,6 @@
+orchestrator:
+  enabled: false
+
 image:
   registry: ""
   name: metta-policy-evaluator-local
@@ -11,4 +14,7 @@ datadog:
   enabled: false
 
 evalScheduler:
+  enabled: false
+
+watcher:
   enabled: false
