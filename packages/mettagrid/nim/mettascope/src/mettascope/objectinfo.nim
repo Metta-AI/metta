@@ -84,6 +84,20 @@ proc protocolCmp(a, b: Protocol): int =
     return 1
   cmp(bHearts, aHearts)
 
+proc getCommonsName(commonsId: int): string =
+  ## Get the commons name by ID from the mg_config.
+  if replay.isNil or replay.mgConfig.isNil:
+    return ""
+  if "game" notin replay.mgConfig or "commons" notin replay.mgConfig["game"]:
+    return ""
+  let commonsArr = replay.mgConfig["game"]["commons"]
+  if commonsArr.kind != JArray or commonsId < 0 or commonsId >= commonsArr.len:
+    return ""
+  let commonsConfig = commonsArr[commonsId]
+  if commonsConfig.kind == JObject and "name" in commonsConfig:
+    return commonsConfig["name"].getStr
+  return ""
+
 proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draws the object info panel using silky widgets.
   frame(frameId, contentPos, contentSize):
@@ -121,6 +135,14 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
     # Basic identity
     h1text(cur.typeName)
     text(&"  Object ID: {cur.id}")
+
+    # Display alignment (commons) for alignable objects.
+    if cur.commonsId >= 0:
+      let commonsName = getCommonsName(cur.commonsId)
+      if commonsName.len > 0:
+        text(&"  Alignment: {commonsName} ({cur.commonsId})")
+      else:
+        text(&"  Alignment: ({cur.commonsId})")
 
     if cur.isAgent:
       # Agent-specific info.

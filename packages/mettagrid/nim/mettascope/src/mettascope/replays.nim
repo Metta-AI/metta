@@ -17,6 +17,12 @@ type
 
   RecipeInfoConfig* = tuple[pattern: seq[string], protocol: Protocol]
 
+  AOEConfig* = object
+    range*: int
+    resourceDeltas*: Table[string, int]
+    membersOnly*: bool
+    ignoreMembers*: bool
+
   ObjectConfig* = object
     name*: string
     typeId*: int
@@ -26,6 +32,7 @@ type
     `type`*: string
     swappable*: bool
     recipes*: seq[RecipeInfoConfig]
+    aoe*: AOEConfig
 
   GameConfig* = object
     resourceNames*: seq[string]
@@ -91,6 +98,9 @@ type
     cooldownMultiplier*: seq[float]
     currentRecipeId*: int
     protocols*: seq[Protocol]
+
+    # Alignable fields.
+    commonsId*: int = -1
 
     # Computed fields.
     gainMap*: seq[seq[ItemAmount]]
@@ -175,6 +185,8 @@ type
     allowPartialUsage*: bool
     protocols*: seq[Protocol]
 
+    # Alignable fields.
+    commonsId*: int = -1
 
   ReplayStep* = ref object
     step*: int
@@ -807,6 +819,9 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "protocols" in obj:
       entity.protocols = fromJson($(obj["protocols"]), seq[Protocol])
 
+    # Parse commons_id for alignable objects.
+    entity.commonsId = getInt(obj, "commons_id", -1)
+
     replay.objects.add(entity)
 
     # Populate the agents field for agent entities
@@ -907,6 +922,7 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
     entity.protocols = obj.protocols
+    entity.commonsId = obj.commonsId
 
   # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)

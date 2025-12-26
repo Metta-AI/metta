@@ -20,6 +20,7 @@ type
     showResources* = true
     showObservations* = -1
     lockFocus* = false
+    showAOE* = -1  ## -1 = off, 0+ = specific commons, high value = all
 
   PlayMode* = enum
     Historical
