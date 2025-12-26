@@ -514,3 +514,4 @@ Ingrdnt/
 │   ├── theme/        # Theme configuration
 │   └── utils/        # Utility functions
 ├── assets/          # Images and static files
+├── data/            # JSON data files
