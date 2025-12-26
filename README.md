@@ -550,3 +550,4 @@ Users can take photos of ingredient labels, and the app processes them to extrac
 Each ingredient is checked against a comprehensive database to identify potential health concerns.
 
 ### Smart Alternatives
+For harmful ingredients, the app suggests healthier alternatives with similar properties.
