@@ -463,3 +463,4 @@ Ingrdnt is a React Native mobile application that helps users make informed deci
 - 🔍 Instant ingredient analysis
 - ⚠️ Health alerts for harmful ingredients
 - 💚 Get healthier alternatives
+- 📊 Track your scanning history
