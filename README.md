@@ -531,3 +531,5 @@ User authentication with email/password
 
 ### HomeScreen
 Main dashboard with scan option
+
+### ScanScreen
