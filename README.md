@@ -497,3 +497,6 @@ npm install
 ```
 
 4. Start the development server:
+```bash
+npx expo start
+```
