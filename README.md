@@ -562,3 +562,6 @@ For harmful ingredients, the app suggests healthier alternatives with similar pr
 ## Development
 
 ### Running on iOS
+```bash
+npx expo start --ios
+```
