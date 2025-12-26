@@ -1,5 +1,5 @@
 import
-  std/[math, os, strutils, tables, strformat, random, times],
+  std/[math, os, strutils, tables, strformat, random, times, json, sets],
   vmath, windy, boxy,
   common, actions, utils, replays,
   pathfinding, tilemap, pixelator, shaderquad,
@@ -622,6 +622,7 @@ proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
 proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
+  drawAOEOverlay()
   drawTrajectory()
 
   drawObjects()
