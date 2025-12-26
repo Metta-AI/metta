@@ -465,3 +465,5 @@ Ingrdnt is a React Native mobile application that helps users make informed deci
 - 💚 Get healthier alternatives
 - 📊 Track your scanning history
 - 🔐 Secure user authentication
+
+## Tech Stack
