@@ -597,3 +597,6 @@ For questions or feedback, please open an issue on GitHub.
 - React Native community for excellent documentation
 - Expo team for simplifying mobile development
 - All contributors who help improve this app
+
+---
+Made with ❤️ for healthier living
