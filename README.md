@@ -556,3 +556,4 @@ For harmful ingredients, the app suggests healthier alternatives with similar pr
 
 ### Firebase Setup
 1. Create a Firebase project at https://console.firebase.google.com
+2. Enable Authentication and Firestore
