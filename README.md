@@ -459,3 +459,4 @@ Running these commands mirrors our CI configuration and helps keep the codebase 
 Ingrdnt is a React Native mobile application that helps users make informed decisions about food ingredients.
 
 ## Features
+- 📸 Scan ingredient labels with your camera
