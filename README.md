@@ -533,3 +533,4 @@ User authentication with email/password
 Main dashboard with scan option
 
 ### ScanScreen
+Camera interface for scanning ingredient labels
