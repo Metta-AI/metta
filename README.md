@@ -530,3 +530,4 @@ Choose between sign in and sign up
 User authentication with email/password
 
 ### HomeScreen
+Main dashboard with scan option
