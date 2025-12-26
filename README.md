@@ -470,3 +470,4 @@ Ingrdnt is a React Native mobile application that helps users make informed deci
 - **React Native** - Cross-platform mobile development
 - **Expo** - Development and build toolchain
 - **Firebase** - Authentication and data storage
+- **React Navigation** - Navigation library
