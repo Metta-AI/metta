@@ -525,3 +525,5 @@ First screen users see with app introduction
 
 ### AuthIntroScreen
 Choose between sign in and sign up
+
+### SignInScreen
