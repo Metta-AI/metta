@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import zipfile
 from dataclasses import dataclass
@@ -87,6 +88,7 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
         if not isinstance(state_dict, MutableMapping):
             raise TypeError("Loaded safetensors state_dict is not a mutable mapping")
 
+    architecture = _maybe_update_architecture_from_state_dict(architecture, state_dict)
     return MptArtifact(architecture=architecture, state_dict=state_dict)
 
 
@@ -182,3 +184,58 @@ def _prepare_state_dict_for_save(state_dict: Mapping[str, torch.Tensor]) -> dict
         result[key] = value
 
     return result
+
+
+def _infer_cortex_block_count(state_dict: Mapping[str, torch.Tensor]) -> int | None:
+    pattern = re.compile(r"cortex\.func\.stack\.blocks\.(\d+)\.")
+    indices: set[int] = set()
+    for key in state_dict.keys():
+        match = pattern.search(key)
+        if match:
+            indices.add(int(match.group(1)))
+    if not indices:
+        return None
+    return max(indices) + 1
+
+
+def _infer_cortex_pattern(state_dict: Mapping[str, torch.Tensor]) -> str | None:
+    keys = state_dict.keys()
+    if any("cell.net.weight_ih_l0" in key for key in keys):
+        return "L"
+    if any("cell.nu_log" in key for key in keys):
+        return "A"
+    return None
+
+
+def _infer_has_gtd_aux(state_dict: Mapping[str, torch.Tensor]) -> bool:
+    return any("gtd_aux." in key for key in state_dict.keys())
+
+
+def _maybe_update_architecture_from_state_dict(architecture: Any, state_dict: Mapping[str, torch.Tensor]) -> Any:
+    if getattr(architecture, "components", None):
+        return architecture
+
+    updates: dict[str, Any] = {}
+    if hasattr(architecture, "core_resnet_pattern"):
+        inferred_pattern = _infer_cortex_pattern(state_dict)
+        if inferred_pattern and getattr(architecture, "core_resnet_pattern", None) != inferred_pattern:
+            updates["core_resnet_pattern"] = inferred_pattern
+
+    if hasattr(architecture, "core_resnet_layers"):
+        inferred_layers = _infer_cortex_block_count(state_dict)
+        if inferred_layers is not None and getattr(architecture, "core_resnet_layers", None) != inferred_layers:
+            updates["core_resnet_layers"] = inferred_layers
+
+    if hasattr(architecture, "include_gtd_aux"):
+        if not _infer_has_gtd_aux(state_dict) and getattr(architecture, "include_gtd_aux", True):
+            updates["include_gtd_aux"] = False
+
+    if not updates:
+        return architecture
+
+    if hasattr(architecture, "model_copy"):
+        return architecture.model_copy(update=updates)
+
+    data = architecture.model_dump() if hasattr(architecture, "model_dump") else dict(architecture.__dict__)
+    data.update(updates)
+    return type(architecture)(**data)
