@@ -209,9 +209,6 @@ def download_policy_spec_from_s3_as_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
-    if not normalized_path.endswith(".zip"):
-        raise ValueError("Expected a .zip submission archive; use download_checkpoint_dir_from_s3 for directories.")
-
     digest = hashlib.sha256(normalized_path.encode()).hexdigest()
     tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}.zip"
     local_path = cache_dir / f"{digest}.zip"
@@ -243,9 +240,6 @@ def download_checkpoint_dir_from_s3(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
-    if normalized_path.endswith(".zip"):
-        raise ValueError("Expected a checkpoint directory, not a .zip archive.")
-
     extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()[:16]
     marker_file = extraction_root / ".checkpoint_sync_complete"
     if not marker_file.exists():

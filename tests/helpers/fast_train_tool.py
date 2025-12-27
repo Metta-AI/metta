@@ -70,7 +70,7 @@ class FastCheckpointTrainTool(TrainTool):
             {
                 "agent_step": agent_step,
                 "epoch": epoch,
-                "optimizer_state": {},
+                "optimizer": {},
             },
             trainer_state_path,
         )

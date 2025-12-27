@@ -92,8 +92,6 @@ class CheckpointManager:
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
             self._setup_remote_prefix()
-        if require_remote_enabled and self._remote_prefix is None:
-            raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
     def _setup_remote_prefix(self) -> None:
         storage_decision = auto_policy_storage_decision(self.run_name)

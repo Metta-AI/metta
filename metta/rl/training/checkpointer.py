@@ -79,15 +79,10 @@ class Checkpointer(TrainerComponent):
                     payload = {
                         "architecture_spec": architecture_spec,
                         "state_dict": {k: v.cpu() for k, v in state_dict.items()},
-                        "action_count": len(policy_env_info.actions.actions()),
                     }
                 payload = self._distributed.broadcast_from_master(payload)
                 architecture_spec = payload["architecture_spec"]
                 state_dict = payload["state_dict"]
-                local_action_count = len(policy_env_info.actions.actions())
-                action_count = payload["action_count"]
-                if local_action_count != action_count:
-                    raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 
                 policy = (
                     load_symbol(architecture_spec.split("(", 1)[0].strip())
@@ -95,9 +90,7 @@ class Checkpointer(TrainerComponent):
                     .make_policy(policy_env_info)
                     .to(load_device)
                 )
-                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
-                if missing or unexpected:
-                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                policy.load_state_dict(state_dict, strict=True)
                 policy.initialize_to_environment(policy_env_info, load_device)
 
                 if self._distributed.is_master():
