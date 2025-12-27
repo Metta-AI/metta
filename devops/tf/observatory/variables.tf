@@ -32,3 +32,21 @@ variable "google_service_account_secret_arn" {
   type    = string
   default = "arn:aws:secretsmanager:us-east-1:751442549699:secret:GoogleOAuthObservatory-H7yGjS"
 }
+
+variable "github_webhook_secret" {
+  type    = string
+  default = ""
+}
+
+variable "asana_pat" {
+  type = string
+}
+
+variable "asana_workspace_gid" {
+  type = string
+}
+
+variable "asana_project_gid" {
+  type    = string
+  default = ""
+}
