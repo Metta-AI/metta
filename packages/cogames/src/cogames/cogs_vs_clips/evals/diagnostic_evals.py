@@ -523,13 +523,85 @@ class DiagnosticAgile(_DiagnosticMissionBase):
                 station.protocols = updated
 
 
-class DiagnosticMemory(_DiagnosticMissionBase):
-    name: str = "diagnostic_memory"
-    description: str = "Harder memory challenge with longer distance to chest."
-    map_name: str = "evals/diagnostic_memory.map"
+class DiagnosticMemoryLevel1(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level1"
+    description: str = "Memory challenge - level 1 (height 17)."
+    map_name: str = "evals/diagnostic_memory_level1.map"
     inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
     required_agents: int | None = 1
-    max_steps: int = Field(default=110)
+    max_steps: int = Field(default=64)
+
+
+class DiagnosticMemoryLevel2(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level2"
+    description: str = "Memory challenge - level 2 (height 27)."
+    map_name: str = "evals/diagnostic_memory_level2.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=84)
+
+
+class DiagnosticMemoryLevel3(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level3"
+    description: str = "Memory challenge - level 3 (height 37)."
+    map_name: str = "evals/diagnostic_memory_level3.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=104)
+
+
+class DiagnosticMemoryLevel4(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level4"
+    description: str = "Memory challenge - level 4 (height 47)."
+    map_name: str = "evals/diagnostic_memory_level4.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=124)
+
+
+class DiagnosticMemoryLevel5(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level5"
+    description: str = "Memory challenge - level 5 (height 57)."
+    map_name: str = "evals/diagnostic_memory_level5.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=154)
+
+
+class DiagnosticMemoryLevel6(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level6"
+    description: str = "Memory challenge - level 6 (height 67)."
+    map_name: str = "evals/diagnostic_memory_level6.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=174)
+
+
+class DiagnosticMemoryLevel7(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level7"
+    description: str = "Memory challenge - level 7 (height 77)."
+    map_name: str = "evals/diagnostic_memory_level7.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=194)
+
+
+class DiagnosticMemoryLevel8(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level8"
+    description: str = "Memory challenge - level 8 (height 87)."
+    map_name: str = "evals/diagnostic_memory_level8.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=214)
+
+
+class DiagnosticMemoryLevel9(_DiagnosticMissionBase):
+    name: str = "diagnostic_memory_level9"
+    description: str = "Memory challenge - level 9 (height 97)."
+    map_name: str = "evals/diagnostic_memory_level9.map"
+    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
+    required_agents: int | None = 1
+    max_steps: int = Field(default=234)
 
 
 class DiagnosticRadial(_DiagnosticMissionBase):
@@ -606,13 +678,6 @@ class DiagnosticChargeUpHard(_DiagnosticMissionBase):
         agent.inventory.regen_amounts = {"default": {"energy": 0}}
 
 
-class DiagnosticMemoryHard(_DiagnosticMissionBase):
-    name: str = "diagnostic_memory_hard"
-    description: str = "Harder memory challenge with longer distance to chest (hard)."
-    map_name: str = "evals/diagnostic_memory_hard.map"
-    inventory_seed: Dict[str, int] = Field(default_factory=lambda: {"heart": 1})
-    required_agents: int | None = 1
-    max_steps: int = Field(default=170)
 
 
 class DiagnosticAssembleSeededSearchHard(_DiagnosticMissionBase):
@@ -703,7 +768,15 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticChestDepositNear,
     DiagnosticChestDepositSearch,
     DiagnosticChargeUp,
-    DiagnosticMemory,
+    DiagnosticMemoryLevel1,
+    DiagnosticMemoryLevel2,
+    DiagnosticMemoryLevel3,
+    DiagnosticMemoryLevel4,
+    DiagnosticMemoryLevel5,
+    DiagnosticMemoryLevel6,
+    DiagnosticMemoryLevel7,
+    DiagnosticMemoryLevel8,
+    DiagnosticMemoryLevel9,
     DiagnosticAssembleSeededNear,
     DiagnosticAssembleSeededSearch,
     DiagnosticExtractMissingCarbon,
@@ -720,7 +793,6 @@ DIAGNOSTIC_EVALS: list[type[_DiagnosticMissionBase]] = [
     DiagnosticChestNavigation3Hard,
     DiagnosticChestDepositSearchHard,
     DiagnosticChargeUpHard,
-    DiagnosticMemoryHard,
     DiagnosticAssembleSeededSearchHard,
     DiagnosticExtractMissingCarbonHard,
     DiagnosticExtractMissingOxygenHard,
