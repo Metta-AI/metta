@@ -41,29 +41,15 @@ class MptArtifact:
         device: str = "cpu",
         *,
         strict: bool = True,
-        allow_legacy_architecture: bool = False,
     ) -> Any:
         torch_device = torch.device(device)
 
-        architecture = _clone_architecture(self.architecture)
-        policy = architecture.make_policy(policy_env_info)
+        policy = self.architecture.make_policy(policy_env_info)
         policy = policy.to(torch_device)
 
-        try:
-            missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
-            if strict and (missing or unexpected):
-                raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
-        except RuntimeError as exc:
-            if not strict or not allow_legacy_architecture:
-                raise
-            fixed = _maybe_rebuild_policy_for_legacy_vit(self.architecture, self.state_dict, policy_env_info)
-            if fixed is None:
-                raise
-            policy = fixed.to(torch_device)
-            missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=True)
-            if missing or unexpected:
-                raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}") from exc
-            self.architecture = _maybe_update_architecture(self.architecture, self.state_dict)
+        missing, unexpected = policy.load_state_dict(dict(self.state_dict), strict=strict)
+        if strict and (missing or unexpected):
+            raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
 
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, torch_device)
@@ -95,17 +81,18 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
         else:
             raise ValueError(f"Invalid .mpt file: {path} (missing architecture)")
-        architecture = _architecture_from_spec(architecture_blob)
+        architecture = architecture_from_spec(architecture_blob)
 
         weights_blob = archive.read("weights.safetensors")
         state_dict = load_safetensors(weights_blob)
         if not isinstance(state_dict, MutableMapping):
             raise TypeError("Loaded safetensors state_dict is not a mutable mapping")
 
+    architecture = _maybe_update_architecture_from_state_dict(architecture, state_dict)
     return MptArtifact(architecture=architecture, state_dict=state_dict)
 
 
-def _architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
+def architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
     """Deserialize an architecture from a string specification."""
     spec = spec.strip()
     if not spec:
@@ -220,29 +207,28 @@ def _infer_cortex_pattern(state_dict: Mapping[str, torch.Tensor]) -> str | None:
     return None
 
 
-def _clone_architecture(architecture: Any) -> Any:
-    if hasattr(architecture, "model_copy"):
-        return architecture.model_copy(deep=True)
-    data = architecture.model_dump() if hasattr(architecture, "model_dump") else dict(architecture.__dict__)
-    return type(architecture)(**data)
+def _infer_has_gtd_aux(state_dict: Mapping[str, torch.Tensor]) -> bool:
+    return any("gtd_aux." in key for key in state_dict.keys())
 
 
-def _maybe_update_architecture(architecture: Any, state_dict: Mapping[str, torch.Tensor]) -> Any:
-    if not hasattr(architecture, "core_resnet_pattern") or not hasattr(architecture, "core_resnet_layers"):
-        return architecture
+def _maybe_update_architecture_from_state_dict(architecture: Any, state_dict: Mapping[str, torch.Tensor]) -> Any:
     if getattr(architecture, "components", None):
         return architecture
 
-    inferred_pattern = _infer_cortex_pattern(state_dict)
-    inferred_layers = _infer_cortex_block_count(state_dict)
-    if inferred_pattern is None and inferred_layers is None:
-        return architecture
+    updates: dict[str, Any] = {}
+    if hasattr(architecture, "core_resnet_pattern"):
+        inferred_pattern = _infer_cortex_pattern(state_dict)
+        if inferred_pattern and getattr(architecture, "core_resnet_pattern", None) != inferred_pattern:
+            updates["core_resnet_pattern"] = inferred_pattern
 
-    updates = {}
-    if inferred_pattern is not None and getattr(architecture, "core_resnet_pattern", None) != inferred_pattern:
-        updates["core_resnet_pattern"] = inferred_pattern
-    if inferred_layers is not None and getattr(architecture, "core_resnet_layers", None) != inferred_layers:
-        updates["core_resnet_layers"] = inferred_layers
+    if hasattr(architecture, "core_resnet_layers"):
+        inferred_layers = _infer_cortex_block_count(state_dict)
+        if inferred_layers is not None and getattr(architecture, "core_resnet_layers", None) != inferred_layers:
+            updates["core_resnet_layers"] = inferred_layers
+
+    if hasattr(architecture, "include_gtd_aux"):
+        if not _infer_has_gtd_aux(state_dict) and getattr(architecture, "include_gtd_aux", True):
+            updates["include_gtd_aux"] = False
 
     if not updates:
         return architecture
@@ -253,14 +239,3 @@ def _maybe_update_architecture(architecture: Any, state_dict: Mapping[str, torch
     data = architecture.model_dump() if hasattr(architecture, "model_dump") else dict(architecture.__dict__)
     data.update(updates)
     return type(architecture)(**data)
-
-
-def _maybe_rebuild_policy_for_legacy_vit(
-    architecture: Any,
-    state_dict: Mapping[str, torch.Tensor],
-    policy_env_info: PolicyEnvInterface,
-) -> Any | None:
-    updated_arch = _maybe_update_architecture(architecture, state_dict)
-    if updated_arch is architecture:
-        return None
-    return updated_arch.make_policy(policy_env_info)

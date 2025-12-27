@@ -37,6 +37,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     # Whether training passes cached pre-state to the Cortex core
     pass_state_during_training: bool = False
     critic_hidden: int = Field(default=512)
+    include_gtd_aux: bool = True
 
     # Trunk configuration
     # Number of Axon layers in the trunk
@@ -107,15 +108,19 @@ class ViTDefaultConfig(PolicyArchitecture):
                 out_features=1,
                 hidden_features=[self.critic_hidden],
             ),
-            MLPConfig(
-                in_key="core",
-                out_key="h_values",
-                name="gtd_aux",
-                in_features=self.latent_dim,
-                out_features=1,
-                hidden_features=[self.critic_hidden],
-            ),
             ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self.actor_hidden),
         ]
+        if self.include_gtd_aux:
+            self.components.insert(
+                -1,
+                MLPConfig(
+                    in_key="core",
+                    out_key="h_values",
+                    name="gtd_aux",
+                    in_features=self.latent_dim,
+                    out_features=1,
+                    hidden_features=[self.critic_hidden],
+                ),
+            )
 
         return super().make_policy(policy_env_info)
