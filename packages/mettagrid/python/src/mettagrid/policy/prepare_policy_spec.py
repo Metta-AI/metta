@@ -162,6 +162,17 @@ def load_policy_spec_from_local_dir(
     if spec.class_path == "mettagrid.policy.mpt_policy.MptPolicy":
         init_kwargs = dict(spec.init_kwargs)
         init_kwargs.setdefault("allow_legacy_architecture", True)
+        checkpoint_uri = init_kwargs.get("checkpoint_uri")
+        if checkpoint_uri and "://" not in checkpoint_uri:
+            candidate = Path(checkpoint_uri)
+            if not candidate.is_absolute():
+                resolved = (extraction_root / candidate).resolve()
+                if not resolved.exists():
+                    raise FileNotFoundError(
+                        "Policy checkpoint not found in submission archive: "
+                        f"{checkpoint_uri} (resolved to {resolved})"
+                    )
+                init_kwargs["checkpoint_uri"] = str(resolved)
         spec.init_kwargs = init_kwargs
 
     # Find and add the correct sys.path entry for the class_path in this submission
