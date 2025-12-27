@@ -151,15 +151,14 @@ class SLCheckpointedKickstarter(Loss):
             if parsed.local_path.is_file():
                 if parsed.local_path.suffix != ".zip":
                     raise ValueError("Provide a checkpoint directory or zip, not policy_spec.json")
-                path = parsed.local_path.parent / f"{filename}.zip"
-                return f"file://{path}"
-            path = parsed.local_path.parent / filename
-            return f"file://{path}"
+                return f"file://{parsed.local_path.parent / f'{filename}.zip'}"
+            return f"file://{parsed.local_path.parent / filename}"
         elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
             key_dir = parsed.key.rsplit("/", 1)[0] if "/" in parsed.key else ""
-            suffix = ".zip" if parsed.key.endswith(".zip") else ""
-            new_key = f"{key_dir + '/' if key_dir else ''}{filename}{suffix}"
-            return f"s3://{parsed.bucket}/{new_key}"
+            return (
+                f"s3://{parsed.bucket}/{key_dir + '/' if key_dir else ''}{filename}"
+                f"{'.zip' if parsed.key.endswith('.zip') else ''}"
+            )
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 

@@ -51,8 +51,11 @@ class PlayTool(Tool):
         """Load a policy from a URI."""
         logger.info(f"Loading policy from URI: {policy_uri}")
 
-        policy_spec = policy_spec_from_uri(policy_uri, device=str(device))
-        policy = initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
+        policy = initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(policy_uri, device=str(device)),
+            device_override=str(device),
+        )
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
         if hasattr(policy, "eval"):
@@ -93,8 +96,10 @@ class PlayTool(Tool):
 
         agent_policies: list[MultiAgentPolicy] = []
         if s3_path:
-            policy_spec = policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True)
-            policy = initialize_or_load_policy(policy_env_info, policy_spec)
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True),
+            )
             agent_policies.append(policy)
             logger.info("Loaded policy from s3 path")
         elif self.policy_uri:

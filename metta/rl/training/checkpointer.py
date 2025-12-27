@@ -74,8 +74,7 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 payload: dict[str, object] | None = None
                 if self._distributed.is_master():
-                    policy_spec = policy_spec_from_uri(normalized_uri)
-                    architecture_spec, state_dict = _load_checkpoint_state(policy_spec)
+                    architecture_spec, state_dict = _load_checkpoint_state(policy_spec_from_uri(normalized_uri))
                     payload = {
                         "architecture_spec": architecture_spec,
                         "state_dict": {k: v.cpu() for k, v in state_dict.items()},

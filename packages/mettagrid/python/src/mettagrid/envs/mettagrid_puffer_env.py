@@ -133,9 +133,10 @@ class MettaGridPufferEnv(PufferEnv):
     def _init_simulation(self) -> Simulation:
         sim = self._simulator.new_simulation(self._current_cfg, self._current_seed, buffers=self._buffers)
         if self._supervisor_policy_spec is not None:
-            policy_env_info = PolicyEnvInterface.from_mg_cfg(self._current_cfg)
-            spec = self._supervisor_policy_spec
-            self._env_supervisor = initialize_or_load_policy(policy_env_info, spec)
+            self._env_supervisor = initialize_or_load_policy(
+                PolicyEnvInterface.from_mg_cfg(self._current_cfg),
+                self._supervisor_policy_spec,
+            )
             self._compute_supervisor_actions()
         return sim
 

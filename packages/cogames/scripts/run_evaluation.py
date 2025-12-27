@@ -90,8 +90,7 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         spec = policy_spec_from_uri(policy_path)
         if not spec.data_path:
             return None
-        weights = load_safetensors(Path(spec.data_path).read_bytes())
-        action_space = _action_space_from_state_dict(weights)
+        action_space = _action_space_from_state_dict(load_safetensors(Path(spec.data_path).read_bytes()))
         if action_space is None:
             return None
         _policy_action_space_cache[policy_path] = action_space
@@ -204,16 +203,21 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(checkpoint_path, device=str(device)),
+            device_override=str(device),
+        )
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(policy_path, device=str(device)),
+            device_override=str(device),
+        )
 
-    policy_spec = PolicySpec(class_path=policy_path, data_path=None)
-    return initialize_or_load_policy(policy_env_info, policy_spec)
+    return initialize_or_load_policy(policy_env_info, PolicySpec(class_path=policy_path, data_path=None))
 
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
