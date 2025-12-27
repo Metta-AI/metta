@@ -1,6 +1,9 @@
 """Shared constants and utilities for policy submission archives."""
 
-from typing import Optional
+import os
+import zipfile
+from pathlib import Path
+from typing import Iterable, Optional
 
 from pydantic import BaseModel, Field
 
@@ -21,3 +24,29 @@ class SubmissionPolicySpec(BaseModel):
         default=None,
         description="Relative path to a Python setup script to run once before loading the policy",
     )
+
+
+def write_submission_zip(
+    zip_path: Path,
+    *,
+    submission_spec: SubmissionPolicySpec,
+    include_files: Iterable[Path],
+) -> None:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(data=submission_spec.model_dump_json(), zinfo_or_arcname=POLICY_SPEC_FILENAME)
+
+        for file_path in include_files:
+            if file_path.is_dir():
+                for root, _, files in os.walk(file_path):
+                    for file in files:
+                        file_full_path = Path(root) / file
+                        zipf.write(file_full_path, arcname=file_full_path)
+            else:
+                zipf.write(file_path, arcname=file_path)
+
+
+def write_policy_bundle_zip(bundle_dir: Path, zip_path: Path) -> None:
+    with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in bundle_dir.rglob("*"):
+            if file_path.is_file():
+                zipf.write(file_path, arcname=file_path.relative_to(bundle_dir))

@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import tempfile
 import uuid
-import zipfile
 from pathlib import Path
 
 import httpx
@@ -17,7 +16,7 @@ from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
 from cogames.cli.policy import PolicySpec, get_policy_spec
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.policy.submission import SubmissionPolicySpec, write_submission_zip
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 SUBMISSION_TAGS = {"cogames-submitted": "true"}
@@ -248,22 +247,19 @@ def create_submission_zip(
         setup_script=setup_script,
     )
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-        zipf.writestr(data=submission_spec.model_dump_json(), zinfo_or_arcname=POLICY_SPEC_FILENAME)
+    for file_path in include_files:
+        if file_path.is_dir():
+            for root, _, files in os.walk(file_path):
+                for file in files:
+                    console.print(f"[dim]  Adding: {Path(root) / file}[/dim]")
+        else:
+            console.print(f"[dim]  Adding: {file_path}[/dim]")
 
-        for file_path in include_files:
-            if file_path.is_dir():
-                # Add all files in directory recursively
-                for root, _, files in os.walk(file_path):
-                    for file in files:
-                        file_full_path = Path(root) / file
-                        arcname = file_full_path
-                        console.print(f"[dim]  Adding: {arcname}[/dim]")
-                        zipf.write(file_full_path, arcname=arcname)
-            else:
-                # Add single file
-                console.print(f"[dim]  Adding: {file_path}[/dim]")
-                zipf.write(file_path, arcname=file_path)
+    write_submission_zip(
+        Path(zip_path),
+        submission_spec=submission_spec,
+        include_files=include_files,
+    )
 
     console.print(f"[green]✓ Created zip: {zip_path}[/green]")
     return Path(zip_path)
