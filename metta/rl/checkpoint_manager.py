@@ -66,21 +66,15 @@ def write_checkpoint_bundle(
 
 
 def _write_file_atomic(path: Path, data: bytes) -> None:
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-            tmp.write(data)
-        tmp_path.replace(path)
-        tmp_path = None
-    finally:
-        if tmp_path and tmp_path.exists():
-            tmp_path.unlink()
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+        tmp.write(data)
+    tmp_path.replace(path)
 
 
 class CheckpointManager:
@@ -145,7 +139,6 @@ class CheckpointManager:
         return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         checkpoint_dir = write_checkpoint_dir(
             base_dir=self.checkpoint_dir,
             run_name=self.run_name,
@@ -157,10 +150,8 @@ class CheckpointManager:
         if self._remote_prefix:
             remote_zip = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}.zip"
             zip_path = self._create_checkpoint_zip(checkpoint_dir)
-            try:
-                write_file(remote_zip, str(zip_path), content_type="application/zip")
-            finally:
-                zip_path.unlink(missing_ok=True)
+            write_file(remote_zip, str(zip_path), content_type="application/zip")
+            zip_path.unlink()
             logger.debug("Policy checkpoint saved remotely to %s", remote_zip)
             return remote_zip
 
@@ -177,14 +168,10 @@ class CheckpointManager:
         ) as tmp_file:
             zip_path = Path(tmp_file.name)
 
-        try:
-            with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in checkpoint_dir.rglob("*"):
-                    if file_path.is_file():
-                        zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
-        except Exception:
-            zip_path.unlink(missing_ok=True)
-            raise
+        with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in checkpoint_dir.rglob("*"):
+                if file_path.is_file():
+                    zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
 
         return zip_path
 
@@ -218,7 +205,6 @@ class CheckpointManager:
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
     ):
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
         is_schedulefree = is_schedulefree_optimizer(optimizer)
@@ -242,14 +228,8 @@ class CheckpointManager:
             delete=False,
         ) as tmp_file:
             tmp_path = Path(tmp_file.name)
-
-            try:
-                torch.save(state, tmp_path)
-                tmp_path.replace(trainer_file)
-            except Exception:
-                if tmp_path.exists():
-                    tmp_path.unlink()
-                raise
+            torch.save(state, tmp_path)
+            tmp_path.replace(trainer_file)
 
         if is_schedulefree:
             optimizer.train()

@@ -149,10 +149,7 @@ class Checkpointer(TrainerComponent):
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
-        try:
-            self.context.latest_saved_policy_epoch = epoch
-        except AttributeError:
-            logger.debug("Component context missing latest_saved_policy_epoch attribute")
+        self.context.latest_saved_policy_epoch = epoch
 
         # Log latest checkpoint URI to wandb if available
         stats_reporter = getattr(self.context, "stats_reporter", None)

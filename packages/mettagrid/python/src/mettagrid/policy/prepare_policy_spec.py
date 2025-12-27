@@ -159,10 +159,6 @@ def _load_policy_spec_from_local_dir(
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device
-    if spec.class_path == "mettagrid.policy.mpt_policy.MptPolicy":
-        init_kwargs = dict(spec.init_kwargs)
-        init_kwargs.setdefault("allow_legacy_architecture", True)
-        spec.init_kwargs = init_kwargs
 
     # Find and add the correct sys.path entry for the class_path in this submission
     # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
@@ -239,7 +235,6 @@ def download_policy_spec_from_s3_as_zip(
     with open(tmp_local_path, mode="wb") as f:
         data = s3_read(normalized_path)
         f.write(data)
-        f.close()
     os.rename(tmp_local_path, local_path)
 
     return local_path
