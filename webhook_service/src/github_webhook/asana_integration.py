@@ -1,0 +1,511 @@
+"""Asana integration for creating tasks from GitHub PRs."""
+
+import logging
+import os
+from typing import Any, Dict, Optional
+
+import asana
+import httpx
+
+from github_webhook.config import settings
+from github_webhook.metrics import metrics
+from github_webhook.retry import RetryExhausted, retry_with_backoff
+
+logger = logging.getLogger(__name__)
+
+
+def _get_asana_access_token() -> str:
+    """
+    Get Asana access token.
+
+    Note: Asana's OAuth doesn't support client_credentials grant type for service-to-service auth.
+    The atlas_app (client_id/client_secret) can only be used with authorization_code or refresh_token flows,
+    which require initial user interaction. For automated services, a Personal Access Token (PAT) is required.
+
+    This function:
+    1. Tries OAuth client_credentials (will fail - Asana limitation)
+    2. Falls back to PAT if available
+    """
+    # Try OAuth client_credentials (will fail, but we try for completeness)
+    if settings.ASANA_CLIENT_ID and settings.ASANA_CLIENT_SECRET:
+        try:
+            token_url = "https://app.asana.com/-/oauth_token"
+            data = {
+                "grant_type": "client_credentials",
+                "client_id": settings.ASANA_CLIENT_ID,
+                "client_secret": settings.ASANA_CLIENT_SECRET,
+            }
+
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(token_url, data=data)
+                if response.status_code == 200:
+                    token_data = response.json()
+                    access_token = token_data.get("access_token")
+                    if access_token:
+                        logger.info("Successfully obtained access token using atlas_app credentials")
+                        return access_token
+                else:
+                    # Expected: Asana doesn't support client_credentials grant
+                    logger.debug(
+                        f"OAuth client_credentials not supported by Asana ({response.status_code}). "
+                        f"Falling back to PAT."
+                    )
+        except Exception as e:
+            logger.debug(f"OAuth attempt failed, falling back to PAT: {e}")
+
+    # Use PAT (required for service-to-service authentication)
+    if settings.ASANA_PAT:
+        return settings.ASANA_PAT
+
+    raise ValueError(
+        "Asana authentication not configured. "
+        "Asana's OAuth doesn't support client_credentials for service auth. "
+        "Please configure ASANA_PAT (Personal Access Token) in AWS Secrets Manager. "
+        "The atlas_app (client_id/client_secret) can only be used with authorization_code/refresh_token flows."
+    )
+
+
+def _get_asana_client() -> asana.ApiClient:
+    """Get configured Asana API client."""
+    access_token = _get_asana_access_token()
+    config = asana.Configuration()
+    config.access_token = access_token
+    return asana.ApiClient(config)
+
+
+def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
+    """
+    Get GitHub login to Asana email mapping from roster project.
+
+    This replicates the logic from .github/actions/asana/pr_gh_to_asana/github_asana_mapping.py
+    """
+    try:
+        access_token = _get_asana_access_token()
+    except ValueError:
+        return {}
+
+    # Get roster project ID from settings
+    roster_project_gid = settings.ASANA_ROSTER_PROJECT_GID
+    gh_login_field_gid = settings.ASANA_GH_LOGIN_FIELD_GID
+    asana_email_field_gid = settings.ASANA_EMAIL_FIELD_GID
+
+    mapping = {}
+
+    try:
+        import requests
+
+        access_token = _get_asana_access_token()
+        url = f"https://app.asana.com/api/1.0/projects/{roster_project_gid}/tasks"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+        params = {
+            "opt_fields": "custom_fields",
+            "limit": 100,
+        }
+
+        while url:
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            if response.status_code != 200:
+                logger.warning(f"Failed to fetch roster tasks: {response.status_code}")
+                break
+
+            data = response.json()
+            tasks = data.get("data", [])
+
+            for task in tasks:
+                custom_fields = task.get("custom_fields", [])
+                gh_login = None
+                asana_email = None
+
+                for field in custom_fields:
+                    if isinstance(field, dict):
+                        if field.get("gid") == gh_login_field_gid:
+                            value = field.get("text_value")
+                            gh_login = value.strip() if value else None
+                            if gh_login and gh_login not in github_logins:
+                                break
+                        if field.get("gid") == asana_email_field_gid:
+                            asana_email = field.get("text_value")
+                            if asana_email and "," in asana_email:
+                                asana_email = asana_email.split(",")[0].strip()
+
+                        if gh_login and asana_email and gh_login in github_logins:
+                            mapping[gh_login] = asana_email
+                            break
+
+                if len(mapping) == len(github_logins):
+                    break
+
+            # Check for next page
+            next_page = data.get("next_page")
+            if next_page:
+                url = f"https://app.asana.com/api/1.0/projects/{roster_project_gid}/tasks"
+                params["offset"] = next_page.get("offset")
+            else:
+                break
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch GitHub→Asana mapping from roster: {e}")
+
+    logger.info(f"GitHub→Asana mapping: {mapping}")
+    return mapping
+
+
+def _resolve_assignee(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
+    """
+    Map GitHub login to Asana user email using roster project.
+
+    Args:
+        github_login: GitHub username to map
+        all_logins: All GitHub logins involved (for efficient batch lookup)
+
+    Returns:
+        Asana email address or None if mapping fails
+    """
+    if not github_login:
+        logger.warning("Empty github_login provided to _resolve_assignee")
+        return None
+
+    # Get mapping from roster project
+    logins_to_lookup = all_logins if all_logins else {github_login}
+    mapping = _get_github_to_asana_mapping(logins_to_lookup)
+
+    asana_email = mapping.get(github_login)
+
+    if asana_email:
+        logger.info(f"Mapped GitHub login '{github_login}' to Asana email '{asana_email}' via roster")
+        return asana_email
+    else:
+        logger.warning(
+            f"Could not map GitHub login '{github_login}' to Asana email - "
+            f"task will be created unassigned"
+        )
+        return None
+
+
+async def create_task_from_pr(
+    repo_full_name: str,
+    pr_number: int,
+    pr_title: str,
+    pr_url: str,
+    author_login: str,
+    assignee_login: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """
+    Create an Asana task for a GitHub pull request.
+
+    Args:
+        repo_full_name: Full repository name (e.g., "Metta-AI/metta")
+        pr_number: Pull request number
+        pr_title: Pull request title
+        pr_url: Pull request URL
+        author_login: GitHub username of PR author
+        assignee_login: GitHub username of assignee (if any)
+
+    Returns:
+        Asana task dict with 'gid', 'permalink_url', etc., or None if creation failed
+    """
+    logger.info(f"Creating Asana task for PR #{pr_number} in {repo_full_name}")
+
+    # Validate required config
+    if not settings.ASANA_PAT:
+        logger.error("ASANA_PAT not configured - cannot create Asana task")
+        return None
+
+    if not settings.ASANA_WORKSPACE_GID:
+        logger.error("ASANA_WORKSPACE_GID not configured - cannot create Asana task")
+        return None
+
+    # Compute external_id
+    external_id = f"{repo_full_name}#{pr_number}"
+
+    # Determine who to assign the task to
+    # Use assignee if present, otherwise fallback to author
+    assigned_login = assignee_login if assignee_login else author_login
+
+    # Resolve GitHub login to Asana email (pass all logins for efficient batch lookup)
+    all_logins = {author_login}
+    if assignee_login:
+        all_logins.add(assignee_login)
+
+    assignee_email = _resolve_assignee(assigned_login, all_logins)
+    if not assignee_email:
+        metrics.increment_counter("github_asana.mapping_failures", {"github_login": assigned_login})
+        logger.warning(
+            f"Could not resolve assignee for GitHub login '{assigned_login}' - "
+            f"task will be created without an assignee"
+        )
+
+    # Construct task name and notes
+    task_name = f"PR #{pr_number} – {pr_title}"
+
+    task_notes = f"""Repo: {repo_full_name}
+URL: {pr_url}
+Author: {author_login}"""
+
+    # Build task data
+    github_url_field_gid = os.getenv("ASANA_GITHUB_URL_FIELD_GID")
+    task_data = {
+        "name": task_name,
+        "notes": task_notes,
+        "workspace": settings.ASANA_WORKSPACE_GID,
+        "custom_fields": {},
+    }
+
+    # Add GitHub URL to custom field if configured
+    if github_url_field_gid:
+        task_data["custom_fields"][github_url_field_gid] = pr_url
+
+    # Add to project if configured
+    if settings.ASANA_PROJECT_GID:
+        task_data["projects"] = [settings.ASANA_PROJECT_GID]
+
+    # Try to add assignee if resolved, but create task unassigned if it fails
+    try_with_assignee = assignee_email is not None
+
+    if try_with_assignee:
+        task_data["assignee"] = assignee_email
+
+    # Add external_id as a custom field if configured
+    # Note: external_id is typically a custom field in Asana for deduplication
+    # For Phase 1, we'll skip custom fields and rely on task notes
+    # Future phases can add custom field support
+
+    try:
+        with metrics.timed("github_asana.sync.latency_ms", {"operation": "create_task"}):
+            api_client = _get_asana_client()
+            tasks_api = asana.TasksApi(api_client)
+
+            logger.info(f"Calling Asana API to create task: {task_name}")
+
+            def _create_task():
+                try:
+                    return tasks_api.create_task({"data": task_data}, {})
+                except Exception as assignee_error:
+                    if try_with_assignee and "assignee" in str(assignee_error):
+                        logger.warning(
+                            f"Failed to assign task to {assignee_email}, retrying without assignee: {assignee_error}"
+                        )
+                        task_data.pop("assignee", None)
+                        return tasks_api.create_task({"data": task_data}, {})
+                    else:
+                        raise
+
+            try:
+                result = await retry_with_backoff(
+                    _create_task,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                    operation_name=f"create_task_{external_id}",
+                )
+
+                if isinstance(result, dict):
+                    task_gid = result.get("gid")
+                    task_url = result.get("permalink_url")
+                    logger.info(f"Successfully created Asana task {task_gid}: {task_url}")
+                    return result
+                else:
+                    logger.error(f"Unexpected result type from Asana API: {type(result)}")
+                    return None
+
+            except RetryExhausted as e:
+                logger.error(f"Failed to create Asana task for {external_id} after retries: {e.last_exception}")
+                metrics.increment_counter(
+                    "github_asana.dead_letter.count",
+                    {"operation": "create_task", "external_id": external_id},
+                )
+                logger.error(
+                    f"DEAD_LETTER: {external_id} - max retry exceeded for task creation",
+                    extra={"kind": "dead_letter", "externalId": external_id, "reason": "max_retry_exceeded"},
+                )
+                return None
+
+    except Exception as e:
+        logger.error(f"Failed to create Asana task for {external_id}: {e}", exc_info=True)
+        return None
+
+
+async def find_task_by_github_url(pr_url: str) -> Optional[Dict[str, Any]]:
+    """
+    Find existing Asana task by GitHub PR URL.
+
+    Searches using custom field if configured, otherwise searches task notes.
+
+    Args:
+        pr_url: GitHub PR URL (e.g., "https://github.com/Metta-AI/metta/pull/123")
+
+    Returns:
+        Asana task dict or None if not found
+    """
+    if not settings.ASANA_PAT or not settings.ASANA_WORKSPACE_GID:
+        return None
+
+    github_url_field_gid = os.getenv("ASANA_GITHUB_URL_FIELD_GID")
+
+    try:
+        api_client = _get_asana_client()
+        tasks_api = asana.TasksApi(api_client)
+
+        if github_url_field_gid and settings.ASANA_PROJECT_GID:
+            opt_fields = (
+                "permalink_url,custom_fields,name,notes,modified_at,completed,"
+                "assignee.email,followers.email"
+            )
+            opts = {
+                "opt_fields": opt_fields,
+                "projects.any": settings.ASANA_PROJECT_GID,
+                f"custom_fields.{github_url_field_gid}.value": pr_url,
+            }
+
+            results_generator = tasks_api.search_tasks_for_workspace(
+                settings.ASANA_WORKSPACE_GID, opts, item_limit=1
+            )
+            if results_generator:
+                try:
+                    results = [r for r in results_generator if isinstance(r, dict)]  # type: ignore
+                    if results:
+                        task = results[0]
+                        logger.info(f"Found Asana task via custom field search: {task.get('permalink_url')}")
+                        return task
+                except Exception as e:
+                    logger.warning(f"Error iterating search results: {e}")
+
+        # Fallback: Search in task notes if custom field search didn't work
+        if settings.ASANA_PROJECT_GID:
+            try:
+                project_tasks_generator = tasks_api.get_tasks_for_project(
+                    settings.ASANA_PROJECT_GID,
+                    {"opt_fields": "permalink_url,name,notes", "limit": 100},
+                )
+                if project_tasks_generator:
+                    try:
+                        project_tasks = [t for t in project_tasks_generator if isinstance(t, dict)]  # type: ignore
+                        for task in project_tasks:
+                            notes = task.get("notes", "") or ""
+                            if pr_url in notes:
+                                logger.info(f"Found Asana task via notes search: {task.get('permalink_url')}")
+                                return task
+                    except Exception as e:
+                        logger.warning(f"Error iterating project tasks: {e}")
+            except Exception as e:
+                logger.warning(f"Error searching tasks by notes: {e}")
+
+        logger.warning(f"Could not find Asana task for PR URL: {pr_url}")
+        return None
+
+    except Exception as e:
+        logger.error(f"Failed to search for Asana task: {e}", exc_info=True)
+        return None
+
+
+async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> bool:
+    """
+    Update Asana task assignee.
+
+    Args:
+        task_gid: Asana task GID
+        assignee_email: Asana user email (None to unassign)
+
+    Returns:
+        True if update succeeded, False otherwise
+    """
+    if not settings.ASANA_PAT:
+        logger.error("ASANA_PAT not configured")
+        return False
+
+    try:
+        with metrics.timed("github_asana.sync.latency_ms", {"operation": "update_assignee"}):
+            api_client = _get_asana_client()
+            tasks_api = asana.TasksApi(api_client)
+
+            task_data = {}
+            if assignee_email:
+                task_data["assignee"] = assignee_email
+            else:
+                task_data["assignee"] = None
+
+            def _update_assignee():
+                tasks_api.update_task({"data": task_data}, task_gid, {})
+
+            try:
+                await retry_with_backoff(
+                    _update_assignee,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                    operation_name=f"update_assignee_{task_gid}",
+                )
+                logger.info(f"Updated task {task_gid} assignee to: {assignee_email or 'unassigned'}")
+                return True
+
+            except RetryExhausted as e:
+                logger.error(f"Failed to update task assignee after retries: {e.last_exception}")
+                metrics.increment_counter(
+                    "github_asana.dead_letter.count",
+                    {"operation": "update_assignee", "task_gid": task_gid},
+                )
+                logger.error(
+                    f"DEAD_LETTER: task {task_gid} - max retry exceeded for assignee update",
+                    extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
+                )
+                return False
+
+    except Exception as e:
+        logger.error(f"Failed to update task assignee: {e}", exc_info=True)
+        return False
+
+
+async def update_task_completed(task_gid: str, completed: bool) -> bool:
+    """
+    Update Asana task completed status.
+
+    Args:
+        task_gid: Asana task GID
+        completed: True to mark as completed, False to mark as incomplete
+
+    Returns:
+        True if update succeeded, False otherwise
+    """
+    if not settings.ASANA_PAT:
+        logger.error("ASANA_PAT not configured")
+        return False
+
+    try:
+        with metrics.timed("github_asana.sync.latency_ms", {"operation": "update_completed"}):
+            api_client = _get_asana_client()
+            tasks_api = asana.TasksApi(api_client)
+
+            task_data = {"completed": completed}
+
+            def _update_completed():
+                tasks_api.update_task({"data": task_data}, task_gid, {})
+
+            try:
+                await retry_with_backoff(
+                    _update_completed,
+                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                    operation_name=f"update_completed_{task_gid}",
+                )
+                logger.info(f"Updated task {task_gid} completed status to: {completed}")
+                return True
+
+            except RetryExhausted as e:
+                logger.error(f"Failed to update task completed status after retries: {e.last_exception}")
+                metrics.increment_counter(
+                    "github_asana.dead_letter.count",
+                    {"operation": "update_completed", "task_gid": task_gid},
+                )
+                logger.error(
+                    f"DEAD_LETTER: task {task_gid} - max retry exceeded for completed update",
+                    extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
+                )
+                return False
+
+    except Exception as e:
+        logger.error(f"Failed to update task completed status: {e}", exc_info=True)
+        return False
