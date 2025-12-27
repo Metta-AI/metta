@@ -38,9 +38,16 @@ def train(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         teacher=teacher,
+        maps_cache_size=1,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
     tt.trainer.loss_metric_interval = 8
+
+    # Enable torch profiler for perf investigations.
+    tt.torch_profiler.interval_epochs = 1
+    tt.torch_profiler.first_profile_epoch = 1
+    tt.torch_profiler.profile_dir = "file://./train_dir/torch_profiles"
+    tt.torch_profiler.max_profile_epochs = 5
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
