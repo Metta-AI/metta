@@ -50,6 +50,7 @@ class ManifestPolicy(MultiAgentPolicy):
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, torch.device(device))
 
+        policy.eval()
         self._policy = policy
         self._architecture = architecture
 
