@@ -84,11 +84,11 @@ class ObsTokenPadStrip(nn.Module):
 
         if self._ignore_inventory_power_tokens:
             UNKNOWN_FEATURE_ID = 255
+            legacy_map, legacy_norms = self._build_legacy_feature_map(features_list)
             stored_log = None
             if not hasattr(self, "original_feature_mapping"):
-                self.original_feature_mapping = {props.name: props.id for props in features_list}
+                self.original_feature_mapping = legacy_map
                 stored_log = f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
-            legacy_map, legacy_norms = self._build_legacy_feature_map(features_list)
             feature_remap: dict[int, int] = {}
 
             for props in features_list:
