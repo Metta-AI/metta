@@ -9,8 +9,7 @@ from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
-from metta.rl.checkpoint_bundle import write_checkpoint_dir
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_dir
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -82,7 +81,6 @@ class FastCheckpointTrainTool(TrainTool):
             base_dir=checkpoint_manager.checkpoint_dir,
             run_name=run_name,
             epoch=epoch,
-            policy_class_path=architecture.class_path,
             architecture_spec=architecture.to_spec(),
             state_dict=policy.state_dict(),
         )

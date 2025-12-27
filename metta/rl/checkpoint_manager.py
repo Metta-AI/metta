@@ -6,15 +6,84 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
+from safetensors.torch import save as save_safetensors
 
-from metta.rl.checkpoint_bundle import write_checkpoint_dir
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
+
+_WEIGHTS_FILENAME = "weights.safetensors"
+
+
+def prepare_state_dict_for_save(state_dict: dict) -> dict:
+    result: dict = {}
+    seen_storage: set[int] = set()
+    for key, tensor in state_dict.items():
+        value = tensor.detach().cpu()
+        data_ptr = value.data_ptr()
+        if data_ptr in seen_storage:
+            value = value.clone()
+        else:
+            seen_storage.add(data_ptr)
+        result[key] = value
+    return result
+
+
+def write_checkpoint_dir(
+    *,
+    base_dir: Path,
+    run_name: str,
+    epoch: int,
+    architecture_spec: str,
+    state_dict: dict,
+) -> Path:
+    checkpoint_dir = (base_dir / f"{run_name}:v{epoch}").expanduser().resolve()
+    write_checkpoint_bundle(checkpoint_dir, architecture_spec=architecture_spec, state_dict=state_dict)
+    return checkpoint_dir
+
+
+def write_checkpoint_bundle(
+    checkpoint_dir: Path,
+    *,
+    architecture_spec: str,
+    state_dict: dict,
+) -> None:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
+    _write_file_atomic(checkpoint_dir / _WEIGHTS_FILENAME, weights_blob)
+    spec = SubmissionPolicySpec(
+        class_path=_class_path_from_architecture_spec(architecture_spec),
+        data_path=_WEIGHTS_FILENAME,
+        init_kwargs={"architecture_spec": architecture_spec},
+    )
+    _write_file_atomic(checkpoint_dir / POLICY_SPEC_FILENAME, spec.model_dump_json().encode("utf-8"))
+
+
+def _class_path_from_architecture_spec(architecture_spec: str) -> str:
+    return architecture_spec.split("(", 1)[0].strip()
+
+
+def _write_file_atomic(path: Path, data: bytes) -> None:
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(data)
+        tmp_path.replace(path)
+        tmp_path = None
+    finally:
+        if tmp_path and tmp_path.exists():
+            tmp_path.unlink()
 
 
 class CheckpointManager:
@@ -87,7 +156,6 @@ class CheckpointManager:
             base_dir=self.checkpoint_dir,
             run_name=self.run_name,
             epoch=epoch,
-            policy_class_path=architecture.class_path,
             architecture_spec=architecture.to_spec(),
             state_dict=state_dict,
         )

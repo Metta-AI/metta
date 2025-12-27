@@ -81,7 +81,10 @@ def _initialize_from_architecture_spec(
     if architecture_spec is None:
         raise ValueError("architecture_spec missing from policy spec")
 
-    policy_architecture = _load_policy_architecture(architecture_spec)
+    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=False)
+    if policy_architecture is None:
+        raise ImportError("PolicyArchitecture is required to load architecture-based checkpoints")
+    policy_architecture = policy_architecture.from_spec(architecture_spec)
     policy = policy_architecture.make_policy(policy_env_info)
 
     device = device_override or kwargs.get("device", "cpu")
@@ -89,22 +92,16 @@ def _initialize_from_architecture_spec(
 
     policy = policy.to(torch.device(device))
 
-    if policy_spec.data_path:
-        from safetensors.torch import load as load_safetensors
+    if not policy_spec.data_path:
+        raise ValueError("policy_spec.data_path is required for architecture checkpoints")
+    from safetensors.torch import load as load_safetensors
 
-        state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
-        policy.load_state_dict(dict(state_dict))
+    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+    policy.load_state_dict(dict(state_dict))
 
     policy.initialize_to_environment(policy_env_info, torch.device(device))
 
     return policy
-
-
-def _load_policy_architecture(spec: str):
-    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=False)
-    if policy_architecture is None:
-        raise ImportError("PolicyArchitecture is required to load architecture-based checkpoints")
-    return policy_architecture.from_spec(spec)
 
 
 def resolve_policy_class_path(policy: str) -> str:

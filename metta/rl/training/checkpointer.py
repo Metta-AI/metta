@@ -1,22 +1,32 @@
 """Policy checkpoint management component."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
+from safetensors.torch import load as load_safetensors
 
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.checkpoint_bundle import load_checkpoint_state
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
+
+
+def _load_checkpoint_state(policy_spec: PolicySpec) -> tuple[str, dict[str, torch.Tensor]]:
+    architecture_spec = policy_spec.init_kwargs["architecture_spec"]
+    if not policy_spec.data_path:
+        raise ValueError("policy_spec.data_path is required for architecture checkpoints")
+    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+    return architecture_spec, dict(state_dict)
 
 
 class CheckpointerConfig(Config):
@@ -67,7 +77,7 @@ class Checkpointer(TrainerComponent):
                 payload: dict[str, object] | None = None
                 if self._distributed.is_master():
                     policy_spec = policy_spec_from_uri(normalized_uri)
-                    architecture_spec, state_dict = load_checkpoint_state(policy_spec)
+                    architecture_spec, state_dict = _load_checkpoint_state(policy_spec)
                     payload = {
                         "architecture_spec": architecture_spec,
                         "state_dict": {k: v.cpu() for k, v in state_dict.items()},
