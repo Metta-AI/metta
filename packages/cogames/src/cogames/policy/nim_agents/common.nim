@@ -351,6 +351,17 @@ proc registerProtocolFeature(feature: ConfigFeature; prefix: string;
   dest[resource] = feature.id
   return true
 
+proc isInventoryPowerFeature(name: string): bool =
+  if not name.startsWith("inv:"):
+    return false
+  let pIndex = name.rfind(":p")
+  if pIndex < 0 or pIndex + 2 >= name.len:
+    return false
+  for i in pIndex + 2 ..< name.len:
+    if not name[i].isDigit:
+      return false
+  return true
+
 proc ctrlCHandler*() {.noconv.} =
   ## Handle ctrl-c signal to exit cleanly.
   echo "\nNim DLL caught ctrl-c, exiting..."
@@ -453,7 +464,8 @@ proc parseConfig*(environmentConfig: string): Config {.raises: [].} =
       of "protocol_output:scrambler":
         result.features.protocolOutputScrambler = feature.id
       else:
-        echo "Unknown feature: ", feature.name
+        if not isInventoryPowerFeature(feature.name):
+          echo "Unknown feature: ", feature.name
 
     for id, name in config.actions:
       case name:
