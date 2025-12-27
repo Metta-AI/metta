@@ -9,7 +9,8 @@ image:
   pullPolicy: Always
   tag: "latest"
 
-# Note: Commands are defined in Dockerfile CMD, not in Helm values
+# Command to run (overrides Dockerfile CMD)
+command: []
 
 serviceAccount:
   create: false  # Shared service account is provisioned centrally (Terraform)

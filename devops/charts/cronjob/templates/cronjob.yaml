@@ -24,7 +24,9 @@ spec:
           - name: {{ .Chart.Name }}
             image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
             imagePullPolicy: {{ .Values.image.pullPolicy }}
-            # Command comes from Dockerfile CMD
+            {{- if .Values.command }}
+            command: {{ toJson .Values.command }}
+            {{- end }}
             env:
             # Datadog configuration
             - name: DD_ENV
