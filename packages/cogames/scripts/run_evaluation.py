@@ -3,20 +3,15 @@
 Evaluation Script for Policies
 
 Supports:
-- Built-in shorthands: baseline, ladybug (`--agent all` runs both)
-- Any policy via full class path
-- Local or S3 checkpoints when CheckpointManager is available
+- Built-in scripted agents: baseline, ladybug, thinky, racecar, starter (`--agent all` runs all)
+- Checkpoint directory URIs (s3:// or file://) with policy_spec.json bundles
 
 Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent baseline --experiments oxygen_bottleneck --cogs 1
+      --agent ladybug --experiments oxygen_bottleneck --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
-  uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
-  uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/model.mpt --cogs 1
+      --agent s3://bucket/path/checkpoints/run:v5 --cogs 1
 """
 
 import argparse
@@ -28,7 +23,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import matplotlib
 
@@ -38,6 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from safetensors.torch import load as load_safetensors
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -82,29 +78,34 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
 
     Returns the number of actions the policy was trained with, or None if detection fails.
     """
+    if not policy_path:
+        return None
     if policy_path in _policy_action_space_cache:
         return _policy_action_space_cache[policy_path]
-
-    if not is_s3_uri(policy_path):
-        return None
+    if "://" not in policy_path:
+        if not Path(policy_path).expanduser().exists():
+            return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
-
-        artifact = load_mpt(policy_path)
-
-        # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
-            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                action_space = tensor.shape[0]
-                _policy_action_space_cache[policy_path] = action_space
-                logger.info(f"Detected policy action space: {action_space} actions")
-                return action_space
-
-        return None
+        spec = policy_spec_from_uri(policy_path)
+        if not spec.data_path:
+            return None
+        action_space = _action_space_from_state_dict(load_safetensors(Path(spec.data_path).read_bytes()))
+        if action_space is None:
+            return None
+        _policy_action_space_cache[policy_path] = action_space
+        logger.info(f"Detected policy action space: {action_space} actions")
+        return action_space
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
         return None
+
+
+def _action_space_from_state_dict(state_dict: Mapping[str, torch.Tensor]) -> Optional[int]:
+    for key, tensor in state_dict.items():
+        if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+            return int(tensor.shape[0])
+    return None
 
 
 def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
@@ -202,16 +203,21 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec)
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(checkpoint_path, device=str(device)),
+            device_override=str(device),
+        )
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec)
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(policy_path, device=str(device)),
+            device_override=str(device),
+        )
 
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
-    return initialize_or_load_policy(policy_env_info, policy_spec)
+    return initialize_or_load_policy(policy_env_info, PolicySpec(class_path=policy_path, data_path=None))
 
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
@@ -278,10 +284,9 @@ def _run_case(
         _ensure_vibe_supports_gear(env_config)
 
         # Auto-detect policy action space and configure environment to match
-        if is_s3_uri(agent_config.policy_path):
-            policy_action_space = _get_policy_action_space(agent_config.policy_path)
-            if policy_action_space is not None:
-                _configure_env_for_action_space(env_config, policy_action_space)
+        policy_action_space = _get_policy_action_space(agent_config.policy_path)
+        if policy_action_space is not None:
+            _configure_env_for_action_space(env_config, policy_action_space)
 
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
@@ -1141,9 +1146,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate scripted or custom agents.")
-    parser.add_argument("--agent", nargs="*", default=None, help="Agent key, class path, or S3 URI")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (or S3 URI)")
+    parser = argparse.ArgumentParser(description="Evaluate checkpoint policies.")
+    parser.add_argument("--agent", nargs="*", default=None, help="Agent key or checkpoint directory URI (s3://...)")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Deprecated (use --agent with URI)")
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
@@ -1198,8 +1203,7 @@ def main():
             label = Path(agent_key).stem if "/" in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
-            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
-            configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
+            raise ValueError("Unknown agent. Use a built-in key or a checkpoint URI.")
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
 

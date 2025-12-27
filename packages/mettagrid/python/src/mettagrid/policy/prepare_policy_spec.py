@@ -60,17 +60,12 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
     if data_path is None:
         return None
 
-    candidate = Path(data_path)
+    candidate = Path(data_path).expanduser()
     if candidate.is_absolute():
-        if candidate.exists():
-            return str(candidate)
-        raise FileNotFoundError(f"Policy data path does not exist: {candidate}")
+        return str(candidate)
 
     resolved = extraction_root / candidate
-    if resolved.exists():
-        return str(resolved)
-
-    raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
+    return str(resolved.resolve())
 
 
 def _find_package_source_root(extraction_root: Path, class_path: str) -> Path | None:
@@ -133,7 +128,7 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
 _executed_setup_scripts: set[Path] = set()
 
 
-def load_policy_spec_from_local_dir(
+def _load_policy_spec_from_local_dir(
     extraction_root: Path,
     *,
     device: str | None = None,
@@ -159,10 +154,6 @@ def load_policy_spec_from_local_dir(
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device
-    if spec.class_path == "mettagrid.policy.mpt_policy.MptPolicy":
-        init_kwargs = dict(spec.init_kwargs)
-        init_kwargs.setdefault("allow_legacy_architecture", True)
-        spec.init_kwargs = init_kwargs
 
     # Find and add the correct sys.path entry for the class_path in this submission
     # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
@@ -203,25 +194,24 @@ def download_policy_spec_from_s3_as_zip(
     cache_dir: Optional[Path] = None,
     remove_downloaded_copy_on_exit: bool = False,
 ) -> Path:
-    """Download a policy from S3, but do not extract.
-
-    Downloads the archive to a deterministic cache location based on the URI hash,
-    allowing reuse across calls with the same URI.
+    """Download a submission archive from S3 without extracting.
 
     Args:
-        s3_path: S3 path to the submission archive (e.g., s3://bucket/path/submission.zip)
+        s3_path: S3 path to a submission archive (.zip)
         cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
-        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache directory
+        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache entry
 
     Returns:
-        PolicySpec with paths resolved to the local extraction directory
+        Local path to the downloaded zip file.
     """
     if cache_dir is None:
         cache_dir = DEFAULT_POLICY_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    tmp_local_path = cache_dir / (f"tmp-{hashlib.sha256(s3_path.encode()).hexdigest()}-{secrets.token_hex(8)}.zip")
-    local_path = cache_dir / (hashlib.sha256(s3_path.encode()).hexdigest() + ".zip")
+    normalized_path = s3_path.rstrip("/")
+    digest = hashlib.sha256(normalized_path.encode()).hexdigest()
+    tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}.zip"
+    local_path = cache_dir / f"{digest}.zip"
 
     if local_path.exists():
         return local_path
@@ -232,15 +222,14 @@ def download_policy_spec_from_s3_as_zip(
 
     # download at a temporary path and use atomic rename so we don't see partial results
     with open(tmp_local_path, mode="wb") as f:
-        data = s3_read(s3_path)
+        data = s3_read(normalized_path)
         f.write(data)
-        f.close()
     os.rename(tmp_local_path, local_path)
 
     return local_path
 
 
-def load_policy_spec_from_zip(
+def _load_policy_spec_from_zip(
     local_path: Path,
     cache_dir: Optional[Path] = None,
     force_dest: Optional[Path] = None,
@@ -279,6 +268,22 @@ def load_policy_spec_from_zip(
             _registered_cleanup_dirs.add(extraction_root)
             atexit.register(_cleanup_cache_dir, extraction_root)
 
-    policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
+    return _load_policy_spec_from_local_dir(extraction_root, device=device)
 
-    return policy_spec
+
+def load_policy_spec_from_path(
+    local_path: Path,
+    *,
+    device: str | None = None,
+    remove_downloaded_copy_on_exit: bool = False,
+    force_dest: Optional[Path] = None,
+) -> PolicySpec:
+    if local_path.is_dir():
+        return _load_policy_spec_from_local_dir(local_path, device=device)
+
+    return _load_policy_spec_from_zip(
+        local_path=local_path,
+        force_dest=force_dest,
+        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+        device=device,
+    )

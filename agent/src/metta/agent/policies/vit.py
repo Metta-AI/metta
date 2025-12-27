@@ -54,7 +54,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
         # If the architecture spec already bundled a component list (common for saved
-        # .mpt checkpoints), reuse it instead of regenerating with current defaults.
+        # checkpoint bundles), reuse it instead of regenerating with current defaults.
         # This keeps restored policies aligned with the shapes they were trained with.
         if self.components:
             return super().make_policy(policy_env_info)

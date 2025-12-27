@@ -17,13 +17,12 @@ from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import (
-    find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
-    resolve_policy_data_path,
 )
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.simulator import Simulator
 from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
@@ -192,12 +191,6 @@ def train(
     )
 
     resolved_initial_weights = initial_weights_path
-    if initial_weights_path is not None:
-        try:
-            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
-        except FileNotFoundError as exc:
-            console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
-            resolved_initial_weights = None
 
     policy = initialize_or_load_policy(
         PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
@@ -364,7 +357,10 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
+        checkpoints = sorted(
+            {path.parent for path in checkpoints_path.rglob(POLICY_SPEC_FILENAME)},
+            key=lambda path: path.stat().st_mtime,
+        )
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
