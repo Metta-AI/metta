@@ -7,8 +7,8 @@ from urllib.parse import unquote, urlparse
 
 import boto3
 
-from mettagrid.util.module import load_symbol
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
     FileParsedScheme,
