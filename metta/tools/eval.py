@@ -1,9 +1,9 @@
 import contextlib
 import logging
-import math
 import multiprocessing
 from typing import Sequence
 
+import torch
 from pydantic import Field
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -22,7 +22,10 @@ from metta.sim.simulate_and_record import (
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import (
+    policy_spec_from_uri,
+    resolve_uri,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,19 +44,7 @@ class EvaluateTool(Tool):
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     verbose: bool = False
     push_metrics_to_wandb: bool = False
-    max_workers: int | None = None
-
-    def _compute_num_workers(self) -> int:
-        if self.max_workers is not None:
-            return self.max_workers
-
-        cpu_count = multiprocessing.cpu_count()
-        remainder = len(self.simulations) % cpu_count
-        if remainder == 0 or len(self.simulations) < cpu_count:
-            return cpu_count
-
-        full_rounds = math.floor(len(self.simulations) / cpu_count)
-        return math.ceil(len(self.simulations) / full_rounds)
+    max_workers: int | None = multiprocessing.cpu_count()
 
     def _to_simulation_run_configs(self) -> list[SimulationRunConfig]:
         result = []
@@ -87,7 +78,12 @@ class EvaluateTool(Tool):
         else:
             policy_uris = list(self.policy_uris)
 
-        policy_specs = [policy_spec_from_uri(uri) for uri in policy_uris]
+        device = torch.device("cpu")
+        policy_specs = [policy_spec_from_uri(resolve_uri(uri), device=str(device)) for uri in policy_uris]
+        # Override device to CPU (zip archives may have cuda hardcoded in policy_spec.json)
+        for spec in policy_specs:
+            if spec.init_kwargs:
+                spec.init_kwargs["device"] = str(device)
 
         observatory_writer: ObservatoryWriter | None = None
         wandb_writer: WandbWriter | None = None
@@ -140,8 +136,6 @@ class EvaluateTool(Tool):
                     agent_step=agent_step,
                 )
 
-            num_workers = self._compute_num_workers()
-            logger.info("Using %d workers for evaluation", num_workers)
             rollout_results = simulate_and_record(
                 policy_specs=policy_specs,
                 simulations=self._to_simulation_run_configs(),
@@ -149,7 +143,7 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
-                max_workers=num_workers,
+                max_workers=self.max_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
                 device_override="cpu",
             )
