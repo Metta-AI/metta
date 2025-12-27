@@ -1,6 +1,6 @@
 import
   std/[times, tables, os],
-  boxy, windy, vmath, silky,
+  boxy, boxy/shaders, windy, vmath, silky, opengl,
   replays
 
 let rootDir* = "packages/mettagrid/nim/mettascope/"
@@ -18,12 +18,22 @@ type
     showVisualRange* = true
     showGrid* = true
     showResources* = true
+    showHeatmap* = false
     showObservations* = -1
     lockFocus* = false
 
   PlayMode* = enum
     Historical
     Realtime
+
+  Heatmap* = ref object
+    ## Tracks agent presence on tiles over time.
+    data*: seq[seq[int]] ## data[step][y * width + x] - flattened 2D array
+    width*: int
+    height*: int
+    maxSteps*: int
+    maxHeat*: seq[int] ## Cached max heat per step for normalization
+    currentTextureStep*: int = -1 ## Track which step's data is in the texture
 
 var
   sk*: Silky
@@ -91,13 +101,13 @@ var
   mouseDownPos*: Vec2
 
 proc at*[T](sequence: seq[T], step: int): T =
-  # Get the value at the given step.
+  ## Get the value at the given step.
   if sequence.len == 0:
     return default(T)
   sequence[step.clamp(0, sequence.len - 1)]
 
 proc at*[T](sequence: seq[T]): T =
-  # Get the value at the current step.
+  ## Get the value at the current step.
   sequence.at(step)
 
 proc irect*(x, y, w, h: SomeNumber): IRect =

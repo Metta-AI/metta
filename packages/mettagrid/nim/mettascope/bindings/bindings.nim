@@ -1,7 +1,7 @@
 import
   genny, openGL, jsony, vmath, windy, silky,
   ../src/mettascope,
-  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes]
+  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes, replayloader, heatmap]
 
 type
   ActionRequest* = object
@@ -34,6 +34,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     makeContextCurrent(window)
     loadExtensions()
     initMettascope()
+    onReplayLoaded()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
@@ -47,6 +48,8 @@ proc init(dataDir: string, replay: string): RenderResponse =
 proc render(currentStep: int, replayStep: string): RenderResponse =
   try:
     common.replay.apply(replayStep)
+    if worldHeatmap != nil:
+      update(worldHeatmap, currentStep, replay)
     step = currentStep
     stepFloat = currentStep.float32
     previousStep = currentStep
