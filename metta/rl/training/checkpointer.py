@@ -23,8 +23,6 @@ logger = logging.getLogger(__name__)
 
 def _load_checkpoint_state(policy_spec: PolicySpec) -> tuple[str, dict[str, torch.Tensor]]:
     architecture_spec = policy_spec.init_kwargs["architecture_spec"]
-    if not policy_spec.data_path:
-        raise ValueError("policy_spec.data_path is required for architecture checkpoints")
     state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
     return architecture_spec, dict(state_dict)
 

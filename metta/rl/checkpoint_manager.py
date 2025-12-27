@@ -56,16 +56,13 @@ def write_checkpoint_bundle(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
     _write_file_atomic(checkpoint_dir / _WEIGHTS_FILENAME, weights_blob)
+    class_path, *_ = architecture_spec.split("(", 1)
     spec = SubmissionPolicySpec(
-        class_path=_class_path_from_architecture_spec(architecture_spec),
+        class_path=class_path.strip(),
         data_path=_WEIGHTS_FILENAME,
         init_kwargs={"architecture_spec": architecture_spec},
     )
     _write_file_atomic(checkpoint_dir / POLICY_SPEC_FILENAME, spec.model_dump_json().encode("utf-8"))
-
-
-def _class_path_from_architecture_spec(architecture_spec: str) -> str:
-    return architecture_spec.split("(", 1)[0].strip()
 
 
 def _write_file_atomic(path: Path, data: bytes) -> None:
@@ -133,18 +130,15 @@ class CheckpointManager:
         return f"file://{self.checkpoint_dir}"
 
     def get_latest_checkpoint(self) -> str | None:
-        def try_resolve(uri: str) -> tuple[str, int] | None:
-            try:
-                parsed = resolve_uri(uri)
-                info = parsed.checkpoint_info
-                if info:
-                    return (parsed.canonical, info[1])
-            except (ValueError, FileNotFoundError):
-                pass
+        def resolve_candidate(uri: str) -> tuple[str, int] | None:
+            parsed = resolve_uri(uri)
+            info = parsed.checkpoint_info
+            if info:
+                return (parsed.canonical, info[1])
             return None
 
-        local = try_resolve(f"file://{self.checkpoint_dir}")
-        remote = try_resolve(self.output_uri) if self._remote_prefix else None
+        local = resolve_candidate(f"file://{self.checkpoint_dir}")
+        remote = resolve_candidate(self.output_uri) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
         if not candidates:
             return None

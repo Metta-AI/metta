@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import functools
 import importlib
-import inspect
 import os
 import pkgutil
 import re
@@ -31,8 +30,7 @@ def initialize_or_load_policy(
     """
 
     kwargs = policy_spec.init_kwargs or {}
-    architecture_spec = kwargs.get("architecture_spec")
-    if architecture_spec is not None:
+    if "architecture_spec" in kwargs:
         policy = _initialize_from_architecture_spec(policy_env_info, policy_spec, device_override)
     else:
         policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
@@ -40,22 +38,11 @@ def initialize_or_load_policy(
         # 2026. We may want to support passing arguments, but they shouldn't take
         # the form of arbitrary kwargs where the policy author and our execution
         # code need to share a namespace.
-        kwarg_overrides = {}
         if device_override is not None:
-            kwarg_overrides["device"] = device_override
-
-        if len(kwarg_overrides) > 0:
             kwargs = kwargs.copy()
-            class_params = inspect.signature(policy_class.__init__).parameters
-            allows_all = any((p.kind == inspect.Parameter.VAR_KEYWORD for p in class_params.values()))
-            for name in kwarg_overrides:
-                if allows_all or (name in class_params):
-                    kwargs[name] = kwarg_overrides[name]
+            kwargs["device"] = device_override
 
-        try:
-            policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
-        except TypeError as e:
-            raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
+        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
 
         if policy_spec.data_path:
             policy.load_policy_data(policy_spec.data_path)
@@ -77,14 +64,8 @@ def _initialize_from_architecture_spec(
     device_override: str | None = None,
 ) -> MultiAgentPolicy:
     kwargs = policy_spec.init_kwargs or {}
-    architecture_spec = kwargs.get("architecture_spec")
-    if architecture_spec is None:
-        raise ValueError("architecture_spec missing from policy spec")
-
-    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=False)
-    if policy_architecture is None:
-        raise ImportError("PolicyArchitecture is required to load architecture-based checkpoints")
-    policy_architecture = policy_architecture.from_spec(architecture_spec)
+    architecture_spec = kwargs["architecture_spec"]
+    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=True).from_spec(architecture_spec)
     policy = policy_architecture.make_policy(policy_env_info)
 
     device = device_override or kwargs.get("device", "cpu")
@@ -92,8 +73,6 @@ def _initialize_from_architecture_spec(
 
     policy = policy.to(torch.device(device))
 
-    if not policy_spec.data_path:
-        raise ValueError("policy_spec.data_path is required for architecture checkpoints")
     from safetensors.torch import load as load_safetensors
 
     state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
