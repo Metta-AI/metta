@@ -5,7 +5,6 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
 
-
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits during inference.
@@ -13,7 +12,6 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     Args:
         action_logits: Raw logits from policy network of shape [batch_size, num_actions].
                        These are unnormalized log-probabilities over the action space.
-
     Returns:
         actions: Sampled action indices of shape [batch_size]. Each element is an
                  integer in [0, num_actions) representing the sampled action.
@@ -41,7 +39,10 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     return actions, act_log_prob, entropy, full_log_probs
 
 
-def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+def evaluate_actions(
+    action_logits: Tensor,
+    actions: Tensor,
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Evaluate provided actions against logits during training.
 
@@ -52,7 +53,6 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
         actions: Previously taken action indices of shape [batch_size].
                  Each element must be a valid action index in [0, num_actions).
-
     Returns:
         log_probs: Log-probabilities of the given actions under current policy,
                    shape [batch_size]. Used for importance sampling: π_new(a|s)/π_old(a|s).
