@@ -169,8 +169,7 @@ def load_policy_spec_from_local_dir(
                 resolved = (extraction_root / candidate).resolve()
                 if not resolved.exists():
                     raise FileNotFoundError(
-                        "Policy checkpoint not found in submission archive: "
-                        f"{checkpoint_uri} (resolved to {resolved})"
+                        f"Policy checkpoint not found in submission archive: {checkpoint_uri} (resolved to {resolved})"
                     )
                 init_kwargs["checkpoint_uri"] = str(resolved)
         spec.init_kwargs = init_kwargs
