@@ -220,6 +220,10 @@ def _infer_cortex_pattern(state_dict: Mapping[str, torch.Tensor]) -> str | None:
     return None
 
 
+def _infer_has_gtd_aux(state_dict: Mapping[str, torch.Tensor]) -> bool:
+    return any("gtd_aux." in key for key in state_dict.keys())
+
+
 def _clone_architecture(architecture: Any) -> Any:
     if hasattr(architecture, "model_copy"):
         return architecture.model_copy(deep=True)
@@ -235,7 +239,9 @@ def _maybe_update_architecture(architecture: Any, state_dict: Mapping[str, torch
 
     inferred_pattern = _infer_cortex_pattern(state_dict)
     inferred_layers = _infer_cortex_block_count(state_dict)
-    if inferred_pattern is None and inferred_layers is None:
+    inferred_gtd_aux = _infer_has_gtd_aux(state_dict)
+    needs_gtd_aux_update = hasattr(architecture, "include_gtd_aux") and not inferred_gtd_aux
+    if inferred_pattern is None and inferred_layers is None and not needs_gtd_aux_update:
         return architecture
 
     updates = {}
@@ -243,6 +249,8 @@ def _maybe_update_architecture(architecture: Any, state_dict: Mapping[str, torch
         updates["core_resnet_pattern"] = inferred_pattern
     if inferred_layers is not None and getattr(architecture, "core_resnet_layers", None) != inferred_layers:
         updates["core_resnet_layers"] = inferred_layers
+    if needs_gtd_aux_update and getattr(architecture, "include_gtd_aux", True):
+        updates["include_gtd_aux"] = False
 
     if not updates:
         return architecture
