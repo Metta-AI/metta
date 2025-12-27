@@ -62,10 +62,15 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
 
     candidate = Path(data_path).expanduser()
     if candidate.is_absolute():
-        return str(candidate)
+        if candidate.exists():
+            return str(candidate)
+        raise FileNotFoundError(f"Policy data path does not exist: {candidate}")
 
     resolved = extraction_root / candidate
-    return str(resolved.resolve())
+    if resolved.exists():
+        return str(resolved.resolve())
+
+    raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
 
 
 def _find_package_source_root(extraction_root: Path, class_path: str) -> Path | None:
@@ -209,6 +214,8 @@ def download_policy_spec_from_s3_as_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
+    if not normalized_path.endswith(".zip"):
+        raise ValueError("Expected a .zip submission archive; use a checkpoint directory URI instead.")
     digest = hashlib.sha256(normalized_path.encode()).hexdigest()
     tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}.zip"
     local_path = cache_dir / f"{digest}.zip"

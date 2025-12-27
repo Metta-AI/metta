@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -10,25 +11,11 @@ from safetensors.torch import save as save_safetensors
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec, write_policy_bundle_zip
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
-
-
-def prepare_state_dict_for_save(state_dict: dict) -> dict:
-    result: dict = {}
-    seen_storage: set[int] = set()
-    for key, tensor in state_dict.items():
-        value = tensor.detach().cpu()
-        data_ptr = value.data_ptr()
-        if data_ptr in seen_storage:
-            value = value.clone()
-        else:
-            seen_storage.add(data_ptr)
-        result[key] = value
-    return result
 
 
 def write_checkpoint_dir(
@@ -51,7 +38,17 @@ def write_checkpoint_bundle(
     state_dict: dict,
 ) -> None:
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    weights_blob = save_safetensors(prepare_state_dict_for_save(state_dict))
+    weights: dict = {}
+    seen_storage: set[int] = set()
+    for key, tensor in state_dict.items():
+        value = tensor.detach().cpu()
+        data_ptr = value.data_ptr()
+        if data_ptr in seen_storage:
+            value = value.clone()
+        else:
+            seen_storage.add(data_ptr)
+        weights[key] = value
+    weights_blob = save_safetensors(weights)
     _write_file_atomic(checkpoint_dir / "weights.safetensors", weights_blob)
     class_path, *_ = architecture_spec.split("(", 1)
     spec = SubmissionPolicySpec(
@@ -137,7 +134,18 @@ class CheckpointManager:
 
         if self._remote_prefix:
             remote_zip = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}.zip"
-            zip_path = self._create_checkpoint_zip(checkpoint_dir)
+            with tempfile.NamedTemporaryFile(
+                dir=checkpoint_dir.parent,
+                prefix=f".{checkpoint_dir.name}.",
+                suffix=".zip",
+                delete=False,
+            ) as tmp_file:
+                zip_path = Path(tmp_file.name)
+
+            with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in checkpoint_dir.rglob("*"):
+                    if file_path.is_file():
+                        zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
             write_file(remote_zip, str(zip_path), content_type="application/zip")
             zip_path.unlink()
             logger.debug("Policy checkpoint saved remotely to %s", remote_zip)
@@ -145,20 +153,6 @@ class CheckpointManager:
 
         logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
         return checkpoint_dir.as_uri()
-
-    @staticmethod
-    def _create_checkpoint_zip(checkpoint_dir: Path) -> Path:
-        with tempfile.NamedTemporaryFile(
-            dir=checkpoint_dir.parent,
-            prefix=f".{checkpoint_dir.name}.",
-            suffix=".zip",
-            delete=False,
-        ) as tmp_file:
-            zip_path = Path(tmp_file.name)
-
-        write_policy_bundle_zip(checkpoint_dir, zip_path)
-
-        return zip_path
 
     def load_trainer_state(self) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
