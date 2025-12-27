@@ -21,7 +21,3 @@ LEADERBOARD_LADYBUG_COUNT_KEY = "leaderboard-ladybug-count"
 
 THINKY_UUID = "674fc022-5f1f-41e5-ab9e-551fa329b723"
 LADYBUG_UUID = "5a491d05-7fb7-41a0-a250-fe476999edcd"
-
-# Hardcoded replacement baseline (average reward of thinky/ladybug in c0 scenarios)
-# This avoids needing to run c0 scenarios for every policy evaluation
-REPLACEMENT_BASELINE_MEAN = 4.9
