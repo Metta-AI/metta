@@ -60,17 +60,12 @@ def _resolve_spec_data_path(data_path: Optional[str], extraction_root: Path) -> 
     if data_path is None:
         return None
 
-    candidate = Path(data_path)
+    candidate = Path(data_path).expanduser()
     if candidate.is_absolute():
-        if candidate.exists():
-            return str(candidate)
-        raise FileNotFoundError(f"Policy data path does not exist: {candidate}")
+        return str(candidate)
 
     resolved = extraction_root / candidate
-    if resolved.exists():
-        return str(resolved)
-
-    raise FileNotFoundError(f"Policy data path '{data_path}' not found in submission directory {extraction_root}")
+    return str(resolved.resolve())
 
 
 def _find_package_source_root(extraction_root: Path, class_path: str) -> Path | None:
@@ -214,9 +209,6 @@ def download_policy_spec_from_s3_as_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
-    if normalized_path.endswith(".mpt"):
-        raise ValueError("MPT checkpoints are not supported; use a policy_spec bundle instead.")
-
     if not normalized_path.endswith(".zip"):
         raise ValueError("Expected a .zip submission archive; use download_checkpoint_dir_from_s3 for directories.")
 
@@ -251,8 +243,6 @@ def download_checkpoint_dir_from_s3(
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
-    if normalized_path.endswith(".mpt"):
-        raise ValueError("MPT checkpoints are not supported; use a policy_spec bundle instead.")
     if normalized_path.endswith(".zip"):
         raise ValueError("Expected a checkpoint directory, not a .zip archive.")
 

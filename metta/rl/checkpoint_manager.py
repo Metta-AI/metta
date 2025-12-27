@@ -174,9 +174,9 @@ class CheckpointManager:
             return None
         state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
-            "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
-            "epoch": state.get("epoch", 0),
-            "agent_step": state.get("agent_step", 0),
+            "optimizer_state": state["optimizer"],
+            "epoch": state["epoch"],
+            "agent_step": state["agent_step"],
         }
         if "avg_reward" in state:
             result["avg_reward"] = state["avg_reward"]

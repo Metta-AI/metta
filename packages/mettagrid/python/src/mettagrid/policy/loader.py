@@ -94,11 +94,7 @@ def resolve_policy_class_path(policy: str) -> str:
     """
     discover_and_register_policies()
     registry = get_policy_registry()
-    full_path = registry.get(policy, policy)
-
-    # Will raise an error if invalid
-    _ = load_symbol(full_path)
-    return full_path
+    return registry.get(policy, policy)
 
 
 def get_policy_class_shorthand(policy: str) -> Optional[str]:
