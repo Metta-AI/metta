@@ -66,8 +66,11 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
                 break
     if uses_gear:
         change_vibe = env_cfg.game.actions.change_vibe
-        if getattr(change_vibe, "number_of_vibes", 0) < 8:
-            change_vibe.number_of_vibes = 8
+        has_gear = any(v.name == "gear" for v in change_vibe.vibes)
+        if not has_gear:
+            from mettagrid.config.vibes import VIBE_BY_NAME
+
+            change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
 
 
 # Cache for policy action space sizes to avoid reloading checkpoints
@@ -139,7 +142,7 @@ def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
     if env_cfg.game.actions:
         # Configure vibe action count
         if env_cfg.game.actions.change_vibe:
-            env_cfg.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            env_cfg.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
             # Filter initial vibe if out of range
             if env_cfg.game.agent.initial_vibe >= len(vibe_names):
                 env_cfg.game.agent.initial_vibe = 0

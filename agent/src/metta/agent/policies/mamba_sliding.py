@@ -58,6 +58,14 @@ class MambaSlidingConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[128],
         ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
+            in_features=_core_out_dim,
+            out_features=1,
+            hidden_features=[128],
+        ),
         ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embed_dim),
         ActorQueryConfig(in_key="core", out_key="actor_query", hidden_size=_core_out_dim, embed_dim=_embed_dim),
         ActorKeyConfig(

@@ -42,7 +42,7 @@ class GridTransform(StrEnum):
     def flip_h(self) -> bool:
         return TRANSFORM_FLAGS[self][2]
 
-    def inverse(self):
+    def inverse(self) -> GridTransform:
         if self == GridTransform.ROT_90:
             return GridTransform.ROT_270
         elif self == GridTransform.ROT_270:

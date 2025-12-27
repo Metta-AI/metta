@@ -330,6 +330,19 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
+        overview = processed.setdefault("overview", {})
+        avg_reward = getattr(getattr(self.context, "state", None), "avg_reward", None)
+        if avg_reward is None:
+            avg_reward_tensor = torch.tensor(0.0, dtype=torch.float32)
+        else:
+            avg_reward_tensor = torch.as_tensor(avg_reward)
+            if avg_reward_tensor.numel() == 0:
+                avg_reward_tensor = torch.tensor(0.0, dtype=torch.float32)
+        avg_reward_tensor = avg_reward_tensor.detach().cpu()
+        overview["avg_reward_estimate"] = float(avg_reward_tensor.mean().item())
+        overview["avg_reward_estimate_min"] = float(avg_reward_tensor.min().item())
+        overview["avg_reward_estimate_max"] = float(avg_reward_tensor.max().item())
+
         # Ensure certain env metrics always exist (e.g., env_game/assembler.heart.created) so rolling
         # averages and wandb logs see zeros instead of missing keys.
         env_stats = processed.setdefault("environment_stats", {})
@@ -540,7 +553,14 @@ class StatsReporter(TrainerComponent):
 
             ppo_critic_cfg = loss_configs.get("ppo_critic")
             if ppo_critic_cfg is not None:
-                for attr in ("vf_coef", "vf_clip_coef", "clip_vloss"):
+                for attr in (
+                    "vf_coef",
+                    "vf_clip_coef",
+                    "clip_vloss",
+                    "critic_update",
+                    "aux_coef",
+                    "beta",
+                ):
                     value = getattr(ppo_critic_cfg, attr, None)
                     if value is None:
                         continue

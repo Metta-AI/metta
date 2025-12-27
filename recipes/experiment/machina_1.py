@@ -11,18 +11,25 @@ from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid.config import vibes
-from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space, make_training_env, train_single_mission
+from recipes.experiment.cogs_v_clips import (
+    _normalize_variant_names,
+    get_cvc_sweep_search_space,
+    make_training_env,
+    train_single_mission,
+)
 
 
 def train(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
+    eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
-    """Train on machina_1.open_world with sweep-tuned defaults and single-map eval."""
+    """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
+    if eval_variants is None:
+        eval_variants = variants
 
     tt = train_single_mission(
         mission="machina_1.open_world",
@@ -35,16 +42,23 @@ def train(
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
-    full_vibes = [v.name for v in vibes.VIBES]
     env_cfg = tt.training_env.curriculum.task_generator.env
-    env_cfg.game.vibe_names = full_vibes
+    env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
-        change_vibe.number_of_vibes = len(full_vibes)
-    if env_cfg.game.agent.initial_vibe >= len(full_vibes):
+        change_vibe.vibes = list(vibes.VIBES)
+    if env_cfg.game.agent.initial_vibe >= len(vibes.VIBES):
         env_cfg.game.agent.initial_vibe = 0
 
-    eval_env = make_training_env(num_cogs=num_cogs, mission="machina_1.open_world", variants=eval_variants)
+    eval_variant_names = _normalize_variant_names(
+        initial=[eval_difficulty] if eval_difficulty else None,
+        variants=eval_variants,
+    )
+    eval_env = make_training_env(
+        num_cogs=num_cogs,
+        mission="machina_1.open_world",
+        variants=eval_variant_names or None,
+    )
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
@@ -53,7 +67,7 @@ def train(
         )
     ]
     # Run evals periodically during long runs
-    tt.evaluator.epoch_interval = 600
+    tt.evaluator.epoch_interval = 150
     return tt
 
 
@@ -61,7 +75,7 @@ def train_sweep(
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
-    eval_difficulty: str | None = "standard",
+    eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
