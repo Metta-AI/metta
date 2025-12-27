@@ -132,8 +132,9 @@ class MettaSchemeResolver(SchemeResolver):
         return candidate.as_uri() if candidate.exists() else None
 
     def _resolve_scripted_alias(self, name: str) -> str | None:
-        resolved = _SCRIPTED_POLICY_ALIASES.get(name)
-        return f"mock://{resolved}" if resolved else None
+        if name in _SCRIPTED_POLICY_ALIASES:
+            return f"mock://{_SCRIPTED_POLICY_ALIASES[name]}"
+        return None
 
     def get_path_to_policy_spec(self, uri: str) -> str:
         parsed = self.parse(uri)
