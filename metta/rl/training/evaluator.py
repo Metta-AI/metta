@@ -135,13 +135,6 @@ class Evaluator(TrainerComponent):
             return False
         return epoch % interval == 0
 
-    def _upload_submission_zip(self, policy_uri: str) -> str | None:
-        """Return the S3 checkpoint artifact (directory or zip) to use as the submission path."""
-        parsed = resolve_uri(policy_uri)
-        if parsed.scheme != "s3":
-            return None
-        return parsed.canonical
-
     def _create_policy_version(
         self,
         *,
@@ -160,8 +153,8 @@ class Evaluator(TrainerComponent):
             is_system_policy=False,
         )
 
-        # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_uri)
+        parsed = resolve_uri(policy_uri)
+        s3_path = parsed.canonical if parsed.scheme == "s3" else None
 
         # Create policy version
         policy_version_id = stats_client.create_policy_version(

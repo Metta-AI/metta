@@ -148,26 +148,18 @@ class SLCheckpointedKickstarter(Loss):
         filename = checkpoint_filename(run_name, epoch)
 
         if parsed.scheme == "file" and parsed.local_path:
-            if parsed.local_path.is_file():
-                if parsed.local_path.suffix == ".zip":
-                    path = parsed.local_path.parent / f"{filename}.zip"
-                    return f"file://{path}"
-                raise ValueError("Provide a checkpoint directory or zip, not policy_spec.json")
-            path = parsed.local_path.parent / filename
+            local_path = parsed.local_path
+            if local_path.is_file():
+                if local_path.suffix != ".zip":
+                    raise ValueError("Provide a checkpoint directory or zip, not policy_spec.json")
+                path = local_path.parent / f"{filename}.zip"
+                return f"file://{path}"
+            path = local_path.parent / filename
             return f"file://{path}"
         elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
-            if parsed.key.endswith(".zip"):
-                if "/" in parsed.key:
-                    key_dir = parsed.key.rsplit("/", 1)[0]
-                    new_key = f"{key_dir}/{filename}.zip"
-                else:
-                    new_key = f"{filename}.zip"
-            else:
-                if "/" in parsed.key:
-                    key_dir = parsed.key.rsplit("/", 1)[0]
-                    new_key = f"{key_dir}/{filename}"
-                else:
-                    new_key = filename
+            key_dir = parsed.key.rsplit("/", 1)[0] if "/" in parsed.key else ""
+            suffix = ".zip" if parsed.key.endswith(".zip") else ""
+            new_key = f"{key_dir + '/' if key_dir else ''}{filename}{suffix}"
             return f"s3://{parsed.bucket}/{new_key}"
         else:
             raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")

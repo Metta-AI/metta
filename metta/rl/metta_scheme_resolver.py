@@ -98,7 +98,7 @@ class MettaSchemeResolver(SchemeResolver):
         entry = response.entries[0]
         return stats_client.get_policy_version(entry.id)
 
-    def _get_policy_version(self, uri: str) -> PolicyVersionWithName:
+    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -122,27 +122,18 @@ class MettaSchemeResolver(SchemeResolver):
 
         return policy_version
 
-    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
-        return self._get_policy_version(uri)
-
     def _resolve_local_checkpoint_uri(self, run_name: str, version: int | None) -> str | None:
         checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / run_name / "checkpoints"
         if not checkpoint_root.exists():
             return None
         if version is None:
-            if checkpoint_root.is_dir():
-                return checkpoint_root.as_uri()
-            return None
+            return checkpoint_root.as_uri() if checkpoint_root.is_dir() else None
         candidate = checkpoint_root / f"{run_name}:v{version}"
-        if candidate.exists():
-            return candidate.as_uri()
-        return None
+        return candidate.as_uri() if candidate.exists() else None
 
     def _resolve_scripted_alias(self, name: str) -> str | None:
         resolved = _SCRIPTED_POLICY_ALIASES.get(name)
-        if resolved:
-            return f"mock://{resolved}"
-        return None
+        return f"mock://{resolved}" if resolved else None
 
     def get_path_to_policy_spec(self, uri: str) -> str:
         parsed = self.parse(uri)
@@ -167,7 +158,7 @@ class MettaSchemeResolver(SchemeResolver):
                 logger.info("Metta scheme resolver: %s resolved to local checkpoint %s", uri, local_uri)
                 return local_uri
 
-        policy_version = self._get_policy_version(uri)
+        policy_version = self.get_policy_version(uri)
         if policy_version.s3_path:
             resolved = resolve_uri(policy_version.s3_path).canonical
             logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)

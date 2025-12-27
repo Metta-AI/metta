@@ -92,24 +92,15 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         if not spec.data_path:
             return None
         weights = load_safetensors(Path(spec.data_path).read_bytes())
-
-        # Look for actor head weight to determine action space
-        for key, tensor in weights.items():
-            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                action_space = tensor.shape[0]
-                _policy_action_space_cache[policy_path] = action_space
-                logger.info(f"Detected policy action space: {action_space} actions")
-                return action_space
-
-        return None
+        action_space = _action_space_from_state_dict(weights)
+        if action_space is None:
+            return None
+        _policy_action_space_cache[policy_path] = action_space
+        logger.info(f"Detected policy action space: {action_space} actions")
+        return action_space
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
         return None
-
-    if action_space is not None:
-        _policy_action_space_cache[policy_path] = action_space
-        logger.info(f"Detected policy action space: {action_space} actions")
-    return action_space
 
 
 def _action_space_from_state_dict(state_dict: Mapping[str, torch.Tensor]) -> Optional[int]:

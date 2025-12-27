@@ -126,15 +126,11 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     - class=...[,data=...][,proportion=1.0][,kw.<key>=<value>]
     - URI: metta://policy/xxx[,proportion=1.0]
     """
-    raw = spec.strip()
-    if not raw:
-        raise ValueError("Policy specification cannot be empty.")
-    entries = [part.strip() for part in raw.split(",") if part.strip()]
-
-    fraction = 1.0
-
+    entries = [part.strip() for part in spec.split(",") if part.strip()]
     if not entries:
         raise ValueError("Policy specification cannot be empty.")
+
+    fraction = 1.0
 
     if parse_uri(entries[0], allow_none=True, default_scheme=None):
         s = policy_spec_from_uri(entries[0])
