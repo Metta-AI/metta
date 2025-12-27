@@ -280,6 +280,7 @@ def policy_spec_from_uri(
                 "checkpoint_uri": checkpoint_path,
                 "device": device,
                 "strict": strict,
+                "allow_legacy_architecture": parsed.scheme == "s3",
             },
         )
 

@@ -73,6 +73,14 @@ class ViTSize2Config(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
+            in_features=_latent_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
+        ),
         ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
     ]
 

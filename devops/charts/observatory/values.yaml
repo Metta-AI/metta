@@ -6,3 +6,5 @@ image:
   tag: "" # will be set by CI/CD pipeline
 
 cert_manager_issuer: letsencrypt
+
+replicaCount: 2

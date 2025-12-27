@@ -92,6 +92,14 @@ class CortexBaseConfig(PolicyArchitecture):
                 out_features=1,
                 hidden_features=[self._critic_hidden],
             ),
+            MLPConfig(
+                in_key="core",
+                out_key="h_values",
+                name="gtd_aux",
+                in_features=self._core_out,
+                out_features=1,
+                hidden_features=[self._critic_hidden],
+            ),
             ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=self._actor_hidden),
         ]
 

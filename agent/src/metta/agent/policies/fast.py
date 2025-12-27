@@ -20,6 +20,31 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 logger = logging.getLogger(__name__)
 
 
+class _OptionalLoadLinear(nn.Linear):
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        weight_key = prefix + "weight"
+        if weight_key not in state_dict:
+            return
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
+
 class FastConfig(PolicyArchitecture):
     """
     Fast uses a CNN encoder so is not flexible to changing observation features but it runs faster than the ViT encoder.
@@ -83,6 +108,8 @@ class FastPolicy(Policy):
         self.critic_activation = nn.Tanh()
         module = pufferlib.pytorch.layer_init(nn.Linear(self.config.critic_hidden_dim, 1), std=1.0)
         self.value_head = TDM(module, in_keys=["critic_1"], out_keys=["values"])
+        module = pufferlib.pytorch.layer_init(_OptionalLoadLinear(self.config.critic_hidden_dim, 1), std=1.0)
+        self.gtd_aux = TDM(module, in_keys=["critic_1"], out_keys=["h_values"])
 
         # Actor branch
         self.actor_logits = TDM(
@@ -105,9 +132,11 @@ class FastPolicy(Policy):
         self.critic_1(td)
         td["critic_1"] = self.critic_activation(td["critic_1"])
         self.value_head(td)
+        self.gtd_aux(td)
         self.actor_logits(td)
         self.action_probs(td, action)
         td["values"] = td["values"].flatten()
+        td["h_values"] = td["h_values"].flatten()
 
         return td
 

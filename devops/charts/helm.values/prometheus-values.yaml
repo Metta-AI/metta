@@ -96,9 +96,11 @@ prometheusOperator:
 prometheus:
   enabled: true
 
-  podDisruptionBudget:
-    enabled: true
-    minAvailable: 1
+  ## Disabled - not compatible with 1 replica, and multiple replicas of prometheus are tricky
+  ## TODO - look into Thanos and into https://prometheus-operator.dev/docs/platform/high-availability/
+  # podDisruptionBudget:
+  #   enabled: true
+  #   minAvailable: 1
 
   prometheusSpec:
     # via https://github.com/prometheus-community/helm-charts/issues/1911 (note that last comment has a few typos)

@@ -53,6 +53,8 @@ class PolicyAutoBuilder(Policy):
         # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
             td["values"] = td["values"].flatten()
+        if "h_values" in td.keys():
+            td["h_values"] = td["h_values"].flatten()
         return td
 
     def initialize_to_environment(
