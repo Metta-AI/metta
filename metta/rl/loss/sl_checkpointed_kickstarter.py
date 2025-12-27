@@ -13,8 +13,7 @@ from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.util.uri_resolvers.schemes import (
-    checkpoint_filename,
-    parse_uri,
+    checkpoint_uri_for_epoch,
 )
 
 if TYPE_CHECKING:
@@ -140,27 +139,7 @@ class SLCheckpointedKickstarter(Loss):
 
     def _construct_checkpoint_uri(self, epoch: int) -> str:
         """Construct a checkpoint URI from the base URI and epoch."""
-        parsed = parse_uri(self._base_teacher_uri, allow_none=False)
-        info = parsed.checkpoint_info
-        if info is None:
-            raise ValueError(f"Could not extract metadata from base URI: {self._base_teacher_uri}")
-        run_name, _ = info
-        filename = checkpoint_filename(run_name, epoch)
-
-        if parsed.scheme == "file" and parsed.local_path:
-            if parsed.local_path.is_file():
-                if parsed.local_path.suffix != ".zip":
-                    raise ValueError("Provide a checkpoint directory or zip, not policy_spec.json")
-                return f"file://{parsed.local_path.parent / f'{filename}.zip'}"
-            return f"file://{parsed.local_path.parent / filename}"
-        elif parsed.scheme == "s3" and parsed.bucket and parsed.key:
-            key_dir = parsed.key.rsplit("/", 1)[0] if "/" in parsed.key else ""
-            return (
-                f"s3://{parsed.bucket}/{key_dir + '/' if key_dir else ''}{filename}"
-                f"{'.zip' if parsed.key.endswith('.zip') else ''}"
-            )
-        else:
-            raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
+        return checkpoint_uri_for_epoch(self._base_teacher_uri, epoch)
 
     def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""

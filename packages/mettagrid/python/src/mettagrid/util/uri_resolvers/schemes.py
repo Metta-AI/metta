@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlparse
 import boto3
 
 from mettagrid.util.module import load_symbol
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.util.uri_resolvers.base import (
     CheckpointMetadata,
     FileParsedScheme,
@@ -277,6 +278,25 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
     if not info:
         raise ValueError(f"Could not extract checkpoint metadata from {uri}")
     return CheckpointMetadata(run_name=info[0], epoch=info[1], uri=parsed.canonical)
+
+
+def checkpoint_uri_for_epoch(base_uri: str, epoch: int) -> str:
+    parsed = resolve_uri(base_uri)
+    info = parsed.checkpoint_info
+    if not info:
+        raise ValueError(f"Could not extract checkpoint metadata from {base_uri}")
+    filename = checkpoint_filename(info[0], epoch)
+
+    if parsed.scheme == "file" and parsed.local_path:
+        if parsed.local_path.name == POLICY_SPEC_FILENAME:
+            raise ValueError("Provide a checkpoint directory or zip, not policy_spec.json")
+        suffix = ".zip" if parsed.local_path.suffix == ".zip" else ""
+        return f"file://{parsed.local_path.parent / f'{filename}{suffix}'}"
+    if parsed.scheme == "s3":
+        key_dir = parsed.key.rsplit("/", 1)[0] if "/" in parsed.key else ""
+        suffix = ".zip" if parsed.key.endswith(".zip") else ""
+        return f"s3://{parsed.bucket}/{key_dir + '/' if key_dir else ''}{filename}{suffix}"
+    raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
 
 def policy_spec_from_uri(
