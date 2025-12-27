@@ -137,10 +137,10 @@ class SlicedScriptedCloner(Loss):
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
-        self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
-        self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.track_metric("supervised_action_loss", loss)
+        self.track_metric("supervised_action_loss_coef", self.cfg.action_loss_coef)
+        self.track_metric("teacher_led_proportion", self.cfg.teacher_led_proportion)
+        self.track_metric("student_led_proportion", self.cfg.student_led_proportion)
 
         return loss, shared_loss_data, False
 

@@ -295,8 +295,8 @@ class ViTReconstructionLoss(Loss):
         total_loss = self.cfg.id_loss_coef * loss_id + self.cfg.val_loss_coef * loss_val
 
         # Logging
-        self.loss_tracker["vit_recon_loss"].append(total_loss.item())
-        self.loss_tracker["vit_id_loss"].append(loss_id.item())
-        self.loss_tracker["vit_val_loss"].append(loss_val.item())
+        self.track_metric("vit_recon_loss", total_loss)
+        self.track_metric("vit_id_loss", loss_id)
+        self.track_metric("vit_val_loss", loss_val)
 
         return total_loss, shared_loss_data, False

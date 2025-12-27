@@ -40,6 +40,7 @@ def train(
         teacher=teacher,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
+    tt.trainer.loss_metric_interval = 8
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env

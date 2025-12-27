@@ -124,7 +124,7 @@ class GRPO(Loss):
         self.burn_in_steps_iter = 0
 
         if config.target_kl is not None and mb_idx > 0:
-            avg_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
+            avg_kl = self.metric_mean("approx_kl")
             if avg_kl > config.target_kl:
                 stop_update_epoch = True
 
@@ -280,4 +280,4 @@ class GRPO(Loss):
         return logratio.exp()
 
     def _track(self, key: str, value: Tensor) -> None:
-        self.loss_tracker[key].append(float(value.item()))
+        self.track_metric(key, value)

@@ -18,6 +18,15 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
+def _track_metric(tracker: dict[str, list[float]], key: str, value: Tensor | float) -> None:
+    if torch.is_tensor(value):
+        if value.numel() != 1:
+            value = value.mean()
+        tracker[key].append(float(value.item()))
+    else:
+        tracker[key].append(float(value))
+
+
 def analyze_loss_alignment(
     shared_data: TensorDict,
     name1: str,
@@ -58,11 +67,11 @@ def analyze_loss_alignment(
     with torch.no_grad():
         # Cosine similarity of loss vectors (batch alignment)
         loss_cos = F.cosine_similarity(vec1_flat, vec2_flat, dim=0)
-        tracker[f"{name1}_{name2}_loss_cos"].append(float(loss_cos.item()))
+        _track_metric(tracker, f"{name1}_{name2}_loss_cos", loss_cos)
 
         # Variance of loss difference
         loss_diff_var = (vec1_flat - vec2_flat).var()
-        tracker[f"{name1}_{name2}_loss_diff_var"].append(float(loss_diff_var.item()))
+        _track_metric(tracker, f"{name1}_{name2}_loss_diff_var", loss_diff_var)
 
     # 3. Gradient-level metrics
     params_with_grad = [p for p in params if p.requires_grad]
@@ -99,11 +108,11 @@ def analyze_loss_alignment(
 
     # Cosine similarity of gradients
     grad_cos = F.cosine_similarity(grad1_flat, grad2_flat, dim=0)
-    tracker[f"{name1}_{name2}_grad_cos"].append(float(grad_cos.item()))
+    _track_metric(tracker, f"{name1}_{name2}_grad_cos", grad_cos)
 
     # Variance of gradient differences
     grad_diff_var = (grad1_flat - grad2_flat).var()
-    tracker[f"{name1}_{name2}_grad_diff_var"].append(float(grad_diff_var.item()))
+    _track_metric(tracker, f"{name1}_{name2}_grad_diff_var", grad_diff_var)
 
 
 class LossConfig(Config):
@@ -136,6 +145,7 @@ class Loss:
     loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
+    _metric_mb_idx: int | None = field(default=None, init=False, repr=False)
 
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
@@ -196,7 +206,11 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        return self.run_train(shared_loss_data, ctx, mb_idx)
+        self._metric_mb_idx = mb_idx
+        try:
+            return self.run_train(shared_loss_data, ctx, mb_idx)
+        finally:
+            self._metric_mb_idx = None
 
     def run_train(
         self,
@@ -236,6 +250,21 @@ class Loss:
     def stats(self) -> dict[str, float]:
         """Aggregate tracked statistics into mean values."""
         return {k: (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
+
+    def track_metric(self, key: str, value: Tensor | float) -> None:
+        """Track a scalar metric."""
+        interval = getattr(self.trainer_cfg, "loss_metric_interval", 1)
+        if interval > 1 and self._metric_mb_idx is not None:
+            if self._metric_mb_idx % interval != 0:
+                return
+        _track_metric(self.loss_tracker, key, value)
+
+    def metric_mean(self, key: str) -> float:
+        """Return a mean value for a tracked metric."""
+        values = self.loss_tracker.get(key)
+        if not values:
+            return 0.0
+        return float(sum(values) / len(values))
 
     def zero_loss_tracker(self) -> None:
         """Zero all values in the loss tracker."""

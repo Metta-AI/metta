@@ -67,13 +67,11 @@ class EERCloner(Loss):
         # If A_{t-1} == TeacherAction_{t-1}: log(prob) then loss is log(1) = 0
         # If A_{t-1} != TeacherAction_{t-1}: log(prob) then loss is log(epsilon)
 
-        indices = torch.arange(env_slice.start, env_slice.stop, device=self.device)
-
-        valid_mask = self.has_last_actions[indices]
+        valid_mask = self.has_last_actions[env_slice]
 
         if valid_mask.any():
             # Get cached teacher actions from t-1
-            last_teacher_acts = self.last_teacher_actions[indices]
+            last_teacher_acts = self.last_teacher_actions[env_slice]
 
             # Get actions actually taken at t-1
             last_actions = td["last_actions"]
@@ -92,8 +90,8 @@ class EERCloner(Loss):
             td["rewards"] += self.cfg.r_lambda * intrinsic_reward * valid_mask.float()
 
         teacher_actions = td["teacher_actions"]
-        self.last_teacher_actions[indices] = teacher_actions
-        self.has_last_actions[indices] = True
+        self.last_teacher_actions[env_slice] = teacher_actions
+        self.has_last_actions[env_slice] = True
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
@@ -117,6 +115,6 @@ class EERCloner(Loss):
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
 
-        self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
+        self.track_metric("supervised_action_loss", loss)
 
         return loss, shared_loss_data, False

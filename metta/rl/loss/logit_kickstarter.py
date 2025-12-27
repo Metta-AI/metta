@@ -122,9 +122,9 @@ class LogitKickstarter(Loss):
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
-        self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
-        self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
+        self.track_metric("ks_act_loss", ks_action_loss)
+        self.track_metric("ks_val_loss", ks_value_loss)
+        self.track_metric("ks_act_loss_coef", self.cfg.action_loss_coef)
+        self.track_metric("ks_val_loss_coef", self.cfg.value_loss_coef)
 
         return loss, shared_loss_data, False

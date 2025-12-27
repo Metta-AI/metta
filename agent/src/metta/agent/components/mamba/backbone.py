@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
 import torch
 import torch.nn as nn
 from einops import rearrange
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.utils import zero_long
@@ -41,6 +41,19 @@ def _load_wrapper_types() -> Tuple[type, type]:
         raise
     _WRAPPER_TYPES = (wrapper_config, wrapper_model)
     return _WRAPPER_TYPES
+
+
+def _metadata_to_int(value: Any, *, name: str) -> int:
+    if isinstance(value, NonTensorData):
+        return int(value.data)
+    if torch.is_tensor(value):
+        if value.numel() == 1:
+            return int(value.item())
+        return int(value.reshape(-1)[0].item())
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid {name} metadata: {value}") from exc
 
 
 @dataclass
@@ -190,7 +203,7 @@ class MambaBackboneComponent(nn.Module):
         x = self.input_proj(x)
 
         batch_flat = td.batch_size.numel()
-        tt = int(td.get("bptt", torch.ones(1, device=device))[0].item())
+        tt = _metadata_to_int(td.get("bptt", 1), name="bptt")
         batch = max(batch_flat // tt, 1)
 
         x = rearrange(x, "(b tt) s d -> b tt s d", b=batch, tt=tt)

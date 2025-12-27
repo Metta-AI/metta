@@ -131,10 +131,10 @@ class SLCheckpointedKickstarter(Loss):
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
 
-        self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
-        self.loss_tracker["sl_ks_value_loss"].append(float(ks_value_loss.item()))
-        self.loss_tracker["sl_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["sl_value_loss_coef"].append(float(self.cfg.value_loss_coef))
+        self.track_metric("sl_ks_action_loss", ks_action_loss)
+        self.track_metric("sl_ks_value_loss", ks_value_loss)
+        self.track_metric("sl_action_loss_coef", self.cfg.action_loss_coef)
+        self.track_metric("sl_value_loss_coef", self.cfg.value_loss_coef)
 
         return loss, shared_loss_data, False
 

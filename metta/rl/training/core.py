@@ -57,7 +57,6 @@ class CoreTrainingLoop:
 
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
-        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
 
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
@@ -105,6 +104,7 @@ class CoreTrainingLoop:
                 td["rewards"] = rewards
                 agent_ids = self._gather_env_indices(training_env_id, td.device)
                 td["training_env_ids"] = agent_ids.unsqueeze(1)
+                td.set("training_env_id_start", NonTensorData(training_env_id.start))
 
                 avg_reward = context.state.avg_reward
                 baseline = avg_reward[agent_ids]
@@ -128,7 +128,7 @@ class CoreTrainingLoop:
                 t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td)
+                self.add_last_action_to_td(td, training_env_id)
 
                 self._ensure_rollout_metadata(td)
 
@@ -196,31 +196,10 @@ class CoreTrainingLoop:
         """Populate metadata fields needed downstream while reusing cached tensors."""
 
         batch_elems = td.batch_size.numel()
-        device = td.device
         if "batch" not in td.keys():
-            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
+            td.set("batch", NonTensorData(batch_elems))
         if "bptt" not in td.keys():
-            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-
-    def _get_constant_tensor(
-        self,
-        name: str,
-        shape: tuple[int, ...],
-        value: int,
-        device: torch.device,
-    ) -> torch.Tensor:
-        if not shape:
-            shape = (1,)
-        key = (name, shape, int(value), str(device))
-        cached = self._metadata_cache.get(key)
-        if cached is None or cached.device != device:
-            if value == 1:
-                tensor = torch.ones(shape, dtype=torch.long, device=device)
-            else:
-                tensor = torch.full(shape, value, dtype=torch.long, device=device)
-            self._metadata_cache[key] = tensor
-            return tensor
-        return cached
+            td.set("bptt", NonTensorData(1))
 
     def training_phase(
         self,
@@ -387,7 +366,7 @@ class CoreTrainingLoop:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
                     self.optimizer.step()
 
-                    if self.device.type == "cuda":
+                    if self.device.type == "cuda" and context.config.synchronize_after_optimizer_step:
                         torch.cuda.synchronize()
 
                 # Notify losses of minibatch end
@@ -418,11 +397,9 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_epoch_start(context)
 
-    def add_last_action_to_td(self, td: TensorDict) -> None:
+    def add_last_action_to_td(self, td: TensorDict, training_env_id: slice) -> None:
         env_ids = td["training_env_ids"].squeeze(-1)
-
-        max_env_id = int(env_ids.max().item())
-        target_length = max_env_id + 1
+        target_length = training_env_id.stop
 
         if self.last_action is None:
             self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
