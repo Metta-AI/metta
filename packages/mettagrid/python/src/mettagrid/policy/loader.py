@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import importlib
 import inspect
@@ -49,13 +50,15 @@ def initialize_or_load_policy(
             if allows_all or (name in class_params):
                 kwargs[name] = kwarg_overrides[name]
 
-    try:
-        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
-    except TypeError as e:
-        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
+    suppress_nim_stdout = _should_suppress_nim_output(policy_spec)
+    with _suppress_stdout_stderr(enabled=suppress_nim_stdout):
+        try:
+            policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
+        except TypeError as e:
+            raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
 
-    if policy_spec.data_path:
-        policy.load_policy_data(policy_spec.data_path)
+        if policy_spec.data_path:
+            policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         if isinstance(policy, AgentPolicy):
@@ -66,6 +69,31 @@ def initialize_or_load_policy(
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
 
     return policy
+
+
+def _should_suppress_nim_output(policy_spec: PolicySpec) -> bool:
+    return "nim_agents" in policy_spec.class_path and os.getenv("METTA_SUPPRESS_NIM_UNKNOWN_FEATURES", "1") != "0"
+
+
+@contextlib.contextmanager
+def _suppress_stdout_stderr(*, enabled: bool) -> None:
+    if not enabled:
+        yield
+        return
+
+    sys_stdout = os.dup(1)
+    sys_stderr = os.dup(2)
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull_fd, 1)
+        os.dup2(devnull_fd, 2)
+        yield
+    finally:
+        os.dup2(sys_stdout, 1)
+        os.dup2(sys_stderr, 2)
+        os.close(sys_stdout)
+        os.close(sys_stderr)
+        os.close(devnull_fd)
 
 
 def resolve_policy_class_path(policy: str) -> str:
