@@ -157,6 +157,8 @@ def load_policy_spec_from_local_dir(
         init_kwargs=submission_spec.init_kwargs,
     )
     spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
+    if "manifest_path" in spec.init_kwargs:
+        spec.init_kwargs["manifest_path"] = _resolve_spec_data_path(spec.init_kwargs["manifest_path"], extraction_root)
     if device is not None and "device" in spec.init_kwargs:
         spec.init_kwargs["device"] = device
 

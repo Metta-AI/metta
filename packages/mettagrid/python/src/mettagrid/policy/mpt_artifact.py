@@ -81,7 +81,7 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
             architecture_blob = archive.read("modelarchitecture.txt").decode("utf-8")
         else:
             raise ValueError(f"Invalid .mpt file: {path} (missing architecture)")
-        architecture = _architecture_from_spec(architecture_blob)
+        architecture = architecture_from_spec(architecture_blob)
 
         weights_blob = archive.read("weights.safetensors")
         state_dict = load_safetensors(weights_blob)
@@ -92,7 +92,7 @@ def _load_local_mpt_file(path: Path) -> MptArtifact:
     return MptArtifact(architecture=architecture, state_dict=state_dict)
 
 
-def _architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
+def architecture_from_spec(spec: str) -> PolicyArchitectureProtocol:
     """Deserialize an architecture from a string specification."""
     spec = spec.strip()
     if not spec:
