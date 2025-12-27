@@ -81,13 +81,6 @@ class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
     def __init__(self, run: str, system_cfg: SystemConfig, require_remote_enabled: bool = False):
-        if not run or not run.strip():
-            raise ValueError("Run name cannot be empty")
-        if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
-            raise ValueError(f"Run name contains invalid characters: {run}")
-        if "__" in run:
-            raise ValueError(f"Run name cannot contain '__': {run}")
-
         self.run_name = run
         self.run_dir = system_cfg.data_dir / self.run_name
         self.checkpoint_dir = self.run_dir / "checkpoints"

@@ -220,12 +220,6 @@ class TestCheckpointManagerValidation:
         assert checkpoint_manager.load_trainer_state() is None
         assert checkpoint_manager.get_latest_checkpoint() is None
 
-    def test_invalid_run_names_rejected(self, test_system_cfg):
-        invalid_names = ["", "name with spaces", "name/with/slash"]
-        for name in invalid_names:
-            with pytest.raises(ValueError):
-                CheckpointManager(run=name, system_cfg=test_system_cfg)
-
 
 class TestCheckpointBundles:
     def test_save_and_load_weights_and_architecture(self, tmp_path: Path) -> None:
