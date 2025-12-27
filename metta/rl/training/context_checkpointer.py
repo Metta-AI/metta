@@ -54,7 +54,7 @@ class ContextCheckpointer(TrainerComponent):
                     "agent_step": raw.get("agent_step", 0),
                     "epoch": raw.get("epoch", 0),
                     "avg_reward": raw.get("avg_reward"),
-                    "optimizer_state": raw.get("optimizer_state", {}),
+                    "optimizer": raw.get("optimizer", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
                     "curriculum_state": raw.get("curriculum_state"),
                     "loss_states": raw.get("loss_states", {}),
@@ -79,7 +79,7 @@ class ContextCheckpointer(TrainerComponent):
         avg_reward = torch.as_tensor(avg_reward).to(device=device, dtype=torch.float32)
         context.state.avg_reward = torch.broadcast_to(avg_reward, (total_agents,)).clone()
 
-        optimizer_state = payload.get("optimizer_state")
+        optimizer_state = payload.get("optimizer")
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
             # Defensive: skip restore if saved param groups lack keys the current optimizer expects.

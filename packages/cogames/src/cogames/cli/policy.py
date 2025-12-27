@@ -9,8 +9,9 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
-from mettagrid.policy.loader import find_policy_checkpoints, resolve_policy_class_path
+from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
 
 RawPolicyValues = Optional[Sequence[str]]
@@ -34,7 +35,11 @@ class PolicySpecWithProportion(PolicySpec):
 
 
 def list_checkpoints():
-    if local_checkpoints := find_policy_checkpoints(default_checkpoint_dir):
+    local_checkpoints = sorted(
+        {path.parent for path in default_checkpoint_dir.rglob(POLICY_SPEC_FILENAME)},
+        key=lambda path: path.stat().st_mtime,
+    )
+    if local_checkpoints:
         table = Table(
             title="Local policy checkpoints usable as [cyan]DATA[/cyan]:", show_header=True, header_style="bold magenta"
         )

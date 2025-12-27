@@ -229,31 +229,6 @@ def download_policy_spec_from_s3_as_zip(
     return local_path
 
 
-def download_checkpoint_dir_from_s3(
-    s3_path: str,
-    cache_dir: Optional[Path] = None,
-    remove_downloaded_copy_on_exit: bool = False,
-) -> Path:
-    """Sync a checkpoint directory from S3 into the local cache."""
-    if cache_dir is None:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    normalized_path = s3_path.rstrip("/")
-    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()[:16]
-    marker_file = extraction_root / ".checkpoint_sync_complete"
-    if not marker_file.exists():
-        extraction_root.mkdir(parents=True, exist_ok=True)
-        _sync_s3_checkpoint_dir(normalized_path, extraction_root)
-        marker_file.touch()
-
-    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-        _registered_cleanup_dirs.add(extraction_root)
-        atexit.register(_cleanup_cache_dir, extraction_root)
-
-    return extraction_root
-
-
 def _load_policy_spec_from_zip(
     local_path: Path,
     cache_dir: Optional[Path] = None,
@@ -312,23 +287,3 @@ def load_policy_spec_from_path(
         remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         device=device,
     )
-
-
-def _sync_s3_checkpoint_dir(checkpoint_dir_uri: str, extraction_root: Path) -> None:
-    spec_uri = f"{checkpoint_dir_uri.rstrip('/')}/{POLICY_SPEC_FILENAME}"
-    spec_bytes = s3_read(spec_uri)
-    (extraction_root / POLICY_SPEC_FILENAME).write_bytes(spec_bytes)
-
-    submission_spec = SubmissionPolicySpec.model_validate_json(spec_bytes.decode("utf-8"))
-    if submission_spec.data_path:
-        data_path = Path(submission_spec.data_path)
-        if data_path.is_absolute():
-            raise ValueError(f"Checkpoint data_path must be relative: {submission_spec.data_path}")
-        if ".." in data_path.parts:
-            raise ValueError(f"Checkpoint data_path contains path traversal: {submission_spec.data_path}")
-        local_data_path = (extraction_root / data_path).resolve()
-        if extraction_root != local_data_path and extraction_root not in local_data_path.parents:
-            raise ValueError(f"Checkpoint data_path escapes cache dir: {submission_spec.data_path}")
-        data_uri = f"{checkpoint_dir_uri.rstrip('/')}/{submission_spec.data_path.lstrip('/')}"
-        local_data_path.parent.mkdir(parents=True, exist_ok=True)
-        local_data_path.write_bytes(s3_read(data_uri))

@@ -170,21 +170,7 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
-        result = {
-            "optimizer_state": state["optimizer"],
-            "epoch": state["epoch"],
-            "agent_step": state["agent_step"],
-        }
-        if "avg_reward" in state:
-            result["avg_reward"] = state["avg_reward"]
-        if "stopwatch_state" in state:
-            result["stopwatch_state"] = state["stopwatch_state"]
-        if "curriculum_state" in state:
-            result["curriculum_state"] = state["curriculum_state"]
-        if "loss_states" in state:
-            result["loss_states"] = state["loss_states"]
-        return result
+        return torch.load(trainer_file, map_location="cpu", weights_only=False)
 
     def save_trainer_state(
         self,

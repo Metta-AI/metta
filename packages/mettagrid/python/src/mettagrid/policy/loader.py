@@ -6,7 +6,6 @@ import functools
 import importlib
 import os
 import pkgutil
-import re
 from pathlib import Path
 from typing import Optional
 
@@ -108,63 +107,6 @@ def get_policy_class_shorthand(policy: str) -> Optional[str]:
     """
     registry = get_policy_registry()
     return {v: k for k, v in registry.items()}.get(policy)
-
-
-_NOT_CHECKPOINT_PATTERNS = (
-    r"trainer_state\.pt",  # trainer state file
-    r"model_\d{6}\.pt",  # matches model_000001.pt etc
-)
-
-
-def find_policy_checkpoints(checkpoints_path: Path, env_name: Optional[str] = None) -> list[Path]:
-    checkpoints = []
-    if env_name:
-        # Try to find the final checkpoint
-        # PufferLib saves checkpoints in data_dir/env_name/
-        checkpoint_dir = checkpoints_path / env_name
-        if checkpoint_dir.exists():
-            checkpoints = checkpoint_dir.glob("*.pt")
-
-    # Fallback: also check directly in checkpoints_path
-    if not checkpoints and checkpoints_path.exists():
-        checkpoints = checkpoints_path.glob("*.pt")
-    return [
-        p
-        for p in sorted(checkpoints, key=lambda c: c.stat().st_mtime)
-        if not any(re.fullmatch(pattern, p.name) for pattern in _NOT_CHECKPOINT_PATTERNS)
-    ]
-
-
-def resolve_policy_data_path(
-    policy_data_path: Optional[str],
-) -> Optional[str]:
-    """Resolve a checkpoint path if provided.
-
-    If the supplied path does not exist locally and AWS policy storage is configured,
-    this will attempt to download the checkpoint into the requested location.
-    """
-
-    if policy_data_path is None:
-        return None
-    if policy_data_path.startswith("s3://"):
-        raise ValueError(
-            "S3 policy data paths are not supported. Use a checkpoint directory URI (policy_spec.json bundle)."
-        )
-
-    path = Path(policy_data_path).expanduser()
-    if path.is_file():
-        return str(path)
-
-    if path.is_dir():
-        checkpoints = find_policy_checkpoints(path)
-        if not checkpoints:
-            raise FileNotFoundError(f"No checkpoint files (*.pt) found in directory: {path}")
-        return str(checkpoints[-1])
-
-    if path.exists():  # Non-pt extension but present
-        return str(path)
-
-    raise FileNotFoundError(f"Checkpoint path not found: {path}")
 
 
 @functools.cache

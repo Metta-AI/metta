@@ -136,7 +136,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state is not None
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
-        assert isinstance(trainer_state.get("optimizer_state"), dict)
+        assert isinstance(trainer_state.get("optimizer"), dict)
 
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "No policy checkpoints found"

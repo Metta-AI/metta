@@ -175,7 +175,7 @@ class TestCheckpointManagerFlows:
         assert loaded["epoch"] == 5
         assert loaded["agent_step"] == 1000
         assert loaded["stopwatch_state"]["elapsed_time"] == 123.45
-        assert "optimizer_state" in loaded
+        assert "optimizer" in loaded
 
     def test_resolve_latest_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """The :latest suffix is used by eval tools to find the newest checkpoint."""

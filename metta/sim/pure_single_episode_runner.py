@@ -8,7 +8,6 @@ from pydantic import BaseModel, model_validator
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
 from mettagrid.policy.prepare_policy_spec import (
-    download_checkpoint_dir_from_s3,
     download_policy_spec_from_s3_as_zip,
 )
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
@@ -102,16 +101,10 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
         if resolved.scheme == "file":
             local = resolved.local_path.as_uri()
         elif resolved.scheme == "s3":
-            if resolved.canonical.endswith(".zip"):
-                local = download_policy_spec_from_s3_as_zip(
-                    resolved.canonical,
-                    remove_downloaded_copy_on_exit=True,
-                ).as_uri()
-            else:
-                local = download_checkpoint_dir_from_s3(
-                    resolved.canonical,
-                    remove_downloaded_copy_on_exit=True,
-                ).as_uri()
+            local = download_policy_spec_from_s3_as_zip(
+                resolved.canonical,
+                remove_downloaded_copy_on_exit=True,
+            ).as_uri()
         if local is None:
             raise RuntimeError(f"could not resolve policy {uri}")
         local_uris.append(local)
