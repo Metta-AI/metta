@@ -13,18 +13,11 @@ from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
-
-
-def _load_checkpoint_state(policy_spec: PolicySpec) -> tuple[str, dict[str, torch.Tensor]]:
-    architecture_spec = policy_spec.init_kwargs["architecture_spec"]
-    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
-    return architecture_spec, dict(state_dict)
 
 
 class CheckpointerConfig(Config):
@@ -74,7 +67,9 @@ class Checkpointer(TrainerComponent):
             if normalized_uri:
                 payload: dict[str, object] | None = None
                 if self._distributed.is_master():
-                    architecture_spec, state_dict = _load_checkpoint_state(policy_spec_from_uri(normalized_uri))
+                    policy_spec = policy_spec_from_uri(normalized_uri)
+                    architecture_spec = policy_spec.init_kwargs["architecture_spec"]
+                    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
                     payload = {
                         "architecture_spec": architecture_spec,
                         "state_dict": {k: v.cpu() for k, v in state_dict.items()},
