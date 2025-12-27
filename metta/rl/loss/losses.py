@@ -6,6 +6,7 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.eer_cloner import EERClonerConfig
 from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
@@ -35,6 +36,7 @@ class LossesConfig(Config):
         "ppo_critic",
         "quantile_ppo_critic",
         "ppo_actor",
+        "cmpo",
         "vit_reconstruction",
         "contrastive",
         "grpo",
@@ -49,6 +51,7 @@ class LossesConfig(Config):
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
 
     quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
+    cmpo: CMPOConfig = Field(default_factory=lambda: CMPOConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
