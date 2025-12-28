@@ -43,6 +43,7 @@ def build_wandb_payload(
     grad_stats: dict[str, float],
     system_stats: dict[str, Any],
     memory_stats: dict[str, Any],
+    hyperparameters: dict[str, Any],
     *,
     agent_step: int,
     epoch: int,
@@ -81,6 +82,7 @@ def build_wandb_payload(
     _update(experience_stats, prefix="experience/")
 
     _update(processed_stats.get("environment_stats", {}))
+    _update(hyperparameters, prefix="hyperparameters/")
     _update(system_stats)
     _update({f"trainer_memory/{k}": v for k, v in memory_stats.items()})
     _update(grad_stats)
@@ -194,6 +196,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
+        optimizer: Any | None = None,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -206,6 +209,7 @@ class StatsReporter(TrainerComponent):
                 agent_step=agent_step,
                 epoch=epoch,
                 timer=timer,
+                optimizer=optimizer,
             )
 
             # Update area under reward curve
@@ -264,6 +268,7 @@ class StatsReporter(TrainerComponent):
             policy=ctx.policy,
             timer=ctx.stopwatch,
             trainer_cfg=ctx.config,
+            optimizer=getattr(ctx, "optimizer", None),
         )
 
     def on_training_complete(self) -> None:
@@ -299,6 +304,7 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
+        optimizer: Any | None = None,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 
@@ -339,6 +345,7 @@ class StatsReporter(TrainerComponent):
 
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
+        hyperparameters = self._collect_hyperparameters(optimizer=optimizer)
 
         return build_wandb_payload(
             processed_stats=processed,
@@ -346,6 +353,7 @@ class StatsReporter(TrainerComponent):
             grad_stats=self._state.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
+            hyperparameters=hyperparameters,
             agent_step=agent_step,
             epoch=epoch,
         )
@@ -421,3 +429,22 @@ class StatsReporter(TrainerComponent):
         except Exception as exc:  # pragma: no cover
             logger.debug("Memory monitor stats failed: %s", exc, exc_info=True)
             return {}
+
+    def _collect_hyperparameters(self, *, optimizer: Any | None) -> dict[str, Any]:
+        hyperparameters: dict[str, Any] = {}
+        if optimizer is None:
+            return hyperparameters
+        param_groups = getattr(optimizer, "param_groups", None)
+        if not param_groups:
+            return hyperparameters
+        param_group = param_groups[0]
+        learning_rate = param_group.get("lr")
+        if learning_rate is not None:
+            hyperparameters["learning_rate"] = learning_rate
+        scheduled_lr = param_group.get("scheduled_lr")
+        if scheduled_lr is not None:
+            hyperparameters["schedulefree_scheduled_lr"] = scheduled_lr
+        lr_max = param_group.get("lr_max")
+        if lr_max is not None:
+            hyperparameters["schedulefree_lr_max"] = lr_max
+        return hyperparameters
