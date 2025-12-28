@@ -57,57 +57,6 @@ export EXIT_SUCCESS=0
 export EXIT_FAILURE=1
 export EXIT_NCCL_TEST_FAILURE=42
 
-# Convenience: allow passing teacher.policy_uri=file:///workspace/policies/<name> without pre-copying.
-# On SkyPilot jobs we mount s3://softmax-public at /mnt/s3/softmax-public; if we find a matching
-# policy zip at /mnt/s3/softmax-public/policies/<name>/<name>.zip, rewrite teacher.policy_uri to that zip.
-#
-# This avoids manual SSH/scp/unzip while keeping CLI invocations stable.
-maybe_patch_teacher_policy_uri() {
-  if [[ -z "${METTA_ARGS:-}" ]]; then
-    return 0
-  fi
-
-  local args="${METTA_ARGS}"
-  local tok
-  for tok in ${args}; do
-    case "${tok}" in
-      teacher.policy_uri=*)
-        local raw="${tok#teacher.policy_uri=}"
-        # Strip simple surrounding quotes if present.
-        raw="${raw%\"}"
-        raw="${raw#\"}"
-        raw="${raw%\'}"
-        raw="${raw#\'}"
-
-        local path="${raw}"
-        if [[ "${path}" == file://* ]]; then
-          path="${path#file://}"
-        fi
-
-        # Only handle the common convention /workspace/policies/<name>[/]
-        if [[ "${path}" =~ ^/workspace/policies/([^/]+)/?$ ]]; then
-          local name="${BASH_REMATCH[1]}"
-          local local_dir="/workspace/policies/${name}"
-
-          if [[ ! -e "${local_dir}" ]]; then
-            local mounted_zip="/mnt/s3/softmax-public/policies/${name}/${name}.zip"
-            if [[ -f "${mounted_zip}" ]]; then
-              local new_tok="teacher.policy_uri=file://${mounted_zip}"
-              echo "[POLICY] Auto-resolving missing ${local_dir} -> ${new_tok}"
-              args="${args//${tok}/${new_tok}}"
-            fi
-          fi
-        fi
-        ;;
-    esac
-  done
-
-  export METTA_ARGS="${args}"
-}
-
-# Apply on all nodes so each node can load known teacher policies without manual SSH.
-maybe_patch_teacher_policy_uri
-
 # Compute derived runtime values
 max_seconds=-1 # no max runtime
 remaining_at_start=-1
