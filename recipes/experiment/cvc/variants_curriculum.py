@@ -274,7 +274,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
