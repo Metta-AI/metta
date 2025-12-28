@@ -109,6 +109,7 @@ class ActionProbsConfig(ComponentConfig):
     in_key: str
     name: str = "action_probs"
     emit_full_log_probs: bool = True
+    reshape_after_training: bool = True
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -124,6 +125,7 @@ class ActionProbs(nn.Module):
         self.config = config
         self.num_actions = 0
         self._emit_full_log_probs = config.emit_full_log_probs
+        self._reshape_after_training = config.reshape_after_training
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0:
@@ -202,7 +204,7 @@ class ActionProbs(nn.Module):
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
-        if "batch" in td.keys() and "bptt" in td.keys():
+        if self._reshape_after_training and "batch" in td.keys() and "bptt" in td.keys():
             batch_size = td["batch"][0].item()
             bptt_size = td["bptt"][0].item()
             td = td.reshape(batch_size, bptt_size)
