@@ -157,9 +157,7 @@ class TrainTool(Tool):
         if not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri):
             preflight_executor = ThreadPoolExecutor(max_workers=2)
             if not self.system.local_only:
-                storage_future = preflight_executor.submit(
-                    auto_policy_storage_decision, self.run or "default"
-                )
+                storage_future = preflight_executor.submit(auto_policy_storage_decision, self.run or "default")
 
             if distributed_helper.is_master() and self.stats_server_uri:
                 stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
