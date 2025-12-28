@@ -65,25 +65,21 @@ class Checkpointer(TrainerComponent):
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
-                payload: dict[str, object] | None = None
+                payload: tuple[str, dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
                     policy_spec = policy_spec_from_uri(normalized_uri)
-                    architecture_spec = policy_spec.init_kwargs["architecture_spec"]
                     state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
-                    payload = {
-                        "architecture_spec": architecture_spec,
-                        "state_dict": {k: v.cpu() for k, v in state_dict.items()},
-                    }
+                    payload = (
+                        policy_spec.init_kwargs["architecture_spec"],
+                        {k: v.cpu() for k, v in state_dict.items()},
+                    )
                 payload = self._distributed.broadcast_from_master(payload)
-                architecture_spec = payload["architecture_spec"]
-                state_dict = payload["state_dict"]
+                architecture_spec, state_dict = payload
 
-                policy = (
-                    load_symbol(architecture_spec.split("(", 1)[0].strip())
-                    .from_spec(architecture_spec)
-                    .make_policy(policy_env_info)
-                    .to(load_device)
+                policy_architecture = load_symbol(architecture_spec.split("(", 1)[0].strip()).from_spec(
+                    architecture_spec
                 )
+                policy = policy_architecture.make_policy(policy_env_info).to(load_device)
                 policy.load_state_dict(state_dict, strict=True)
                 policy.initialize_to_environment(policy_env_info, load_device)
 
