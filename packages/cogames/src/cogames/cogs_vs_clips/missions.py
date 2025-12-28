@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -159,6 +161,11 @@ def __getattr__(name: str) -> list[Mission]:
         globals()["MISSIONS"] = missions
         return missions
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+if TYPE_CHECKING:
+    # Satisfy static analysis for __all__ while preserving lazy loading.
+    MISSIONS: list[Mission]
 
 
 __all__ = [

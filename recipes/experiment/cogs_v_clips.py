@@ -467,7 +467,7 @@ def train_variants(
             if not variant.compat(mission):
                 continue
             if train_difficulty:
-                mission = mission.with_variants(parse_variants([train_difficulty]))
+                mission = mission.with_variants(_parse_variants([train_difficulty]))
             mission_env = mission.make_env()
             mission_tasks = cc.bucketed(mission_env)
             all_variant_tasks.append(mission_tasks)

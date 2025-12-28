@@ -1,8 +1,8 @@
 import contextlib
-from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import platform
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -160,6 +160,7 @@ class TrainTool(Tool):
                 )
 
             if distributed_helper.is_master() and self.stats_server_uri:
+
                 def _init_stats_client() -> Optional[StatsClient]:
                     try:
                         return StatsClient.create(stats_server_uri=self.stats_server_uri)
