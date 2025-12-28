@@ -4,6 +4,8 @@ import socket
 from typing import TYPE_CHECKING, Any, Optional
 
 from mettagrid.base_config import Config
+from metta.common.util.startup_timing import log as log_startup_timing
+from metta.common.util.startup_timing import now as startup_now
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as WandbRun
@@ -84,9 +86,12 @@ class WandbContext:
             return None
 
         # Check for a live connection to W&B before proceeding
+        total_start = startup_now()
         try:
+            conn_start = startup_now()
             socket.setdefaulttimeout(5)  # Set a 5-second timeout for the connection check
             socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((self.wandb_host, self.wandb_port))
+            log_startup_timing(logger, "wandb.connection_check", conn_start)
             logger.info(f"Connection to {self.wandb_host} verified")
         except Exception as ex:
             logger.warning(f"No connection to {self.wandb_host} servers detected: {str(ex)}")
@@ -119,6 +124,7 @@ class WandbContext:
                     logger.error(f"Invalid extra_cfg: {self.run_config}", exc_info=True)
                     config = None
 
+            init_start = startup_now()
             self.run = wandb.init(
                 id=self.wandb_config.run_id,
                 name=self.wandb_config.run_id,  # Use run_id as display name
@@ -135,6 +141,7 @@ class WandbContext:
                 notes=self.wandb_config.notes or None,
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
+            log_startup_timing(logger, "wandb.init", init_start)
 
             # Save config and set up file syncing only if wandb init succeeded and data_dir is set
             if self.wandb_config.data_dir:
@@ -154,6 +161,7 @@ class WandbContext:
                     policy="live",
                 )
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
+            log_startup_timing(logger, "wandb.total", total_start)
 
         except (TimeoutError, CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"

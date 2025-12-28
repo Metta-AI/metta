@@ -13,9 +13,8 @@ import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
 
 # eval_missions.py was deleted - missions moved to integrated_evals.py
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
-from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.missions import get_core_missions
 from cogames.cogs_vs_clips.variants import VARIANTS
 from devops.stable.registry import ci_job, stable_job
 from devops.stable.runner import AcceptanceCriterion
@@ -84,7 +83,7 @@ def _normalize_variant_names(
 
 
 def _resolve_mission_template(name: str) -> Mission:
-    for mission in MISSIONS:
+    for mission in get_core_missions():
         if mission.name == name or mission.full_name() == name:
             return mission
 
@@ -142,7 +141,12 @@ def make_eval_suite(
     Returns:
         A list of SimulationConfig objects ready for evaluation.
     """
-    eval_missions = list(missions) if missions is not None else list(EVAL_MISSIONS)
+    if missions is not None:
+        eval_missions = list(missions)
+    else:
+        from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+
+        eval_missions = list(INTEGRATED_EVAL_MISSIONS)
     if subset:
         eval_missions = [m for m in eval_missions if m.name in subset]
 
