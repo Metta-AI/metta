@@ -1,22 +1,15 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from typing import Optional, Sequence
+from __future__ import annotations
 
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.rl.training.teacher import TeacherConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
-from mettagrid.config import vibes
-from recipes.experiment.cogs_v_clips import (
-    _normalize_variant_names,
-    get_cvc_sweep_search_space,
-    make_training_env,
-    train_single_mission,
-)
+from typing import Optional, Sequence, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from metta.agent.policy import PolicyArchitecture
+    from metta.rl.training.teacher import TeacherConfig
+    from metta.tools.stub import StubTool
+    from metta.tools.sweep import SweepTool
+    from metta.tools.train import TrainTool
 
 
 def train(
@@ -28,6 +21,15 @@ def train(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
+    from metta.agent.policies.vit import ViTDefaultConfig
+    from metta.sim.simulation_config import SimulationConfig
+    from mettagrid.config import vibes
+    from recipes.experiment.cogs_v_clips import (
+        _normalize_variant_names,
+        make_training_env,
+        train_single_mission,
+    )
+
     if eval_variants is None:
         eval_variants = variants
 
@@ -102,6 +104,7 @@ def train_sweep(
 
 def evaluate_stub(*args, **kwargs) -> StubTool:
     """No-op evaluator for sweeps."""
+    from metta.tools.stub import StubTool
 
     return StubTool()
 
@@ -114,6 +117,8 @@ def sweep(
     num_parallel_trials: int = 4,
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
+    from metta.sweep.core import make_sweep
+    from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space
 
     search_space = get_cvc_sweep_search_space()
 

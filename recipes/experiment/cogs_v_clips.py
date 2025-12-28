@@ -10,12 +10,11 @@ import logging
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cli.mission import find_mission, parse_variants
 
 # eval_missions.py was deleted - missions moved to integrated_evals.py
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import get_core_missions
-from cogames.cogs_vs_clips.variants import VARIANTS
+from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
 from devops.stable.registry import ci_job, stable_job
 from devops.stable.runner import AcceptanceCriterion
 from metta.cogworks.curriculum.curriculum import (
@@ -88,13 +87,41 @@ def _resolve_mission_template(name: str) -> Mission:
             return mission
 
     if MAP_MISSION_DELIMITER not in name:
-        return find_mission(name, None)
+        return _find_core_mission(name, None)
 
     if name.count(MAP_MISSION_DELIMITER) > 1:
         raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
 
     site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
-    return find_mission(site_name, mission_name)
+    return _find_core_mission(site_name, mission_name)
+
+
+def _find_core_mission(site_name: str, mission_name: str | None) -> Mission:
+    for mission in get_core_missions():
+        if mission.site.name != site_name:
+            continue
+        if mission_name is not None and mission.name != mission_name:
+            continue
+        return mission
+
+    if mission_name is not None:
+        raise ValueError(f"Mission {mission_name} not available on site {site_name}")
+    raise ValueError(f"No missions available on site {site_name}")
+
+
+def _parse_variants(variant_names: Sequence[str] | None) -> list:
+    if not variant_names:
+        return []
+
+    variants = []
+    all_variants = [*VARIANTS, *HIDDEN_VARIANTS]
+    for name in variant_names:
+        variant = next((v for v in all_variants if v.name == name), None)
+        if variant is None:
+            available = ", ".join(v.name for v in VARIANTS)
+            raise ValueError(f"Unknown variant '{name}'.\nAvailable variants: {available}")
+        variants.append(variant)
+    return variants
 
 
 def _resolve_eval_variants(
@@ -115,7 +142,7 @@ def _prepare_mission(
     variant_names: Sequence[str] | None = None,
 ) -> Mission:
     mission = base_mission
-    variant_objects = parse_variants(list(variant_names)) if variant_names else []
+    variant_objects = _parse_variants(list(variant_names)) if variant_names else []
     if variant_objects:
         mission = mission.with_variants(variant_objects)
     mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])

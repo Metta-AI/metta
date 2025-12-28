@@ -213,7 +213,13 @@ class TrainTool(Tool):
                     wandb_run=wandb_run,
                 )
 
+                restore_start = startup_now()
                 trainer.restore()
+                log_startup_timing(logger, "train.restore", restore_start)
+
+                if os.environ.get("METTA_STARTUP_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}:
+                    logger.info("Startup-only mode enabled; skipping training loop.")
+                    return 0
                 trainer.train()
 
             # Training completed successfully
