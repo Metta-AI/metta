@@ -137,13 +137,9 @@ class SLCheckpointedKickstarter(Loss):
 
         return loss, shared_loss_data, False
 
-    def _construct_checkpoint_uri(self, epoch: int) -> str:
-        """Construct a checkpoint URI from the base URI and epoch."""
-        return checkpoint_uri_for_epoch(self._base_teacher_uri, epoch)
-
     def load_teacher_policy(self, checkpointed_epoch: int) -> None:
         """Load the teacher policy from a specific checkpoint."""
-        new_uri = self._construct_checkpoint_uri(checkpointed_epoch)
+        new_uri = checkpoint_uri_for_epoch(self._base_teacher_uri, checkpointed_epoch)
         self.teacher_policy = load_teacher_policy(
             self.env,
             policy_uri=new_uri,
