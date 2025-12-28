@@ -2,7 +2,7 @@ import contextlib
 import logging
 import os
 import platform
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from time import monotonic
@@ -49,6 +49,7 @@ from metta.rl.training import (
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
+    PolicyStorageDecision,
     auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
@@ -153,28 +154,23 @@ class TrainTool(Tool):
                 supervisor_policy_spec = PolicySpec(class_path=class_path)
 
         preflight_executor: ThreadPoolExecutor | None = None
-        preflight_futures: dict[str, object] = {}
+        storage_future: Future[PolicyStorageDecision] | None = None
+        stats_future: Future[Optional[StatsClient]] | None = None
         if not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri):
             preflight_executor = ThreadPoolExecutor(max_workers=2)
             if not self.system.local_only:
-                preflight_futures["storage_decision"] = preflight_executor.submit(
+                storage_future = preflight_executor.submit(
                     auto_policy_storage_decision, self.run or "default"
                 )
 
             if distributed_helper.is_master() and self.stats_server_uri:
-
-                def _init_stats_client() -> Optional[StatsClient]:
-                    return self._maybe_create_stats_client(distributed_helper)
-
-                preflight_futures["stats_client"] = preflight_executor.submit(_init_stats_client)
+                stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
 
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
         self._configure_torch_backends()
 
-        storage_decision = None
-        if "storage_decision" in preflight_futures:
-            storage_decision = preflight_futures["storage_decision"].result()
+        storage_decision = storage_future.result() if storage_future else None
 
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
@@ -206,10 +202,7 @@ class TrainTool(Tool):
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        if "stats_client" in preflight_futures:
-            stats_client = preflight_futures["stats_client"].result()
-        else:
-            stats_client = self._maybe_create_stats_client(distributed_helper)
+        stats_client = stats_future.result() if stats_future else self._maybe_create_stats_client(distributed_helper)
 
         if preflight_executor is not None:
             preflight_executor.shutdown(wait=False)
