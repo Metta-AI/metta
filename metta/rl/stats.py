@@ -65,6 +65,7 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
         "env_label_completions/",
         "env_per_label_rewards/",
         "env_per_label_chest_deposits/",
+        "env_reward_estimates/",
         "env_timing_per_epoch/",
         "env_timing_cumulative/",
     )
@@ -79,6 +80,9 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
             filtered[key] = value
         # Skip any movement metric with derived stats suffixes
         elif key.startswith("env_agent/movement"):
+            continue
+        # Drop other per-agent metrics to reduce verbosity.
+        elif key.startswith("env_agent/"):
             continue
         # Keep all non-movement metrics
         else:
