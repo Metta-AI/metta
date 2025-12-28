@@ -9,6 +9,7 @@ from uuid import UUID
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
+from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
@@ -25,8 +26,10 @@ def main():
         sys.exit(1)
 
     job_id = UUID(sys.argv[1])
-    stats_client = StatsClient(backend_url=os.environ["STATS_SERVER_URI"], machine_token=os.environ["MACHINE_TOKEN"])
-    stats_client._validate_authenticated()
+
+    observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["STATS_SERVER_URI"])
+
+    stats_client = StatsClient.create(os.environ["STATS_SERVER_URI"])
 
     try:
         job_data = stats_client.get_job(job_id)

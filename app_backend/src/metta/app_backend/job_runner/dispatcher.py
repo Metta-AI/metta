@@ -1,7 +1,8 @@
 import functools
 import logging
 
-from kubernetes import client, config
+from kubernetes import client
+from kubernetes import config as kubernetes_config
 
 from metta.app_backend.job_runner.config import (
     JOB_NAMESPACE,
@@ -23,8 +24,8 @@ def get_k8s_client() -> client.BatchV1Api:
         # Local dev: use kubeconfig with required context validation
         if not cfg.LOCAL_DEV_K8S_CONTEXT:
             raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        config.load_kube_config()
-        _, active_context = config.list_kube_config_contexts()
+        kubernetes_config.load_kube_config()
+        _, active_context = kubernetes_config.list_kube_config_contexts()
         current_context = active_context.get("name", "") if active_context else ""
         if current_context != cfg.LOCAL_DEV_K8S_CONTEXT:
             raise ValueError(
@@ -33,7 +34,7 @@ def get_k8s_client() -> client.BatchV1Api:
             )
     else:
         # Prod: require in-cluster config, no silent fallback
-        config.load_incluster_config()
+        kubernetes_config.load_incluster_config()
 
     return client.BatchV1Api()
 

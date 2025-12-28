@@ -31,7 +31,7 @@ def handle_errors(fn):
     return wrapper
 
 
-LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5433/metta"
+LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
 LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
 LOCAL_BACKEND_URL_FROM_K8S = "http://host.docker.internal:8000"
 LOCAL_MACHINE_TOKEN = "local-dev-token"
@@ -97,15 +97,11 @@ def postgres(ctx: typer.Context):
     subprocess.run(cmd, check=True)
 
 
-@app.command(name="server", help="Run the backend server on host")
-@handle_errors
-def server():
-    env = os.environ.copy()
+def _update_env_with_local_dev_settings(env: dict[str, str]) -> None:
     env["STATS_DB_URI"] = LOCAL_DB_URI
     env["DEBUG_USER_EMAIL"] = "localdev@example.com"
     env["RUN_MIGRATIONS"] = "true"
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
-    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     # Local dev k8s settings
@@ -121,13 +117,17 @@ def server():
     env["LOCAL_DEV_MOUNTS"] = ",".join(source_mounts)
     env["LOCAL_DEV_AWS_PROFILE"] = "softmax"
 
-    info("Starting backend server...")
-    info(f"  DB: {LOCAL_DB_URI}")
-    info(f"  URL: {LOCAL_BACKEND_URL}")
-    info(f"  Episode runner image: {LOCAL_METTA_POLICY_EVAL_IMG_NAME}")
-    info("  K8s context: orbstack (required, jobs fail if mismatched)")
-    info("  Local dev mounts: ~/.aws, metta/, app_backend/, common/")
 
+@app.command(name="server", help="Run the backend server on host")
+@handle_errors
+def server():
+    env = os.environ.copy()
+    _update_env_with_local_dev_settings(env)
+
+    # For sending the jobs
+    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
+
+    info("Starting backend server...")
     subprocess.run(
         ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],
         env=env,
@@ -139,11 +139,11 @@ def server():
 @handle_errors
 def watcher():
     env = os.environ.copy()
+    _update_env_with_local_dev_settings(env)
+
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL
-    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
 
     info("Starting watcher...")
-    info(f"  Stats server: {LOCAL_BACKEND_URL}")
 
     subprocess.run(
         ["uv", "run", "python", "-m", "metta.app_backend.job_runner.watcher"],
