@@ -110,7 +110,12 @@ interactive = [
   "widgetsnbextension>=4.0.14",
 ]
 mcp-servers = ["metta-pr-similarity-mcp"]
-dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }, "honcho>=2.0.0"]
+dev = [
+  { include-group = "testing" },
+  { include-group = "lint" },
+  { include-group = "mcp-servers" },
+  "honcho>=2.0.0",
+]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
