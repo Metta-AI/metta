@@ -51,8 +51,6 @@ class Experience:
 
         # Row-aligned tracking (per-agent row slot id and position within row)
         self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        # CPU mirror to avoid GPU sync on scalar reads in store().
-        self._t_in_row_cpu = torch.zeros(total_agents, device="cpu", dtype=torch.int32)
         self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
@@ -81,6 +79,12 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
+        self._sequential_idx_cache = self._build_sequential_idx_cache()
+        self._ones_prio_weights = torch.ones(
+            (self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+            dtype=torch.float32,
+        )
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
         # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
@@ -102,7 +106,7 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-        t_in_row_val = int(self._t_in_row_cpu[env_id.start].item())
+        t_in_row_val = int(self.t_in_row[env_id.start].item())
         row_ids = self.row_slot_ids[env_id]
 
         # Scheduler updates these keys based on the active losses for the epoch.
@@ -112,7 +116,6 @@ class Experience:
             raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
         self.t_in_row[env_id] += 1
-        self._t_in_row_cpu[env_id] += 1
 
         if t_in_row_val + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
@@ -122,7 +125,6 @@ class Experience:
         num_full = env_id.stop - env_id.start
         self.row_slot_ids[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.t_in_row[env_id] = 0
-        self._t_in_row_cpu[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
@@ -132,7 +134,6 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.row_slot_ids = self._range_tensor % self.segments
         self.t_in_row.zero_()
-        self._t_in_row_cpu.zero_()
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -206,23 +207,28 @@ class Experience:
             device=self.device,
         )
 
+    def _build_sequential_idx_cache(self) -> List[Tensor]:
+        cache: List[Tensor] = []
+        num_minibatches = max(self.num_minibatches, 1)
+        for mb_idx in range(num_minibatches):
+            start = mb_idx * self.minibatch_segments
+            end = start + self.minibatch_segments
+            if end <= self.segments:
+                idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+            else:
+                overflow = end - self.segments
+                front = torch.arange(start, self.segments, dtype=torch.long, device=self.device)
+                back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+                idx = torch.cat((front, back), dim=0)
+            cache.append(idx)
+        return cache
+
     def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
         """Sample a contiguous minibatch from the buffer in sequential order."""
-        segments_per_mb = self.minibatch_segments
-        total_segments = self.segments
         num_minibatches = max(self.num_minibatches, 1)
 
         mb_idx_mod = int(mb_idx % num_minibatches)
-        start = mb_idx_mod * segments_per_mb
-        end = start + segments_per_mb
-
-        if end <= total_segments:
-            idx = torch.arange(start, end, dtype=torch.long, device=self.device)
-        else:
-            overflow = end - total_segments
-            front = torch.arange(start, total_segments, dtype=torch.long, device=self.device)
-            back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
-            idx = torch.cat((front, back), dim=0)
+        idx = self._sequential_idx_cache[mb_idx_mod]
 
         minibatch = self.buffer[idx]
         return minibatch.clone(), idx
@@ -277,11 +283,7 @@ class Experience:
 
         if self.sampling_config.method == "sequential":
             minibatch, indices = self.sample_sequential(mb_idx)
-            prio_weights = torch.ones(
-                (minibatch.shape[0], minibatch.shape[1]),
-                device=self.device,
-                dtype=torch.float32,
-            )
+            prio_weights = self._ones_prio_weights
         else:
             assert advantages is not None, "Advantages must be provided for prioritized sampling"
             minibatch, indices, prio_weights = self.sample_prioritized(

@@ -284,7 +284,7 @@ class CoreTrainingLoop:
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
-                    self.optimizer.zero_grad()
+                    self.optimizer.zero_grad(set_to_none=True)
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
