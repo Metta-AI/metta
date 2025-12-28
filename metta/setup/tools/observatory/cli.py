@@ -41,11 +41,9 @@ HELP_TEXT = f"""
 Observatory local development.
 
 [bold]Prerequisites (one-time OrbStack setup):[/bold]
-  1. Install OrbStack: https://orbstack.dev/download
-  2. Enable Kubernetes in OrbStack:
-     orb config set k8s.enable true
-  3. Restart OrbStack (or run: orbctl stop && orbctl start)
-  4. Verify: kubectl config get-contexts | grep orbstack
+  OrbStack is installed via 'metta install' (profile=softmax).
+  Enable Kubernetes: orb config set k8s.enable true
+  Then restart OrbStack (or: orbctl stop && orbctl start)
 
 [bold]Setup:[/bold]
   metta observatory postgres up -d   # Backgrounded postgres for api server
