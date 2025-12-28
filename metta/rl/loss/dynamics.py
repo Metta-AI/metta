@@ -19,13 +19,14 @@ class DynamicsConfig(LossConfig):
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: Any,
         trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
         instance_name: str,
     ) -> "Dynamics":
         """Create Dynamics loss instance."""
+        policy = policy_assets.get(self.policy)
         return Dynamics(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 

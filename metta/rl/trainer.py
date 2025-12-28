@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.policy_assets import PolicyAssetRegistry
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -37,6 +38,9 @@ class Trainer:
         cfg: TrainerConfig,
         env: TrainingEnvironment,
         policy: Policy,
+        *,
+        policy_assets: PolicyAssetRegistry,
+        losses_cfg: Any,
         device: torch.device,
         distributed_helper: Optional[DistributedHelper] = None,
         run_name: Optional[str] = None,
@@ -64,13 +68,24 @@ class Trainer:
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
 
-        self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
-        self._policy.train()
+        # Initialize/wrap all policy assets (trainable and non-trainable) uniformly.
+        for name, pol in list(policy_assets.policies.items()):
+            pol.to(self._device)
+            pol.initialize_to_environment(self._env.policy_env_info, self._device)
+            # If the policy was frozen upstream, keep it in eval mode.
+            if any(p.requires_grad for p in pol.parameters()):
+                pol.train()
+            else:
+                pol.eval()
 
-        self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
-        self._policy.to(self._device)
-        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
+            wrapped = self._distributed_helper.wrap_policy(pol, self._device)
+            wrapped.to(self._device)
+            policy_assets.policies[name] = wrapped
+
+        # The core trainer loop is still single-policy; we train/rollout the registry's primary policy.
+        self._policy = policy_assets.primary_policy
+        self._policy_assets = policy_assets
+        losses = losses_cfg.init_losses(policy_assets, self._cfg, self._env, self._device)
         self._policy.train()
 
         batch_info = self._env.batch_info
@@ -122,6 +137,7 @@ class Trainer:
             run_name=self._run_name,
             curriculum=curriculum,
         )
+        self._context.policy_assets = policy_assets
 
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
@@ -218,6 +234,9 @@ class Trainer:
         cfg: TrainerConfig,
         training_env: TrainingEnvironment,
         policy: Policy,
+        *,
+        policy_assets: PolicyAssetRegistry,
+        losses_cfg: Any,
         device: torch.device,
         distributed_helper: Optional[DistributedHelper] = None,
         run_name: Optional[str] = None,
@@ -231,7 +250,9 @@ class Trainer:
             cfg,
             training_env,
             policy,
-            device,
+            policy_assets=policy_assets,
+            losses_cfg=losses_cfg,
+            device=device,
             distributed_helper=distributed_helper,
             run_name=run_name,
         )

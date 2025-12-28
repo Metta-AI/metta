@@ -23,13 +23,14 @@ class SlicedScriptedClonerConfig(LossConfig):
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: Any,
         trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
     ) -> "SlicedScriptedCloner":
         """Create SlicedScriptedCloner loss instance."""
+        policy = policy_assets.get(self.policy)
         return SlicedScriptedCloner(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 

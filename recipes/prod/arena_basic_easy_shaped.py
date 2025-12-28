@@ -16,6 +16,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
+from metta.rl.policy_assets import PolicyAssetConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
@@ -115,15 +116,25 @@ def train(
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
+    policy_assets = {
+        "primary": PolicyAssetConfig(
+            architecture=policy_architecture,
+            uri=None,
+            checkpoint=True,
+            trainable=True,
+        )
+    }
+
     # Enable optional teacher phases (e.g., sliced_cloner) when provided.
     scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
-        trainer_cfg=trainer_cfg,
+        losses=trainer_cfg.losses,
         training_env_cfg=training_env_cfg,
         scheduler_rules=scheduler_rules,
         scheduler_run_gates=scheduler_run_gates,
         teacher_cfg=teacher,
+        policy_assets=policy_assets,
         default_steps=teacher.steps or 1_000_000_000,
     )
 
@@ -132,6 +143,8 @@ def train(
         training_env=training_env_cfg,
         evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
         policy_architecture=policy_architecture,
+        policy_assets=policy_assets,
+        losses=trainer_cfg.losses,
         torch_profiler=TorchProfilerConfig(),
     )
     if scheduler_run_gates or scheduler_rules:

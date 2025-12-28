@@ -34,12 +34,13 @@ class ViTReconstructionLossConfig(LossConfig):
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: "PolicyAssetRegistry",
         trainer_cfg: "TrainerConfig",
         env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
     ) -> "ViTReconstructionLoss":
+        policy = policy_assets.get(self.policy)
         return ViTReconstructionLoss(policy, trainer_cfg, env, device, instance_name, self)
 
 

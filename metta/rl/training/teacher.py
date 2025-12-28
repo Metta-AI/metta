@@ -4,7 +4,8 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.loss.losses import LossesConfig
+from metta.rl.policy_assets import PolicyAssetConfig
 from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
@@ -59,11 +60,12 @@ class TeacherConfig(Config):
 
 def apply_teacher_phase(
     *,
-    trainer_cfg: TrainerConfig,
+    losses: LossesConfig,
     training_env_cfg: TrainingEnvironmentConfig,
     scheduler_rules: list[ScheduleRule],
     scheduler_run_gates: list[LossRunGate],
     teacher_cfg: TeacherConfig,
+    policy_assets: dict[str, PolicyAssetConfig] | None = None,
     default_steps: int = DEFAULT_TEACHER_STEPS,
 ) -> None:
     """Enable and schedule the requested teacher loss."""
@@ -72,7 +74,6 @@ def apply_teacher_phase(
         return
 
     total_steps = teacher_cfg.steps or default_steps
-    losses = trainer_cfg.losses
     loss_cfg = _select_teacher_loss_cfg(losses=losses, mode=teacher_cfg.mode)
     if loss_cfg is not None:
         _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
@@ -91,10 +92,11 @@ def apply_teacher_phase(
             scheduler_run_gates.append(
                 LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
             )
-            if trainer_cfg.losses.quantile_ppo_critic.enabled:
-                scheduler_run_gates.append(
-                    LossRunGate(loss_instance_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
-                )
+            # av fix this
+            # if losses.quantile_ppo_critic.enabled:
+            #     scheduler_run_gates.append(
+            #         LossRunGate(loss_instance_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
+            #     )
 
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:
         if total_steps and start_value > 0.0:
@@ -113,6 +115,18 @@ def apply_teacher_phase(
     if teacher_cfg.mode in {"sliced_cloner", "sliced_cloner_no_ppo", "supervisor", "eer_cloner"}:
         _require_policy_uri(teacher_cfg)
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
+    else:
+        # Policy-registry updates (teacher policy) for kickstarter-like phases.
+        if teacher_cfg.mode in {"sliced_kickstarter", "kickstarter", "logit_kickstarter", "eer_kickstarter"}:
+            _require_policy_uri(teacher_cfg)
+            if policy_assets is None:
+                raise ValueError(f"apply_teacher_phase(mode={teacher_cfg.mode}) requires policy_assets to be provided")
+            policy_assets["teacher"] = PolicyAssetConfig(
+                uri=teacher_cfg.policy_uri,
+                architecture=None,
+                checkpoint=False,
+                trainable=False,
+            )
 
     if teacher_cfg.mode == "sliced_cloner":
         slicer = losses.sliced_scripted_cloner
@@ -166,10 +180,8 @@ def apply_teacher_phase(
         scheduler_rules.clear()
 
     elif teacher_cfg.mode == "sliced_kickstarter":
-        _require_policy_uri(teacher_cfg)
         sliced_kick = losses.sliced_kickstarter
         sliced_kick.enabled = True
-        sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
 
@@ -185,10 +197,8 @@ def apply_teacher_phase(
         )
 
     elif teacher_cfg.mode == "eer_kickstarter":
-        _require_policy_uri(teacher_cfg)
         eer_kick = losses.eer_kickstarter
         eer_kick.enabled = True
-        eer_kick.teacher_uri = teacher_cfg.policy_uri
 
         _gate_loss("eer_kickstarter")
         _gate_critic_after_teacher()
@@ -227,10 +237,8 @@ def apply_teacher_phase(
                 )
             )
     elif teacher_cfg.mode == "kickstarter":
-        _require_policy_uri(teacher_cfg)
         ks = losses.kickstarter
         ks.enabled = True
-        ks.teacher_uri = teacher_cfg.policy_uri
         ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("kickstarter")
@@ -261,10 +269,8 @@ def apply_teacher_phase(
             )
 
     elif teacher_cfg.mode == "logit_kickstarter":
-        _require_policy_uri(teacher_cfg)
         logit = losses.logit_kickstarter
         logit.enabled = True
-        logit.teacher_uri = teacher_cfg.policy_uri
         logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         _gate_loss("logit_kickstarter")

@@ -19,6 +19,8 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.loss.losses import LossesConfig
+from metta.rl.policy_assets import PolicyAssetConfig, PolicyAssetRegistry
 from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
@@ -64,8 +66,16 @@ class TrainTool(Tool):
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
+    # New multi-policy interface (registry). If unset, we fall back to legacy single-policy fields.
+    policy_assets: dict[str, PolicyAssetConfig] | None = None
+    primary_policy: str = "primary"
+
+    # Legacy single-policy fields (deprecated; still supported for existing recipes).
     policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
     initial_policy_uri: Optional[str] = None
+
+    # Losses moved to TrainTool (top-level). If unset, we fall back to trainer.losses for compatibility.
+    losses: LossesConfig | None = None
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
 
@@ -162,23 +172,59 @@ class TrainTool(Tool):
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
 
-        checkpointer = Checkpointer(
-            config=self.checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            policy_architecture=self.policy_architecture,
+        # ------------------------------------------------------------------
+        # Policy asset registry: load/create all declared policies.
+        # ------------------------------------------------------------------
+        if self.policy_assets is None:
+            self.policy_assets = {
+                self.primary_policy: PolicyAssetConfig(
+                    uri=self.initial_policy_uri,
+                    architecture=self.policy_architecture,
+                    checkpoint=True,
+                    trainable=True,
+                )
+            }
+
+        if self.primary_policy not in self.policy_assets:
+            raise ValueError(
+                f"primary_policy='{self.primary_policy}' missing from policy_assets={list(self.policy_assets)}"
+            )
+
+        loaded_policies: dict[str, Policy] = {}
+        for policy_name, asset in self.policy_assets.items():
+            loader_checkpointer = Checkpointer(
+                config=self.checkpointer,
+                checkpoint_manager=checkpoint_manager.for_policy(policy_name),
+                distributed_helper=distributed_helper,
+                policy_architecture=asset.architecture,
+                policy_name=policy_name,
+                is_primary=(policy_name == self.primary_policy),
+            )
+            policy_obj = loader_checkpointer.load_or_create_policy(
+                env.policy_env_info,
+                policy_uri=asset.uri,
+            )
+
+            if not asset.trainable:
+                policy_obj.eval()
+                for param in policy_obj.parameters():
+                    param.requires_grad = False
+
+            loaded_policies[policy_name] = policy_obj
+
+        policy_assets = PolicyAssetRegistry(
+            configs=self.policy_assets,
+            policies=loaded_policies,
+            primary=self.primary_policy,
         )
-        policy = checkpointer.load_or_create_policy(
-            env.policy_env_info,
-            policy_uri=self.initial_policy_uri,
-        )
+        policy = policy_assets.primary_policy
 
         if distributed_helper.is_master():
             total_params = sum(param.numel() for param in policy.parameters())
             trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
             logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
 
-        trainer = self._initialize_trainer(env, policy, distributed_helper)
+        trainer = self._initialize_trainer(env, policy, policy_assets, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
@@ -192,7 +238,7 @@ class TrainTool(Tool):
                     distributed_helper=distributed_helper,
                     checkpoint_manager=checkpoint_manager,
                     stats_client=stats_client,
-                    policy_checkpointer=checkpointer,
+                    policy_assets=policy_assets,
                     run_name=self.run,
                     wandb_run=wandb_run,
                 )
@@ -225,13 +271,20 @@ class TrainTool(Tool):
         self,
         env: VectorizedTrainingEnvironment,
         policy: Policy,
+        policy_assets: PolicyAssetRegistry,
         distributed_helper: DistributedHelper,
     ) -> Trainer:
+        effective_losses = self.losses or getattr(self.trainer, "losses", None) or LossesConfig()
+        # Keep TrainerConfig.losses pointing at the same object the Trainer/losses are built from,
+        # since the scheduler mutates paths under TrainerConfig (e.g. "losses.ppo_actor.ent_coef").
+        self.trainer.losses = effective_losses
         trainer = Trainer(
             self.trainer,
             env,
             policy,
-            torch.device(self.system.device),
+            policy_assets=policy_assets,
+            losses_cfg=effective_losses,
+            device=torch.device(self.system.device),
             distributed_helper=distributed_helper,
             run_name=self.run,
         )
@@ -248,7 +301,7 @@ class TrainTool(Tool):
         distributed_helper: DistributedHelper,
         checkpoint_manager: CheckpointManager,
         stats_client: Optional[StatsClient],
-        policy_checkpointer: Checkpointer,
+        policy_assets: PolicyAssetRegistry,
         run_name: str,
         wandb_run: WandbRun | None,
     ) -> None:
@@ -275,7 +328,21 @@ class TrainTool(Tool):
             )
             components.append(stats_component)
 
-            components.append(policy_checkpointer)
+            # Register per-policy checkpointers for policies that request checkpointing.
+            for policy_name, asset in policy_assets.configs.items():
+                if not asset.checkpoint:
+                    continue
+                components.append(
+                    Checkpointer(
+                        config=self.checkpointer,
+                        checkpoint_manager=checkpoint_manager.for_policy(policy_name),
+                        distributed_helper=distributed_helper,
+                        policy_architecture=asset.architecture,
+                        policy_getter=lambda name=policy_name: policy_assets.get(name),
+                        policy_name=policy_name,
+                        is_primary=(policy_name == policy_assets.primary_name),
+                    )
+                )
 
             self.evaluator = self.evaluator.model_copy(deep=True)
             components.append(
@@ -291,8 +358,6 @@ class TrainTool(Tool):
 
             components.append(Monitor(enabled=reporting_enabled))
             components.append(ProgressLogger())
-        else:
-            components.append(policy_checkpointer)
 
         if self.context_checkpointer:
             logger.debug(

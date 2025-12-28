@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, ClassVar
 import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.eer_cloner import EERClonerConfig
@@ -19,6 +18,7 @@ from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterC
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
+from metta.rl.policy_assets import PolicyAssetRegistry
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -85,13 +85,13 @@ class LossesConfig(Config):
 
     def init_losses(
         self,
-        policy: Policy,
+        policy_assets: PolicyAssetRegistry,
         trainer_cfg: "TrainerConfig",
         env: TrainingEnvironment,
         device: torch.device,
     ) -> dict[str, Loss]:
         return {
-            loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
+            loss_name: loss_cfg.create(policy_assets, trainer_cfg, env, device, loss_name)
             for loss_name, loss_cfg in self._configs().items()
         }
 

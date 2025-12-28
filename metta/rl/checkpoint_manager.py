@@ -40,6 +40,31 @@ class CheckpointManager:
         if require_remote_enabled and self._remote_prefix is None:
             raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
+    def for_policy(self, policy_name: str) -> "CheckpointManager":
+        """Create a policy-namespaced checkpoint manager under the same run directory.
+
+        This keeps trainer state (optimizer/epoch/etc.) in the base run namespace while
+        allowing multiple policies to checkpoint independently:
+          {run_dir}/checkpoints/{policy_name}/...
+        """
+
+        if not policy_name or not policy_name.strip():
+            raise ValueError("policy_name cannot be empty")
+        if any(char in policy_name for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
+            raise ValueError(f"Policy name contains invalid characters: {policy_name}")
+        if "__" in policy_name:
+            raise ValueError(f"Policy name cannot contain '__': {policy_name}")
+
+        child = object.__new__(CheckpointManager)
+        child.run_name = self.run_name
+        child.run_dir = self.run_dir
+        child.checkpoint_dir = self.checkpoint_dir / policy_name
+        os.makedirs(child.checkpoint_dir, exist_ok=True)
+
+        # Share remote prefix but namespace policy checkpoints under a per-policy path.
+        child._remote_prefix = f"{self._remote_prefix}/{policy_name}" if self._remote_prefix else None
+        return child
+
     def _setup_remote_prefix(self) -> None:
         storage_decision = auto_policy_storage_decision(self.run_name)
         if storage_decision.remote_prefix:

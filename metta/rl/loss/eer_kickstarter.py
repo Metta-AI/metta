@@ -8,7 +8,6 @@ from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 
 if TYPE_CHECKING:
@@ -16,21 +15,33 @@ if TYPE_CHECKING:
 
 
 class EERKickstarterConfig(LossConfig):
-    teacher_uri: str = Field(default="")
+    # Explicit multi-policy wiring (no implicit URI loading).
+    policy: str = Field(default="primary")
+    teacher: str = Field(default="teacher")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     r_lambda: float = Field(default=0.01, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: Any,
         trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
     ) -> "EERKickstarter":
         """Create EERKickstarter loss instance."""
-        return EERKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
+        student_policy = policy_assets.get(self.policy)
+        teacher_policy = policy_assets.get(self.teacher)
+        return EERKickstarter(
+            student_policy,
+            trainer_cfg,
+            vec_env,
+            device,
+            instance_name,
+            self,
+            teacher_policy=teacher_policy,
+        )
 
 
 class EERKickstarter(Loss):
@@ -52,9 +63,15 @@ class EERKickstarter(Loss):
         device: torch.device,
         instance_name: str,
         cfg: "EERKickstarterConfig",
+        *,
+        teacher_policy: Policy,
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-        self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+        self.teacher_policy = teacher_policy
+        self.teacher_policy.to(self.device)
+        self.teacher_policy.eval()
+        for param in self.teacher_policy.parameters():
+            param.requires_grad = False
 
         # Cache for teacher log probs from previous step, needed for reward shaping R_{t-1} + log(pi(A_{t-1}))
         # We need this because run_rollout receives R_t (reward for action at t-1), but computes pi(S_t).

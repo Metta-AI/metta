@@ -1,6 +1,7 @@
 """Policy checkpoint management component."""
 
 import logging
+from collections.abc import Callable
 from typing import Optional
 
 import torch
@@ -30,20 +31,34 @@ class Checkpointer(TrainerComponent):
         config: CheckpointerConfig,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
-        policy_architecture: PolicyArchitecture,
+        policy_architecture: PolicyArchitecture | None,
+        policy_getter: Callable[[], Policy] | None = None,
+        policy_name: str | None = None,
+        is_primary: bool = True,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
         self._config = config
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._policy_architecture: PolicyArchitecture = policy_architecture
+        self._policy_architecture: PolicyArchitecture | None = policy_architecture
         self._latest_policy_uri: Optional[str] = None
+        self._policy_getter = policy_getter
+        self._policy_name = policy_name
+        self._is_primary = is_primary
 
     def register(self, context) -> None:
         super().register(context)
-        context.latest_policy_uri_fn = self.get_latest_policy_uri
-        context.latest_policy_uri_value = self.get_latest_policy_uri()
+        if self._is_primary:
+            context.latest_policy_uri_fn = self.get_latest_policy_uri
+            context.latest_policy_uri_value = self.get_latest_policy_uri()
+        else:
+            latest_uris = getattr(context, "latest_policy_uris", None)
+            if latest_uris is None:
+                latest_uris = {}
+                setattr(context, "latest_policy_uris", latest_uris)
+            if self._policy_name:
+                latest_uris[self._policy_name] = self.get_latest_policy_uri()
 
     def load_or_create_policy(
         self,
@@ -78,6 +93,9 @@ class Checkpointer(TrainerComponent):
                 if local_action_count != action_count:
                     raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
 
+                if arch is None:
+                    raise RuntimeError(f"Loaded artifact from {normalized_uri} is missing architecture")
+                self._policy_architecture = arch
                 policy = arch.make_policy(policy_env_info).to(load_device)
                 if hasattr(policy, "initialize_to_environment"):
                     policy.initialize_to_environment(policy_env_info, load_device)
@@ -93,11 +111,14 @@ class Checkpointer(TrainerComponent):
         if candidate_uri:
             artifact = load_mpt(candidate_uri)
             policy = artifact.instantiate(policy_env_info, self._distributed.config.device)
+            self._policy_architecture = artifact.architecture
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 
         logger.info("Creating new policy for training run")
+        if self._policy_architecture is None:
+            raise ValueError("Cannot create a new policy without a policy_architecture")
         return self._policy_architecture.make_policy(policy_env_info)
 
     def get_latest_policy_uri(self) -> Optional[str]:
@@ -116,13 +137,15 @@ class Checkpointer(TrainerComponent):
         self._save_policy(self.context.epoch)
 
     def _policy_to_save(self) -> Policy:
-        policy: Policy = self.context.policy
+        policy: Policy = self._policy_getter() if self._policy_getter is not None else self.context.policy
         if hasattr(policy, "module"):
             return policy.module
         return policy
 
     def _save_policy(self, epoch: int) -> None:
         policy = self._policy_to_save()
+        if self._policy_architecture is None:
+            raise RuntimeError("Cannot checkpoint a policy without a known architecture")
         uri = self._checkpoint_manager.save_policy_checkpoint(
             state_dict=policy.state_dict(),
             architecture=self._policy_architecture,
@@ -130,11 +153,18 @@ class Checkpointer(TrainerComponent):
         )
 
         self._latest_policy_uri = uri
-        self.context.latest_policy_uri_value = uri
-        try:
-            self.context.latest_saved_policy_epoch = epoch
-        except AttributeError:
-            logger.debug("Component context missing latest_saved_policy_epoch attribute")
+        if self._is_primary:
+            self.context.latest_policy_uri_value = uri
+            try:
+                self.context.latest_saved_policy_epoch = epoch
+            except AttributeError:
+                logger.debug("Component context missing latest_saved_policy_epoch attribute")
+        elif self._policy_name:
+            latest_uris = getattr(self.context, "latest_policy_uris", None)
+            if latest_uris is None:
+                latest_uris = {}
+                setattr(self.context, "latest_policy_uris", latest_uris)
+            latest_uris[self._policy_name] = uri
 
         # Log latest checkpoint URI to wandb if available
         stats_reporter = getattr(self.context, "stats_reporter", None)
@@ -142,8 +172,8 @@ class Checkpointer(TrainerComponent):
         if wandb_run is not None:
             wandb_run.log(
                 {
-                    "checkpoint/latest_uri": uri,
-                    "checkpoint/latest_epoch": float(epoch),
+                    f"checkpoint/{self._policy_name or 'primary'}/latest_uri": uri,
+                    f"checkpoint/{self._policy_name or 'primary'}/latest_epoch": float(epoch),
                 },
                 step=self.context.agent_step,
             )

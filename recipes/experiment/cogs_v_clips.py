@@ -19,6 +19,7 @@ from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
 from devops.stable.registry import ci_job, stable_job
 from devops.stable.runner import AcceptanceCriterion
+from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -27,6 +28,7 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
+from metta.rl.policy_assets import PolicyAssetConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
@@ -357,7 +359,8 @@ def train(
         dr_misc=dr_misc,
     )
 
-    trainer_cfg = TrainerConfig(losses=LossesConfig())
+    losses = LossesConfig()
+    trainer_cfg = TrainerConfig(losses=losses)
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
     eval_missions: Optional[list[Mission]] = None
@@ -385,22 +388,42 @@ def train(
         evaluator=evaluator_cfg,
     )
 
-    if maps_cache_size is not None:
-        tt.training_env.maps_cache_size = maps_cache_size
+    # ------------------------------------------------------------------
+    # define policy assets
+    # ------------------------------------------------------------------
+    primary_arch = ViTDefaultConfig()
+    tt.policy_architecture = primary_arch  # keep sweep paths stable (policy_architecture.*)
+    tt.policy_assets = {
+        "primary": PolicyAssetConfig(
+            architecture=primary_arch,
+            uri=None,
+            checkpoint=True,
+            trainable=True,
+        )
+    }
+
+    # ------------------------------------------------------------------
+    # define losses, giving each a policy asset
+    # ------------------------------------------------------------------
+    tt.losses = losses
 
     scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[ScheduleRule] = []
 
     if teacher and teacher.enabled:
         apply_teacher_phase(
-            trainer_cfg=tt.trainer,
+            losses=tt.losses,
             training_env_cfg=tt.training_env,
             scheduler_rules=scheduler_rules,
             scheduler_run_gates=scheduler_run_gates,
             teacher_cfg=teacher,
+            policy_assets=tt.policy_assets,
         )
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+
+    if maps_cache_size is not None:
+        tt.training_env.maps_cache_size = maps_cache_size
 
     return tt
 

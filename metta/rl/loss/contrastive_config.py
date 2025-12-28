@@ -27,11 +27,12 @@ class ContrastiveConfig(LossConfig):
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: Any,
         trainer_cfg: Any,
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
     ) -> "ContrastiveLoss":
         """Create the contrastive loss instance."""
+        policy = policy_assets.get(self.policy)
         return ContrastiveLoss(policy, trainer_cfg, env, device, instance_name, self)

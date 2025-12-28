@@ -157,7 +157,7 @@ def train(
         if teacher.mode == "sliced_cloner":
             trainer_cfg.losses.ppo_actor.ent_coef = 0.002
         apply_teacher_phase(
-            trainer_cfg=trainer_cfg,
+            losses=trainer_cfg.losses,
             training_env_cfg=training_env_cfg,
             scheduler_rules=scheduler_rules,
             scheduler_run_gates=scheduler_run_gates,

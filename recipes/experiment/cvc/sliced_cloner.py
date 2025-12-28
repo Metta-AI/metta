@@ -179,7 +179,7 @@ def train(
 
     if teacher and teacher.enabled:
         apply_teacher_phase(
-            trainer_cfg=trainer_cfg,
+            losses=trainer_cfg.losses,
             training_env_cfg=training_env_cfg,
             scheduler_rules=scheduler_rules,
             scheduler_run_gates=scheduler_run_gates,

@@ -35,13 +35,14 @@ class SLCheckpointedKickstarterConfig(LossConfig):
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: Any,
         trainer_cfg: "TrainerConfig",
         vec_env: Any,
         device: torch.device,
         instance_name: str,
     ) -> "SLCheckpointedKickstarter":
         """Create SLCheckpointedKickstarter loss instance."""
+        policy = policy_assets.get(self.policy)
         return SLCheckpointedKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 

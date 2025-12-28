@@ -15,6 +15,7 @@ from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.base_config import Config
 
 if TYPE_CHECKING:
+    from metta.rl.policy_assets import PolicyAssetRegistry
     from metta.rl.trainer_config import TrainerConfig
 
 
@@ -108,10 +109,12 @@ def analyze_loss_alignment(
 
 class LossConfig(Config):
     enabled: bool = Field(default=True)
+    # Name of the policy asset this loss should use.
+    policy: str = Field(default="primary")
 
     def create(
         self,
-        policy: Policy,
+        policy_assets: "PolicyAssetRegistry",
         trainer_cfg: "TrainerConfig",
         env: TrainingEnvironment,
         device: torch.device,
