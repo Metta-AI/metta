@@ -109,6 +109,10 @@ class StatsReporterConfig(Config):
     """How often to report stats (in epochs)"""
     step_interval: int = 1
     """How often to process rollout stats (in agent steps)."""
+    monitor_sampling_interval_sec: float = 1.0
+    """Sampling interval for system monitoring (seconds)."""
+    monitor_history_size: int = 100
+    """History size for system monitoring."""
     analyze_weights_interval: int = 0
     """How often to compute weight metrics (0 disables)."""
     dormant_neuron_threshold: float = 1e-6

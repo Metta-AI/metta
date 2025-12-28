@@ -17,9 +17,17 @@ class Monitor(TrainerComponent):
 
     _master_only = True
 
-    def __init__(self, *, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        enabled: bool = True,
+        system_sampling_interval_sec: float = 1.0,
+        system_history_size: int = 100,
+    ) -> None:
         super().__init__()
         self._enabled = enabled
+        self._system_sampling_interval_sec = system_sampling_interval_sec
+        self._system_history_size = system_history_size
         self._memory_monitor: Optional[MemoryMonitor] = None
         self._system_monitor: Optional[SystemMonitor] = None
 
@@ -32,6 +40,8 @@ class Monitor(TrainerComponent):
             policy=context.policy,
             experience=context.experience,
             timer=context.stopwatch,
+            system_sampling_interval_sec=self._system_sampling_interval_sec,
+            system_history_size=self._system_history_size,
         )
         self._memory_monitor = memory_monitor
         self._system_monitor = system_monitor
@@ -54,14 +64,21 @@ class Monitor(TrainerComponent):
         self._system_monitor = None
 
     @staticmethod
-    def _setup(*, policy, experience, timer) -> tuple[MemoryMonitor, SystemMonitor]:
+    def _setup(
+        *,
+        policy,
+        experience,
+        timer,
+        system_sampling_interval_sec: float,
+        system_history_size: int,
+    ) -> tuple[MemoryMonitor, SystemMonitor]:
         memory_monitor = MemoryMonitor()
         memory_monitor.add(experience, name="Experience", track_attributes=True)
         memory_monitor.add(policy, name="Policy", track_attributes=False)
 
         system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,
-            history_size=100,
+            sampling_interval_sec=system_sampling_interval_sec,
+            history_size=system_history_size,
             log_level=logger.getEffectiveLevel(),
             auto_start=True,
             external_timer=timer,
