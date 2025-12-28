@@ -196,7 +196,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
-        optimizer: Any | None = None,
+        optimizer: torch.optim.Optimizer,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -268,7 +268,7 @@ class StatsReporter(TrainerComponent):
             policy=ctx.policy,
             timer=ctx.stopwatch,
             trainer_cfg=ctx.config,
-            optimizer=getattr(ctx, "optimizer", None),
+            optimizer=ctx.optimizer,
         )
 
     def on_training_complete(self) -> None:
@@ -304,7 +304,7 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
-        optimizer: Any | None = None,
+        optimizer: torch.optim.Optimizer,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 
@@ -431,11 +431,9 @@ class StatsReporter(TrainerComponent):
             logger.debug("Memory monitor stats failed: %s", exc, exc_info=True)
             return {}
 
-    def _collect_hyperparameters(self, *, optimizer: Any | None) -> dict[str, Any]:
+    def _collect_hyperparameters(self, *, optimizer: torch.optim.Optimizer) -> dict[str, Any]:
         hyperparameters: dict[str, Any] = {}
-        if optimizer is None:
-            return hyperparameters
-        param_groups = getattr(optimizer, "param_groups", None)
+        param_groups = optimizer.param_groups
         if not param_groups:
             return hyperparameters
         param_group = param_groups[0]
