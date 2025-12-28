@@ -56,4 +56,4 @@ def merge(task_generator_configs: list[AnyTaskGeneratorConfig]) -> TaskGenerator
 
 def env_curriculum(mg_config: MettaGridConfig) -> CurriculumConfig:
     """Create a curriculum configuration from an MettaGridConfig."""
-    return CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=mg_config), num_active_tasks=1)
+    return CurriculumConfig(task_generator=SingleTaskGenerator.Config(env=mg_config))
