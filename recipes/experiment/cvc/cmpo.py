@@ -7,7 +7,6 @@ from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.training.teacher import TeacherConfig
 from metta.tools.train import TrainTool
-
 from recipes.experiment import cogs_v_clips
 
 

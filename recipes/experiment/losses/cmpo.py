@@ -6,7 +6,6 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
-
 from recipes.experiment.arena import make_curriculum, simulations
 from recipes.experiment.arena import train_shaped as base_train_shaped
 from recipes.prod.arena_basic_easy_shaped import train as arena_basic_easy_shaped_train
