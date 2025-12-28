@@ -63,6 +63,8 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
     }
 
     for key, value in stats.items():
+        if key.startswith("env_attributes/"):
+            continue
         # Check if this is a core metric (exact match)
         if key in core_metrics:
             filtered[key] = value
