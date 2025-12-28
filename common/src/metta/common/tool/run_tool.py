@@ -495,13 +495,13 @@ constructor/function vs configuration overrides based on introspection.
 
     # Parse CLI arguments
     try:
+        parse_start = startup_now()
         cli_args = parse_cli_args(all_args)
+        nested_cli = nestify(cli_args)
+        _log_startup("run_tool.parse_cli", parse_start)
     except ValueError as e:
         output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors
-
-    # Build nested payload from dotted paths for Pydantic validation
-    nested_cli = nestify(cli_args)
 
     if tool_maker is None:
         output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
@@ -524,12 +524,14 @@ constructor/function vs configuration overrides based on introspection.
     func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
     try:
         if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
+            validate_start = startup_now()
             if known_args.verbose and nested_cli:
                 cls_name = tool_maker.__name__
                 output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
                 for k in sorted(nested_cli.keys()):
                     output_info(f"  {k} = {nested_cli[k]}")
             tool_cfg = tool_maker.model_validate(nested_cli)
+            _log_startup("run_tool.tool_validate", validate_start)
             remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
             # Tool maker function that returns a Tool instance
@@ -598,7 +600,9 @@ constructor/function vs configuration overrides based on introspection.
                         output_info(f"  {name}={val!r}")
 
             # Construct via function
+            make_start = startup_now()
             tool_cfg = tool_maker(**func_kwargs)
+            _log_startup("run_tool.tool_make", make_start)
 
             # Remaining args = anything not consumed as function params
             remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
@@ -647,12 +651,14 @@ constructor/function vs configuration overrides based on introspection.
             output_info(f"\n{cyan('Applying overrides:')}")
             for key, value in override_args.items():
                 output_info(f"  {key}={value}")
+        overrides_start = startup_now()
         for key, value in override_args.items():
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
                 output_exception(f"{red('Error applying override')} {key}={value}: {e}")
                 return 1
+        _log_startup("run_tool.apply_overrides", overrides_start)
 
     _log_startup("run_tool.build_config", config_start)
 

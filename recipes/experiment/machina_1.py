@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -10,6 +11,11 @@ if TYPE_CHECKING:
     from metta.tools.stub import StubTool
     from metta.tools.sweep import SweepTool
     from metta.tools.train import TrainTool
+
+from metta.common.util.startup_timing import log as log_startup_timing
+from metta.common.util.startup_timing import now as startup_now
+
+logger = logging.getLogger(__name__)
 
 
 def train(
@@ -21,6 +27,7 @@ def train(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
+    total_start = startup_now()
     from metta.agent.policies.vit import ViTDefaultConfig
     from metta.sim.simulation_config import SimulationConfig
     from mettagrid.config import vibes
@@ -33,6 +40,7 @@ def train(
     if eval_variants is None:
         eval_variants = variants
 
+    train_single_start = startup_now()
     tt = train_single_mission(
         mission="machina_1.open_world",
         num_cogs=num_cogs,
@@ -41,6 +49,7 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
     )
+    log_startup_timing(logger, "machina.train_single_mission", train_single_start)
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
@@ -56,11 +65,13 @@ def train(
         initial=[eval_difficulty] if eval_difficulty else None,
         variants=eval_variants,
     )
+    eval_env_start = startup_now()
     eval_env = make_training_env(
         num_cogs=num_cogs,
         mission="machina_1.open_world",
         variants=eval_variant_names or None,
     )
+    log_startup_timing(logger, "machina.make_eval_env", eval_env_start)
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
@@ -70,6 +81,7 @@ def train(
     ]
     # Run evals periodically during long runs
     tt.evaluator.epoch_interval = 150
+    log_startup_timing(logger, "machina.train.total", total_start)
     return tt
 
 

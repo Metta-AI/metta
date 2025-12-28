@@ -1,4 +1,5 @@
 import contextlib
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import os
 import platform
@@ -154,17 +155,45 @@ class TrainTool(Tool):
                 class_path = resolve_policy_class_path(sup_uri)
                 supervisor_policy_spec = PolicySpec(class_path=class_path)
 
+        preflight_executor: ThreadPoolExecutor | None = None
+        preflight_futures: dict[str, object] = {}
+        if not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri):
+            preflight_executor = ThreadPoolExecutor(max_workers=2)
+            if not self.system.local_only:
+                preflight_futures["storage_decision"] = preflight_executor.submit(
+                    auto_policy_storage_decision, self.run or "default"
+                )
+
+            if distributed_helper.is_master() and self.stats_server_uri:
+                def _init_stats_client() -> Optional[StatsClient]:
+                    try:
+                        return StatsClient.create(stats_server_uri=self.stats_server_uri)
+                    except Exception as exc:
+                        logger.warning("Failed to initialize stats client: %s", exc)
+                        return None
+
+                preflight_futures["stats_client"] = preflight_executor.submit(_init_stats_client)
+
         env_start = startup_now()
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
         log_startup_timing(logger, "train.env_init", env_start)
 
         self._configure_torch_backends()
 
+        storage_decision = None
+        if "storage_decision" in preflight_futures:
+            try:
+                storage_decision = preflight_futures["storage_decision"].result()
+            except Exception as exc:
+                logger.warning("Failed to resolve policy storage decision: %s", exc)
+                storage_decision = None
+
         checkpoint_start = startup_now()
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
             system_cfg=self.system,
             require_remote_enabled=self.evaluator.evaluate_remote,
+            storage_decision=storage_decision,
         )
         log_startup_timing(logger, "train.checkpoint_manager", checkpoint_start)
 
@@ -196,8 +225,18 @@ class TrainTool(Tool):
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
         stats_start = startup_now()
-        stats_client = self._maybe_create_stats_client(distributed_helper)
+        if "stats_client" in preflight_futures:
+            try:
+                stats_client = preflight_futures["stats_client"].result()
+            except Exception as exc:
+                logger.warning("Failed to initialize stats client: %s", exc)
+                stats_client = None
+        else:
+            stats_client = self._maybe_create_stats_client(distributed_helper)
         log_startup_timing(logger, "train.stats_client", stats_start)
+
+        if preflight_executor is not None:
+            preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
 
         try:

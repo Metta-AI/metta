@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
 from metta.common.wandb.context import WandbConfig
+from metta.common.util.startup_timing import log as log_startup_timing
+from metta.common.util.startup_timing import now as startup_now
 from metta.setup.components.aws import AwsConfigSettings
 from metta.setup.components.aws import AWSSetup as _AWSSetup
 from metta.setup.components.wandb import WandbSetup
@@ -165,8 +168,11 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
         return PolicyStorageDecision(base_prefix=cleaned, remote_prefix=remote, reason="env_override")
 
     aws_setup_module = AWSSetup()
+    enabled_start = startup_now()
     if not aws_setup_module.is_enabled():
+        log_startup_timing(logging.getLogger(__name__), "auto_policy_storage.aws_enabled", enabled_start)
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="aws_not_enabled")
+    log_startup_timing(logging.getLogger(__name__), "auto_policy_storage.aws_enabled", enabled_start)
 
     aws_settings: AwsConfigSettings = aws_setup_module.to_config_settings()  # type: ignore
     base_prefix = aws_settings["policy_remote_prefix"]
@@ -174,7 +180,9 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="no_base_prefix")
     cleaned_base = base_prefix.rstrip("/")
 
+    connected_start = startup_now()
     connected_account = aws_setup_module.check_connected_as()
+    log_startup_timing(logging.getLogger(__name__), "auto_policy_storage.check_connected_as", connected_start)
     if connected_account != METTA_AWS_ACCOUNT_ID:
         return PolicyStorageDecision(base_prefix=cleaned_base, remote_prefix=None, reason="not_connected")
 

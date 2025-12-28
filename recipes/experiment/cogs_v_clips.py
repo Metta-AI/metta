@@ -24,6 +24,8 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
+from metta.common.util.startup_timing import log as log_startup_timing
+from metta.common.util.startup_timing import now as startup_now
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
@@ -217,15 +219,23 @@ def make_training_env(
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
+    total_start = startup_now()
+    resolve_start = startup_now()
     mission_template = _resolve_mission_template(mission)
+    log_startup_timing(logger, "cvc.make_training_env.resolve_mission", resolve_start)
 
     variant_names = _normalize_variant_names(variants=variants)
+    prepare_start = startup_now()
     prepared_mission = _prepare_mission(
         mission_template,
         num_cogs=num_cogs,
         variant_names=variant_names,
     )
+    log_startup_timing(logger, "cvc.make_training_env.prepare_mission", prepare_start)
+
+    make_env_start = startup_now()
     env = prepared_mission.make_env()
+    log_startup_timing(logger, "cvc.make_training_env.make_env", make_env_start)
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
@@ -239,6 +249,7 @@ def make_training_env(
             allowed = set(allowed_vibes)
             chest.vibe_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
 
+    log_startup_timing(logger, "cvc.make_training_env.total", total_start)
     return env
 
 
@@ -368,6 +379,7 @@ def train(
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
+    total_start = startup_now()
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
@@ -376,17 +388,20 @@ def train(
         train_difficulty = eval_difficulty
 
     cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
-    curriculum = curriculum or make_curriculum(
-        num_cogs=num_cogs,
-        missions=training_missions,
-        enable_detailed_slice_logging=enable_detailed_slice_logging,
-        variants=variants,
-        difficulty=train_difficulty,
-        algorithm_config=cur_alg,
-        dr_variants=dr_variants,
-        dr_rewards=dr_rewards,
-        dr_misc=dr_misc,
-    )
+    if curriculum is None:
+        curriculum_start = startup_now()
+        curriculum = make_curriculum(
+            num_cogs=num_cogs,
+            missions=training_missions,
+            enable_detailed_slice_logging=enable_detailed_slice_logging,
+            variants=variants,
+            difficulty=train_difficulty,
+            algorithm_config=cur_alg,
+            dr_variants=dr_variants,
+            dr_rewards=dr_rewards,
+            dr_misc=dr_misc,
+        )
+        log_startup_timing(logger, "cvc.train.make_curriculum", curriculum_start)
 
     trainer_cfg = TrainerConfig(losses=LossesConfig())
 
@@ -397,6 +412,7 @@ def train(
     elif eval_mission_source != "integrated_evals":
         raise ValueError(f"Unknown eval_mission_source: {eval_mission_source}")
 
+    eval_start = startup_now()
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
@@ -404,17 +420,20 @@ def train(
         max_evals=max_evals,
         missions=eval_missions,
     )
+    log_startup_timing(logger, "cvc.train.make_eval_suite", eval_start)
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
         epoch_interval=150,
     )
 
+    tool_start = startup_now()
     tt = TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
     )
+    log_startup_timing(logger, "cvc.train.make_tool", tool_start)
 
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
@@ -433,6 +452,7 @@ def train(
 
     tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
 
+    log_startup_timing(logger, "cvc.train.total", total_start)
     return tt
 
 
@@ -508,6 +528,7 @@ def train_single_mission(
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
+    total_start = startup_now()
     if train_difficulty is None:
         train_difficulty = eval_difficulty
 
@@ -516,15 +537,20 @@ def train_single_mission(
         variants=variants,
     )
 
+    env_start = startup_now()
     env = make_training_env(
         num_cogs=num_cogs,
         mission=mission,
         variants=training_variants or None,
     )
+    log_startup_timing(logger, "cvc.train_single_mission.make_env", env_start)
 
+    curriculum_start = startup_now()
     curriculum_cfg = cc.env_curriculum(env)
+    log_startup_timing(logger, "cvc.train_single_mission.env_curriculum", curriculum_start)
 
-    return train(
+    train_start = startup_now()
+    tt = train(
         num_cogs=num_cogs,
         curriculum=curriculum_cfg,
         variants=variants,
@@ -534,6 +560,9 @@ def train_single_mission(
         teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
+    log_startup_timing(logger, "cvc.train_single_mission.train", train_start)
+    log_startup_timing(logger, "cvc.train_single_mission.total", total_start)
+    return tt
 
 
 def evaluate(
