@@ -5,7 +5,6 @@ import platform
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
-from time import monotonic
 from typing import Any, Optional
 
 import torch
@@ -96,7 +95,6 @@ class TrainTool(Tool):
         return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        startup_start = monotonic()
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
@@ -221,8 +219,6 @@ class TrainTool(Tool):
                 )
 
                 trainer.restore()
-                if distributed_helper.is_master():
-                    logger.info("Startup complete in %.2fs", monotonic() - startup_start)
                 trainer.train()
 
             # Training completed successfully
