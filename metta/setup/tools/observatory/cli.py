@@ -108,9 +108,11 @@ def server():
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+
+    # Local dev k8s settings
+    env["LOCAL_DEV"] = "true"
+    env["LOCAL_DEV_K8S_CONTEXT"] = "orbstack"
     aws_path = os.path.expanduser("~/.aws")
-    # Mount source dirs individually to preserve container's .venv
-    # Note: packages/ excluded because it contains platform-specific compiled binaries (.so)
     source_mounts = [
         f"{aws_path}:/root/.aws",
         f"{repo_root}/metta:/workspace/metta/metta",
@@ -124,6 +126,7 @@ def server():
     info(f"  DB: {LOCAL_DB_URI}")
     info(f"  URL: {LOCAL_BACKEND_URL}")
     info(f"  Episode runner image: {LOCAL_METTA_POLICY_EVAL_IMG_NAME}")
+    info("  K8s context: orbstack (required, jobs fail if mismatched)")
     info("  Local dev mounts: ~/.aws, metta/, app_backend/, common/")
 
     subprocess.run(

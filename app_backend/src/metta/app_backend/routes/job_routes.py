@@ -31,7 +31,7 @@ def create_job_router() -> APIRouter:
             return []
 
         # Create all jobs in db as pending
-        db_jobs = []
+        db_jobs: list[JobRequest] = []
         async with get_session() as session:
             for job_create in jobs:
                 db_job = JobRequest(**job_create.model_dump(), user_id=user, status=JobStatus.pending)

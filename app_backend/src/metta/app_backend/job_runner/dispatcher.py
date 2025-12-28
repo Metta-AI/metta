@@ -17,10 +17,24 @@ logger = logging.getLogger(__name__)
 
 @functools.cache
 def get_k8s_client() -> client.BatchV1Api:
-    try:
-        config.load_incluster_config()
-    except config.ConfigException:
+    cfg = get_dispatch_config()
+
+    if cfg.LOCAL_DEV:
+        # Local dev: use kubeconfig with required context validation
+        if not cfg.LOCAL_DEV_K8S_CONTEXT:
+            raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
         config.load_kube_config()
+        _, active_context = config.list_kube_config_contexts()
+        current_context = active_context.get("name", "") if active_context else ""
+        if current_context != cfg.LOCAL_DEV_K8S_CONTEXT:
+            raise ValueError(
+                f"K8s context mismatch: expected '{cfg.LOCAL_DEV_K8S_CONTEXT}', got '{current_context}'. "
+                f"Switch context with: kubectl config use-context {cfg.LOCAL_DEV_K8S_CONTEXT}"
+            )
+    else:
+        # Prod: require in-cluster config, no silent fallback
+        config.load_incluster_config()
+
     return client.BatchV1Api()
 
 
@@ -45,7 +59,7 @@ def create_episode_job(job: JobRequest) -> str:
     volumes: list[client.V1Volume] = []
     volume_mounts: list[client.V1VolumeMount] = []
 
-    if cfg.LOCAL_DEV_MOUNTS:
+    if cfg.LOCAL_DEV and cfg.LOCAL_DEV_MOUNTS:
         for i, mount in enumerate(cfg.LOCAL_DEV_MOUNTS.split(",")):
             parts = mount.strip().split(":")
             if len(parts) != 2:
@@ -72,8 +86,9 @@ def create_episode_job(job: JobRequest) -> str:
             backoff_limit=0,
             # Kill job if it runs longer than 1 hour
             active_deadline_seconds=3600,
-            # Auto-delete job 5 min after completion (backup; watcher deletes immediately)
-            ttl_seconds_after_finished=300,
+            # Auto-delete job 1 hour after completion (backup; watcher deletes immediately)
+            # Longer TTL gives watcher time to catch up if it restarts
+            ttl_seconds_after_finished=3600,
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(labels=labels),
                 spec=client.V1PodSpec(
@@ -96,7 +111,7 @@ def create_episode_job(job: JobRequest) -> str:
                             ]
                             + (
                                 [client.V1EnvVar(name="AWS_PROFILE", value=cfg.LOCAL_DEV_AWS_PROFILE)]
-                                if cfg.LOCAL_DEV_MOUNTS and cfg.LOCAL_DEV_AWS_PROFILE
+                                if cfg.LOCAL_DEV and cfg.LOCAL_DEV_AWS_PROFILE
                                 else []
                             ),
                             volume_mounts=volume_mounts if volume_mounts else None,

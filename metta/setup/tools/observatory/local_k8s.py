@@ -146,6 +146,12 @@ class LocalK8s:
         success(f"{self.jobs_namespace} namespace ready")
 
     def up(self) -> None:
+        if not _check_orbstack_k8s():
+            error("OrbStack Kubernetes is not available.")
+            error("Please enable it: orb config set k8s.enable true")
+            error("Then restart OrbStack.")
+            sys.exit(1)
+
         self._use_context()
         info("Creating namespace if needed...")
 

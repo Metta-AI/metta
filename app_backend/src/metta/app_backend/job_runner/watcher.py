@@ -20,7 +20,6 @@ from metta.app_backend.job_runner.config import (
 )
 from metta.app_backend.job_runner.dispatcher import get_k8s_client
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
-from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
@@ -80,8 +79,8 @@ def run_watcher():
     cfg = get_dispatch_config()
     get_k8s_client()  # initialize cached client
 
-    observatory_auth_config.save_token(cfg.MACHINE_TOKEN, cfg.STATS_SERVER_URI)
-    stats_client = StatsClient(cfg.STATS_SERVER_URI)
+    # Pass token directly instead of writing to config file
+    stats_client = StatsClient(backend_url=cfg.STATS_SERVER_URI, machine_token=cfg.MACHINE_TOKEN)
     stats_client._validate_authenticated()
 
     _start_health_server()
@@ -94,6 +93,7 @@ def run_watcher():
                 watch_jobs(stats_client)
             except Exception as e:
                 logger.error(f"Watch error, restarting: {e}", exc_info=True)
+                time.sleep(1)
     finally:
         stats_client.close()
 
@@ -107,6 +107,15 @@ def watch_jobs(stats_client: StatsClient):
         logger.error(f"Invalid job list: {job_list}")
         return
     resource_version = job_list.metadata.resource_version
+
+    # Process any existing jobs that may have completed before watcher started
+    for k8s_job in job_list.items:
+        if not k8s_job.metadata or not k8s_job.metadata.labels:
+            continue
+        job_id_str = k8s_job.metadata.labels.get(LABEL_JOB_ID)
+        if job_id_str:
+            handle_job_state(stats_client, UUID(job_id_str), k8s_job)
+
     logger.info(f"Starting watch from resourceVersion={resource_version}")
     _update_heartbeat()
 
