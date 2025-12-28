@@ -53,10 +53,15 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
-        self.last_action = None
+        self.last_action = torch.zeros(
+            experience.total_agents,
+            1,
+            dtype=torch.int32,
+            device=device,
+        )
 
         # Cache environment indices to avoid reallocating per rollout batch
-        self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
+        self._env_index_cache = experience._range_tensor.to(device=device)
         self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
 
         # Get policy spec for experience buffer
@@ -124,8 +129,12 @@ class CoreTrainingLoop:
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 # Row-aligned state: provide row slot id and position within row
-                row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
-                t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
+                row_ids = self.experience.row_slot_ids[training_env_id]
+                if row_ids.device != target_device:
+                    row_ids = row_ids.to(device=target_device)
+                t_in_row = self.experience.t_in_row[training_env_id]
+                if t_in_row.device != target_device:
+                    t_in_row = t_in_row.to(device=target_device)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
@@ -421,17 +430,7 @@ class CoreTrainingLoop:
     def add_last_action_to_td(self, td: TensorDict) -> None:
         env_ids = td["training_env_ids"].squeeze(-1)
 
-        max_env_id = int(env_ids.max().item())
-        target_length = max_env_id + 1
-
-        if self.last_action is None:
-            self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
-        else:
-            if self.last_action.size(0) < target_length:
-                pad_shape = (target_length - self.last_action.size(0), self.last_action.size(1))
-                pad_tensor = torch.zeros(pad_shape, dtype=self.last_action.dtype, device=self.last_action.device)
-                self.last_action = torch.cat((self.last_action, pad_tensor), dim=0)
-            if self.last_action.device != td.device:
-                self.last_action = self.last_action.to(device=td.device)
+        if self.last_action.device != td.device:
+            self.last_action = self.last_action.to(device=td.device)
 
         td["last_actions"] = self.last_action[env_ids].detach()

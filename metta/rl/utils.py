@@ -7,16 +7,34 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
+_POLICY_METADATA_CACHE: dict[tuple[str, int, int], tuple[Tensor, Tensor]] = {}
+
+
+def _get_policy_metadata_tensors(
+    device: torch.device,
+    batch_size: int,
+    time_steps: int,
+) -> tuple[Tensor, Tensor]:
+    key = (str(device), batch_size, time_steps)
+    cached = _POLICY_METADATA_CACHE.get(key)
+    if cached is None or cached[0].device != device:
+        total = batch_size * time_steps
+        batch_tensor = torch.full((total,), batch_size, dtype=torch.long, device=device)
+        bptt_tensor = torch.full((total,), time_steps, dtype=torch.long, device=device)
+        _POLICY_METADATA_CACHE[key] = (batch_tensor, bptt_tensor)
+        return batch_tensor, bptt_tensor
+    return cached
+
 
 def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
     """Attach required sequence metadata to ``td`` if missing."""
 
-    total = batch_size * time_steps
     device = td.device
+    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(device, batch_size, time_steps)
     if "batch" not in td.keys():
-        td.set("batch", torch.full((total,), batch_size, dtype=torch.long, device=device))
+        td.set("batch", batch_tensor)
     if "bptt" not in td.keys():
-        td.set("bptt", torch.full((total,), time_steps, dtype=torch.long, device=device))
+        td.set("bptt", bptt_tensor)
 
 
 def prepare_policy_forward_td(
@@ -37,8 +55,9 @@ def prepare_policy_forward_td(
 
     B, TT = td.batch_size
     td = td.reshape(B * TT)
-    td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-    td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(td.device, B, TT)
+    td.set("bptt", bptt_tensor)
+    td.set("batch", batch_tensor)
 
     return td, B, TT
 

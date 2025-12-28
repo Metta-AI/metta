@@ -50,8 +50,9 @@ class Experience:
         self.buffer = spec.zero()
 
         # Row-aligned tracking (per-agent row slot id and position within row)
-        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int64)
+        self.t_in_row_cpu = torch.zeros(total_agents, device="cpu", dtype=torch.int64)
+        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int64) % self.segments
         self.free_idx = total_agents % self.segments
 
         # Minibatch configuration
@@ -85,7 +86,7 @@ class Experience:
             device=self.device,
             dtype=torch.float32,
         )
-        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
+        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int64)
 
         # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
@@ -106,7 +107,7 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-        t_in_row_val = int(self.t_in_row[env_id.start].item())
+        t_in_row_val = int(self.t_in_row_cpu[env_id.start].item())
         row_ids = self.row_slot_ids[env_id]
 
         # Scheduler updates these keys based on the active losses for the epoch.
@@ -116,6 +117,7 @@ class Experience:
             raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
         self.t_in_row[env_id] += 1
+        self.t_in_row_cpu[env_id] += 1
 
         if t_in_row_val + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
@@ -125,6 +127,7 @@ class Experience:
         num_full = env_id.stop - env_id.start
         self.row_slot_ids[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.t_in_row[env_id] = 0
+        self.t_in_row_cpu[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
@@ -134,6 +137,7 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.row_slot_ids = self._range_tensor % self.segments
         self.t_in_row.zero_()
+        self.t_in_row_cpu.zero_()
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
