@@ -122,7 +122,7 @@ class Checkpointer(TrainerComponent):
 
     def _save_policy(self, epoch: int) -> None:
         uri = self._checkpoint_manager.save_policy_checkpoint(
-            state_dict=getattr(self.context.policy, "module", self.context.policy).state_dict(),
+            state_dict=self.context.policy.state_dict(),
             architecture=self._policy_architecture,
             epoch=epoch,
         )

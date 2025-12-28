@@ -252,6 +252,12 @@ class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=Pol
         except AttributeError:
             return getattr(self.module, name)
 
+    def state_dict(self, *args, **kwargs):
+        return self.module.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        return self.module.load_state_dict(state_dict, *args, **kwargs)
+
 
 class ExternalPolicyWrapper(Policy):
     """Wrapper for generic policies that don't conform to Metta's internal agent interface.
