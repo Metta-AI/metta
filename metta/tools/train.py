@@ -289,13 +289,7 @@ class TrainTool(Tool):
                 )
             )
 
-            components.append(
-                Monitor(
-                    enabled=reporting_enabled,
-                    system_sampling_interval_sec=stats_config.monitor_sampling_interval_sec,
-                    system_history_size=stats_config.monitor_history_size,
-                )
-            )
+            components.append(Monitor(enabled=reporting_enabled))
             components.append(ProgressLogger())
         else:
             components.append(policy_checkpointer)

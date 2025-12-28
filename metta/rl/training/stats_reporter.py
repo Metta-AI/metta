@@ -107,12 +107,6 @@ class StatsReporterConfig(Config):
     grad_mean_variance_interval: int = 50
     interval: int = 1
     """How often to report stats (in epochs)"""
-    step_interval: int = 1
-    """How often to process rollout stats (in agent steps)."""
-    monitor_sampling_interval_sec: float = 1.0
-    """Sampling interval for system monitoring (seconds)."""
-    monitor_history_size: int = 100
-    """History size for system monitoring."""
     analyze_weights_interval: int = 0
     """How often to compute weight metrics (0 disables)."""
     dormant_neuron_threshold: float = 1e-6
@@ -141,7 +135,7 @@ class NoOpStatsReporter(TrainerComponent):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
         config = StatsReporterConfig(report_to_wandb=False, interval=999999)
-        super().__init__(epoch_interval=config.interval, step_interval=config.step_interval)
+        super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:
@@ -176,7 +170,7 @@ class StatsReporter(TrainerComponent):
         config: StatsReporterConfig,
         wandb_run: Optional[WandbRun] = None,
     ):
-        super().__init__(epoch_interval=config.interval, step_interval=config.step_interval)
+        super().__init__(epoch_interval=config.interval)
         self._config = config
         self._wandb_run = wandb_run
         self._state = StatsReporterState()
