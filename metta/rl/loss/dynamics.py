@@ -7,7 +7,6 @@ from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 
-from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 

@@ -4,7 +4,6 @@ from typing import Any
 import torch
 from pydantic import Field
 
-from metta.agent.policy import Policy
 from metta.rl.loss.contrastive import ContrastiveLoss
 from metta.rl.loss.loss import LossConfig
 from metta.rl.training import TrainingEnvironment

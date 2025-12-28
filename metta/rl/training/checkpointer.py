@@ -56,7 +56,7 @@ class Checkpointer(TrainerComponent):
             latest_uris = getattr(context, "latest_policy_uris", None)
             if latest_uris is None:
                 latest_uris = {}
-                setattr(context, "latest_policy_uris", latest_uris)
+                context.latest_policy_uris = latest_uris
             if self._policy_name:
                 latest_uris[self._policy_name] = self.get_latest_policy_uri()
 
@@ -163,7 +163,7 @@ class Checkpointer(TrainerComponent):
             latest_uris = getattr(self.context, "latest_policy_uris", None)
             if latest_uris is None:
                 latest_uris = {}
-                setattr(self.context, "latest_policy_uris", latest_uris)
+                self.context.latest_policy_uris = latest_uris
             latest_uris[self._policy_name] = uri
 
         # Log latest checkpoint URI to wandb if available

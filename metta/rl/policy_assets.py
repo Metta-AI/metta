@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Mapping, Optional
+from typing import Mapping
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.base_config import Config
