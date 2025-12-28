@@ -61,7 +61,6 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
         agent_step=0,
         epoch=0,
         timer=reporter.context.stopwatch,
-        optimizer=reporter.context.optimizer,
     )
 
     assert payload["env_game/assembler.heart.created"] == expected
