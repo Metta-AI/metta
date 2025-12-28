@@ -18,8 +18,6 @@ from metta.cogworks.curriculum import Curriculum
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
-from metta.common.util.startup_timing import log as log_startup_timing
-from metta.common.util.startup_timing import now as startup_now
 from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.trainer import Trainer
@@ -96,7 +94,6 @@ class TrainTool(Tool):
         return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        startup_total = startup_now()
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
@@ -105,9 +102,7 @@ class TrainTool(Tool):
             self.run = auto_run_name(prefix="local")
 
         if self.wandb == WandbConfig.Unconfigured():
-            wandb_cfg_start = startup_now()
             self.wandb = auto_wandb_config(self.run)
-            log_startup_timing(logger, "train.auto_wandb_config", wandb_cfg_start)
 
         if self.group:
             self.wandb.group = self.group
@@ -174,9 +169,7 @@ class TrainTool(Tool):
 
                 preflight_futures["stats_client"] = preflight_executor.submit(_init_stats_client)
 
-        env_start = startup_now()
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
-        log_startup_timing(logger, "train.env_init", env_start)
 
         self._configure_torch_backends()
 
@@ -188,14 +181,12 @@ class TrainTool(Tool):
                 logger.warning("Failed to resolve policy storage decision: %s", exc)
                 storage_decision = None
 
-        checkpoint_start = startup_now()
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
             system_cfg=self.system,
             require_remote_enabled=self.evaluator.evaluate_remote,
             storage_decision=storage_decision,
         )
-        log_startup_timing(logger, "train.checkpoint_manager", checkpoint_start)
 
         init_logging(run_dir=checkpoint_manager.run_dir)
         record_heartbeat()
@@ -206,25 +197,20 @@ class TrainTool(Tool):
             distributed_helper=distributed_helper,
             policy_architecture=self.policy_architecture,
         )
-        policy_start = startup_now()
         policy = checkpointer.load_or_create_policy(
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
-        log_startup_timing(logger, "train.policy_init", policy_start)
 
         if distributed_helper.is_master():
             total_params = sum(param.numel() for param in policy.parameters())
             trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
             logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
 
-        trainer_start = startup_now()
         trainer = self._initialize_trainer(env, policy, distributed_helper)
-        log_startup_timing(logger, "train.trainer_init", trainer_start)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        stats_start = startup_now()
         if "stats_client" in preflight_futures:
             try:
                 stats_client = preflight_futures["stats_client"].result()
@@ -233,13 +219,11 @@ class TrainTool(Tool):
                 stats_client = None
         else:
             stats_client = self._maybe_create_stats_client(distributed_helper)
-        log_startup_timing(logger, "train.stats_client", stats_start)
 
         if preflight_executor is not None:
             preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
         try:
-            log_startup_timing(logger, "train.pre_wandb_context_total", startup_total)
             with wandb_manager as wandb_run:
                 self._register_components(
                     trainer=trainer,
@@ -251,13 +235,7 @@ class TrainTool(Tool):
                     wandb_run=wandb_run,
                 )
 
-                restore_start = startup_now()
                 trainer.restore()
-                log_startup_timing(logger, "train.restore", restore_start)
-
-                if os.environ.get("METTA_STARTUP_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}:
-                    logger.info("Startup-only mode enabled; skipping training loop.")
-                    return 0
                 trainer.train()
 
             # Training completed successfully

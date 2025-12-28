@@ -32,8 +32,6 @@ from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.schema import get_pydantic_field_info
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
-from metta.common.util.startup_timing import log as log_startup_timing
-from metta.common.util.startup_timing import now as startup_now
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
 from metta.rl.system_config import seed_everything
 from mettagrid.base_config import Config
@@ -75,10 +73,6 @@ def output_exception(message: str) -> None:
         traceback.print_exc()
     else:
         logger.exception(message.strip())
-
-
-def _log_startup(label: str, start: float) -> None:
-    log_startup_timing(logger, label, start)
 
 
 # --------------------------------------------------------------------------------------
@@ -355,7 +349,6 @@ def list_module_tools(module_path: str, console: Console) -> bool:
 
 def main():
     """Main entry point using argparse."""
-    overall_start = startup_now()
     parser = argparse.ArgumentParser(
         description="Run a tool with automatic argument classification",
         add_help=False,  # Custom help handling for tool-specific help
@@ -416,10 +409,8 @@ constructor/function vs configuration overrides based on introspection.
         return 0
 
     # Initialize logging and environment
-    init_start = startup_now()
     init_logging()
     init_mettagrid_system_environment()
-    _log_startup("run_tool.init", init_start)
 
     # Enforce: unknown long options (starting with '-') are considered runner flags and not tool args.
     # Require users to separate with `--` if they want to pass after runner options.
@@ -486,19 +477,15 @@ constructor/function vs configuration overrides based on introspection.
     resolved_tool_path, args_consumed = parse_two_token_syntax(tool_path, second_token)
 
     # Try to load the tool maker with the resolved path
-    tool_load_start = startup_now()
     tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
-    _log_startup("run_tool.load_tool", tool_load_start)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args
 
     # Parse CLI arguments
     try:
-        parse_start = startup_now()
         cli_args = parse_cli_args(all_args)
         nested_cli = nestify(cli_args)
-        _log_startup("run_tool.parse_cli", parse_start)
     except ValueError as e:
         output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors
@@ -520,18 +507,15 @@ constructor/function vs configuration overrides based on introspection.
     #   - If class subclassing Tool (Pydantic model): validate the entire nested payload
     #   - If function: bind parameters from nested_cli/cli_args using annotations
     # ----------------------------------------------------------------------------------
-    config_start = startup_now()
     func_args_for_invoke: dict[str, str] = {}  # what we pass to tool.invoke (as strings)
     try:
         if inspect.isclass(tool_maker) and issubclass(tool_maker, Tool):
-            validate_start = startup_now()
             if known_args.verbose and nested_cli:
                 cls_name = tool_maker.__name__
                 output_info(f"\n{cyan(f'Creating {cls_name} from nested CLI payload:')}")
                 for k in sorted(nested_cli.keys()):
                     output_info(f"  {k} = {nested_cli[k]}")
             tool_cfg = tool_maker.model_validate(nested_cli)
-            _log_startup("run_tool.tool_validate", validate_start)
             remaining_args = {}  # all dotted/top-level consumed by model validation
         else:
             # Tool maker function that returns a Tool instance
@@ -600,9 +584,7 @@ constructor/function vs configuration overrides based on introspection.
                         output_info(f"  {name}={val!r}")
 
             # Construct via function
-            make_start = startup_now()
             tool_cfg = tool_maker(**func_kwargs)
-            _log_startup("run_tool.tool_make", make_start)
 
             # Remaining args = anything not consumed as function params
             remaining_args = {k: v for k, v in cli_args.items() if k not in consumed_keys}
@@ -651,16 +633,12 @@ constructor/function vs configuration overrides based on introspection.
             output_info(f"\n{cyan('Applying overrides:')}")
             for key, value in override_args.items():
                 output_info(f"  {key}={value}")
-        overrides_start = startup_now()
         for key, value in override_args.items():
             try:
                 tool_cfg = tool_cfg.override(key, value)
             except Exception as e:
                 output_exception(f"{red('Error applying override')} {key}={value}: {e}")
                 return 1
-        _log_startup("run_tool.apply_overrides", overrides_start)
-
-    _log_startup("run_tool.build_config", config_start)
 
     # ----------------------------------------------------------------------------------
     # Dry run check - exit here if --dry-run flag is set
@@ -677,7 +655,6 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     seed_everything(tool_cfg.system)
 
-    _log_startup("run_tool.pre_invoke_total", overall_start)
     output_info(f"\n{bold(green('Running tool...'))}\n")
 
     try:

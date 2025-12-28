@@ -15,8 +15,6 @@ from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.stats import SliceAnalyzer, StatsLogger
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig, SingleTaskGenerator
-from metta.common.util.startup_timing import log as log_startup_timing
-from metta.common.util.startup_timing import now as startup_now
 from mettagrid.base_config import Config
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -275,9 +273,7 @@ class Curriculum(StatsLogger):
         StatsLogger.__init__(self, enable_detailed_logging=False)
 
         self._config = config
-        task_gen_start = startup_now()
         self._task_generator = config.task_generator.create()
-        log_startup_timing(logger, "curriculum.task_generator_create", task_gen_start)
         self._rng = random.Random(seed)
         self._tasks: dict[int, CurriculumTask] = {}
         self._task_ids: set[int] = set()
@@ -286,17 +282,13 @@ class Curriculum(StatsLogger):
 
         self._algorithm: Optional[CurriculumAlgorithm] = None
         if config.algorithm_config is not None:
-            algorithm_start = startup_now()
             self._algorithm = config.algorithm_config.create(config.num_active_tasks)
-            log_startup_timing(logger, "curriculum.algorithm_init", algorithm_start)
             # Pass curriculum reference to algorithm for stats updates
             if hasattr(self._algorithm, "set_curriculum_reference"):
                 self._algorithm.set_curriculum_reference(self)
 
         # Always initialize task pool at capacity
-        init_start = startup_now()
         self._initialize_at_capacity()
-        log_startup_timing(logger, "curriculum.initialize_at_capacity", init_start)
 
     def get_task(self) -> CurriculumTask:
         """Sample a task from the population."""

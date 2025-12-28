@@ -15,8 +15,6 @@ from pydantic import Field
 from torch import Tensor
 
 from metta.cogworks.curriculum import Curriculum, CurriculumConfig, env_curriculum
-from metta.common.util.startup_timing import log as log_startup_timing
-from metta.common.util.startup_timing import now as startup_now
 from metta.rl.training.batch import calculate_batch_sizes
 from metta.rl.vecenv import make_vecenv
 from mettagrid.base_config import Config
@@ -139,13 +137,9 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._curriculum = None
         self._vecenv = None
 
-        curriculum_start = startup_now()
         self._curriculum = Curriculum(cfg.curriculum)
-        log_startup_timing(logger, "env.curriculum_init", curriculum_start)
 
-        env_cfg_start = startup_now()
         env_cfg = self._curriculum.get_task().get_env_cfg()
-        log_startup_timing(logger, "env.curriculum_env_cfg", env_cfg_start)
         self._num_agents = env_cfg.game.num_agents
 
         self._replay_directory: Path | None = None
@@ -169,14 +163,12 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
                 num_workers = max(1, ideal_workers)
 
         # Calculate batch sizes
-        batch_start = startup_now()
         self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(
             forward_pass_minibatch_target_size=cfg.forward_pass_minibatch_target_size,
             num_agents=self._num_agents,
             num_workers=num_workers,
             async_factor=async_factor,
         )
-        log_startup_timing(logger, "env.batch_sizes", batch_start)
 
         self._num_workers = num_workers
 
@@ -185,7 +177,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         if self._replay_directory is not None:
             replay_writer = ReplayLogWriter(str(self._replay_directory))
 
-        vecenv_start = startup_now()
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
@@ -197,7 +188,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             maps_cache_size=cfg.maps_cache_size,
             replay_writer=replay_writer,
         )
-        log_startup_timing(logger, "env.make_vecenv", vecenv_start)
 
         # NOTE: Downstream rollout code currently assumes that PufferLib returns
         # contiguous agent id ranges so we can treat them as a slice; that matches
@@ -205,14 +195,10 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         # we need to revisit the slice logic in CoreTrainingLoop.rollout_phase.
 
         # Initialize environment with seed
-        reset_start = startup_now()
         self._vecenv.async_reset(cfg.seed)
-        log_startup_timing(logger, "env.async_reset", reset_start)
 
         # Create policy environment interface from config
-        policy_info_start = startup_now()
         self._policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        log_startup_timing(logger, "env.policy_env_info", policy_info_start)
 
     def __repr__(self) -> str:
         return (
