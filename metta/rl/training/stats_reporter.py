@@ -363,7 +363,10 @@ class StatsReporter(TrainerComponent):
         if not isinstance(env_stats, dict):
             return
 
-        tracked_keys = set(env_stats.keys()) | set(self._state.rolling_stats.keys())
+        tracked_keys = set(self._config.default_zero_metrics)
+        for key in list(self._state.rolling_stats.keys()):
+            if key not in tracked_keys:
+                del self._state.rolling_stats[key]
         window = self._config.rolling_window
 
         for key in tracked_keys:
@@ -379,9 +382,7 @@ class StatsReporter(TrainerComponent):
                 continue
             history.append(scalar)
             env_stats.setdefault(key, scalar)
-            # Skip creating .avg versions for env_per_label metrics
-            if not (key.startswith("env_per_label_rewards/") or key.startswith("env_per_label_chest_deposits/")):
-                env_stats[f"{key}.avg"] = sum(history) / len(history)
+            env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
