@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Optional, Sequence
 
 if TYPE_CHECKING:
@@ -11,9 +10,6 @@ if TYPE_CHECKING:
     from metta.tools.stub import StubTool
     from metta.tools.sweep import SweepTool
     from metta.tools.train import TrainTool
-
-
-logger = logging.getLogger(__name__)
 
 
 def train(
@@ -137,11 +133,3 @@ def sweep(
         max_trials=max_trials,
         num_parallel_trials=num_parallel_trials,
     )
-
-
-__all__ = [
-    "train",
-    "train_sweep",
-    "evaluate_stub",
-    "sweep",
-]

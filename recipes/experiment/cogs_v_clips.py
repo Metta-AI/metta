@@ -225,7 +225,6 @@ def make_training_env(
         num_cogs=num_cogs,
         variant_names=variant_names,
     )
-
     env = prepared_mission.make_env()
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
@@ -377,18 +376,17 @@ def train(
         train_difficulty = eval_difficulty
 
     cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
-    if curriculum is None:
-        curriculum = make_curriculum(
-            num_cogs=num_cogs,
-            missions=training_missions,
-            enable_detailed_slice_logging=enable_detailed_slice_logging,
-            variants=variants,
-            difficulty=train_difficulty,
-            algorithm_config=cur_alg,
-            dr_variants=dr_variants,
-            dr_rewards=dr_rewards,
-            dr_misc=dr_misc,
-        )
+    curriculum = curriculum or make_curriculum(
+        num_cogs=num_cogs,
+        missions=training_missions,
+        enable_detailed_slice_logging=enable_detailed_slice_logging,
+        variants=variants,
+        difficulty=train_difficulty,
+        algorithm_config=cur_alg,
+        dr_variants=dr_variants,
+        dr_rewards=dr_rewards,
+        dr_misc=dr_misc,
+    )
 
     trainer_cfg = TrainerConfig(losses=LossesConfig())
 
@@ -526,7 +524,7 @@ def train_single_mission(
 
     curriculum_cfg = cc.env_curriculum(env)
 
-    tt = train(
+    return train(
         num_cogs=num_cogs,
         curriculum=curriculum_cfg,
         variants=variants,
@@ -536,7 +534,6 @@ def train_single_mission(
         teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
-    return tt
 
 
 def evaluate(

@@ -138,7 +138,6 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv = None
 
         self._curriculum = Curriculum(cfg.curriculum)
-
         env_cfg = self._curriculum.get_task().get_env_cfg()
         self._num_agents = env_cfg.game.num_agents
 

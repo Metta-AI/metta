@@ -485,10 +485,12 @@ constructor/function vs configuration overrides based on introspection.
     # Parse CLI arguments
     try:
         cli_args = parse_cli_args(all_args)
-        nested_cli = nestify(cli_args)
     except ValueError as e:
         output_error(f"{red('Error:')} {e}")
         return 2  # Exit code 2 for usage errors
+
+    # Build nested payload from dotted paths for Pydantic validation
+    nested_cli = nestify(cli_args)
 
     if tool_maker is None:
         output_error(f"{red('Error:')} Could not find tool '{tool_path}'")
