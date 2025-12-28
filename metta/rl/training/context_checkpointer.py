@@ -82,43 +82,22 @@ class ContextCheckpointer(TrainerComponent):
         optimizer_state = payload.get("optimizer")
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
-            # Defensive: skip restore if saved param groups lack keys the current optimizer expects.
-            cg, sg = context.optimizer.param_groups, optimizer_state.get("param_groups", [])
-            if cg:
-                req = set(cg[0])
-                valid = bool(sg) and not any(req - set(g) for g in sg)
-                if not valid:
-                    logger.warning("Checkpoint optimizer state missing param_group keys %s; skipping restore.", req)
-                    optimizer_state = None
-                    context.state.optimizer_state = None
-
-            try:
-                if optimizer_state:
-                    context.optimizer.load_state_dict(optimizer_state)
-            except (ValueError, KeyError) as exc:  # pragma: no cover - mismatch rare but we log it
-                logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
-            finally:
-                # Drop reference to the restored state to avoid retaining GPU buffers
-                context.state.optimizer_state = None
+            context.optimizer.load_state_dict(optimizer_state)
+            # Drop reference to the restored state to avoid retaining GPU buffers
+            context.state.optimizer_state = None
 
         stopwatch_state = payload.get("stopwatch_state")
         context.state.stopwatch_state = stopwatch_state
         wall_time_baseline = 0.0
         if stopwatch_state:
-            try:
-                context.stopwatch.load_state(stopwatch_state, resume_running=True)
-                wall_time_baseline = context.stopwatch.get_elapsed()
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning("Failed to restore stopwatch state: %s", exc)
+            context.stopwatch.load_state(stopwatch_state, resume_running=True)
+            wall_time_baseline = context.stopwatch.get_elapsed()
 
         curriculum_state = payload.get("curriculum_state")
         context.state.curriculum_state = curriculum_state
         if curriculum_state and context.curriculum is not None:
-            try:
-                context.curriculum.load_state(curriculum_state)
-                logger.info("Successfully restored curriculum state")
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning("Failed to restore curriculum state: %s", exc)
+            context.curriculum.load_state(curriculum_state)
+            logger.info("Successfully restored curriculum state")
 
         loss_states = payload.get("loss_states") or {}
         context.state.loss_states = loss_states
@@ -128,10 +107,7 @@ class ContextCheckpointer(TrainerComponent):
                 stored = loss_states.get(name)
                 if stored is None:
                     continue
-                try:
-                    loss.load_state_dict(stored, strict=False)
-                except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("Failed to restore loss state for %s: %s", name, exc)
+                loss.load_state_dict(stored, strict=False)
         context.state.loss_states = {}
 
         context.timing_baseline = {
@@ -147,9 +123,6 @@ class ContextCheckpointer(TrainerComponent):
             return
 
         policy_epoch = self.context.latest_saved_policy_epoch
-        if policy_epoch is None:
-            return
-
         if policy_epoch != self._last_synced_policy_epoch:
             self._save_state()
 
@@ -167,11 +140,7 @@ class ContextCheckpointer(TrainerComponent):
         current_epoch = context.epoch
         agent_step = context.agent_step
 
-        try:
-            context.state.stopwatch_state = context.stopwatch.save_state()
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.debug("Unable to capture stopwatch state: %s", exc)
-            context.state.stopwatch_state = None
+        context.state.stopwatch_state = context.stopwatch.save_state()
 
         context.state.optimizer_state = context.optimizer.state_dict()
         losses = getattr(context, "losses", None)
@@ -181,13 +150,9 @@ class ContextCheckpointer(TrainerComponent):
             context.state.loss_states = {}
 
         # Capture curriculum state
-        try:
-            if context.curriculum is not None:
-                context.state.curriculum_state = context.curriculum.get_state()
-            else:
-                context.state.curriculum_state = None
-        except Exception as exc:  # pragma: no cover - defensive guard
-            logger.debug("Unable to capture curriculum state: %s", exc)
+        if context.curriculum is not None:
+            context.state.curriculum_state = context.curriculum.get_state()
+        else:
             context.state.curriculum_state = None
 
         self._checkpoint_manager.save_trainer_state(
