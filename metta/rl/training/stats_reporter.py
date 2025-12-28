@@ -7,14 +7,11 @@ from typing import Any, ContextManager, Optional, Protocol
 
 import numpy as np
 import torch
-import torch.nn as nn
 from pydantic import Field
 
 from metta.common.wandb.context import WandbRun
-from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
-from metta.rl.utils import should_run
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -43,12 +40,9 @@ def _to_scalar(value: Any) -> Optional[float]:
 def build_wandb_payload(
     processed_stats: dict[str, Any],
     timing_info: dict[str, Any],
-    weight_stats: dict[str, Any],
     grad_stats: dict[str, float],
     system_stats: dict[str, Any],
     memory_stats: dict[str, Any],
-    parameters: dict[str, Any],
-    hyperparameters: dict[str, Any],
     *,
     agent_step: int,
     epoch: int,
@@ -87,12 +81,8 @@ def build_wandb_payload(
     _update(experience_stats, prefix="experience/")
 
     _update(processed_stats.get("environment_stats", {}))
-    _update(parameters, prefix="parameters/")
-    _update(hyperparameters, prefix="hyperparameters/")
-
     _update(system_stats)
     _update({f"trainer_memory/{k}": v for k, v in memory_stats.items()})
-    _update(weight_stats)
     _update(grad_stats)
     _update(timing_info.get("timing_stats", {}))
 
@@ -107,10 +97,6 @@ class StatsReporterConfig(Config):
     grad_mean_variance_interval: int = 50
     interval: int = 1
     """How often to report stats (in epochs)"""
-    analyze_weights_interval: int = 0
-    """How often to compute weight metrics (0 disables)."""
-    dormant_neuron_threshold: float = 1e-6
-    """Threshold for considering a neuron dormant based on mean absolute weight magnitude."""
     rolling_window: int = Field(default=5, ge=1, description="Number of epochs for metric rolling averages")
     default_zero_metrics: tuple[str, ...] = Field(
         default_factory=lambda: ("env_game/assembler.heart.created",),
@@ -208,7 +194,6 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
-        optimizer: torch.optim.Optimizer,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -221,7 +206,6 @@ class StatsReporter(TrainerComponent):
                 agent_step=agent_step,
                 epoch=epoch,
                 timer=timer,
-                optimizer=optimizer,
             )
 
             # Update area under reward curve
@@ -280,7 +264,6 @@ class StatsReporter(TrainerComponent):
             policy=ctx.policy,
             timer=ctx.stopwatch,
             trainer_cfg=ctx.config,
-            optimizer=ctx.optimizer,
         )
 
     def on_training_complete(self) -> None:
@@ -316,7 +299,6 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
-        optimizer: torch.optim.Optimizer,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 
@@ -355,28 +337,15 @@ class StatsReporter(TrainerComponent):
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
-        weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
-        dormant_stats = self._compute_dormant_neuron_stats(policy=policy)
-        if dormant_stats:
-            weight_stats.update(dormant_stats)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
-        parameters = self._collect_parameters(
-            experience=experience,
-            optimizer=optimizer,
-            timing_info=timing_info,
-        )
-        hyperparameters = self._collect_hyperparameters(trainer_cfg=trainer_cfg, parameters=parameters)
 
         return build_wandb_payload(
             processed_stats=processed,
             timing_info=timing_info,
-            weight_stats=weight_stats,
             grad_stats=self._state.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
-            parameters=parameters,
-            hyperparameters=hyperparameters,
             agent_step=agent_step,
             epoch=epoch,
         )
@@ -433,43 +402,6 @@ class StatsReporter(TrainerComponent):
         if isinstance(timing_stats, dict):
             timing_stats["timing_cumulative/sps"] = sps
 
-    def _collect_weight_stats(self, *, policy: Any, epoch: int) -> dict[str, float]:
-        interval = self._config.analyze_weights_interval
-        if not interval:
-            policy_config = getattr(policy, "config", None)
-            interval = getattr(policy_config, "analyze_weights_interval", 0) if policy_config else 0
-
-        if not interval or not should_run(epoch, interval):
-            return {}
-
-        if not hasattr(policy, "compute_weight_metrics"):
-            return {}
-
-        weight_stats: dict[str, float] = {}
-        try:
-            for metrics in policy.compute_weight_metrics():
-                name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key == "name":
-                        continue
-                    scalar = _to_scalar(value)
-                    if scalar is None:
-                        continue
-                    weight_stats[f"weights/{key}/{name}"] = scalar
-        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
-            logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
-        return weight_stats
-
-    def _compute_dormant_neuron_stats(self, *, policy: Any) -> dict[str, float]:
-        if not isinstance(policy, nn.Module):
-            return {}
-        threshold = getattr(self._config, "dormant_neuron_threshold", 1e-6)
-        try:
-            return compute_dormant_neuron_stats(policy, threshold=threshold)
-        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
-            logger.debug("Failed to compute dormant neuron stats: %s", exc, exc_info=True)
-            return {}
-
     def _collect_system_stats(self) -> dict[str, Any]:
         system_monitor = getattr(self.context, "system_monitor", None)
         if system_monitor is None:
@@ -489,80 +421,3 @@ class StatsReporter(TrainerComponent):
         except Exception as exc:  # pragma: no cover
             logger.debug("Memory monitor stats failed: %s", exc, exc_info=True)
             return {}
-
-    def _collect_parameters(
-        self,
-        *,
-        experience: Any,
-        optimizer: torch.optim.Optimizer,
-        timing_info: dict[str, Any],
-    ) -> dict[str, Any]:
-        learning_rate = getattr(self.context.config.optimizer, "learning_rate", 0)
-        if optimizer and optimizer.param_groups:
-            learning_rate = optimizer.param_groups[0].get("lr", learning_rate)
-
-        parameters: dict[str, Any] = {
-            "learning_rate": learning_rate,
-            "epoch_steps": timing_info.get("epoch_steps", 0),
-            "num_minibatches": getattr(experience, "num_minibatches", 0),
-        }
-
-        # Add ScheduleFree optimizer information
-        if optimizer and optimizer.param_groups:
-            param_group = optimizer.param_groups[0]
-            is_schedulefree = "train_mode" in param_group
-
-            if is_schedulefree:
-                scheduled_lr = param_group.get("scheduled_lr")
-                if scheduled_lr is not None:
-                    parameters["schedulefree_scheduled_lr"] = scheduled_lr
-                lr_max = param_group.get("lr_max")
-                if lr_max is not None:
-                    parameters["schedulefree_lr_max"] = lr_max
-
-        return parameters
-
-    def _collect_hyperparameters(
-        self,
-        *,
-        trainer_cfg: Any,
-        parameters: dict[str, Any],
-    ) -> dict[str, Any]:
-        hyperparameters: dict[str, Any] = {}
-        if "learning_rate" in parameters:
-            hyperparameters["learning_rate"] = parameters["learning_rate"]
-
-        optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
-        if optimizer_cfg:
-            hyperparameters["optimizer_type"] = optimizer_cfg.type
-            if "schedulefree" in optimizer_cfg.type:
-                warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
-                if warmup_steps is not None:
-                    hyperparameters["schedulefree_warmup_steps"] = warmup_steps
-
-        losses = getattr(trainer_cfg, "losses", None)
-        loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
-        if isinstance(loss_configs, dict):
-            ppo_actor_cfg = loss_configs.get("ppo_actor")
-            if ppo_actor_cfg is not None:
-                for attr in ("clip_coef", "ent_coef", "norm_adv", "target_kl"):
-                    value = getattr(ppo_actor_cfg, attr, None)
-                    if value is None:
-                        continue
-                    hyperparameters[f"ppo_actor_{attr}"] = value
-
-            ppo_critic_cfg = loss_configs.get("ppo_critic")
-            if ppo_critic_cfg is not None:
-                for attr in (
-                    "vf_coef",
-                    "vf_clip_coef",
-                    "clip_vloss",
-                    "critic_update",
-                    "aux_coef",
-                    "beta",
-                ):
-                    value = getattr(ppo_critic_cfg, attr, None)
-                    if value is None:
-                        continue
-                    hyperparameters[f"ppo_critic_{attr}"] = value
-        return hyperparameters

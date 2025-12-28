@@ -60,11 +60,6 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
         "env_agent/movement.direction.down",
         "env_agent/movement.direction.left",
         "env_agent/movement.direction.right",
-        "env_agent/movement.sequential_rotations",
-        "env_agent/movement.rotation.to_up",
-        "env_agent/movement.rotation.to_down",
-        "env_agent/movement.rotation.to_left",
-        "env_agent/movement.rotation.to_right",
     }
 
     for key, value in stats.items():

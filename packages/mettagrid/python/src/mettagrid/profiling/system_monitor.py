@@ -103,9 +103,6 @@ class SystemMonitor:
         self._metric_collectors = {
             # CPU metrics
             "cpu_percent": lambda: psutil.cpu_percent(interval=0),
-            "cpu_count": lambda: psutil.cpu_count(),
-            "cpu_count_logical": lambda: psutil.cpu_count(logical=True),
-            "cpu_count_physical": lambda: psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True),
             # Memory metrics
             "memory_percent": lambda: psutil.virtual_memory().percent,
             "memory_available_mb": lambda: psutil.virtual_memory().available / (1024 * 1024),
