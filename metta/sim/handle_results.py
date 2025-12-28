@@ -22,9 +22,8 @@ from metta.common.util.collections import remove_none_keys
 from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.common.wandb.context import WandbRun
 from metta.rl.wandb import (
-    POLICY_EVALUATOR_EPOCH_METRIC,
     POLICY_EVALUATOR_METRIC_PREFIX,
-    POLICY_EVALUATOR_STEP_METRIC,
+    build_evaluator_step_metrics,
     setup_policy_evaluator_metrics,
 )
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
@@ -181,7 +180,7 @@ def send_eval_results_to_wandb(
         except Exception:
             logger.error("Failed to set default axes for policy evaluator metrics. Continuing", exc_info=True)
             pass
-        metrics_to_log.update({POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
+        metrics_to_log.update(build_evaluator_step_metrics(agent_step=agent_step, epoch=epoch))
         wandb_run.log(metrics_to_log)
     else:
         wandb_run.log(metrics_to_log, step=epoch)

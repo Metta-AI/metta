@@ -15,6 +15,7 @@ from metta.rl.model_analysis import compute_dormant_neuron_stats
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
 from metta.rl.utils import should_run
+from metta.rl.wandb import TRAIN_TOTAL_TIME_METRIC, build_training_step_metrics
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,6 @@ def build_wandb_payload(
 
     overview: dict[str, Any] = {
         "sps": timing_info.get("epoch_steps_per_second", 0.0),
-        "steps_per_second": timing_info.get("steps_per_second", 0.0),
         "epoch_steps_per_second": timing_info.get("epoch_steps_per_second", 0.0),
         **processed_stats.get("overview", {}),
     }
@@ -65,10 +65,8 @@ def build_wandb_payload(
         overview["reward_vs_total_time"] = overview["reward"]
 
     payload: dict[str, float] = {
-        "metric/agent_step": float(agent_step),
-        "metric/epoch": float(epoch),
-        "metric/total_time": float(timing_info.get("wall_time", 0.0)),
-        "metric/train_time": float(timing_info.get("train_time", 0.0)),
+        **build_training_step_metrics(agent_step=agent_step, epoch=epoch),
+        TRAIN_TOTAL_TIME_METRIC: float(timing_info.get("wall_time", 0.0)),
     }
 
     def _update(items: dict[str, Any], *, prefix: str = "") -> None:
@@ -80,8 +78,6 @@ def build_wandb_payload(
             payload[metric_key] = scalar
 
     _update(overview, prefix="overview/")
-    _update(processed_stats.get("losses_stats", {}), prefix="losses/")
-
     # Get experience stats and compute area under reward
     experience_stats = processed_stats.get("experience_stats", {})
     _update(experience_stats, prefix="experience/")

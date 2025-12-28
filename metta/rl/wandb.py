@@ -10,19 +10,56 @@ from metta.common.wandb.context import WandbRun
 logger = logging.getLogger(__name__)
 
 
+TRAIN_AGENT_STEP_METRIC = "metric/agent_step"
+TRAIN_EPOCH_METRIC = "metric/epoch"
+TRAIN_TOTAL_TIME_METRIC = "metric/total_time"
+TRAIN_TRAIN_TIME_METRIC = "metric/train_time"
+
 POLICY_EVALUATOR_METRIC_PREFIX = "evaluator"
 POLICY_EVALUATOR_STEP_METRIC = "metric/evaluator_agent_step"
 POLICY_EVALUATOR_EPOCH_METRIC = "metric/evaluator_epoch"
 
 
+def build_step_metrics(
+    agent_step: int,
+    epoch: int,
+    *,
+    step_metric: str,
+    epoch_metric: str,
+) -> dict[str, float]:
+    return {step_metric: float(agent_step), epoch_metric: float(epoch)}
+
+
+def build_training_step_metrics(agent_step: int, epoch: int) -> dict[str, float]:
+    return build_step_metrics(
+        agent_step=agent_step,
+        epoch=epoch,
+        step_metric=TRAIN_AGENT_STEP_METRIC,
+        epoch_metric=TRAIN_EPOCH_METRIC,
+    )
+
+
+def build_evaluator_step_metrics(agent_step: int, epoch: int) -> dict[str, float]:
+    return build_step_metrics(
+        agent_step=agent_step,
+        epoch=epoch,
+        step_metric=POLICY_EVALUATOR_STEP_METRIC,
+        epoch_metric=POLICY_EVALUATOR_EPOCH_METRIC,
+    )
+
+
 def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs."""
-    metrics = ["agent_step", "epoch", "total_time", "train_time"]
-    for metric in metrics:
-        wandb_run.define_metric(f"metric/{metric}")
+    for metric in (
+        TRAIN_AGENT_STEP_METRIC,
+        TRAIN_EPOCH_METRIC,
+        TRAIN_TOTAL_TIME_METRIC,
+        TRAIN_TRAIN_TIME_METRIC,
+    ):
+        wandb_run.define_metric(metric)
 
-    wandb_run.define_metric("*", step_metric="metric/agent_step")
-    wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
+    wandb_run.define_metric("*", step_metric=TRAIN_AGENT_STEP_METRIC)
+    wandb_run.define_metric("overview/reward_vs_total_time", step_metric=TRAIN_TOTAL_TIME_METRIC)
     setup_policy_evaluator_metrics(wandb_run)
 
 

@@ -4,7 +4,12 @@ from typing import Dict
 
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
-from metta.rl.wandb import log_model_parameters, setup_wandb_metrics
+from metta.rl.wandb import (
+    TRAIN_TRAIN_TIME_METRIC,
+    build_training_step_metrics,
+    log_model_parameters,
+    setup_wandb_metrics,
+)
 
 
 class WandbLogger(TrainerComponent):
@@ -25,9 +30,8 @@ class WandbLogger(TrainerComponent):
     def on_epoch_end(self, epoch: int) -> None:  # noqa: D401 - documented in base class
         context = self.context
         payload: Dict[str, float] = {
-            "metric/agent_step": float(context.agent_step),
-            "metric/epoch": float(context.epoch),
-            "metric/train_time": float(context.stopwatch.get_last_elapsed("_train")),
+            **build_training_step_metrics(agent_step=context.agent_step, epoch=context.epoch),
+            TRAIN_TRAIN_TIME_METRIC: float(context.stopwatch.get_last_elapsed("_train")),
             "metric/rollout_time": float(context.stopwatch.get_last_elapsed("_rollout")),
             "metric/stats_time": float(context.stopwatch.get_last_elapsed("_process_stats")),
         }
@@ -44,7 +48,7 @@ class WandbLogger(TrainerComponent):
                 metric_name = f"metric/rollout_{timer_name[9:].replace('.', '_')}_time"
                 payload[metric_name] = delta
 
-        total_time = payload["metric/train_time"] + payload["metric/rollout_time"] + payload["metric/stats_time"]
+        total_time = payload[TRAIN_TRAIN_TIME_METRIC] + payload["metric/rollout_time"] + payload["metric/stats_time"]
         steps_delta = context.agent_step - self._last_agent_step
         if total_time > 0 and steps_delta > 0:
             payload["overview/steps_per_second"] = float(steps_delta / total_time)
