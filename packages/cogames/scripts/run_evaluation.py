@@ -217,7 +217,8 @@ def load_policy(
             device_override=str(device),
         )
 
-    return initialize_or_load_policy(policy_env_info, PolicySpec(class_path=policy_path, data_path=None))
+    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
+    return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
@@ -1146,9 +1147,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate checkpoint policies.")
-    parser.add_argument("--agent", nargs="*", default=None, help="Agent key or checkpoint directory URI (s3://...)")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Deprecated (use --agent with URI)")
+    parser = argparse.ArgumentParser(description="Evaluate scripted or custom agents.")
+    parser.add_argument("--agent", nargs="*", default=None, help="Agent key, class path, or S3 URI")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (or S3 URI)")
     parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
     parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
@@ -1203,7 +1204,8 @@ def main():
             label = Path(agent_key).stem if "/" in agent_key else agent_key
             configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
         else:
-            raise ValueError("Unknown agent. Use a built-in key or a checkpoint URI.")
+            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+            configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
 

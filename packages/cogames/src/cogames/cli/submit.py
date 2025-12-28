@@ -253,6 +253,7 @@ def create_submission_zip(
 
         for file_path in include_files:
             if file_path.is_dir():
+                # Add all files in directory recursively
                 for root, _, files in os.walk(file_path):
                     for file in files:
                         file_full_path = Path(root) / file
@@ -260,6 +261,7 @@ def create_submission_zip(
                         console.print(f"[dim]  Adding: {arcname}[/dim]")
                         zipf.write(file_full_path, arcname=arcname)
             else:
+                # Add single file
                 console.print(f"[dim]  Adding: {file_path}[/dim]")
                 zipf.write(file_path, arcname=file_path)
 

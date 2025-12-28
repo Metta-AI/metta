@@ -7,9 +7,7 @@ from pydantic import BaseModel, model_validator
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
-from mettagrid.policy.prepare_policy_spec import (
-    download_policy_spec_from_s3_as_zip,
-)
+from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -93,7 +91,7 @@ def _no_python_sockets():
 
 def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, device: str = "cpu") -> None:
     job = job.model_copy()
-    # Pull each policy onto the local filesystem, leaving zip archives unextracted.
+    # Pull each policy onto the local filesystem, leave them as zip files
     local_uris: list[str] = []
     for uri in job.policy_uris:
         resolved = resolve_uri(uri)

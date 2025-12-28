@@ -24,7 +24,7 @@ def _run_single_simulation(
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, spec, device_override=device_override) for spec in policy_specs
+        initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
     ]
 
     if replay_dir:
