@@ -27,13 +27,21 @@ ASCII_MAP = [
     list("#####"),
 ]
 
+ASCII_MAP_TWO = [
+    list("#####"),
+    list("#.@.#"),
+    list("#.&.#"),
+    list("#.@.#"),
+    list("#####"),
+]
+
 _BASE_STATION = CvCAssemblerConfig()
 FIRST_HEART_COST = _BASE_STATION.first_heart_cost
 ADDITIONAL_HEART_COST = _BASE_STATION.additional_heart_cost
 
 
-def _make_simulation() -> Simulation:
-    cfg = MettaGridConfig.EmptyRoom(num_agents=4, with_walls=True)
+def _make_simulation(num_agents: int = 4, ascii_map: list[list[str]] = ASCII_MAP) -> Simulation:
+    cfg = MettaGridConfig.EmptyRoom(num_agents=num_agents, with_walls=True)
     cfg.game.resource_names = RESOURCES
     cfg.game.agent.inventory.default_limit = 255
     cfg.game.agent.inventory.limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
@@ -49,7 +57,7 @@ def _make_simulation() -> Simulation:
     cfg.game.objects["assembler"] = assembler_cfg
 
     cfg = cfg.with_ascii_map(
-        ASCII_MAP,
+        ascii_map,
         char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "&": "assembler"},
     )
     return Simulation(cfg)
@@ -196,5 +204,37 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
 
         silicon_consumers = sum(after[agent_id]["silicon"] < before[agent_id]["silicon"] for agent_id in (east, south))
         assert silicon_consumers == 2
+    finally:
+        sim.close()
+
+
+def test_two_agent_heart_chorus_map_outputs_two_hearts() -> None:
+    sim = _make_simulation(num_agents=2, ascii_map=ASCII_MAP_TWO)
+    try:
+        positions, assembler_pos = _agent_positions(sim)
+        north = positions[(1, 2)]
+        south = positions[(3, 2)]
+
+        _assign_inventories(
+            sim,
+            {
+                north: {"carbon": 15, "oxygen": 5},
+                south: {"oxygen": 10, "germanium": 3, "silicon": 45},
+            },
+        )
+
+        _step(sim, {north: "change_vibe_heart_a", south: "change_vibe_heart_a"})
+        before = _capture_inventories(sim)
+        _step(sim, {north: _move_action((1, 2), assembler_pos)})
+        after = _capture_inventories(sim)
+
+        expected_inputs = _expected_inputs(2)
+        for resource, expected in expected_inputs.items():
+            assert _total(before, resource) - _total(after, resource) == expected, resource
+        assert _total(after, "heart") - _total(before, "heart") == 2
+
+        _step(sim, {})
+        after_noop = _capture_inventories(sim)
+        assert _total(after_noop, "heart") == _total(after, "heart")
     finally:
         sim.close()
