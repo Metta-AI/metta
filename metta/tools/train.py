@@ -151,57 +151,58 @@ class TrainTool(Tool):
                 class_path = resolve_policy_class_path(sup_uri)
                 supervisor_policy_spec = PolicySpec(class_path=class_path)
 
-        preflight_executor: ThreadPoolExecutor | None = None
-        storage_future: Future[PolicyStorageDecision] | None = None
-        stats_future: Future[Optional[StatsClient]] | None = None
-        if not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri):
-            preflight_executor = ThreadPoolExecutor(max_workers=2)
-            if not self.system.local_only:
-                storage_future = preflight_executor.submit(auto_policy_storage_decision, self.run or "default")
+        need_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
+        preflight_context = ThreadPoolExecutor(max_workers=2) if need_preflight else contextlib.nullcontext(None)
+        with preflight_context as preflight_executor:
+            storage_future: Future[PolicyStorageDecision] | None = None
+            stats_future: Future[Optional[StatsClient]] | None = None
+            if preflight_executor is not None:
+                if not self.system.local_only:
+                    storage_future = preflight_executor.submit(auto_policy_storage_decision, self.run or "default")
 
-            if distributed_helper.is_master() and self.stats_server_uri:
-                stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
+                if distributed_helper.is_master() and self.stats_server_uri:
+                    stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
 
-        env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
+            env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
-        self._configure_torch_backends()
+            self._configure_torch_backends()
 
-        storage_decision = storage_future.result() if storage_future else None
+            storage_decision = storage_future.result() if storage_future else None
 
-        checkpoint_manager = CheckpointManager(
-            run=self.run or "default",
-            system_cfg=self.system,
-            require_remote_enabled=self.evaluator.evaluate_remote,
-            storage_decision=storage_decision,
-        )
+            checkpoint_manager = CheckpointManager(
+                run=self.run or "default",
+                system_cfg=self.system,
+                require_remote_enabled=self.evaluator.evaluate_remote,
+                storage_decision=storage_decision,
+            )
 
-        init_logging(run_dir=checkpoint_manager.run_dir)
-        record_heartbeat()
+            init_logging(run_dir=checkpoint_manager.run_dir)
+            record_heartbeat()
 
-        checkpointer = Checkpointer(
-            config=self.checkpointer,
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            policy_architecture=self.policy_architecture,
-        )
-        policy = checkpointer.load_or_create_policy(
-            env.policy_env_info,
-            policy_uri=self.initial_policy_uri,
-        )
+            checkpointer = Checkpointer(
+                config=self.checkpointer,
+                checkpoint_manager=checkpoint_manager,
+                distributed_helper=distributed_helper,
+                policy_architecture=self.policy_architecture,
+            )
+            policy = checkpointer.load_or_create_policy(
+                env.policy_env_info,
+                policy_uri=self.initial_policy_uri,
+            )
 
-        if distributed_helper.is_master():
-            total_params = sum(param.numel() for param in policy.parameters())
-            trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
-            logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
+            if distributed_helper.is_master():
+                total_params = sum(param.numel() for param in policy.parameters())
+                trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
+                logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
 
-        trainer = self._initialize_trainer(env, policy, distributed_helper)
+            trainer = self._initialize_trainer(env, policy, distributed_helper)
 
-        self._log_run_configuration(distributed_helper, checkpoint_manager, env)
+            self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        stats_client = stats_future.result() if stats_future else self._maybe_create_stats_client(distributed_helper)
+            stats_client = (
+                stats_future.result() if stats_future else self._maybe_create_stats_client(distributed_helper)
+            )
 
-        if preflight_executor is not None:
-            preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
 
         try:
