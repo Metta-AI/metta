@@ -31,7 +31,7 @@ def handle_errors(fn):
     return wrapper
 
 
-LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
+LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5433/metta"
 LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
 LOCAL_BACKEND_URL_FROM_K8S = "http://host.docker.internal:8000"
 LOCAL_MACHINE_TOKEN = "local-dev-token"
@@ -89,10 +89,11 @@ repo_root = get_repo_root()
 @handle_errors
 def postgres(ctx: typer.Context):
     cmd = ["docker", "compose", "-f", str(repo_root / "app_backend" / "docker-compose.dev.yml")]
-    if ctx.args:
-        cmd.extend(ctx.args)
-    else:
-        cmd.append("up")
+    args = ctx.args if ctx.args else ["up"]
+    # Add --wait when running detached to ensure db is ready
+    if "up" in args and "-d" in args and "--wait" not in args:
+        args = args + ["--wait"]
+    cmd.extend(args)
     subprocess.run(cmd, check=True)
 
 
