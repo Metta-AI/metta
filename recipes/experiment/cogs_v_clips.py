@@ -14,7 +14,7 @@ from cogames.cli.mission import find_mission, parse_variants
 
 # eval_missions.py was deleted - missions moved to integrated_evals.py
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
-from cogames.cogs_vs_clips.missions import get_core_missions
+from cogames.cogs_vs_clips.missions import get_core_missions, get_missions
 from cogames.cogs_vs_clips.variants import VARIANTS
 from devops.stable.registry import ci_job, stable_job
 from devops.stable.runner import AcceptanceCriterion
@@ -84,6 +84,10 @@ def _normalize_variant_names(
 
 def _resolve_mission_template(name: str) -> Mission:
     for mission in get_core_missions():
+        if mission.name == name or mission.full_name() == name:
+            return mission
+
+    for mission in get_missions():
         if mission.name == name or mission.full_name() == name:
             return mission
 
