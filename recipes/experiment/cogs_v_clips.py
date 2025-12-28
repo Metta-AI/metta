@@ -213,7 +213,7 @@ def make_eval_suite(
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "training_facility.harvest",
+    mission: str = "easy_hearts",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -500,7 +500,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "training_facility.harvest",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -582,7 +582,7 @@ def evaluate_remote(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "training_facility.harvest",
+    mission: str = "easy_hearts",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -608,7 +608,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="training_facility.harvest",
+        mission="easy_hearts",
         num_cogs=num_cogs,
         variants=variants,
     )
@@ -815,11 +815,7 @@ def sweep(
 @ci_job(timeout_s=240)
 def train_ci() -> TrainTool:
     """Minimal CvC train for CI smoke test."""
-    env = make_training_env(
-        num_cogs=2,
-        mission="training_facility.harvest",
-        variants=["lonely_heart", "heart_chorus", "pack_rat"],
-    )
+    env = make_training_env(num_cogs=2, mission="easy_hearts", variants=["lonely_heart", "heart_chorus", "pack_rat"])
     curriculum_cfg = cc.env_curriculum(env)
     return TrainTool(
         trainer=TrainerConfig(
@@ -847,8 +843,8 @@ def train_ci() -> TrainTool:
 @ci_job(timeout_s=120)
 def play_ci() -> PlayTool:
     """CvC play test with random policy."""
-    env = make_training_env(num_cogs=2, mission="training_facility.harvest")
-    sim = SimulationConfig(suite="cogs_vs_clips", name="harvest_ci", env=env)
+    env = make_training_env(num_cogs=2, mission="easy_hearts")
+    sim = SimulationConfig(suite="cogs_vs_clips", name="easy_hearts_ci", env=env)
     return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
 
 

@@ -224,6 +224,7 @@ class TrainTool(Tool):
         if preflight_executor is not None:
             preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
+
         try:
             with wandb_manager as wandb_run:
                 self._register_components(

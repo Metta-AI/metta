@@ -14,7 +14,7 @@ clarity and without the pufferlib dependency.
 
 To use this template:
 1. Modify MyNetwork to implement your desired architecture
-2. Run: cogames tutorial train -m training_facility.harvest -p class=my_trainable_policy.MyTrainablePolicy
+2. Run: cogames tutorial train -m easy_hearts -p class=my_trainable_policy.MyTrainablePolicy
 """
 
 from __future__ import annotations

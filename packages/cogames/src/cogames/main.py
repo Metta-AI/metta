@@ -524,13 +524,11 @@ def make_policy(
         console.print(f"[green]{policy_type} policy template copied to: {dest_path}[/green]")
 
         if trainable:
-            train_command = (
-                f"cogames tutorial train -m training_facility.harvest -p class={dest_path.stem}.{policy_class}"
+            console.print(
+                f"[dim]Train with: cogames tutorial train -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]"
             )
-            console.print(f"[dim]Train with: {train_command}[/dim]")
         else:
-            play_command = f"cogames play -m training_facility.harvest -p class={dest_path.stem}.{policy_class}"
-            console.print(f"[dim]Play with: {play_command}[/dim]")
+            console.print(f"[dim]Play with: cogames play -m easy_hearts -p class={dest_path.stem}.{policy_class}[/dim]")
 
     except Exception as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")

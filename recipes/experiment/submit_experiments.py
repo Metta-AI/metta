@@ -10,6 +10,9 @@ S3_SUCCESSFUL_EVAL_MISSIONS = [
     "diagnostic_chest_navigation3",
     "diagnostic_extract_missing_oxygen",
     "diagnostic_extract_missing_silicon",
+    "easy_hearts",
+    "easy_hearts_hello_world",
+    "easy_hearts_training_facility",
     "repair",
     "vibe_check",
 ]

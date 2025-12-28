@@ -59,6 +59,7 @@ EVALS: List[Tuple[str, str, int]] = [
     ("distant_resources", "buggy", NUM_COGS),  # Not enough time for such distances.
     ("quadrant_buildings", "buggy", NUM_COGS),  # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
+    ("easy_hearts", "flakey", NUM_COGS),
     ("oxygen_bottleneck_easy", "", NUM_COGS),
     ("oxygen_bottleneck_standard", "", NUM_COGS),
     ("oxygen_bottleneck_hard", "buggy", NUM_COGS),  # Not enough charger for such distances.
@@ -84,9 +85,12 @@ EVALS: List[Tuple[str, str, int]] = [
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "", NUM_COGS),
     ("easy_small_hearts", "flakey", NUM_COGS),
+    ("easy_hearts_training", "buggy", NUM_COGS),  # No/invalid recipes available.
     # Missions from missions.py
     ("harvest", "", NUM_COGS),
     ("repair", "", 2),  # repair uses 2 cogs
+    ("easy_hearts_training_facility", "", NUM_COGS),
+    ("easy_hearts_hello_world", "", NUM_COGS),
     ("hello_world_unclip", "", NUM_COGS),
 ]
 
