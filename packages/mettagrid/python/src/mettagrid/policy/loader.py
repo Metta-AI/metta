@@ -9,6 +9,9 @@ import pkgutil
 from pathlib import Path
 from typing import Optional
 
+import torch
+from safetensors.torch import load as load_safetensors
+
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.policy_registry import get_policy_registry
@@ -30,7 +33,16 @@ def initialize_or_load_policy(
 
     kwargs = policy_spec.init_kwargs or {}
     if "architecture_spec" in kwargs:
-        policy = _initialize_from_architecture_spec(policy_env_info, policy_spec, device_override)
+        architecture_spec = kwargs["architecture_spec"]
+        policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=True).from_spec(
+            architecture_spec
+        )
+        policy = policy_architecture.make_policy(policy_env_info)
+        device = torch.device(device_override or kwargs.get("device", "cpu"))
+        policy = policy.to(device)
+        state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+        policy.load_state_dict(dict(state_dict))
+        policy.initialize_to_environment(policy_env_info, device)
     else:
         policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
         # We're planning to remove kwargs from the policy spec, maybe in January
@@ -53,31 +65,6 @@ def initialize_or_load_policy(
                 f"(which returns AgentPolicy via `agent_policy`)"
             )
         raise TypeError(f"Policy {policy_spec.class_path} is not a MultiAgentPolicy")
-
-    return policy
-
-
-def _initialize_from_architecture_spec(
-    policy_env_info: PolicyEnvInterface,
-    policy_spec: PolicySpec,
-    device_override: str | None = None,
-) -> MultiAgentPolicy:
-    kwargs = policy_spec.init_kwargs or {}
-    architecture_spec = kwargs["architecture_spec"]
-    policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=True).from_spec(architecture_spec)
-    policy = policy_architecture.make_policy(policy_env_info)
-
-    device = device_override or kwargs.get("device", "cpu")
-    import torch
-
-    policy = policy.to(torch.device(device))
-
-    from safetensors.torch import load as load_safetensors
-
-    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
-    policy.load_state_dict(dict(state_dict))
-
-    policy.initialize_to_environment(policy_env_info, torch.device(device))
 
     return policy
 

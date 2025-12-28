@@ -133,49 +133,6 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
 _executed_setup_scripts: set[Path] = set()
 
 
-def _load_policy_spec_from_local_dir(
-    extraction_root: Path,
-    *,
-    device: str | None = None,
-) -> PolicySpec:
-    """Load a PolicySpec from policy_spec.json in an extracted submission."""
-    policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
-    if not policy_spec_path.exists():
-        raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in extracted submission: {extraction_root}")
-
-    submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
-
-    # Run setup script if specified (only once per extraction root)
-    if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
-        setup_script_path = extraction_root / submission_spec.setup_script
-        _run_setup_script(setup_script_path, extraction_root)
-        _executed_setup_scripts.add(extraction_root)
-
-    spec = PolicySpec(
-        class_path=submission_spec.class_path,
-        data_path=submission_spec.data_path,
-        init_kwargs=submission_spec.init_kwargs,
-    )
-    spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
-    if device is not None and "device" in spec.init_kwargs:
-        spec.init_kwargs["device"] = device
-
-    # Find and add the correct sys.path entry for the class_path in this submission
-    # This handles submissions where files are nested (e.g., packages/foo/src/foo/...)
-    module_root = _find_package_source_root(extraction_root, spec.class_path)
-    if module_root and module_root != extraction_root:
-        sys_path_entry = str(module_root.resolve())
-        if sys_path_entry not in sys.path:
-            sys.path.insert(0, sys_path_entry)
-
-    # Also add extraction root for backward compatibility
-    sys_path_entry = str(extraction_root.resolve())
-    if sys_path_entry not in sys.path:
-        sys.path.insert(0, sys_path_entry)
-
-    return spec
-
-
 def _cleanup_cache_dir(cache_dir: Path) -> None:
     """Atexit handler to clean up a cache directory."""
     if cache_dir.exists():
@@ -236,48 +193,6 @@ def download_policy_spec_from_s3_as_zip(
     return local_path
 
 
-def _load_policy_spec_from_zip(
-    local_path: Path,
-    cache_dir: Optional[Path] = None,
-    force_dest: Optional[Path] = None,
-    remove_downloaded_copy_on_exit: bool = False,
-    device: str | None = None,
-) -> PolicySpec:
-    """
-    Extract a submission archive from a local zip file.
-
-    Extracts the archive in a deterministic cache location based on the URI hash,
-    allowing reuse across calls with the same URI.
-
-    Args:
-        local_path: S3 path to the submission archive (e.g., file://./submission.zip)
-        cache_dir: Base directory for caching. Defaults to /tmp/mettagrid-policy-cache
-        force_dest: Extract to caller-selected directory
-        remove_downloaded_copy_on_exit: If True, register an atexit handler to clean up the cache directory
-        device: Override the device in the loaded spec (e.g., "cpu" or "cuda:0")
-
-    """
-    if cache_dir is None:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
-
-    extraction_root = force_dest
-    if extraction_root is None:
-        extraction_root = (cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()).with_suffix(".d")
-    marker_file = extraction_root / ".extraction_complete"
-
-    if not marker_file.exists():
-        extraction_root.mkdir(parents=True, exist_ok=True)
-        _extract_submission_archive(local_path, extraction_root)
-        marker_file.touch()
-
-        # Only schedule cleanup when we're the ones that created the dir
-        if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-            _registered_cleanup_dirs.add(extraction_root)
-            atexit.register(_cleanup_cache_dir, extraction_root)
-
-    return _load_policy_spec_from_local_dir(extraction_root, device=device)
-
-
 def load_policy_spec_from_path(
     local_path: Path,
     *,
@@ -286,11 +201,50 @@ def load_policy_spec_from_path(
     force_dest: Optional[Path] = None,
 ) -> PolicySpec:
     if local_path.is_dir():
-        return _load_policy_spec_from_local_dir(local_path, device=device)
+        extraction_root = local_path
+    else:
+        cache_dir = DEFAULT_POLICY_CACHE_DIR
+        extraction_root = force_dest or (
+            cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()
+        ).with_suffix(".d")
+        marker_file = extraction_root / ".extraction_complete"
 
-    return _load_policy_spec_from_zip(
-        local_path=local_path,
-        force_dest=force_dest,
-        remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-        device=device,
+        if not marker_file.exists():
+            extraction_root.mkdir(parents=True, exist_ok=True)
+            _extract_submission_archive(local_path, extraction_root)
+            marker_file.touch()
+
+            if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+                _registered_cleanup_dirs.add(extraction_root)
+                atexit.register(_cleanup_cache_dir, extraction_root)
+
+    policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
+    if not policy_spec_path.exists():
+        raise FileNotFoundError(f"{POLICY_SPEC_FILENAME} not found in extracted submission: {extraction_root}")
+
+    submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
+
+    if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
+        _run_setup_script(extraction_root / submission_spec.setup_script, extraction_root)
+        _executed_setup_scripts.add(extraction_root)
+
+    spec = PolicySpec(
+        class_path=submission_spec.class_path,
+        data_path=submission_spec.data_path,
+        init_kwargs=submission_spec.init_kwargs,
     )
+    spec.data_path = _resolve_spec_data_path(spec.data_path, extraction_root)
+    if device is not None and "device" in spec.init_kwargs:
+        spec.init_kwargs["device"] = device
+
+    module_root = _find_package_source_root(extraction_root, spec.class_path)
+    if module_root and module_root != extraction_root:
+        sys_path_entry = str(module_root.resolve())
+        if sys_path_entry not in sys.path:
+            sys.path.insert(0, sys_path_entry)
+
+    sys_path_entry = str(extraction_root.resolve())
+    if sys_path_entry not in sys.path:
+        sys.path.insert(0, sys_path_entry)
+
+    return spec

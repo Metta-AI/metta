@@ -13,7 +13,7 @@ import mettagrid.builder.envs as eb
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.mocks import MockAgent
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_bundle, write_checkpoint_dir
+from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_bundle
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -95,10 +95,8 @@ class TestCheckpointManagerFlows:
     ):
         """During training resume, we need to find the latest checkpoint."""
         for epoch in [1, 5, 10]:
-            write_checkpoint_dir(
-                base_dir=checkpoint_manager.checkpoint_dir,
-                run_name=checkpoint_manager.run_name,
-                epoch=epoch,
+            write_checkpoint_bundle(
+                (checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}").expanduser().resolve(),
                 architecture_spec=mock_policy_architecture.to_spec(),
                 state_dict=mock_agent.state_dict(),
             )
@@ -109,10 +107,8 @@ class TestCheckpointManagerFlows:
 
     def test_trainer_state_save_and_restore(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Trainer state must be saved alongside policy for proper resume."""
-        write_checkpoint_dir(
-            base_dir=checkpoint_manager.checkpoint_dir,
-            run_name=checkpoint_manager.run_name,
-            epoch=5,
+        write_checkpoint_bundle(
+            (checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v5").expanduser().resolve(),
             architecture_spec=mock_policy_architecture.to_spec(),
             state_dict=mock_agent.state_dict(),
         )
@@ -132,10 +128,8 @@ class TestCheckpointManagerFlows:
     def test_resolve_latest_uri(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """The :latest suffix is used by eval tools to find the newest checkpoint."""
         for epoch in [1, 7, 3]:
-            write_checkpoint_dir(
-                base_dir=checkpoint_manager.checkpoint_dir,
-                run_name=checkpoint_manager.run_name,
-                epoch=epoch,
+            write_checkpoint_bundle(
+                (checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v{epoch}").expanduser().resolve(),
                 architecture_spec=mock_policy_architecture.to_spec(),
                 state_dict=mock_agent.state_dict(),
             )
@@ -146,10 +140,8 @@ class TestCheckpointManagerFlows:
 
     def test_checkpoint_bundle_loads_and_runs(self, checkpoint_manager, mock_agent, mock_policy_architecture):
         """Checkpoint bundle must load and produce actions."""
-        write_checkpoint_dir(
-            base_dir=checkpoint_manager.checkpoint_dir,
-            run_name=checkpoint_manager.run_name,
-            epoch=1,
+        write_checkpoint_bundle(
+            (checkpoint_manager.checkpoint_dir / f"{checkpoint_manager.run_name}:v1").expanduser().resolve(),
             architecture_spec=mock_policy_architecture.to_spec(),
             state_dict=mock_agent.state_dict(),
         )

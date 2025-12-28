@@ -18,19 +18,6 @@ from mettagrid.util.uri_resolvers.schemes import resolve_uri
 logger = logging.getLogger(__name__)
 
 
-def write_checkpoint_dir(
-    *,
-    base_dir: Path,
-    run_name: str,
-    epoch: int,
-    architecture_spec: str,
-    state_dict: dict,
-) -> Path:
-    checkpoint_dir = (base_dir / f"{run_name}:v{epoch}").expanduser().resolve()
-    write_checkpoint_bundle(checkpoint_dir, architecture_spec=architecture_spec, state_dict=state_dict)
-    return checkpoint_dir
-
-
 def write_checkpoint_bundle(
     checkpoint_dir: Path,
     *,
@@ -124,10 +111,9 @@ class CheckpointManager:
         return max(candidates, key=lambda x: x[1])[0]
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        checkpoint_dir = write_checkpoint_dir(
-            base_dir=self.checkpoint_dir,
-            run_name=self.run_name,
-            epoch=epoch,
+        checkpoint_dir = (self.checkpoint_dir / f"{self.run_name}:v{epoch}").expanduser().resolve()
+        write_checkpoint_bundle(
+            checkpoint_dir,
             architecture_spec=architecture.to_spec(),
             state_dict=state_dict,
         )

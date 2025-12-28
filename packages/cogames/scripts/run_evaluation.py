@@ -23,7 +23,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Optional
 
 import matplotlib
 
@@ -90,22 +90,16 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         spec = policy_spec_from_uri(policy_path)
         if not spec.data_path:
             return None
-        action_space = _action_space_from_state_dict(load_safetensors(Path(spec.data_path).read_bytes()))
-        if action_space is None:
-            return None
-        _policy_action_space_cache[policy_path] = action_space
-        logger.info(f"Detected policy action space: {action_space} actions")
-        return action_space
+        for key, tensor in load_safetensors(Path(spec.data_path).read_bytes()).items():
+            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                detected = int(tensor.shape[0])
+                _policy_action_space_cache[policy_path] = detected
+                logger.info(f"Detected policy action space: {detected} actions")
+                return detected
+        return None
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
         return None
-
-
-def _action_space_from_state_dict(state_dict: Mapping[str, torch.Tensor]) -> Optional[int]:
-    for key, tensor in state_dict.items():
-        if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-            return int(tensor.shape[0])
-    return None
 
 
 def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
