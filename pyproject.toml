@@ -136,12 +136,7 @@ norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 required-version = ">=0.9.0"
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "packages/mettagrid/BUILD" },
-  { file = "packages/mettagrid/MODULE.bazel" },
-  { file = "metta/**/*.{cpp,hpp}" },
-]
+cache-keys = [{ file = "pyproject.toml" }]
 default-groups = ["interactive", "dev"]
 
 [tool.uv.workspace]
