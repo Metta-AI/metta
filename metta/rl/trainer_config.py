@@ -11,7 +11,7 @@ from mettagrid.base_config import Config
 class OptimizerConfig(Config):
     type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
     # Learning rate tuned from CvC sweep winners (schedule-free AdamW)
-    learning_rate: float = Field(default=0.00737503357231617, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.0003, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)

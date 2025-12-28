@@ -17,6 +17,7 @@ _ARCHITECTURE_SPECS: dict[str, str] = {
     "vit_size2": "metta.agent.policies.vit_size_2.ViTSize2Config",
     "vit_grpo": "metta.agent.policies.vit_grpo.ViTGRPOConfig",
     "vit_quantile": "metta.agent.policies.vit_quantile.ViTQuantileConfig",
+    "vit_reset": "metta.agent.policies.vit_reset.ViTResetConfig",
     # Transformers / memory
     "trxl": "metta.agent.policies.trxl.TRXLConfig",
     "fast": "metta.agent.policies.fast.FastConfig",
