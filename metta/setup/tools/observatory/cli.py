@@ -2,6 +2,7 @@
 import functools
 import os
 import subprocess
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -45,13 +46,17 @@ Observatory local development.
   Enable Kubernetes: orb config set k8s.enable true
   Then restart OrbStack (or: orbctl stop && orbctl start)
 
-[bold]Setup:[/bold]
+[bold]Quick start:[/bold]
+  metta observatory local-k8s setup  # One-time: build image and create jobs namespace
+  metta observatory up               # Start all services (postgres, server, frontend, watcher)
+
+[bold]Start specific services:[/bold]
+  metta observatory up server frontend  # Only server and frontend
+
+[bold]Individual services:[/bold]
   metta observatory postgres up -d   # Backgrounded postgres for api server
   metta observatory server           # API server
   metta observatory frontend         # Observatory frontend
-
-[bold]Additional setup for jobs:[/bold]
-  metta observatory local-k8s setup  # Build image and create jobs namespace
   metta observatory watcher          # Watches k8s jobs and updates status via api server
 
 [bold]Upload policy:[/bold]
@@ -79,6 +84,19 @@ app = typer.Typer(
 )
 
 repo_root = get_repo_root()
+
+
+@app.command(name="up", help="Start all observatory services (postgres, server, frontend, watcher)")
+@handle_errors
+def up(
+    services: Annotated[list[str] | None, typer.Argument(help="Services to start (default: all)")] = None,
+):
+    procfile = Path(__file__).parent / "Procfile.observatory"
+    cmd = ["honcho", "start", "-f", str(procfile)]
+    if services:
+        cmd.extend(services)
+    info("Starting observatory services...")
+    subprocess.run(cmd, cwd=repo_root, check=True)
 
 
 @app.command(
@@ -125,6 +143,8 @@ def server():
     _update_env_with_local_dev_settings(env)
 
     # For sending the jobs
+    env["HOST"] = "0.0.0.0"
+    env["PORT"] = "8000"
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
 
     info("Starting backend server...")

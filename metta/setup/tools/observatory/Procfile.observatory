@@ -1,0 +1,5 @@
+postgres: metta observatory postgres up
+server: PORT=metta observatory server
+frontend: metta observatory frontend
+watcher: sleep 3 && metta observatory watcher
+jobs: while true; do kubectl --context orbstack logs -n jobs -l app=episode-runner -f --all-containers 2>/dev/null; sleep 2; done

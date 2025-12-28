@@ -21,3 +21,4 @@ replicaCount: 2
 
 env:
   RUN_MIGRATIONS: "true"
+  EPISODE_RUNNER_IMAGE: "751442549699.dkr.ecr.us-east-1.amazonaws.com/metta-policy-evaluator:latest"
