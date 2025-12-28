@@ -234,12 +234,10 @@ class ViTReconstructionLoss(Loss):
 
         # Attach to policy to ensure parameters are accessible if needed
         # Unwrapping policy if it's wrapped (e.g. DDP)
-        target_policy = self.policy
-        if hasattr(target_policy, "module"):
-            target_policy = target_policy.module
-
         # Use a unique name
-        target_policy.vit_reconstruction_decoder = self.decoder
+        (self.policy.module if hasattr(self.policy, "module") else self.policy).vit_reconstruction_decoder = (
+            self.decoder
+        )
 
     def run_train(
         self,
@@ -281,8 +279,9 @@ class ViTReconstructionLoss(Loss):
 
         # Use the derived num_attribute_classes for normalization
         # Handle both wrapped and unwrapped decoder
-        decoder_module = self.decoder.module if isinstance(self.decoder, DDP) else self.decoder
-        num_classes = decoder_module._num_attribute_classes
+        num_classes = (
+            (self.decoder.module if isinstance(self.decoder, DDP) else self.decoder)._num_attribute_classes
+        )
         mask_expanded = valid_mask.unsqueeze(-1)
         loss_id = (loss_id * mask_expanded).sum() / (mask_expanded.sum() * num_classes + 1e-6)
 

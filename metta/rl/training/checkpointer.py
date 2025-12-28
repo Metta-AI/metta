@@ -121,11 +121,8 @@ class Checkpointer(TrainerComponent):
         self._save_policy(self.context.epoch)
 
     def _save_policy(self, epoch: int) -> None:
-        policy: Policy = self.context.policy
-        if hasattr(policy, "module"):
-            policy = policy.module
         uri = self._checkpoint_manager.save_policy_checkpoint(
-            state_dict=policy.state_dict(),
+            state_dict=getattr(self.context.policy, "module", self.context.policy).state_dict(),
             architecture=self._policy_architecture,
             epoch=epoch,
         )
