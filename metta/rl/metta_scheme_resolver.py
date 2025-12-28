@@ -83,21 +83,6 @@ class MettaSchemeResolver(SchemeResolver):
             raise ValueError("metta:// URIs must include a path")
         return MettaParsedScheme(canonical=uri, path=path)
 
-    def _get_stats_client(self) -> StatsClient:
-        if not self._stats_server_uri:
-            raise ValueError("Cannot resolve metta:// URI: stats server not configured")
-        return StatsClient.create(self._stats_server_uri)
-
-    def _resolve_policy_version_by_name(
-        self, stats_client: StatsClient, name: str, version: int | None
-    ) -> PolicyVersionWithName:
-        response = stats_client.get_policy_versions(name_exact=name, version=version, limit=1)
-        if not response.entries:
-            version_str = f":v{version}" if version is not None else ""
-            raise ValueError(f"No policy found with name '{name}{version_str}'")
-        entry = response.entries[0]
-        return stats_client.get_policy_version(entry.id)
-
     def get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
@@ -112,29 +97,22 @@ class MettaSchemeResolver(SchemeResolver):
             )
 
         policy_identifier = path_parts[1]
-        stats_client = self._get_stats_client()
+        if not self._stats_server_uri:
+            raise ValueError("Cannot resolve metta:// URI: stats server not configured")
+        stats_client = StatsClient.create(self._stats_server_uri)
 
         if _is_uuid(policy_identifier):
             policy_version = stats_client.get_policy_version(uuid.UUID(policy_identifier))
         else:
             name, version = _parse_policy_identifier(policy_identifier)
-            policy_version = self._resolve_policy_version_by_name(stats_client, name, version)
+            response = stats_client.get_policy_versions(name_exact=name, version=version, limit=1)
+            if not response.entries:
+                version_str = f":v{version}" if version is not None else ""
+                raise ValueError(f"No policy found with name '{name}{version_str}'")
+            entry = response.entries[0]
+            policy_version = stats_client.get_policy_version(entry.id)
 
         return policy_version
-
-    def _resolve_local_checkpoint_uri(self, run_name: str, version: int | None) -> str | None:
-        checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / run_name / "checkpoints"
-        if not checkpoint_root.exists():
-            return None
-        if version is None:
-            return checkpoint_root.as_uri() if checkpoint_root.is_dir() else None
-        candidate = checkpoint_root / f"{run_name}:v{version}"
-        return candidate.as_uri() if candidate.exists() else None
-
-    def _resolve_scripted_alias(self, name: str) -> str | None:
-        if name in _SCRIPTED_POLICY_ALIASES:
-            return f"mock://{_SCRIPTED_POLICY_ALIASES[name]}"
-        return None
 
     def get_path_to_policy_spec(self, uri: str) -> str:
         parsed = self.parse(uri)
@@ -149,15 +127,20 @@ class MettaSchemeResolver(SchemeResolver):
         if not _is_uuid(policy_identifier):
             name, version = _parse_policy_identifier(policy_identifier)
             if version is None:
-                scripted = self._resolve_scripted_alias(name)
-                if scripted:
+                if name in _SCRIPTED_POLICY_ALIASES:
                     logger.info("Metta scheme resolver: %s resolved to scripted policy %s", uri, name)
-                    return scripted
+                    return f"mock://{_SCRIPTED_POLICY_ALIASES[name]}"
 
-            local_uri = self._resolve_local_checkpoint_uri(name, version)
-            if local_uri:
-                logger.info("Metta scheme resolver: %s resolved to local checkpoint %s", uri, local_uri)
-                return local_uri
+            checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / name / "checkpoints"
+            if checkpoint_root.exists():
+                if version is None and checkpoint_root.is_dir():
+                    local_uri = checkpoint_root.as_uri()
+                else:
+                    candidate = checkpoint_root / f"{name}:v{version}"
+                    local_uri = candidate.as_uri() if candidate.exists() else None
+                if local_uri:
+                    logger.info("Metta scheme resolver: %s resolved to local checkpoint %s", uri, local_uri)
+                    return local_uri
 
         policy_version = self.get_policy_version(uri)
         if policy_version.s3_path:

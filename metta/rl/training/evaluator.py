@@ -236,13 +236,10 @@ class Evaluator(TrainerComponent):
                 on_progress=on_progress,
             )
             render_eval_summary(
-                rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
+                rollout_results,
+                policy_names=[(policy_spec.init_kwargs or {}).get("display_name") or policy_spec.name],
+                verbose=self._config.verbose,
             )
-
-    @staticmethod
-    def _spec_display_name(policy_spec: PolicySpec) -> str:
-        init_kwargs = policy_spec.init_kwargs or {}
-        return init_kwargs.get("display_name") or policy_spec.name
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []

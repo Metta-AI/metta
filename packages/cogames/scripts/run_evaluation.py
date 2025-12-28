@@ -1079,13 +1079,6 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         # Sanitize agent name for filename
         safe_agent_name = agent.replace("/", "_").replace(" ", "_").replace(":", "_")
 
-        # Create closure to capture agent variable properly
-        def make_lookup_fn(agent_name: str, field: str):
-            def lookup_wrapper(_s: str, exp_name: str):
-                return lookup(agent_name, exp_name, None, None, field)
-
-            return lookup_wrapper
-
         # Plot 1: Average reward per agent by environment
         _bar_plot(
             filename=f"{safe_agent_name}_reward_by_environment.png",
@@ -1094,7 +1087,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Average Reward Per Agent",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_reward_per_agent"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_reward_per_agent"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1108,7 +1103,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Total Reward",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_total_reward"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_total_reward"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1122,7 +1119,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Average Heart Gained Per Agent",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_heart_gained_per_agent"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_heart_gained_per_agent"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1136,7 +1135,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Total Heart Gained",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_heart_gained"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_heart_gained"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),

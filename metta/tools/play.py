@@ -45,23 +45,6 @@ class PlayTool(Tool):
     render: RenderMode = "gui"
     stats_server_uri: str | None = auto_stats_server_uri()
 
-    def _load_policy_from_uri(
-        self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
-    ) -> MultiAgentPolicy:
-        """Load a policy from a URI."""
-        logger.info(f"Loading policy from URI: {policy_uri}")
-
-        policy = initialize_or_load_policy(
-            policy_env_info,
-            policy_spec_from_uri(policy_uri, device=str(device)),
-            device_override=str(device),
-        )
-        if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
-        if hasattr(policy, "eval"):
-            policy.eval()
-        return policy
-
     @model_validator(mode="after")
     def validate(self) -> "PlayTool":
         if len([x for x in [self.policy_uri, self.policy_version_id, self.s3_path] if x is not None]) > 1:
@@ -103,7 +86,17 @@ class PlayTool(Tool):
             agent_policies.append(policy)
             logger.info("Loaded policy from s3 path")
         elif self.policy_uri:
-            agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+            logger.info(f"Loading policy from URI: {self.policy_uri}")
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(self.policy_uri, device=str(device)),
+                device_override=str(device),
+            )
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(policy_env_info, device)
+            if hasattr(policy, "eval"):
+                policy.eval()
+            agent_policies.append(policy)
             logger.info("Loaded policy from deprecated-format policy uri")
         else:
             # Fall back to random policies only when no policy was configured explicitly.
