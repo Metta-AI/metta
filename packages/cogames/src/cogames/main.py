@@ -525,11 +525,13 @@ def make_policy(
 
         if trainable:
             console.print(
-                f"[dim]Train with: cogames tutorial train -m training_facility.harvest -p class={dest_path.stem}.{policy_class}[/dim]"
+                "[dim]Train with: cogames tutorial train -m training_facility.harvest -p class="
+                f"{dest_path.stem}.{policy_class}[/dim]"
             )
         else:
             console.print(
-                f"[dim]Play with: cogames play -m training_facility.harvest -p class={dest_path.stem}.{policy_class}[/dim]"
+                "[dim]Play with: cogames play -m training_facility.harvest -p class="
+                f"{dest_path.stem}.{policy_class}[/dim]"
             )
 
     except Exception as exc:  # pragma: no cover - user input
