@@ -162,11 +162,7 @@ class TrainTool(Tool):
             if distributed_helper.is_master() and self.stats_server_uri:
 
                 def _init_stats_client() -> Optional[StatsClient]:
-                    try:
-                        return StatsClient.create(stats_server_uri=self.stats_server_uri)
-                    except Exception as exc:
-                        logger.warning("Failed to initialize stats client: %s", exc)
-                        return None
+                    return self._maybe_create_stats_client(distributed_helper)
 
                 preflight_futures["stats_client"] = preflight_executor.submit(_init_stats_client)
 
@@ -176,11 +172,7 @@ class TrainTool(Tool):
 
         storage_decision = None
         if "storage_decision" in preflight_futures:
-            try:
-                storage_decision = preflight_futures["storage_decision"].result()
-            except Exception as exc:
-                logger.warning("Failed to resolve policy storage decision: %s", exc)
-                storage_decision = None
+            storage_decision = preflight_futures["storage_decision"].result()
 
         checkpoint_manager = CheckpointManager(
             run=self.run or "default",
@@ -213,11 +205,7 @@ class TrainTool(Tool):
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
         if "stats_client" in preflight_futures:
-            try:
-                stats_client = preflight_futures["stats_client"].result()
-            except Exception as exc:
-                logger.warning("Failed to initialize stats client: %s", exc)
-                stats_client = None
+            stats_client = preflight_futures["stats_client"].result()
         else:
             stats_client = self._maybe_create_stats_client(distributed_helper)
 
