@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-from safetensors.torch import save as save_safetensors
+from safetensors.torch import save_file as save_safetensors_file
 
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
@@ -35,27 +35,30 @@ def write_checkpoint_bundle(
         else:
             seen_storage.add(data_ptr)
         weights[key] = value
-    weights_blob = save_safetensors(weights)
-    _write_file_atomic(checkpoint_dir / "weights.safetensors", weights_blob)
+    with tempfile.NamedTemporaryFile(
+        dir=checkpoint_dir,
+        prefix=".weights.safetensors.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+    save_safetensors_file(weights, str(tmp_path))
+    tmp_path.replace(checkpoint_dir / "weights.safetensors")
     class_path, *_ = architecture_spec.split("(", 1)
     spec = SubmissionPolicySpec(
         class_path=class_path.strip(),
         data_path="weights.safetensors",
         init_kwargs={"architecture_spec": architecture_spec},
     )
-    _write_file_atomic(checkpoint_dir / POLICY_SPEC_FILENAME, spec.model_dump_json().encode("utf-8"))
-
-
-def _write_file_atomic(path: Path, data: bytes) -> None:
     with tempfile.NamedTemporaryFile(
-        dir=path.parent,
-        prefix=f".{path.name}.",
+        dir=checkpoint_dir,
+        prefix=f".{POLICY_SPEC_FILENAME}.",
         suffix=".tmp",
         delete=False,
     ) as tmp:
         tmp_path = Path(tmp.name)
-        tmp.write(data)
-    tmp_path.replace(path)
+        tmp.write(spec.model_dump_json().encode("utf-8"))
+    tmp_path.replace(checkpoint_dir / POLICY_SPEC_FILENAME)
 
 
 class CheckpointManager:
