@@ -6,7 +6,7 @@ from typing import Optional
 
 import torch
 from pydantic import Field
-from safetensors.torch import load as load_safetensors
+from safetensors.torch import load_file as load_safetensors_file
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
@@ -68,7 +68,7 @@ class Checkpointer(TrainerComponent):
                 payload: tuple[str, dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
                     policy_spec = policy_spec_from_uri(normalized_uri)
-                    state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+                    state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
                     payload = (
                         policy_spec.init_kwargs["architecture_spec"],
                         {k: v.cpu() for k, v in state_dict.items()},

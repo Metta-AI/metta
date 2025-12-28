@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from safetensors.torch import load as load_safetensors
+from safetensors.torch import load_file as load_safetensors_file
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -40,7 +40,7 @@ def initialize_or_load_policy(
         policy = policy_architecture.make_policy(policy_env_info)
         device = torch.device(device_override or kwargs.get("device", "cpu"))
         policy = policy.to(device)
-        state_dict = load_safetensors(Path(policy_spec.data_path).expanduser().read_bytes())
+        state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
         policy.load_state_dict(dict(state_dict))
         policy.initialize_to_environment(policy_env_info, device)
     else:

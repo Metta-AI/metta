@@ -33,7 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from safetensors.torch import load as load_safetensors
+from safetensors.torch import load_file as load_safetensors_file
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -90,7 +90,7 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
         spec = policy_spec_from_uri(policy_path)
         if not spec.data_path:
             return None
-        for key, tensor in load_safetensors(Path(spec.data_path).read_bytes()).items():
+        for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
             if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
                 detected = int(tensor.shape[0])
                 _policy_action_space_cache[policy_path] = detected
