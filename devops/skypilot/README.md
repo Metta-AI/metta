@@ -363,6 +363,42 @@ uv run sky jobs queue -a
 
 6. **Use sandboxes wisely**: Stop sandboxes when not in use to save costs, and delete old sandboxes you no longer need
 
+## Teacher policies (no SSH / no scp)
+
+When running on SkyPilot, this repo mounts:
+
+- `s3://softmax-public` at `/mnt/s3/softmax-public`
+
+So you typically do **not** need to `aws s3 cp` locally or `scp` into the box.
+
+### Option A (recommended): point directly at the S3 zip
+
+The policy loader supports `s3://.../*.zip` directly (it will download, cache, and extract on the remote node).
+
+Example:
+
+```bash
+./devops/skypilot/launch.py train recipes.experiment.machina_1 \
+  teacher.mode=sliced_cloner \
+  teacher.policy_uri=s3://softmax-public/policies/dinky_v14/dinky_v14.zip \
+  run=my_run \
+  --no-spot --gpus 4
+```
+
+### Option B: keep `file:///workspace/policies/<name>` (auto-resolved on SkyPilot)
+
+If you pass a teacher policy like:
+
+- `teacher.policy_uri=file:///workspace/policies/dinky_v14`
+
+the SkyPilot job wrapper will automatically rewrite it to:
+
+- `teacher.policy_uri=file:///mnt/s3/softmax-public/policies/dinky_v14/dinky_v14.zip`
+
+**when** `/workspace/policies/dinky_v14` does not exist and the mounted zip exists.
+
+This is implemented in `devops/skypilot/config/skypilot_run.sh`.
+
 ## Additional Resources
 
 - [SkyPilot Documentation](https://skypilot.readthedocs.io/)
