@@ -53,7 +53,6 @@ def train(
     if hasattr(tt.policy_architecture, "action_probs_config"):
         if not needs_full_log_probs:
             tt.policy_architecture.action_probs_config.emit_full_log_probs = False
-        tt.policy_architecture.action_probs_config.reshape_after_training = False
     tt.stats_reporter.step_interval = 4
     tt.stats_reporter.monitor_sampling_interval_sec = 5.0
     tt.system.torch_deterministic = False
