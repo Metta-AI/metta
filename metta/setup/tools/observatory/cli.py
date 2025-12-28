@@ -53,7 +53,7 @@ Observatory local development.
   metta observatory frontend         # Observatory frontend
 
 [bold]Additional setup for jobs:[/bold]
-  metta observatory local-k8s setup  # Build image and create namespaces
+  metta observatory local-k8s setup  # Build image and create jobs namespace
   metta observatory watcher          # Watches k8s jobs and updates status via api server
 
 [bold]Upload policy:[/bold]
