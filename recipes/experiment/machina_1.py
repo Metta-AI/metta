@@ -44,6 +44,8 @@ def train(
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
 
+    tt.trainer.losses.ppo_critic.critic_update = "mse"
+
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
     env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
