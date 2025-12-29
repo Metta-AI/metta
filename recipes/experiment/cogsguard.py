@@ -82,7 +82,7 @@ def support_aoe(range: int = 10) -> AOEEffectConfig:
     """AOE effect that provides support to nearby agents."""
     return AOEEffectConfig(
         range=range,
-        resource_deltas={"support": 1},
+        resource_deltas={"support": 1, "energy": 100, "damage": -100},
         members_only=True,
     )
 
@@ -98,13 +98,7 @@ def supply_depot_config(map_name: str) -> CollectiveChestConfig:
         render_symbol="📦",
         collective="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
-        aoes=[
-            AOEEffectConfig(
-                range=10,
-                resource_deltas={"energy": 100, "damage": -100, "support": 1},
-                members_only=True,
-            )
-        ],
+        aoes=[support_aoe()],
     )
 
 
@@ -116,6 +110,7 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
         render_symbol="🏛️",
         clip_immune=True,
         chest_search_distance=10,
+        collective="cogs",
         protocols=[
             ProtocolConfig(
                 vibes=["heart"],
@@ -128,13 +123,7 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
                 output_resources={"heart": 1},
             ),
         ],
-        aoes=[
-            AOEEffectConfig(
-                range=10,
-                resource_deltas={"energy": 100, "damage": -100, "support": 1},
-                members_only=True,
-            )
-        ],
+        aoes=[support_aoe()],
     )
 
 
@@ -219,10 +208,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 vibe="heart",
                 cost={"heart": 1},
                 collective_cost={},
+                required_resources={"support": 1},
             ),
             scramble=AlignActionConfig(
                 vibe="weapon",
                 set_to_none=True,
+                required_resources={"weapon": 1},
             ),
         ),
         agent=AgentConfig(
