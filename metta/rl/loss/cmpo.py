@@ -118,17 +118,18 @@ class TransitionBuffer:
         actions_enc: Tensor,
         rewards: Tensor,
         next_states: Tensor,
-        dones: Tensor,
     ) -> None:
-        batch_size = states.shape[0]
-        for idx in range(batch_size):
+        states = states.detach().cpu()
+        actions_enc = actions_enc.detach().cpu()
+        rewards = rewards.detach().cpu()
+        next_states = next_states.detach().cpu()
+        for state, action, reward, next_state in zip(states, actions_enc, rewards, next_states, strict=False):
             self._buffer.append(
                 {
-                    "state": states[idx].detach().cpu(),
-                    "action_enc": actions_enc[idx].detach().cpu(),
-                    "reward": rewards[idx].detach().cpu(),
-                    "next_state": next_states[idx].detach().cpu(),
-                    "done": dones[idx].detach().cpu(),
+                    "state": state,
+                    "action_enc": action,
+                    "reward": reward,
+                    "next_state": next_state,
                 }
             )
 
@@ -153,8 +154,6 @@ class CMPO(Loss):
         cfg: CMPOConfig,
     ) -> None:
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
-        self.cfg: CMPOConfig = cfg
-
         self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
 
@@ -230,14 +229,12 @@ class CMPO(Loss):
 
             current_states = obs_flat[mask]
             current_rewards = rewards[mask]
-            current_dones = terminals[mask].float()
 
             self.transition_buffer.add_batch(
                 states=prev_states,
                 actions_enc=prev_actions_enc,
                 rewards=current_rewards,
                 next_states=current_states,
-                dones=current_dones,
             )
 
         if self.burn_in_steps_iter < self.burn_in_steps:
