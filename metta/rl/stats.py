@@ -62,7 +62,6 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
         "env_agent/movement.direction.right",
     }
     noisy_prefixes = (
-        "env_label_completions/",
         "env_reward_estimates/",
         "env_timing_per_epoch/",
         "env_timing_cumulative/",
