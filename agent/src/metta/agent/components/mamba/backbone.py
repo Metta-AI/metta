@@ -279,7 +279,6 @@ class MambaBackboneComponent(nn.Module):
 
         if use_streaming_path:
             outputs = []
-            positions = torch.zeros(batch, dtype=torch.long, device=device)
             resets_step = (
                 reset_flags[:, 0] if reset_flags.numel() else torch.zeros(batch, dtype=torch.bool, device=device)
             )
@@ -312,10 +311,8 @@ class MambaBackboneComponent(nn.Module):
 
                 if resets_step[idx]:
                     state.reset()
-                positions[idx] = state.position
 
             td.set(self.out_key, torch.stack(outputs, dim=0))
-            td.set("transformer_position", positions)
             return td
 
         # Batched path (training or evaluation with longer sequences)
