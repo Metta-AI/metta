@@ -181,6 +181,7 @@ class CMPO(Loss):
 
         self.prior_model: Optional[Policy] = None
         if cfg.prior_ema_decay is not None:
+            # π_prior in CMPO; EMA helps stabilize off-policy updates.
             self.prior_model = copy.deepcopy(self.policy).to(device)
             for param in self.prior_model.parameters():
                 param.requires_grad = False
@@ -285,35 +286,39 @@ class CMPO(Loss):
         if "full_log_probs" not in policy_td.keys():
             raise RuntimeError("CMPO requires policy outputs to include full_log_probs")
 
-        prior_log_probs = self._get_prior_log_probs(minibatch, policy_td)
-        q_values = self._compute_q_values(minibatch["env_obs"])  # [B, T, A]
-        pi_prior = prior_log_probs.exp()
-        v_prior = (pi_prior * q_values).sum(dim=-1, keepdim=True)
-        adv = q_values - v_prior
+        log_pi_prior = self._get_log_pi_prior(minibatch, policy_td)
+        q_hat = self._compute_q_hat(minibatch["env_obs"])  # [B, T, A]
+        pi_prior = log_pi_prior.exp()
+        v_prior = (pi_prior * q_hat).sum(dim=-1, keepdim=True)
+        adv_hat = q_hat - v_prior
 
         if self.cfg.norm_adv:
-            adv_std = adv.std(dim=-1, keepdim=True).clamp(min=1e-6)
-            adv = adv / adv_std
+            # Muesli Sec. 4.5: normalize advantages to reduce reward-scale sensitivity.
+            adv_std = adv_hat.std(dim=-1, keepdim=True).clamp(min=1e-6)
+            adv_hat = adv_hat / adv_std
 
-        adv = (adv / self.cfg.temperature).clamp(-self.cfg.adv_clip, self.cfg.adv_clip)
-        pi_cmpo = pi_prior * torch.exp(adv)
+        # Eq. (7): CMPO target π_CMPO ∝ π_prior · exp(clip(Â/τ, c)); τ=1 matches the paper.
+        adv_scaled = (adv_hat / self.cfg.temperature).clamp(-self.cfg.adv_clip, self.cfg.adv_clip)
+        pi_cmpo = pi_prior * torch.exp(adv_scaled)
         pi_cmpo = pi_cmpo / pi_cmpo.sum(dim=-1, keepdim=True)
 
         log_pi = policy_td["full_log_probs"].reshape(pi_cmpo.shape)
-        actor_loss = -(pi_cmpo.detach() * log_pi).sum(dim=-1).mean()
+        # Eq. (9) KL regularizer: KL(π_CMPO || π) up to a constant.
+        kl_loss = -(pi_cmpo.detach() * log_pi).sum(dim=-1).mean()
 
-        value_pred = policy_td["values"].reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
-        v_target = (pi_cmpo.detach() * q_values).sum(dim=-1)
-        value_loss = 0.5 * F.mse_loss(value_pred, v_target)
+        v_pred = policy_td["values"].reshape(pi_cmpo.shape[0], pi_cmpo.shape[1])
+        v_pi_cmpo = (pi_cmpo.detach() * q_hat).sum(dim=-1)
+        value_loss = 0.5 * F.mse_loss(v_pred, v_pi_cmpo)
 
         with torch.no_grad():
             kl = (pi_cmpo * (pi_cmpo.clamp(min=1e-8).log() - log_pi)).sum(dim=-1).mean()
             self.loss_tracker["approx_kl"].append(float(kl.item()))
-            self.loss_tracker["policy_loss"].append(float(actor_loss.item()))
+            self.loss_tracker["policy_loss"].append(float(kl_loss.item()))
             self.loss_tracker["value_loss"].append(float(value_loss.item()))
 
         entropy = -(log_pi.exp() * log_pi).sum(dim=-1).mean()
-        loss = actor_loss + self.cfg.vf_coef * value_loss - self.cfg.ent_coef * entropy
+        # This omits the Eq. (9) policy-gradient term; we train via CMPO distillation + value loss.
+        loss = kl_loss + self.cfg.vf_coef * value_loss - self.cfg.ent_coef * entropy
         loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "values"])
 
         self._update_prior_model()
@@ -335,7 +340,7 @@ class CMPO(Loss):
             for prior_buf, online_buf in zip(self.prior_model.buffers(), self.policy.buffers(), strict=False):
                 prior_buf.copy_(online_buf)
 
-    def _get_prior_log_probs(self, minibatch: TensorDict, policy_td: TensorDict) -> Tensor:
+    def _get_log_pi_prior(self, minibatch: TensorDict, policy_td: TensorDict) -> Tensor:
         B, TT = minibatch.batch_size
         if self.prior_model is None:
             return policy_td["full_log_probs"].reshape(B, TT, -1).detach()
@@ -344,7 +349,7 @@ class CMPO(Loss):
             prior_td = forward_policy_for_training(self.prior_model, minibatch, self.policy_experience_spec)
         return prior_td["full_log_probs"].reshape(B, TT, -1).detach()
 
-    def _compute_q_values(self, obs: Tensor) -> Tensor:
+    def _compute_q_hat(self, obs: Tensor) -> Tensor:
         if self.prior_model is not None:
             value_model = self.prior_model
         else:
@@ -362,14 +367,15 @@ class CMPO(Loss):
         actions_flat = actions.reshape(num_states * self.action_dim, self.action_dim)
 
         with torch.no_grad():
+            # Eq. (14): one-step model lookahead q̂(s,a)=r̂+γ v̂(s').
             next_state, reward = self.world_model(states_flat, actions_flat)
             next_obs = self._unflatten_obs(next_state)
             next_values = self._value_from_obs(value_model, next_obs)
 
-        q_values = reward.view(num_states, self.action_dim) + (
+        q_hat = reward.view(num_states, self.action_dim) + (
             self.trainer_cfg.advantage.gamma * next_values.view(num_states, self.action_dim)
         )
-        return q_values.view(B, TT, self.action_dim)
+        return q_hat.view(B, TT, self.action_dim)
 
     def _value_from_obs(self, model: Policy, obs: Tensor) -> Tensor:
         batch = obs.shape[0]
@@ -416,6 +422,7 @@ class CMPO(Loss):
             rewards = batch["reward"]
             targets = batch["next_state"]
 
+            # Muesli Sec. 4.4: auxiliary model learning (here simplified to one-step dynamics).
             self.world_model_opt.zero_grad()
             pred_next, pred_reward = self.world_model(states, actions)
             loss_state = F.mse_loss(pred_next, targets)
