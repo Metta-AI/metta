@@ -101,7 +101,7 @@ def main():
 
         episode_tags = {"job_id": str(job_id), **job.episode_tags}
         episode_id = write_single_episode_to_observatory(
-            replay_uri=local_replay_uri,
+            replay_uri=job.replay_uri,
             assignments=job.assignments,
             episode_tags=episode_tags,
             policy_version_ids=policy_version_ids,
