@@ -54,7 +54,7 @@ class ContextCheckpointer(TrainerComponent):
                     "agent_step": raw.get("agent_step", 0),
                     "epoch": raw.get("epoch", 0),
                     "avg_reward": raw.get("avg_reward"),
-                    "optimizer": raw.get("optimizer", {}),
+                    "optimizer": raw.get("optimizer", raw.get("optimizer_state", {})),
                     "stopwatch_state": raw.get("stopwatch_state"),
                     "curriculum_state": raw.get("curriculum_state"),
                     "loss_states": raw.get("loss_states", {}),
