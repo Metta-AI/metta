@@ -1,22 +1,84 @@
 #!/usr/bin/env -S uv run
+import functools
 import os
 import subprocess
-import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
 from metta.app_backend.clients.base_client import get_machine_token
-from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 from metta.common.util.fs import get_repo_root
-from metta.setup.tools.observatory.kind import kind_app
+from metta.setup.tools.observatory.local_k8s import local_k8s_app
+from metta.setup.tools.observatory.utils import LOCAL_METTA_POLICY_EVAL_IMG_NAME
 from metta.setup.utils import error, info
 
 console = Console()
 
+
+def handle_errors(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except subprocess.CalledProcessError as e:
+            error(f"Failed: {e}")
+            raise typer.Exit(1) from e
+        except KeyboardInterrupt:
+            raise typer.Exit(0) from None
+
+    return wrapper
+
+
+LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
+LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
+LOCAL_BACKEND_URL_FROM_K8S = "http://host.docker.internal:8000"
+LOCAL_MACHINE_TOKEN = "local-dev-token"
+
+
+HELP_TEXT = f"""
+Observatory local development.
+
+[bold]Prerequisites (one-time OrbStack setup):[/bold]
+  OrbStack is installed via 'metta install' (profile=softmax).
+  Enable Kubernetes: orb config set k8s.enable true
+  Then restart OrbStack (or: orbctl stop && orbctl start)
+
+[bold]Quick start:[/bold]
+  metta observatory local-k8s setup  # One-time: build image and create jobs namespace
+  metta observatory up               # Start all services (postgres, server, frontend, watcher)
+
+[bold]Start specific services:[/bold]
+  metta observatory up server frontend  # Only server and frontend
+
+[bold]Individual services:[/bold]
+  metta observatory postgres up -d   # Backgrounded postgres for api server
+  metta observatory server           # API server
+  metta observatory frontend         # Observatory frontend
+  metta observatory watcher          # Watches k8s jobs and updates status via api server
+
+[bold]Upload policy:[/bold]
+  uv run cogames submit -p class=scripted_baseline --server {LOCAL_BACKEND_URL} --skip-validation -n <your-policy-name>
+
+[bold]Submit test jobs:[/bold]
+  uv run python app_backend/scripts/submit_test_jobs.py --policy-uri metta://policy/<your-policy-name>
+
+[bold]Monitor:[/bold]
+  kubectl --context orbstack get pods -n jobs -w
+  kubectl --context orbstack logs -n jobs -l app=episode-runner -f
+
+[bold]Teardown:[/bold]
+  metta observatory postgres down
+  metta observatory local-k8s clean
+
+[bold]Rebuild job runner image:[/bold]
+  metta observatory local-k8s build-image
+"""
+
 app = typer.Typer(
-    help="Metta Local Development Commands",
+    help=HELP_TEXT,
     rich_markup_mode="rich",
     no_args_is_help=True,
 )
@@ -24,40 +86,102 @@ app = typer.Typer(
 repo_root = get_repo_root()
 
 
+@app.command(name="up", help="Start all observatory services (postgres, server, frontend, watcher)")
+@handle_errors
+def up(
+    services: Annotated[list[str] | None, typer.Argument(help="Services to start (default: all)")] = None,
+):
+    procfile = Path(__file__).parent / "Procfile.observatory"
+    cmd = ["honcho", "start", "-f", str(procfile)]
+    if services:
+        cmd.extend(services)
+    info("Starting observatory services...")
+    subprocess.run(cmd, cwd=repo_root, check=True)
+
+
 @app.command(
-    name="backend",
-    context_settings={"allow_extra_args": True},
-    help=(
-        "Manage local instance of Observatory Backend. "
-        "Usage: metta observatory backend [build|up|down|restart|logs|enter]"
-    ),
+    name="postgres",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+    help="Manage postgres. Usage: metta observatory postgres [up|down|logs]",
 )
-def observatory_backend(ctx: typer.Context):
-    cmd = ["docker", "compose", "-f", str(get_repo_root() / "app_backend" / "docker-compose.dev.yml")]
-    if ctx.args:
-        cmd.extend(ctx.args)
-
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        error(f"Failed to launch Stats Server: {e}")
-        raise typer.Exit(1) from e
-    except KeyboardInterrupt:
-        info("\nStats Server shutdown")
-        raise typer.Exit(0) from None
+@handle_errors
+def postgres(ctx: typer.Context):
+    cmd = ["docker", "compose", "-f", str(repo_root / "app_backend" / "docker-compose.dev.yml")]
+    args = ctx.args if ctx.args else ["up"]
+    # Add --wait when running detached to ensure db is ready
+    if "up" in args and "-d" in args and "--wait" not in args:
+        args = args + ["--wait"]
+    cmd.extend(args)
+    subprocess.run(cmd, check=True)
 
 
-@app.command(name="frontend", context_settings={"allow_extra_args": True})
+def _update_env_with_local_dev_settings(env: dict[str, str]) -> None:
+    env["STATS_DB_URI"] = LOCAL_DB_URI
+    env["DEBUG_USER_EMAIL"] = "localdev@example.com"
+    env["RUN_MIGRATIONS"] = "true"
+    env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
+    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+
+    # Local dev k8s settings
+    env["LOCAL_DEV"] = "true"
+    env["LOCAL_DEV_K8S_CONTEXT"] = "orbstack"
+    aws_path = os.path.expanduser("~/.aws")
+    source_mounts = [
+        f"{aws_path}:/root/.aws",
+        f"{repo_root}/metta:/workspace/metta/metta",
+        f"{repo_root}/app_backend:/workspace/metta/app_backend",
+        f"{repo_root}/common:/workspace/metta/common",
+    ]
+    env["LOCAL_DEV_MOUNTS"] = ",".join(source_mounts)
+    env["LOCAL_DEV_AWS_PROFILE"] = "softmax"
+
+
+@app.command(name="server", help="Run the backend server on host")
+@handle_errors
+def server():
+    env = os.environ.copy()
+    _update_env_with_local_dev_settings(env)
+
+    # For sending the jobs
+    env["HOST"] = "0.0.0.0"
+    env["PORT"] = "8000"
+    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
+
+    info("Starting backend server...")
+    subprocess.run(
+        ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/server.py")],
+        env=env,
+        check=True,
+    )
+
+
+@app.command(name="watcher", help="Run the job watcher on host")
+@handle_errors
+def watcher():
+    env = os.environ.copy()
+    _update_env_with_local_dev_settings(env)
+
+    env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL
+
+    info("Starting watcher...")
+
+    subprocess.run(
+        ["uv", "run", "python", "-m", "metta.app_backend.job_runner.watcher"],
+        env=env,
+        check=True,
+    )
+
+
+@app.command(name="frontend")
+@handle_errors
 def frontend(
-    ctx: typer.Context,
     backend: Annotated[str, typer.Option("--backend", "-b", help="Select backend: local or prod")] = "local",
 ):
     env = os.environ.copy()
 
     if backend == "local":
-        env["VITE_API_URL"] = DEV_STATS_SERVER_URI
-        info("Connecting to local backend at localhost:8000")
-        info("Make sure backend is running: docker compose -f app_backend/docker-compose.dev.yml up")
+        env["VITE_API_URL"] = LOCAL_BACKEND_URL
+        info(f"Connecting to local backend at {LOCAL_BACKEND_URL}")
     else:
         env["VITE_API_URL"] = PROD_STATS_SERVER_URI
         if token := get_machine_token(env["VITE_API_URL"]):
@@ -67,17 +191,10 @@ def frontend(
     info("Starting Observatory frontend")
     info(f"API URL: {env.get('VITE_API_URL')}")
 
-    try:
-        subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=get_repo_root() / "observatory")
-    except subprocess.CalledProcessError as e:
-        error(f'Error running "pnpm run dev": {e}')
-        sys.exit(1)
-    except KeyboardInterrupt:
-        info("\nObservatory shutdown")
-        sys.exit(0)
+    subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=get_repo_root() / "observatory")
 
 
-app.add_typer(kind_app, name="kind")
+app.add_typer(local_k8s_app, name="local-k8s")
 
 
 def main():

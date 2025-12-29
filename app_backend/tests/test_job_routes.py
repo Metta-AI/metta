@@ -34,14 +34,25 @@ class TestEpisodeJobRoutes:
             assert job.id == job_ids[i]
             assert job.job == j.job
 
-        # Update one
-        stats_client.update_job(job_ids[0], JobRequestUpdate(status=JobStatus.dispatched, worker="worker1"))
-
-        # Fetch it again and check that the result is updated
+        # Jobs start as dispatched (dispatch_job stub succeeds)
         fetched_job = stats_client.get_job(job_ids[0])
         assert fetched_job.status == JobStatus.dispatched
 
-        # Fetch jobs by status and confirm it's in there
-        jobs = stats_client.list_jobs(statuses=[JobStatus.dispatched])
-        assert len(jobs) == 1
-        assert jobs[0].id == job_ids[0]
+        # Update to running
+        stats_client.update_job(job_ids[0], JobRequestUpdate(status=JobStatus.running, worker="worker1"))
+        fetched_job = stats_client.get_job(job_ids[0])
+        assert fetched_job.status == JobStatus.running
+
+        # Update to completed
+        stats_client.update_job(job_ids[0], JobRequestUpdate(status=JobStatus.completed))
+        fetched_job = stats_client.get_job(job_ids[0])
+        assert fetched_job.status == JobStatus.completed
+
+        # Fetch jobs by status and confirm filtering works
+        completed_jobs = stats_client.list_jobs(statuses=[JobStatus.completed])
+        assert len(completed_jobs) == 1
+        assert completed_jobs[0].id == job_ids[0]
+
+        dispatched_jobs = stats_client.list_jobs(statuses=[JobStatus.dispatched])
+        assert len(dispatched_jobs) == 1
+        assert dispatched_jobs[0].id == job_ids[1]

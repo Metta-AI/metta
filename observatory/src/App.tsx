@@ -5,6 +5,7 @@ import { AppProvider } from './AppContext'
 import { hasToken, initiateLogin } from './auth'
 import { AuthCallback } from './AuthCallback'
 import { EpisodeDetailPage } from './EpisodeDetailPage'
+import { EpisodeJobs } from './EpisodeJobs'
 import { EvalTasks } from './EvalTasks/index'
 import { Leaderboard } from './Leaderboard'
 import { PoliciesPage } from './PoliciesPage'
@@ -37,6 +38,7 @@ function App() {
             <Route path="/policies/:policyId" element={<PolicyPage />} />
             <Route path="/policies/versions/:policyVersionId" element={<PolicyVersionPage />} />
             <Route path="/eval-tasks" element={<EvalTasks />} />
+            <Route path="/episode-jobs" element={<EpisodeJobs />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/episodes/:episodeId" element={<EpisodeDetailPage />} />
             <Route path="/sql-query" element={<SQLQuery />} />
