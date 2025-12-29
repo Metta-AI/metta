@@ -109,8 +109,6 @@ class CoreTrainingLoop:
                 rewards = r.to(device=target_device, non_blocking=True)
                 td["rewards"] = rewards
                 agent_ids = self._env_index_cache[training_env_id]
-                if agent_ids.device != td.device:
-                    agent_ids = agent_ids.to(device=td.device)
                 td["training_env_ids"] = agent_ids.unsqueeze(1)
 
                 avg_reward = context.state.avg_reward
@@ -132,11 +130,7 @@ class CoreTrainingLoop:
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
                 # Row-aligned state: provide row slot id and position within row
                 row_ids = self.experience.row_slot_ids[training_env_id]
-                if row_ids.device != target_device:
-                    row_ids = row_ids.to(device=target_device)
                 t_in_row = self.experience.t_in_row[training_env_id]
-                if t_in_row.device != target_device:
-                    t_in_row = t_in_row.to(device=target_device)
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
