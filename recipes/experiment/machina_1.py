@@ -82,12 +82,9 @@ def train_sweep(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
+    from recipes.experiment.cogs_v_clips import _normalize_variant_names
 
-    base_variants = ["heart_chorus"]
-    if variants:
-        for v in variants:
-            if v not in base_variants:
-                base_variants.append(v)
+    base_variants = _normalize_variant_names(initial=["heart_chorus"], variants=variants)
 
     tt = train(
         num_cogs=num_cogs,

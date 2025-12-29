@@ -1,7 +1,7 @@
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 import typer
 from rich import box
@@ -67,7 +67,7 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     elif mission_set == "diagnostic_evals":
         from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 
-        missions_list = cast(list[Mission], [mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
+        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
     elif mission_set == "integrated_evals":
         from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 

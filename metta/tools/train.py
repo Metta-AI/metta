@@ -158,27 +158,21 @@ class TrainTool(Tool):
         stats_future: Future[Optional[StatsClient]] | None = None
         storage_decision: PolicyStorageDecision | None = None
         stats_client: Optional[StatsClient] = None
-
-        def submit_preflight() -> None:
-            nonlocal preflight_executor, storage_future, stats_future
+        needs_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
+        start_method = multiprocessing.get_start_method(allow_none=True) or multiprocessing.get_context().get_start_method()
+        can_thread_preflight = needs_preflight and (
+            self.training_env.vectorization == "serial" or start_method != "fork"
+        )
+        if can_thread_preflight:
             preflight_executor = ThreadPoolExecutor(max_workers=2)
             if not self.system.local_only:
                 storage_future = preflight_executor.submit(auto_policy_storage_decision, run_name)
             if distributed_helper.is_master() and self.stats_server_uri:
                 stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
 
-        needs_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
-        if needs_preflight:
-            start_method = multiprocessing.get_start_method(allow_none=True)
-            if start_method is None:
-                start_method = multiprocessing.get_context().get_start_method()
-            # Avoid forking with live threads.
-            if self.training_env.vectorization == "serial" or start_method != "fork":
-                submit_preflight()
-
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
 
-        if preflight_executor is None and needs_preflight:
+        if needs_preflight and not can_thread_preflight:
             if not self.system.local_only:
                 storage_decision = auto_policy_storage_decision(run_name)
             if distributed_helper.is_master() and self.stats_server_uri:
@@ -221,9 +215,8 @@ class TrainTool(Tool):
 
         if stats_future:
             stats_client = stats_future.result()
-        else:
-            if stats_client is None:
-                stats_client = self._maybe_create_stats_client(distributed_helper)
+        elif stats_client is None:
+            stats_client = self._maybe_create_stats_client(distributed_helper)
 
         if preflight_executor is not None:
             preflight_executor.shutdown(wait=False)
