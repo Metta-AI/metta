@@ -19,7 +19,7 @@ COPY .python-version pyproject.toml uv.lock ./
 RUN uv python install
 
 RUN bash install.sh --profile softmax-docker --non-interactive
-RUN uv sync --frozen --package metta-app-backend
+RUN uv sync --frozen
 
 WORKDIR /workspace/metta/app_backend
 EXPOSE 8000
