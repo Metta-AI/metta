@@ -131,6 +131,7 @@ _CORE_MISSIONS: list[Mission] = [
     Machina1BalancedCornersMission,
 ]
 
+
 def get_core_missions() -> list[Mission]:
     return list(_CORE_MISSIONS)
 
