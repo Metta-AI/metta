@@ -15,11 +15,6 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
-try:  # Prefer gymnasium but fall back to gym if needed.
-    from gymnasium import spaces as gym_spaces
-except ImportError:  # pragma: no cover - fallback for older envs.
-    from gym import spaces as gym_spaces  # type: ignore[no-redef]
-
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
@@ -166,13 +161,9 @@ class CMPO(Loss):
         self.burn_in_steps_iter = 0
 
         obs_space = env.single_observation_space
-        if not hasattr(obs_space, "shape"):
-            raise ValueError("Environment observation space must define shape for CMPO.")
         self.obs_shape = tuple(int(dim) for dim in obs_space.shape)
         self.obs_dim = int(torch.tensor(self.obs_shape).prod().item())
         action_space = env.single_action_space
-        if not isinstance(action_space, gym_spaces.Discrete):
-            raise NotImplementedError("CMPO currently supports only discrete action spaces.")
         self.action_dim = int(action_space.n)
 
         self.world_model = WorldModelEnsemble(cfg.world_model, self.obs_dim, self.action_dim).to(device)
