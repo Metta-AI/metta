@@ -65,6 +65,7 @@ resources = [
     "battery",
     "gear",
     "damage",
+    "support",
 ]
 
 vibes = [
@@ -77,10 +78,19 @@ vibes = [
 ]
 
 
+def support_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that provides support to nearby agents."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"support": 1},
+        members_only=True,
+    )
+
+
 def supply_depot_config(map_name: str) -> CollectiveChestConfig:
     """Supply depot that receives element resources via default vibe into collective.
 
-    Also emits AOE effect that restores energy and reduces damage for nearby agents.
+    Also emits AOE effect that restores energy, reduces damage, and provides support for nearby agents.
     """
     return CollectiveChestConfig(
         name="supply_depot",
@@ -91,7 +101,37 @@ def supply_depot_config(map_name: str) -> CollectiveChestConfig:
         aoes=[
             AOEEffectConfig(
                 range=10,
-                resource_deltas={"energy": 100, "damage": -100},
+                resource_deltas={"energy": 100, "damage": -100, "support": 1},
+                members_only=True,
+            )
+        ],
+    )
+
+
+def main_nexus_config(map_name: str) -> AssemblerConfig:
+    """Main nexus assembler with support AOE effect."""
+    return AssemblerConfig(
+        name="main_nexus",
+        map_name=map_name,
+        render_symbol="🏛️",
+        clip_immune=True,
+        chest_search_distance=10,
+        protocols=[
+            ProtocolConfig(
+                vibes=["heart"],
+                input_resources={
+                    "carbon": 10,
+                    "oxygen": 10,
+                    "germanium": 10,
+                    "silicon": 10,
+                },
+                output_resources={"heart": 1},
+            ),
+        ],
+        aoes=[
+            AOEEffectConfig(
+                range=10,
+                resource_deltas={"energy": 100, "damage": -100, "support": 1},
                 members_only=True,
             )
         ],
@@ -195,6 +235,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "gear": ResourceLimitsConfig(
                         limit=0, resources=["weapon", "shield", "battery"], modifiers={"gear": 1}
                     ),
+                    "support": ResourceLimitsConfig(limit=1, resources=["support"]),
                 },
                 initial={
                     "gear": 10,
@@ -212,6 +253,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "default": {
                         "energy": 1,
                         "damage": 1,
+                        "support": -1,
                     },
                 },
             ),
@@ -243,7 +285,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
         inventory_regen_interval=1,
         objects={
             "wall": CvCWallConfig().station_cfg(),
-            "assembler": CogAssemblerConfig().station_cfg().model_copy(update={"collective": "cogs"}),
+            "assembler": main_nexus_config("assembler").model_copy(update={"collective": "cogs"}),
             "charger": supply_depot_config("charger"),
             "chest": supply_depot_config("chest"),
             "carbon_extractor": resource_chest_config("carbon_extractor", "carbon"),
