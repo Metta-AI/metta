@@ -79,11 +79,12 @@ def run_watcher():
     cfg = get_dispatch_config()
     get_k8s_client()  # initialize cached client
 
+    _start_health_server()
+    _update_heartbeat()  # mark healthy before blocking on auth
+
     # Pass token directly instead of writing to config file
     stats_client = StatsClient(backend_url=cfg.STATS_SERVER_URI, machine_token=cfg.MACHINE_TOKEN)
     stats_client._validate_authenticated()
-
-    _start_health_server()
 
     logger.info(f"Watcher started: stats_server_uri={cfg.STATS_SERVER_URI}, namespace={JOB_NAMESPACE}")
 

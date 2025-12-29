@@ -17,6 +17,10 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}-watcher
     spec:
       serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
+      initContainers:
+      - name: wait-for-backend
+        image: curlimages/curl:8.5.0
+        command: ['sh', '-c', 'until curl -sf {{ .Values.env.BACKEND_URL }}/whoami; do echo "Waiting for backend..."; sleep 5; done']
       containers:
       - name: watcher
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
