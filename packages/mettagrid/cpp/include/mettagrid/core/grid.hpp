@@ -206,11 +206,7 @@ public:
 
     for (int r = r_start; r < r_end; ++r) {
       for (int c = c_start; c < c_end; ++c) {
-        int dr = std::abs(r - static_cast<int>(center_r));
-        int dc = std::abs(c - static_cast<int>(center_c));
-        if (dr + dc <= static_cast<int>(radius)) {
-          _effect_sources[r][c].add_source(owner, config);
-        }
+        _effect_sources[r][c].add_source(owner, config);
       }
     }
   }
@@ -224,11 +220,7 @@ public:
 
     for (int r = r_start; r < r_end; ++r) {
       for (int c = c_start; c < c_end; ++c) {
-        int dr = std::abs(r - static_cast<int>(center_r));
-        int dc = std::abs(c - static_cast<int>(center_c));
-        if (dr + dc <= static_cast<int>(radius)) {
-          _effect_sources[r][c].remove_source(owner);
-        }
+        _effect_sources[r][c].remove_source(owner);
       }
     }
   }
@@ -247,16 +239,11 @@ public:
 
     for (int r = r_start; r < r_end; ++r) {
       for (int c = c_start; c < c_end; ++c) {
-        // Manhattan distance for AOE range
-        int dr = std::abs(r - static_cast<int>(center_r));
-        int dc = std::abs(c - static_cast<int>(center_c));
-        if (dr + dc <= static_cast<int>(radius)) {
-          for (const auto& [item, delta] : resource_deltas) {
-            if (adding) {
-              _effects[r][c].add(item, delta);
-            } else {
-              _effects[r][c].subtract(item, delta);
-            }
+        for (const auto& [item, delta] : resource_deltas) {
+          if (adding) {
+            _effects[r][c].add(item, delta);
+          } else {
+            _effects[r][c].subtract(item, delta);
           }
         }
       }
