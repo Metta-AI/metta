@@ -270,6 +270,22 @@ def policy_spec_from_uri(
         load_policy_spec_from_zip,
     )
 
+    # Handle metta://policy/<builtin> URIs for built-in policies
+    if uri.startswith("metta://policy/"):
+        from mettagrid.policy.loader import discover_and_register_policies
+        from mettagrid.policy.policy_registry import get_policy_registry
+
+        identifier = uri[len("metta://policy/") :]
+        discover_and_register_policies()
+        registry = get_policy_registry()
+
+        # Check if it's a registered short name
+        if identifier in registry:
+            return PolicySpec(class_path=registry[identifier])
+        # Check if it looks like a full class path
+        if "." in identifier:
+            return PolicySpec(class_path=identifier)
+
     parsed = resolve_uri(uri)
 
     if parsed.canonical.endswith(".mpt"):

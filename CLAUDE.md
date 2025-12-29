@@ -54,3 +54,7 @@ Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv r
 ```
 
 See `common/src/metta/common/tool/README.md` for details.
+
+## Git Hub Integration
+
+Use graphite ("gt") to create PRs. Name the branch $user-short-issue-name (5 words or less)
