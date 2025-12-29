@@ -44,6 +44,20 @@ def train(
         teacher=teacher,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
+    losses_cfg = tt.trainer.losses
+    needs_full_log_probs = any(
+        getattr(losses_cfg, name).enabled
+        for name in (
+            "supervisor",
+            "sliced_scripted_cloner",
+            "eer_kickstarter",
+            "eer_cloner",
+        )
+    )
+    action_probs_config = getattr(tt.policy_architecture, "action_probs_config", None)
+    if action_probs_config is not None and not needs_full_log_probs:
+        action_probs_config.emit_full_log_probs = False
+    tt.system.torch_deterministic = False
 
     tt.trainer.losses.ppo_critic.critic_update = "mse"
 
