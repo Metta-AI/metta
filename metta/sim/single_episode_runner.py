@@ -70,15 +70,21 @@ def main():
             }
             temp_file.write(json.dumps(pure_job_spec).encode("utf-8"))
             temp_file.flush()
-            subprocess.run(
+            result = subprocess.run(
                 [
                     sys.executable,
                     "-m",
                     "metta.sim.pure_single_episode_runner",
                     temp_file.name,
                 ],
-                check=True,
+                capture_output=True,
+                text=True,
             )
+            if result.returncode != 0:
+                error_output = result.stderr or result.stdout or "No output"
+                if len(error_output) > 2000:
+                    error_output = error_output[:2000] + "\n... (truncated)"
+                raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
 
         for src, dest, content_type in [
             (local_replay_uri, job.replay_uri, "application/x-compress"),
