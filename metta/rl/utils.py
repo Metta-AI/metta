@@ -1,6 +1,6 @@
 """Training utilities for Metta RL."""
 
-from typing import Collection, Tuple
+from typing import Collection
 
 import torch
 from tensordict import TensorDict
@@ -19,21 +19,26 @@ def _get_policy_metadata_tensors(
     cached = _POLICY_METADATA_CACHE.get(key)
     if cached is None or cached[0].device != device:
         total = batch_size * time_steps
-        batch_tensor = torch.full((total,), batch_size, dtype=torch.long, device=device)
-        bptt_tensor = torch.full((total,), time_steps, dtype=torch.long, device=device)
-        _POLICY_METADATA_CACHE[key] = (batch_tensor, bptt_tensor)
-        return batch_tensor, bptt_tensor
+        cached = (
+            torch.full((total,), batch_size, dtype=torch.long, device=device),
+            torch.full((total,), time_steps, dtype=torch.long, device=device),
+        )
+        _POLICY_METADATA_CACHE[key] = cached
     return cached
 
 
 def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
     """Attach required sequence metadata to ``td`` if missing."""
 
-    device = td.device
-    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(device, batch_size, time_steps)
-    if "batch" not in td.keys():
+    keys = td.keys()
+    needs_batch = "batch" not in keys
+    needs_bptt = "bptt" not in keys
+    if not (needs_batch or needs_bptt):
+        return
+    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(td.device, batch_size, time_steps)
+    if needs_batch:
         td.set("batch", batch_tensor)
-    if "bptt" not in td.keys():
+    if needs_bptt:
         td.set("bptt", bptt_tensor)
 
 
@@ -42,7 +47,7 @@ def prepare_policy_forward_td(
     spec: Composite,
     *,
     clone: bool = True,
-) -> Tuple[TensorDict, int, int]:
+) -> tuple[TensorDict, int, int]:
     """Prepare a TensorDict for policy forward pass with BPTT and batch metadata.
 
     This function extracts the relevant keys from a minibatch, optionally clones them,
@@ -56,8 +61,8 @@ def prepare_policy_forward_td(
     B, TT = td.batch_size
     td = td.reshape(B * TT)
     batch_tensor, bptt_tensor = _get_policy_metadata_tensors(td.device, B, TT)
-    td.set("bptt", bptt_tensor)
     td.set("batch", batch_tensor)
+    td.set("bptt", bptt_tensor)
 
     return td, B, TT
 
