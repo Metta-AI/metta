@@ -241,12 +241,19 @@ def find_mission(
     if include_evals:
         missions = [*missions, *_get_eval_missions_all()]
 
+    found_site = False
     for mission in missions:
         if mission.site.name != site_name:
             continue
+        found_site = True
         if mission_name is not None and mission.name != mission_name:
             continue
         return mission
+
+    if mission_name is None and not found_site:
+        for mission in missions:
+            if mission.name == site_name:
+                return mission
 
     if mission_name is not None:
         raise ValueError(f"Mission {mission_name} not available on site {site_name}")
