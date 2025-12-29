@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { FC, PropsWithChildren, useCallback, useContext, useEffect, useState } from 'react'
+import { FC, PropsWithChildren, useCallback, useContext, useEffect, useState, Fragment } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
@@ -100,54 +100,78 @@ const Timeline: FC<{ job: JobRequest }> = ({ job }) => {
 }
 
 const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
+  const [expanded, setExpanded] = useState(false)
   const policyUris = job.job?.policy_uris as string[] | undefined
   const episodeTags = job.job?.episode_tags as Record<string, string> | undefined
   const episodeId = job.result?.episode_id as string | undefined
   const error = job.result?.error as string | undefined
 
+  const hasExpandableContent = !episodeId && (error || job.result)
+
   return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 align-top">
-      <TD className="font-mono text-xs">{job.id.slice(0, 8)}</TD>
-      <TD>
-        <StatusBadge status={job.status} />
-      </TD>
-      <TD>
-        {policyUris?.map((uri, i) => (
-          <div key={i} className="font-mono text-xs truncate max-w-[400px]" title={uri}>
-            {uri}
-          </div>
-        ))}
-      </TD>
-      <TD>
-        {episodeTags && Object.keys(episodeTags).length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(episodeTags).map(([k, v]) => (
-              <span key={k} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded" title={`${k}: ${v}`}>
-                {k}={v}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-400">-</span>
+    <Fragment>
+      <tr
+        className={clsx(
+          'border-b border-gray-200 hover:bg-gray-50 align-top',
+          hasExpandableContent && 'cursor-pointer'
         )}
-      </TD>
-      <TD>
-        <Timeline job={job} />
-      </TD>
-      <TD>
-        {episodeId ? (
-          <Link to={`/episodes/${episodeId}`} className="text-blue-600 hover:underline">
-            View
-          </Link>
-        ) : error ? (
-          <span className="text-red-600 text-xs" title={error}>
-            Error
-          </span>
-        ) : (
-          '-'
-        )}
-      </TD>
-    </tr>
+        onClick={() => hasExpandableContent && setExpanded(!expanded)}
+      >
+        <TD className="font-mono text-xs">{job.id.slice(0, 8)}</TD>
+        <TD>
+          <StatusBadge status={job.status} />
+        </TD>
+        <TD>
+          {policyUris?.map((uri, i) => (
+            <div key={i} className="font-mono text-xs truncate max-w-[400px]" title={uri}>
+              {uri}
+            </div>
+          ))}
+        </TD>
+        <TD>
+          {episodeTags && Object.keys(episodeTags).length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(episodeTags).map(([k, v]) => (
+                <span key={k} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded" title={`${k}: ${v}`}>
+                  {k}={v}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </TD>
+        <TD>
+          <Timeline job={job} />
+        </TD>
+        <TD>
+          {episodeId ? (
+            <Link to={`/episodes/${episodeId}`} className="text-blue-600 hover:underline">
+              View
+            </Link>
+          ) : error ? (
+            <span className="text-red-600 text-xs">
+              {expanded ? '[-] Error' : '[+] Error'}
+            </span>
+          ) : job.result ? (
+            <span className="text-gray-600 text-xs">
+              {expanded ? '[-] Result' : '[+] Result'}
+            </span>
+          ) : (
+            '-'
+          )}
+        </TD>
+      </tr>
+      {expanded && hasExpandableContent && (
+        <tr className="bg-gray-50">
+          <td colSpan={6} className="px-3 py-2">
+            <pre className={clsx('text-xs whitespace-pre-wrap', error ? 'text-red-600' : 'text-gray-600')}>
+              {error || JSON.stringify(job.result, null, 2)}
+            </pre>
+          </td>
+        </tr>
+      )}
+    </Fragment>
   )
 }
 
@@ -234,7 +258,7 @@ export const EpisodeJobs: FC = () => {
                 <TH>Policy URIs</TH>
                 <TH width={200}>Tags</TH>
                 <TH width={280}>Timeline</TH>
-                <TH width={80}>Episode</TH>
+                <TH width={100}>Result</TH>
               </tr>
             </thead>
             <tbody>
