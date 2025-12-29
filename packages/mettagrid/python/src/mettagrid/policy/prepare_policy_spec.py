@@ -193,6 +193,26 @@ def download_policy_spec_from_s3_as_zip(
     return local_path
 
 
+def convert_mpt_to_bundle(local_path: Path, *, cache_key: str) -> Path:
+    cache_dir = DEFAULT_POLICY_CACHE_DIR / "mpt"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    extraction_root = cache_dir / hashlib.sha256(cache_key.encode()).hexdigest()
+    extraction_root.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(local_path, "r") as archive:
+        (extraction_root / "weights.safetensors").write_bytes(archive.read("weights.safetensors"))
+        architecture_spec = archive.read("modelarchitecture.txt").decode("utf-8").strip()
+
+    class_path, *_ = architecture_spec.split("(", 1)
+    spec = SubmissionPolicySpec(
+        class_path=class_path.strip(),
+        data_path="weights.safetensors",
+        init_kwargs={"architecture_spec": architecture_spec},
+    )
+    (extraction_root / POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
+    return extraction_root
+
+
 def load_policy_spec_from_path(
     local_path: Path,
     *,
