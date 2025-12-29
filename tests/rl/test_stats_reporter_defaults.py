@@ -34,7 +34,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
         stopwatch=timer,
         experience=SimpleNamespace(stats=lambda: {}),
         policy=None,
-        optimizer=SimpleNamespace(param_groups=[]),
+        optimizer=None,
         epoch=0,
         agent_step=0,
         run_name=None,
@@ -61,7 +61,7 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
         agent_step=0,
         epoch=0,
         timer=reporter.context.stopwatch,
-        optimizer=reporter.context.optimizer,
+        optimizer=SimpleNamespace(param_groups=[]),
     )
 
     assert payload["env_game/assembler.heart.created"] == expected
