@@ -60,6 +60,7 @@ def simulate_and_record(
         seed=seed,
         max_workers=max_workers,
         on_progress=on_progress,
+        device_override=device_override,
     )
 
     if observatory_writer is not None:
