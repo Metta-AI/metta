@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, cast
 
@@ -17,12 +18,14 @@ from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
 
 
+@lru_cache(maxsize=1)
 def _get_core_missions() -> list[Mission]:
     from cogames.cogs_vs_clips.missions import get_core_missions
 
     return get_core_missions()
 
 
+@lru_cache(maxsize=1)
 def _get_eval_missions_all() -> list[Mission]:
     from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
     from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS

@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -129,9 +131,6 @@ _CORE_MISSIONS: list[Mission] = [
     Machina1BalancedCornersMission,
 ]
 
-_MISSIONS_CACHE: list[Mission] | None = None
-
-
 def get_core_missions() -> list[Mission]:
     return list(_CORE_MISSIONS)
 
@@ -146,11 +145,9 @@ def _build_eval_missions() -> list[Mission]:
     ]
 
 
+@lru_cache(maxsize=1)
 def get_missions() -> list[Mission]:
-    global _MISSIONS_CACHE
-    if _MISSIONS_CACHE is None:
-        _MISSIONS_CACHE = [*_CORE_MISSIONS, *_build_eval_missions()]
-    return _MISSIONS_CACHE
+    return [*_CORE_MISSIONS, *_build_eval_missions()]
 
 
 def __getattr__(name: str) -> list[Mission]:
