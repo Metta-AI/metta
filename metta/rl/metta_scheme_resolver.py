@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from pathlib import Path
 
@@ -69,7 +70,7 @@ class MettaSchemeResolver(SchemeResolver):
     """
 
     def __init__(self, stats_server_uri: str | None = None):
-        self._stats_server_uri = stats_server_uri or PROD_STATS_SERVER_URI
+        self._stats_server_uri = stats_server_uri or os.environ.get("STATS_SERVER_URI") or PROD_STATS_SERVER_URI
 
     @property
     def scheme(self) -> str:
