@@ -1,5 +1,5 @@
 import
-  std/[math, os, strutils, tables, strformat, random, times, json, sets],
+  std/[math, os, strutils, tables, strformat, random, times, json, sets, sequtils],
   vmath, windy, boxy,
   common, actions, utils, replays,
   pathfinding, tilemap, pixelator, shaderquad,
@@ -468,6 +468,92 @@ proc drawGrid*() =
   sq.draw(mvp, mapSize, tileSize, gridColor, 1.0f)
   bxy.exitRawOpenGLMode()
 
+<<<<<<< HEAD
+=======
+proc getAoeRange(typeName: string): int =
+  ## Get max AOE range for an object type from config. Returns 0 if no AOE.
+  if typeName == "agent":
+    return 0  # Agents are stored under game.agent, not game.objects, and don't emit AOE.
+  if replay.isNil or replay.mgConfig.isNil:
+    return 0
+  if "game" notin replay.mgConfig:
+    return 0
+  let game = replay.mgConfig["game"]
+  if "objects" notin game:
+    return 0
+  let objects = game["objects"]
+  if typeName notin objects:
+    echo "AOE lookup: typeName '", typeName, "' not found in objects. Keys: ", objects.keys.toSeq
+    return 0
+  let objConfig = objects[typeName]
+  if "aoes" notin objConfig or objConfig["aoes"].kind != JArray:
+    return 0
+  var maxRange = 0
+  for aoe in objConfig["aoes"]:
+    if "range" in aoe:
+      var r = 0
+      if aoe["range"].kind == JInt:
+        r = aoe["range"].getInt
+      elif aoe["range"].kind == JFloat:
+        r = aoe["range"].getFloat.int
+      if r > maxRange:
+        maxRange = r
+  return maxRange
+
+const AOE_ALL = 999  ## Special value meaning "show all AOE"
+
+proc shouldShowAOEForObject(obj: Entity): bool =
+  ## Check if AOE should be shown for this object based on current filter.
+  if settings.showAOE < 0:
+    return false
+  if settings.showAOE == AOE_ALL:
+    return true
+  # Filter by specific commons
+  return obj.commonsId == settings.showAOE
+
+proc drawAOEOverlay*() =
+  ## Draw green overlay on tiles affected by AOE effects.
+  ## Always shows for selected object, filters others by commons state.
+  ## Tracks drawn tiles to prevent overlapping (which would increase brightness).
+  if replay.isNil:
+    return
+
+  # Track which tiles have been drawn to avoid overlapping
+  var drawnTiles: HashSet[int64]
+
+  proc drawTileIfNew(tileX, tileY: int32) =
+    if tileX < 0 or tileY < 0 or tileX >= replay.mapSize[0] or tileY >= replay.mapSize[1]:
+      return
+    # Use a single int64 key for the tile position
+    let key = (tileX.int64 shl 32) or tileY.int64
+    if key in drawnTiles:
+      return
+    drawnTiles.incl(key)
+    px.drawSprite("objects/aoe_overlay", ivec2(tileX * TILE_SIZE, tileY * TILE_SIZE))
+
+  proc drawAOEForObject(obj: Entity) =
+    let aoeRange = getAoeRange(obj.typeName)
+    if aoeRange <= 0:
+      return
+    let pos = obj.location.at(step).xy
+    for dx in -aoeRange .. aoeRange:
+      for dy in -aoeRange .. aoeRange:
+        drawTileIfNew(pos.x + dx.int32, pos.y + dy.int32)
+
+  # Always draw for selected object if it has AOE
+  if selection != nil:
+    drawAOEForObject(selection)
+  # Draw for objects based on filter state
+  if settings.showAOE >= 0:
+    for obj in replay.objects:
+      # Skip selected object (already drawn above)
+      if selection != nil and obj.id == selection.id:
+        continue
+      # Check if this object matches the current filter
+      if shouldShowAOEForObject(obj):
+        drawAOEForObject(obj)
+
+>>>>>>> b76cfeb85f (cp)
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
