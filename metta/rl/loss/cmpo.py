@@ -135,9 +135,7 @@ class TransitionBuffer:
     def __len__(self) -> int:
         return len(self._buffer)
 
-    def sample(self, batch_size: int, device: torch.device) -> Optional[TensorDict]:
-        if not self._buffer:
-            return None
+    def sample(self, batch_size: int, device: torch.device) -> TensorDict:
         actual = min(batch_size, len(self._buffer))
         batch = random.sample(self._buffer, actual)
         stacked = {k: torch.stack([item[k] for item in batch], dim=0).to(device=device) for k in batch[0].keys()}
@@ -177,9 +175,9 @@ class CMPO(Loss):
             for param in self.prior_model.parameters():
                 param.requires_grad = False
 
-        self._prev_obs: Optional[Tensor] = None
-        self._prev_action_enc: Optional[Tensor] = None
-        self._has_prev: Optional[Tensor] = None
+        self._prev_obs = torch.empty((0, self.obs_dim), dtype=torch.float32, device=device)
+        self._prev_action_enc = torch.empty((0, self.action_dim), dtype=torch.float32, device=device)
+        self._has_prev = torch.empty((0,), dtype=torch.bool, device=device)
 
     def attach_replay_buffer(self, experience: Experience) -> None:  # type: ignore[override]
         super().attach_replay_buffer(experience)
@@ -225,7 +223,7 @@ class CMPO(Loss):
         actions = td["actions"]
         actions_enc = self._encode_action(actions)
 
-        if self._has_prev is not None and self._has_prev[env_slice].any():
+        if self._has_prev[env_slice].any():
             mask = self._has_prev[env_slice]
             prev_states = self._prev_obs[env_slice][mask]
             prev_actions_enc = self._prev_action_enc[env_slice][mask]
@@ -247,9 +245,6 @@ class CMPO(Loss):
         else:
             self.replay.store(data_td=td, env_id=env_slice)
 
-        if self._prev_obs is None or self._prev_action_enc is None or self._has_prev is None:
-            raise RuntimeError("CMPO replay buffers not initialized before rollout")
-
         self._prev_obs[env_slice] = obs_flat.detach()
         self._prev_action_enc[env_slice] = actions_enc.detach()
         self._has_prev[env_slice] = ~terminals.bool()
@@ -262,7 +257,8 @@ class CMPO(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         stop_update_epoch = False
         if mb_idx > 0 and self.cfg.target_kl is not None:
-            avg_kl = self._mean_tracker("approx_kl")
+            approx_kl = self.loss_tracker["approx_kl"]
+            avg_kl = sum(approx_kl) / len(approx_kl) if approx_kl else 0.0
             if avg_kl > self.cfg.target_kl:
                 stop_update_epoch = True
 
@@ -318,12 +314,6 @@ class CMPO(Loss):
 
         self._update_prior_model()
         return loss, shared_loss_data, stop_update_epoch
-
-    def _mean_tracker(self, key: str) -> float:
-        values = self.loss_tracker.get(key, [])
-        if not values:
-            return 0.0
-        return float(sum(values) / len(values))
 
     def _update_prior_model(self) -> None:
         if self.prior_model is None or self.cfg.prior_ema_decay is None:
@@ -410,8 +400,6 @@ class CMPO(Loss):
 
         for _ in range(cfg.train_steps):
             batch = self.transition_buffer.sample(cfg.batch_size, self.device)
-            if batch is None:
-                break
             states = batch["state"]
             actions = batch["action_enc"]
             rewards = batch["reward"]
