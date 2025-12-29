@@ -59,13 +59,13 @@ def timed_route(route_name: str = ""):
                     request_info = f" {arg.method} {arg.url.path}"
                     break
 
-            route_logger.info(f"ROUTE START: {name}{request_info}")
+            route_logger.debug(f"ROUTE START: {name}{request_info}")
 
             try:
                 result = await func(*args, **kwargs)
                 execution_time = time.time() - start_time
 
-                route_logger.info(f"ROUTE COMPLETE: {name} in {execution_time:.3f}s")
+                route_logger.debug(f"ROUTE COMPLETE: {name} in {execution_time:.3f}s")
 
                 # Log slow routes
                 if execution_time > SLOW_ROUTE_THRESHOLD_SECONDS:
