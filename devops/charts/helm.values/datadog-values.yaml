@@ -39,7 +39,7 @@ datadog:
   # Exclude ephemeral eval workers from infrastructure metrics to reduce billing
   # Logs and APM traces are still collected for all containers
   # https://docs.datadoghq.com/containers/guide/container-discovery-management/
-  containerExcludeMetrics: "kube_namespace:orchestrator kube_namespace:monitoring"
+  containerExcludeMetrics: "kube_namespace:orchestrator kube_namespace:monitoring kube_namespace:jobs"
 
 # DaemonSet agent configuration
 clusterAgent:

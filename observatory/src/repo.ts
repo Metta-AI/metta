@@ -259,6 +259,22 @@ export type AIQueryResponse = {
   query: string
 }
 
+export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed'
+
+export type JobRequest = {
+  id: string
+  job_type: string
+  job: Record<string, any>
+  status: JobStatus
+  user_id: string
+  worker: string | null
+  result: Record<string, any> | null
+  created_at: string
+  dispatched_at: string | null
+  running_at: string | null
+  completed_at: string | null
+}
+
 export type PolicyRow = {
   id: string
   name: string
@@ -553,5 +569,24 @@ export class Repo {
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
     return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
+  }
+
+  async getJobs(params?: {
+    job_type?: string
+    statuses?: JobStatus[]
+    limit?: number
+    offset?: number
+  }): Promise<JobRequest[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.statuses) {
+      for (const status of params.statuses) {
+        searchParams.append('statuses', status)
+      }
+    }
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<JobRequest[]>(`/jobs${query ? `?${query}` : ''}`)
   }
 }

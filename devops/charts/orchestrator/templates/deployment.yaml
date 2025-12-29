@@ -1,3 +1,4 @@
+{{- if .Values.orchestrator.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,7 +20,7 @@ spec:
       - name: {{ .Chart.Name }}
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["uv", "run", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
+        command: ["uv", "run", "--no-sync", "python", "-m", "metta.app_backend.eval_task_orchestrator"]
         env:
         - name: BACKEND_URL
           value: {{ .Values.env.BACKEND_URL | quote }}
@@ -69,3 +70,4 @@ spec:
         {{- end }}
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}

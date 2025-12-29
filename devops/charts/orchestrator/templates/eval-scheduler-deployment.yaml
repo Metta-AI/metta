@@ -32,7 +32,7 @@ spec:
       - name: eval-scheduler
         image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["uv", "run", "python", "-m", "metta.app_backend.leaderboard_eval_scheduler"]
+        command: ["uv", "run", "--no-sync", "python", "-m", "metta.app_backend.leaderboard_eval_scheduler"]
         env:
         - name: BACKEND_URL
           value: {{ default .Values.env.BACKEND_URL $msEnv.BACKEND_URL | quote }}
