@@ -56,14 +56,7 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     """
     if mission_set == "all":
         # All missions: eval missions + integrated + spanning + diagnostic + core missions
-        missions_list = []
-        from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-        from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
-        from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
-
-        missions_list.extend(INTEGRATED_EVAL_MISSIONS)
-        missions_list.extend(SPANNING_EVAL_MISSIONS)
-        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
+        missions_list = list(_get_eval_missions_all())
 
         # Add core missions that aren't already in eval sets
         eval_mission_names = {m.name for m in missions_list}
