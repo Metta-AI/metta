@@ -96,7 +96,7 @@ class TestAOEEffectsBasic:
         """Test that AOE effects are applied to agents within range."""
         sim = self._create_sim_with_aoe(aoe_range=2, resource_deltas={"energy": 10})
 
-        # Agent at (2,2), AOE source at (1,1), distance = 2 (Manhattan)
+        # Agent at (2,2), AOE source at (1,1), distance = 1 (Chebyshev/square)
         energy_before = self._get_agent_inventory(sim, "energy")
 
         # Step to apply effects
@@ -110,10 +110,10 @@ class TestAOEEffectsBasic:
 
     def test_aoe_effect_not_applied_when_out_of_range(self):
         """Test that AOE effects are NOT applied to agents outside range."""
-        sim = self._create_sim_with_aoe(aoe_range=1, resource_deltas={"energy": 10})
+        sim = self._create_sim_with_aoe(aoe_range=0, resource_deltas={"energy": 10})
 
-        # Agent at (2,2), AOE source at (1,1), distance = 2 (Manhattan)
-        # Range is 1, so agent should be out of range
+        # Agent at (2,2), AOE source at (1,1), distance = 1 (Chebyshev/square)
+        # Range is 0, so agent should be out of range
         energy_before = self._get_agent_inventory(sim, "energy")
 
         # Step to apply effects
