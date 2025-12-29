@@ -58,6 +58,7 @@ def train(
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
+    env_cfg.game.max_steps = 1000
     env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
@@ -74,6 +75,7 @@ def train(
         mission="machina_1.open_world",
         variants=eval_variant_names or None,
     )
+    eval_env.game.max_steps = 1000
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
