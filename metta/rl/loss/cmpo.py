@@ -144,8 +144,7 @@ class TransitionBuffer:
         if not self._buffer:
             return None
         actual = min(batch_size, len(self._buffer))
-        indices = random.sample(range(len(self._buffer)), actual)
-        batch = [self._buffer[i] for i in indices]
+        batch = random.sample(self._buffer, actual)
         stacked = {k: torch.stack([item[k] for item in batch], dim=0).to(device=device) for k in batch[0].keys()}
         return TensorDict(stacked, batch_size=(actual,))
 
@@ -163,10 +162,7 @@ class CMPO(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.cfg: CMPOConfig = cfg
 
-        if hasattr(self.policy, "burn_in_steps"):
-            self.burn_in_steps = self.policy.burn_in_steps
-        else:
-            self.burn_in_steps = 0
+        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
         self.burn_in_steps_iter = 0
 
         obs_space = env.single_observation_space
@@ -191,7 +187,6 @@ class CMPO(Loss):
 
         self._prev_obs: Optional[Tensor] = None
         self._prev_action_enc: Optional[Tensor] = None
-        self._prev_done: Optional[Tensor] = None
         self._has_prev: Optional[Tensor] = None
 
     def attach_replay_buffer(self, experience: Experience) -> None:  # type: ignore[override]
@@ -200,7 +195,6 @@ class CMPO(Loss):
         device = self.device
         self._prev_obs = torch.zeros((segments, self.obs_dim), dtype=torch.float32, device=device)
         self._prev_action_enc = torch.zeros((segments, self.action_dim), dtype=torch.float32, device=device)
-        self._prev_done = torch.ones((segments,), dtype=torch.bool, device=device)
         self._has_prev = torch.zeros((segments,), dtype=torch.bool, device=device)
 
     def get_experience_spec(self) -> Composite:
@@ -245,11 +239,11 @@ class CMPO(Loss):
             current_dones = terminals[mask].float()
 
             self.transition_buffer.add_batch(
-                states=prev_states.detach(),
-                actions_enc=prev_actions_enc.detach(),
-                rewards=current_rewards.detach(),
-                next_states=current_states.detach(),
-                dones=current_dones.detach(),
+                states=prev_states,
+                actions_enc=prev_actions_enc,
+                rewards=current_rewards,
+                next_states=current_states,
+                dones=current_dones,
             )
 
         if self.burn_in_steps_iter < self.burn_in_steps:
@@ -262,9 +256,7 @@ class CMPO(Loss):
 
         self._prev_obs[env_slice] = obs_flat.detach()
         self._prev_action_enc[env_slice] = actions_enc.detach()
-        done_flags = terminals
-        self._prev_done[env_slice] = done_flags
-        self._has_prev[env_slice] = ~done_flags.bool()
+        self._has_prev[env_slice] = ~terminals.bool()
 
     def run_train(
         self,
@@ -334,11 +326,9 @@ class CMPO(Loss):
         return float(sum(values) / len(values))
 
     def _update_prior_model(self) -> None:
-        if self.prior_model is None:
+        if self.prior_model is None or self.cfg.prior_ema_decay is None:
             return
         decay = self.cfg.prior_ema_decay
-        if decay is None:
-            return
         with torch.no_grad():
             for prior_param, online_param in zip(self.prior_model.parameters(), self.policy.parameters(), strict=False):
                 prior_param.data = decay * prior_param.data + (1 - decay) * online_param.data

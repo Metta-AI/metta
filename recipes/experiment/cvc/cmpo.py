@@ -3,19 +3,10 @@
 from typing import Optional, Sequence
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.loss.cmpo import CMPOConfig
-from metta.rl.loss.losses import LossesConfig
 from metta.rl.training.teacher import TeacherConfig
 from metta.tools.train import TrainTool
 from recipes.experiment import cogs_v_clips
-
-
-def _cmpo_losses() -> LossesConfig:
-    losses = LossesConfig()
-    losses.ppo_actor.enabled = False
-    losses.ppo_critic.enabled = False
-    losses.cmpo = CMPOConfig(enabled=True)
-    return losses
+from recipes.experiment.losses.cmpo_utils import cmpo_losses
 
 
 def train(
@@ -52,7 +43,7 @@ def train(
         dr_misc=dr_misc,
         maps_cache_size=maps_cache_size,
     )
-    tool.trainer.losses = _cmpo_losses()
+    tool.trainer.losses = cmpo_losses()
     return tool
 
 
