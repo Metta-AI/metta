@@ -598,7 +598,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     num_vibes: Optional[int] = None,

@@ -15,7 +15,6 @@ class StatsTracker(SimulatorEventHandler):
         self._stats_writer = stats_writer
         self._episode_start_ts = datetime.datetime.now()
         self._episode_end_ts = None
-        self._label_completions = {"completed_tasks": [], "completion_rates": {}}
         self._per_label_rewards = {}
         self._per_label_chest_deposits = {}  # Track chest deposits per label
 
@@ -55,11 +54,6 @@ class StatsTracker(SimulatorEventHandler):
                 config.game.reward_estimates["worst_case_optimal_reward"] - mean_reward
             )
 
-        self._update_label_completions()
-
-        # only plot label completions once we have a full moving average window, to prevent initial bias
-        if len(self._label_completions["completed_tasks"]) >= 50:
-            infos["label_completions"] = self._label_completions["completion_rates"]
         self._per_label_rewards[config.label] = mean_reward
         infos["per_label_rewards"] = self._per_label_rewards
 
@@ -147,21 +141,3 @@ class StatsTracker(SimulatorEventHandler):
 
     def on_close(self) -> None:
         self._stats_writer.close()
-
-    def _update_label_completions(self, moving_avg_window: int = 500) -> None:
-        """Update label completions."""
-        label = self._sim.config.label
-
-        # keep track of a list of the last 500 labels
-        if len(self._label_completions["completed_tasks"]) >= moving_avg_window:
-            self._label_completions["completed_tasks"].pop(0)
-        self._label_completions["completed_tasks"].append(label)
-
-        # moving average of the completion rates
-        self._label_completions["completion_rates"] = {t: 0 for t in set(self._label_completions["completed_tasks"])}
-        for t in self._label_completions["completed_tasks"]:
-            self._label_completions["completion_rates"][t] += 1
-        self._label_completions["completion_rates"] = {
-            t: self._label_completions["completion_rates"][t] / len(self._label_completions["completed_tasks"])
-            for t in self._label_completions["completion_rates"]
-        }
