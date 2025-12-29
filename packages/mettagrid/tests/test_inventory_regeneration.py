@@ -147,6 +147,134 @@ class TestVibeDependentRegeneration:
         assert energy == 10, f"Default vibe should not regenerate (still 10), got {energy}"
 
 
+class TestNegativeRegeneration:
+    """Test negative inventory regeneration (decay) functionality."""
+
+    def test_negative_regen_decreases_resource(self):
+        """Test that negative regen values decrease resources over time."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Negative regen - energy decays by 3 per interval
+        cfg.game.agent.inventory.regen_amounts = {
+            "default": {"energy": -3},
+        }
+        cfg.game.inventory_regen_interval = 1  # Every timestep
+        cfg.game.agent.inventory.initial = {"energy": 20}
+        cfg.game.actions.noop.enabled = True
+
+        sim = Simulation(cfg)
+
+        # Step 1: Energy should decrease by 3
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 17, f"Energy should decay to 17, got {energy}"
+
+        # Step 2: Energy should decrease again
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 14, f"Energy should decay to 14, got {energy}"
+
+        # Step 3: Energy should decrease again
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 11, f"Energy should decay to 11, got {energy}"
+
+    def test_negative_regen_floors_at_zero(self):
+        """Test that negative regen doesn't go below zero."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Large negative regen to test floor at zero
+        cfg.game.agent.inventory.regen_amounts = {
+            "default": {"energy": -10},
+        }
+        cfg.game.inventory_regen_interval = 1
+        cfg.game.agent.inventory.initial = {"energy": 5}
+        cfg.game.actions.noop.enabled = True
+
+        sim = Simulation(cfg)
+
+        # Step 1: Energy should decay to 0 (not -5)
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 0, f"Energy should floor at 0, got {energy}"
+
+        # Step 2: Energy should stay at 0
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 0, f"Energy should remain at 0, got {energy}"
+
+    def test_vibe_dependent_negative_regen(self):
+        """Test that different vibes can have different decay rates."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["energy"]
+        # Different decay rates for different vibes
+        cfg.game.agent.inventory.regen_amounts = {
+            "default": {"energy": -2},  # Slow decay
+            "charger": {"energy": 5},  # Actually regenerates
+        }
+        cfg.game.inventory_regen_interval = 1
+        cfg.game.agent.inventory.initial = {"energy": 20}
+        cfg.game.actions.noop.enabled = True
+        cfg.game.actions.change_vibe.enabled = True
+
+        sim = Simulation(cfg)
+
+        # Step 1: Default vibe - should decay by 2
+        sim.agent(0).set_action(Action(name="noop"))
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 18, f"With default vibe, energy should decay to 18, got {energy}"
+
+        # Step 2: Change to charger vibe - should regenerate
+        sim.agent(0).set_action("change_vibe_charger")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 23, f"With charger vibe, energy should increase to 23 (18+5), got {energy}"
+
+        # Step 3: Change back to default - should decay again
+        sim.agent(0).set_action("change_vibe_default")
+        sim.step()
+
+        energy = sim.agent(0).inventory.get("energy", 0)
+        assert energy == 21, f"With default vibe, energy should decay to 21 (23-2), got {energy}"
+
+
 class TestInventoryRegeneration:
     """Test inventory regeneration functionality."""
 
