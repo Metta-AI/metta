@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, cast
 
@@ -7,11 +8,7 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
-from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, MissionVariant, NumCogsVariant, Site
-from cogames.cogs_vs_clips.missions import MISSIONS
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.sites import SITES
 from cogames.cogs_vs_clips.variants import HIDDEN_VARIANTS, VARIANTS
@@ -20,12 +17,25 @@ from mettagrid import MettaGridConfig
 from mettagrid.config.mettagrid_config import AssemblerConfig
 from mettagrid.mapgen.mapgen import MapGen
 
-# Combined registry of all evaluation missions (not shown in default 'missions' list)
-EVAL_MISSIONS_ALL: list[Mission] = [
-    *INTEGRATED_EVAL_MISSIONS,
-    *SPANNING_EVAL_MISSIONS,
-    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
-]
+
+@lru_cache(maxsize=1)
+def _get_core_missions() -> list[Mission]:
+    from cogames.cogs_vs_clips.missions import get_core_missions
+
+    return get_core_missions()
+
+
+@lru_cache(maxsize=1)
+def _get_eval_missions_all() -> list[Mission]:
+    from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
+    from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+    from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
+
+    return [
+        *INTEGRATED_EVAL_MISSIONS,
+        *SPANNING_EVAL_MISSIONS,
+        *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
+    ]
 
 
 def load_mission_set(mission_set: str) -> list[Mission]:
@@ -47,21 +57,31 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     if mission_set == "all":
         # All missions: eval missions + integrated + spanning + diagnostic + core missions
         missions_list = []
+        from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
+        from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+        from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
+
         missions_list.extend(INTEGRATED_EVAL_MISSIONS)
         missions_list.extend(SPANNING_EVAL_MISSIONS)
         missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
 
         # Add core missions that aren't already in eval sets
         eval_mission_names = {m.name for m in missions_list}
-        for mission in MISSIONS:
+        for mission in _get_core_missions():
             if mission.name not in eval_mission_names:
                 missions_list.append(mission)
 
     elif mission_set == "diagnostic_evals":
+        from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
+
         missions_list = cast(list[Mission], [mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
     elif mission_set == "integrated_evals":
+        from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+
         missions_list = list(INTEGRATED_EVAL_MISSIONS)
     elif mission_set == "spanning_evals":
+        from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
+
         missions_list = list(SPANNING_EVAL_MISSIONS)
     else:
         available = "eval_missions, integrated_evals, spanning_evals, diagnostic_evals, all"
@@ -108,12 +128,12 @@ def parse_variants(variants_arg: Optional[list[str]]) -> list[MissionVariant]:
 
 def get_all_missions() -> list[str]:
     """Get all core mission names in the format site.mission (excludes evals)."""
-    return [mission.full_name() for mission in MISSIONS]
+    return [mission.full_name() for mission in _get_core_missions()]
 
 
 def get_all_eval_missions() -> list[str]:
     """Get all eval mission names in the format site.mission."""
-    return [mission.full_name() for mission in EVAL_MISSIONS_ALL]
+    return [mission.full_name() for mission in _get_eval_missions_all()]
 
 
 def get_site_by_name(site_name: str) -> Site:
@@ -214,13 +234,26 @@ def _get_missions_by_possible_wildcard(
 def find_mission(
     site_name: str,
     mission_name: str | None = None,  # None means first mission on the site
+    *,
+    include_evals: bool = False,
 ) -> Mission:
-    for mission in MISSIONS:
+    missions = _get_core_missions()
+    if include_evals:
+        missions = [*missions, *_get_eval_missions_all()]
+
+    found_site = False
+    for mission in missions:
         if mission.site.name != site_name:
             continue
+        found_site = True
         if mission_name is not None and mission.name != mission_name:
             continue
         return mission
+
+    if mission_name is None and not found_site:
+        for mission in missions:
+            if mission.name == site_name:
+                return mission
 
     if mission_name is not None:
         raise ValueError(f"Mission {mission_name} not available on site {site_name}")
@@ -274,20 +307,7 @@ def get_mission(
     else:
         site_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
 
-    try:
-        mission = find_mission(site_name, mission_name)
-    except ValueError:
-        # Fallback to eval registry
-        for m in EVAL_MISSIONS_ALL:
-            if m.site.name != site_name:
-                continue
-            if mission_name is not None and m.name != mission_name:
-                continue
-            mission = m
-            break
-        else:
-            # Re-raise original error if not found in evals either
-            raise
+    mission = find_mission(site_name, mission_name, include_evals=True)
     # Apply variants
     mission = mission.with_variants(variants)
 
@@ -327,6 +347,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
         return
 
     normalized_filter = site_filter.rstrip(".") if site_filter is not None else None
+    core_missions = _get_core_missions()
 
     # Create a single table for all missions
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, padding=(0, 1))
@@ -335,7 +356,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
     table.add_column("Map Size", style="green", justify="center")
     table.add_column("Description", style="white")
 
-    core_sites = [site for site in SITES if any(m.site.name == site.name for m in MISSIONS)]
+    core_sites = [site for site in SITES if any(m.site.name == site.name for m in core_missions)]
 
     if normalized_filter is not None:
         core_sites = [site for site in core_sites if site.name == normalized_filter]
@@ -345,7 +366,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
 
     for site in core_sites:
         # Get missions for this site
-        site_missions = [mission for mission in MISSIONS if mission.site.name == site.name]
+        site_missions = [mission for mission in core_missions if mission.site.name == site.name]
 
         # Get map size from the map builder
         try:
@@ -409,7 +430,7 @@ def list_missions(site_filter: Optional[str] = None) -> None:
 
 def list_evals() -> None:
     """Print a table listing all available eval missions."""
-    evals = EVAL_MISSIONS_ALL
+    evals = _get_eval_missions_all()
     if not evals:
         console.print("No eval missions found")
         return
