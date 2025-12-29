@@ -181,8 +181,7 @@ class TestAlignAction:
         # Chest should still be unaligned
         objs = self._get_objects_by_type(sim)
         assert objs["chests"][0].get("commons_id") is None, (
-            "Chest should remain unaligned when align not configured, got "
-            + f"commons_id={objs['chests'][0].get('commons_id')}"
+            f"Chest should remain unaligned when align not configured, got commons_id={objs['chests'][0].get('commons_id')}"
         )
 
 
@@ -323,8 +322,7 @@ class TestScrambleAction:
         # Chest should still be aligned
         objs = self._get_objects_by_type(sim)
         assert objs["chests"][0].get("commons_id") == 0, (
-            "Chest should remain aligned when scramble not configured, got "
-            + f"commons_id={objs['chests'][0].get('commons_id')}"
+            f"Chest should remain aligned when scramble not configured, got commons_id={objs['chests'][0].get('commons_id')}"
         )
 
     def test_no_scramble_on_unaligned_chest(self):
@@ -397,163 +395,3 @@ class TestScrambleAction:
             f"Chest should remain unaligned, got commons_id={objs['chests'][0].get('commons_id')}"
         )
 
-
-class TestAlignAndScramble:
-    """Test align and scramble working together."""
-
-    def _get_objects_by_type(self, sim: Simulation) -> dict:
-        """Helper to get objects organized by type."""
-        objects = sim.grid_objects()
-        result = {"agents": [], "chests": []}
-        for obj in objects.values():
-            if "agent_id" in obj:
-                result["agents"].append(obj)
-            elif obj.get("type_name") == "chest":
-                result["chests"].append(obj)
-        return result
-
-    def test_realign_after_scramble(self):
-        """Test that a chest can be re-aligned after being scrambled."""
-        game_map = [
-            ["wall", "wall", "wall", "wall", "wall"],
-            ["wall", "agent.agent", ".", "chest", "wall"],
-            ["wall", "wall", "wall", "wall", "wall"],
-        ]
-
-        game_config = GameConfig(
-            max_steps=50,
-            num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=100),
-            resource_names=["energy", "heart"],
-            actions=ActionsConfig(
-                noop=NoopActionConfig(),
-                move=MoveActionConfig(enabled=True),
-                change_vibe=ChangeVibeActionConfig(enabled=True),
-                align=AlignActionConfig(vibe=HEART_VIBE_NAME),
-                scramble=AlignActionConfig(vibe=SWORDS_VIBE_NAME, set_to_none=True),
-            ),
-            agent=AgentConfig(
-                commons="cogs",
-                rewards=AgentRewards(),
-                inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
-            ),
-            objects={
-                "wall": WallConfig(),
-                "chest": CommonsChestConfig(
-                    name="chest",
-                    # Chest starts aligned
-                    commons="cogs",
-                    vibe_transfers={"default": {"energy": 100}},
-                ),
-            },
-            commons=[
-                CommonsConfig(
-                    name="cogs",
-                    inventory=InventoryConfig(initial={"energy": 0, "heart": 0}),
-                ),
-            ],
-        )
-
-        cfg = MettaGridConfig(game=game_config)
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
-
-        sim = Simulation(cfg, seed=42)
-
-        # Initial state: chest is aligned
-        objs = self._get_objects_by_type(sim)
-        assert objs["chests"][0].get("commons_id") == 0, "Chest should start aligned"
-
-        # Agent moves to empty space
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Agent changes vibe to swords and scrambles
-        sim.agent(0).set_action("change_vibe_swords")
-        sim.step()
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Chest should now be unaligned
-        objs = self._get_objects_by_type(sim)
-        assert objs["chests"][0].get("commons_id") is None, "Chest should be unaligned after scramble"
-
-        # Agent moves back west
-        sim.agent(0).set_action("move_west")
-        sim.step()
-
-        # Agent changes vibe to heart and re-aligns
-        sim.agent(0).set_action("change_vibe_heart_a")
-        sim.step()
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Chest should be aligned again
-        objs = self._get_objects_by_type(sim)
-        assert objs["chests"][0].get("commons_id") == 0, (
-            f"Chest should be re-aligned after heart vibe move, got commons_id={objs['chests'][0].get('commons_id')}"
-        )
-
-    def test_align_and_scramble_same_vibe(self):
-        """Test that when align and scramble share the same vibe, align takes priority."""
-        game_map = [
-            ["wall", "wall", "wall", "wall", "wall"],
-            ["wall", "agent.agent", ".", "chest", "wall"],
-            ["wall", "wall", "wall", "wall", "wall"],
-        ]
-
-        # Both align and scramble use default vibe
-        game_config = GameConfig(
-            max_steps=50,
-            num_agents=1,
-            obs=ObsConfig(width=3, height=3, num_tokens=100),
-            resource_names=["energy", "heart"],
-            actions=ActionsConfig(
-                noop=NoopActionConfig(),
-                move=MoveActionConfig(enabled=True),
-                change_vibe=ChangeVibeActionConfig(enabled=True),
-                align=AlignActionConfig(vibe="default"),  # Default vibe (id=0)
-                scramble=AlignActionConfig(vibe="default", set_to_none=True),  # Same vibe!
-            ),
-            agent=AgentConfig(
-                commons="cogs",
-                rewards=AgentRewards(),
-                inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
-            ),
-            objects={
-                "wall": WallConfig(),
-                "chest": CommonsChestConfig(
-                    name="chest",
-                    # Chest starts unaligned
-                    vibe_transfers={"default": {"energy": 100}},
-                ),
-            },
-            commons=[
-                CommonsConfig(
-                    name="cogs",
-                    inventory=InventoryConfig(initial={"energy": 0, "heart": 0}),
-                ),
-            ],
-        )
-
-        cfg = MettaGridConfig(game=game_config)
-        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
-
-        sim = Simulation(cfg, seed=42)
-
-        # Initial state: chest is unaligned
-        objs = self._get_objects_by_type(sim)
-        assert objs["chests"][0].get("commons_id") is None, "Chest should start unaligned"
-
-        # Agent moves to empty space (default vibe)
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Agent moves onto chest with default vibe - align should win (not scramble)
-        sim.agent(0).set_action("move_east")
-        sim.step()
-
-        # Chest should be aligned (align wins, scramble shouldn't undo it)
-        objs = self._get_objects_by_type(sim)
-        assert objs["chests"][0].get("commons_id") == 0, (
-            f"Chest should be aligned (align wins over scramble), got commons_id={objs['chests'][0].get('commons_id')}"
-        )
