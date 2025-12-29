@@ -26,4 +26,4 @@ EXPOSE 8000
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
-CMD ["uv", "run", "python", "src/metta/app_backend/server.py"]
+CMD ["uv", "run", "--no-sync", "python", "src/metta/app_backend/server.py"]
