@@ -193,24 +193,33 @@ private:
     return false;
   }
 
-  // Select output inventories from surrounding agents.
-  // Prefer vibing agents (participants in the protocol); fall back to actor if none.
+  // Select output inventories.
+  // Default to actor-only. When protocol requires multiple vibes, distribute to participating vibers.
   std::vector<Inventory*> get_output_inventories(const Protocol& protocol,
                                                  const std::vector<Agent*>& surrounding_agents,
                                                  Agent& actor) const {
+    if (protocol.vibes.size() <= 1) {
+      return {&actor.inventory};
+    }
+
+    std::unordered_map<ObservationType, int> required_counts;
+    for (ObservationType vibe : protocol.vibes) {
+      required_counts[vibe]++;
+    }
+
     std::vector<Inventory*> output_inventories;
-    if (!protocol.vibes.empty()) {
-      for (Agent* agent : surrounding_agents) {
-        if (agent->vibe != 0 &&
-            std::find(protocol.vibes.begin(), protocol.vibes.end(), agent->vibe) != protocol.vibes.end()) {
-          output_inventories.push_back(&agent->inventory);
-        }
-      }
+    const size_t required = protocol.vibes.size();
+    output_inventories.reserve(required);
+    for (Agent* agent : surrounding_agents) {
+      if (agent->vibe == 0) continue;
+      auto it = required_counts.find(agent->vibe);
+      if (it == required_counts.end() || it->second <= 0) continue;
+      output_inventories.push_back(&agent->inventory);
+      it->second--;
+      if (output_inventories.size() >= required) break;
     }
-    if (output_inventories.empty()) {
-      output_inventories.push_back(&actor.inventory);
-    }
-    return output_inventories;
+
+    return output_inventories.empty() ? std::vector<Inventory*>{&actor.inventory} : output_inventories;
   }
 
 public:
