@@ -101,7 +101,10 @@ def create_episode_job(job: JobRequest) -> str:
                             image=cfg.EPISODE_RUNNER_IMAGE,
                             image_pull_policy="IfNotPresent",
                             command=[
-                                "/workspace/metta/.venv/bin/python",
+                                "uv",
+                                "run",
+                                "--no-sync",
+                                "python",
                                 "-m",
                                 "metta.sim.impure_single_episode_runner",
                                 str(job.id),
