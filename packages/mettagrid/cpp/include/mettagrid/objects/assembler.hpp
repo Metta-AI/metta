@@ -193,6 +193,26 @@ private:
     return false;
   }
 
+  // Select output inventories from surrounding agents.
+  // Prefer vibing agents (participants in the protocol); fall back to actor if none.
+  std::vector<Inventory*> get_output_inventories(const Protocol& protocol,
+                                                 const std::vector<Agent*>& surrounding_agents,
+                                                 Agent& actor) const {
+    std::vector<Inventory*> output_inventories;
+    if (!protocol.vibes.empty()) {
+      for (Agent* agent : surrounding_agents) {
+        if (agent->vibe != 0 &&
+            std::find(protocol.vibes.begin(), protocol.vibes.end(), agent->vibe) != protocol.vibes.end()) {
+          output_inventories.push_back(&agent->inventory);
+        }
+      }
+    }
+    if (output_inventories.empty()) {
+      output_inventories.push_back(&actor.inventory);
+    }
+    return output_inventories;
+  }
+
 public:
   // Consume resources from surrounding inventories for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
@@ -475,10 +495,7 @@ public:
     if (!Assembler::can_afford_protocol(protocol_to_use, input_inventories)) {
       return false;
     }
-    std::vector<Inventory*> output_inventories;
-    for (const auto& [item, amount] : protocol_to_use.output_resources) {
-      output_inventories.push_back(&actor.inventory);
-    }
+    std::vector<Inventory*> output_inventories = get_output_inventories(protocol_to_use, surrounding_agents, actor);
     if (!Assembler::can_receive_output(protocol_to_use, output_inventories) && !is_clipped) {
       // If the inventories gain nothing from the protocol, don't use it.
       return false;
