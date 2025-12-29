@@ -106,7 +106,7 @@ def create_episode_job(job: JobRequest) -> str:
                                 "--no-sync",
                                 "python",
                                 "-m",
-                                "metta.sim.impure_single_episode_runner",
+                                "metta.sim.single_episode_runner",
                                 str(job.id),
                             ],
                             env=[
