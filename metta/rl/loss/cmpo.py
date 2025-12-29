@@ -274,9 +274,6 @@ class CMPO(Loss):
             return self._zero(), shared_loss_data, stop_update_epoch
 
         policy_td = shared_loss_data["policy_td"]
-        if "full_log_probs" not in policy_td.keys():
-            raise RuntimeError("CMPO requires policy outputs to include full_log_probs")
-
         prior_log_probs = self._get_prior_log_probs(minibatch, policy_td)
         q_values = self._compute_q_values(minibatch["env_obs"])  # [B, T, A]
         pi_prior = prior_log_probs.exp()
