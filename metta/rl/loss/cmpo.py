@@ -219,7 +219,10 @@ class CMPO(Loss):
             else:
                 self.policy.forward(td)
 
-        env_slice = self._training_env_id(context, error="ComponentContext.training_env_id is required for CMPO rollout")
+        env_slice = self._training_env_id(
+            context,
+            error="ComponentContext.training_env_id is required for CMPO rollout",
+        )
 
         rewards = td["rewards"].to(dtype=torch.float32)
         dones = td["dones"].to(dtype=torch.float32)
