@@ -79,9 +79,6 @@ class EMA(Loss):
             self.target_model(target_td)
             target_pred_flat: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
-        shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
-
         loss = F.mse_loss(pred_flat, target_pred_flat) * self.cfg.loss_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
