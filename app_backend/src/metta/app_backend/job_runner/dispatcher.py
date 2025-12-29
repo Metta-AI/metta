@@ -91,7 +91,7 @@ def create_episode_job(job: JobRequest) -> str:
                         client.V1Container(
                             name="worker",
                             image=cfg.EPISODE_RUNNER_IMAGE,
-                            image_pull_policy="IfNotPresent",
+                            image_pull_policy="Always",
                             command=[
                                 "uv",
                                 "run",
