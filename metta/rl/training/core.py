@@ -108,7 +108,9 @@ class CoreTrainingLoop:
 
                 rewards = r.to(device=target_device, non_blocking=True)
                 td["rewards"] = rewards
-                agent_ids = self._gather_env_indices(training_env_id, td.device)
+                agent_ids = self._env_index_cache[training_env_id]
+                if agent_ids.device != td.device:
+                    agent_ids = agent_ids.to(device=td.device)
                 td["training_env_ids"] = agent_ids.unsqueeze(1)
 
                 avg_reward = context.state.avg_reward
@@ -139,7 +141,22 @@ class CoreTrainingLoop:
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
 
-                self._ensure_rollout_metadata(td)
+                batch_elems = td.batch_size.numel()
+                device = td.device
+                if "batch" not in td.keys():
+                    key = ("batch", (batch_elems,), batch_elems, str(device))
+                    cached = self._metadata_cache.get(key)
+                    if cached is None or cached.device != device:
+                        cached = torch.full((batch_elems,), batch_elems, dtype=torch.long, device=device)
+                        self._metadata_cache[key] = cached
+                    td.set("batch", cached)
+                if "bptt" not in td.keys():
+                    key = ("bptt", (batch_elems,), 1, str(device))
+                    cached = self._metadata_cache.get(key)
+                    if cached is None or cached.device != device:
+                        cached = torch.ones((batch_elems,), dtype=torch.long, device=device)
+                        self._metadata_cache[key] = cached
+                    td.set("bptt", cached)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
@@ -194,42 +211,6 @@ class CoreTrainingLoop:
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
-
-    def _gather_env_indices(self, training_env_id: slice, device: torch.device) -> torch.Tensor:
-        env_indices = self._env_index_cache[training_env_id]
-        if env_indices.device != device:
-            env_indices = env_indices.to(device=device)
-        return env_indices
-
-    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
-        """Populate metadata fields needed downstream while reusing cached tensors."""
-
-        batch_elems = td.batch_size.numel()
-        device = td.device
-        if "batch" not in td.keys():
-            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
-        if "bptt" not in td.keys():
-            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-
-    def _get_constant_tensor(
-        self,
-        name: str,
-        shape: tuple[int, ...],
-        value: int,
-        device: torch.device,
-    ) -> torch.Tensor:
-        if not shape:
-            shape = (1,)
-        key = (name, shape, int(value), str(device))
-        cached = self._metadata_cache.get(key)
-        if cached is None or cached.device != device:
-            if value == 1:
-                tensor = torch.ones(shape, dtype=torch.long, device=device)
-            else:
-                tensor = torch.full(shape, value, dtype=torch.long, device=device)
-            self._metadata_cache[key] = tensor
-            return tensor
-        return cached
 
     def training_phase(
         self,

@@ -26,7 +26,9 @@ class Experience:
         sampling_config: Any,
     ):
         """Initialize experience buffer with segmented storage."""
-        self._check_for_duplicate_keys(experience_spec)
+        all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
+        if duplicate_keys := duplicates(all_keys):
+            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
         # Store parameters
         self.total_agents = total_agents
@@ -80,7 +82,20 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        self._sequential_idx_cache = self._build_sequential_idx_cache()
+        num_minibatches = max(self.num_minibatches, 1)
+        sequential_idx_cache: List[Tensor] = []
+        for mb_idx in range(num_minibatches):
+            start = mb_idx * self.minibatch_segments
+            end = start + self.minibatch_segments
+            if end <= self.segments:
+                idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+            else:
+                overflow = end - self.segments
+                front = torch.arange(start, self.segments, dtype=torch.long, device=self.device)
+                back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+                idx = torch.cat((front, back), dim=0)
+            sequential_idx_cache.append(idx)
+        self._sequential_idx_cache = sequential_idx_cache
         self._ones_prio_weights = torch.ones(
             (self.minibatch_segments, self.bptt_horizon),
             device=self.device,
@@ -90,12 +105,6 @@ class Experience:
 
         # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
-
-    def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
-        """Check for duplicate keys in the experience spec."""
-        all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
-        if duplicate_keys := duplicates(all_keys):
-            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
     @property
     def ready_for_training(self) -> bool:
@@ -210,22 +219,6 @@ class Experience:
             batch_size=(self.minibatch_segments, self.bptt_horizon),
             device=self.device,
         )
-
-    def _build_sequential_idx_cache(self) -> List[Tensor]:
-        cache: List[Tensor] = []
-        num_minibatches = max(self.num_minibatches, 1)
-        for mb_idx in range(num_minibatches):
-            start = mb_idx * self.minibatch_segments
-            end = start + self.minibatch_segments
-            if end <= self.segments:
-                idx = torch.arange(start, end, dtype=torch.long, device=self.device)
-            else:
-                overflow = end - self.segments
-                front = torch.arange(start, self.segments, dtype=torch.long, device=self.device)
-                back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
-                idx = torch.cat((front, back), dim=0)
-            cache.append(idx)
-        return cache
 
     def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
         """Sample a contiguous minibatch from the buffer in sequential order."""
