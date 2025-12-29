@@ -382,7 +382,7 @@ def populate_single_episode_duckdb(
     *,
     episode_tags: dict[str, str],
     policy_version_ids: list[uuid.UUID | None],
-    replay_uri: str,
+    replay_uri: str | None,
     assignments: list[int],
     results: PureSingleEpisodeResult,
 ) -> EpisodeId:
@@ -419,7 +419,7 @@ def write_single_episode_to_observatory(
     *,
     episode_tags: dict[str, str],
     policy_version_ids: list[uuid.UUID | None],
-    replay_uri: str,
+    replay_uri: str | None,
     assignments: list[int],
     results: PureSingleEpisodeResult,
     stats_client: StatsClient,
