@@ -251,7 +251,7 @@ class CMPO(Loss):
         else:
             self.replay.store(data_td=td, env_id=env_slice)
 
-        if self._prev_obs is None or self._prev_action_enc is None:
+        if self._prev_obs is None or self._prev_action_enc is None or self._has_prev is None:
             raise RuntimeError("CMPO replay buffers not initialized before rollout")
 
         self._prev_obs[env_slice] = obs_flat.detach()
