@@ -150,13 +150,9 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
               View
             </Link>
           ) : error ? (
-            <span className="text-red-600 text-xs">
-              {expanded ? '[-] Error' : '[+] Error'}
-            </span>
+            <span className="text-red-600 text-xs">{expanded ? '[-] Error' : '[+] Error'}</span>
           ) : job.result ? (
-            <span className="text-gray-600 text-xs">
-              {expanded ? '[-] Result' : '[+] Result'}
-            </span>
+            <span className="text-gray-600 text-xs">{expanded ? '[-] Result' : '[+] Result'}</span>
           ) : (
             '-'
           )}
