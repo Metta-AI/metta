@@ -3,7 +3,7 @@
 from typing import Optional, Sequence
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policies.vit_reset import ViTResetConfig
+# from metta.agent.policies.vit_reset import ViTResetConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -30,7 +30,7 @@ def train(
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if policy_architecture is None:
-        policy_architecture = ViTResetConfig()
+        policy_architecture = ViTDefaultConfig()
     if eval_variants is None:
         eval_variants = variants
 
