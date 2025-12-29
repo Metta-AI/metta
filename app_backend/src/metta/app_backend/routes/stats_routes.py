@@ -328,9 +328,9 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
             for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
                 pv_id = uuid.UUID(pv_id_str)
+                policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
                 if metric_name == "reward":
                     explicit_reward_policies.add(pv_id)
-                policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
 
             for agent_id, metric_name, metric_value in agent_metrics_result:
                 if metric_name != "reward":
@@ -342,16 +342,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
                 metrics = policy_metrics.setdefault(pv_id, {})
                 metrics["reward"] = metrics.get("reward", 0.0) + float(metric_value)
-
-            for pv_id in explicit_reward_policies:
-                reward_metrics = policy_metrics.get(pv_id)
-                if reward_metrics is None:
-                    continue
-                if "reward" not in reward_metrics:
-                    continue
-                count = policy_agent_counts.get(pv_id)
-                if count:
-                    reward_metrics["reward"] *= count
 
             policy_versions = list(policy_agent_counts.items())
             policy_metrics_list = [

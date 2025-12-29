@@ -98,7 +98,6 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
-        rollout: Rollout
         episode_replay_writer: ReplayLogWriter | None = None
         handlers: list[SimulatorEventHandler] = []
         if save_replay is not None:

@@ -1283,10 +1283,8 @@ episode_policy_metrics AS (
         e_sub.id AS episode_id,
         pv.id AS policy_version_id,
         epm.metric_name,
-        CASE
-            WHEN epm.metric_name = 'reward' AND ep.num_agents > 0 THEN epm.value / ep.num_agents
-            ELSE epm.value
-        END AS metric_value
+        epm.value AS metric_value,
+        ep.num_agents AS num_agents
     FROM episodes e_sub
     JOIN episode_policies ep ON ep.episode_id = e_sub.id
     JOIN policy_versions pv ON pv.id = ep.policy_version_id
@@ -1314,9 +1312,12 @@ episode_policy_metrics_map AS (
 episode_avg_rewards AS (
     SELECT
         episode_id,
-        jsonb_object_agg(policy_version_id::text, metric_value) AS avg_rewards
+        jsonb_object_agg(
+            policy_version_id::text,
+            metric_value / NULLIF(num_agents, 0)
+        ) AS avg_rewards
     FROM episode_policy_metrics
-    WHERE metric_name = 'reward'
+    WHERE metric_name = 'reward' AND num_agents > 0
     GROUP BY episode_id
 )
 SELECT
