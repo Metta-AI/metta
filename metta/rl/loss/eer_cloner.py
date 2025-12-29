@@ -15,7 +15,7 @@ from metta.rl.training import ComponentContext
 
 class EERClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1, ge=0)
-    r_lambda: float = Field(default=0.001, ge=0)  # scale the teacher log likelihoods that are added to rewards
+    r_lambda: float = Field(default=0.01, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
     # Probability floor for teacher actions not taken (to avoid log(0) = -inf). note that this gets mult by r_lambda too
     teacher_prob_floor: float = Field(default=0.01, ge=1e-6, le=1.0)
