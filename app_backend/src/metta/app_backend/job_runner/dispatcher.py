@@ -21,17 +21,9 @@ def get_k8s_client() -> client.BatchV1Api:
     cfg = get_dispatch_config()
 
     if cfg.LOCAL_DEV:
-        # Local dev: use kubeconfig with required context validation
         if not cfg.LOCAL_DEV_K8S_CONTEXT:
             raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        kubernetes_config.load_kube_config()
-        _, active_context = kubernetes_config.list_kube_config_contexts()
-        current_context = active_context.get("name", "") if active_context else ""
-        if current_context != cfg.LOCAL_DEV_K8S_CONTEXT:
-            raise ValueError(
-                f"K8s context mismatch: expected '{cfg.LOCAL_DEV_K8S_CONTEXT}', got '{current_context}'. "
-                f"Switch context with: kubectl config use-context {cfg.LOCAL_DEV_K8S_CONTEXT}"
-            )
+        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
     else:
         # Prod: require in-cluster config, no silent fallback
         kubernetes_config.load_incluster_config()
