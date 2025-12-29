@@ -1,4 +1,5 @@
 import logging
+from time import monotonic
 from typing import Any
 
 import torch
@@ -6,6 +7,7 @@ from pydantic import ConfigDict
 from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
+from metta.common.util.heartbeat import record_heartbeat
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
@@ -83,6 +85,10 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_rollout_start(context)
 
+        # Heartbeat updates should not depend on epoch boundaries. Rollouts can be long and still be healthy.
+        last_heartbeat = monotonic()
+        heartbeat_interval_s = 60.0
+
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
@@ -91,6 +97,11 @@ class CoreTrainingLoop:
         last_env_id: slice | None = None
 
         while not self.experience.ready_for_training:
+            now = monotonic()
+            if now - last_heartbeat >= heartbeat_interval_s:
+                record_heartbeat()
+                last_heartbeat = now
+
             # Get observation from environment
             with context.stopwatch("_rollout.env_wait"):
                 o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
@@ -253,8 +264,15 @@ class CoreTrainingLoop:
         advantage_method = "delta_lambda" if use_delta_lambda else "vtrace"
 
         epochs_trained = 0
+        last_heartbeat = monotonic()
+        heartbeat_interval_s = 60.0
 
         for _ in range(update_epochs):
+            now = monotonic()
+            if now - last_heartbeat >= heartbeat_interval_s:
+                record_heartbeat()
+                last_heartbeat = now
+
             if "values" in self.experience.buffer.keys():
                 values_for_adv = self.experience.buffer["values"]
                 if values_for_adv.dim() > 2:
@@ -283,6 +301,11 @@ class CoreTrainingLoop:
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
+                now = monotonic()
+                if now - last_heartbeat >= heartbeat_interval_s:
+                    record_heartbeat()
+                    last_heartbeat = now
+
                 if mb_idx % self.accumulate_minibatches == 0:
                     self.optimizer.zero_grad()
 

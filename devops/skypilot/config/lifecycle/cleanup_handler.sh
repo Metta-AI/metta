@@ -126,13 +126,57 @@ print_final_summary() {
 }
 
 determine_final_exit_code() {
-  if [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
-    echo "[INFO] Will exit with code 1 to trigger SkyPilot restart"
-    FINAL_EXIT_CODE=1
-  else
-    echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
-    FINAL_EXIT_CODE=0
-  fi
+  # Important: SkyPilot marks managed jobs as SUCCEEDED/FAILED based on the wrapper's exit code.
+  # We should only exit 0 for genuine success conditions.
+  #
+  # - job_completed / max_runtime_reached: success (0)
+  # - force_restart_test: non-zero to exercise restart logic
+  # - known failure termination reasons: non-zero (prefer CMD_EXIT if available)
+  # - unknown reason: propagate CMD_EXIT (or 1 if empty/0)
+  case "${TERMINATION_REASON}" in
+    "job_completed"|"max_runtime_reached")
+      FINAL_EXIT_CODE=0
+      echo "[INFO] Will exit with code 0 (successful termination: ${TERMINATION_REASON})"
+      ;;
+
+    "force_restart_test")
+      FINAL_EXIT_CODE=1
+      echo "[INFO] Will exit with code 1 to trigger SkyPilot restart"
+      ;;
+
+    "nccl_test_failure")
+      FINAL_EXIT_CODE="${EXIT_NCCL_TEST_FAILURE}"
+      echo "[INFO] Will exit with code ${FINAL_EXIT_CODE} (NCCL test failure)"
+      ;;
+
+    "heartbeat_timeout")
+      # Heartbeat monitor initiated shutdown; treat as failure even if CMD_EXIT is 0.
+      FINAL_EXIT_CODE="${CMD_EXIT:-1}"
+      if [[ "${FINAL_EXIT_CODE}" -eq 0 ]]; then
+        FINAL_EXIT_CODE=1
+      fi
+      echo "[INFO] Will exit with code ${FINAL_EXIT_CODE} (heartbeat timeout)"
+      ;;
+
+    "")
+      # No termination reason written: propagate the observed exit code.
+      FINAL_EXIT_CODE="${CMD_EXIT:-1}"
+      if [[ "${FINAL_EXIT_CODE}" -eq 0 ]]; then
+        FINAL_EXIT_CODE=1
+      fi
+      echo "[INFO] Will exit with code ${FINAL_EXIT_CODE} (no termination reason)"
+      ;;
+
+    *)
+      # Some other termination reason (cluster_stop, max_runtime_reached already handled, etc.).
+      # Propagate the underlying exit code when available; otherwise treat as failure.
+      FINAL_EXIT_CODE="${CMD_EXIT:-1}"
+      if [[ "${FINAL_EXIT_CODE}" -eq 0 ]]; then
+        FINAL_EXIT_CODE=1
+      fi
+      echo "[INFO] Will exit with code ${FINAL_EXIT_CODE} (termination reason: ${TERMINATION_REASON})"
+      ;;
+  esac
 }
 
 # Export the cleanup function if sourced

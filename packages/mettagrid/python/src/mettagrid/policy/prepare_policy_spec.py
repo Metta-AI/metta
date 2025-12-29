@@ -26,6 +26,11 @@ DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
 _registered_cleanup_dirs: set[Path] = set()
 _registered_cleanup_files: set[Path] = set()
 
+try:
+    import fcntl  # type: ignore[import-not-found]  # POSIX-only
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
 
 def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
     """Ensure a zip entry extracts within destination_root without using symlinks."""
@@ -130,6 +135,35 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
     logger.info("Setup script completed successfully")
 
 
+def _run_setup_script_once(setup_script_path: Path, extraction_root: Path) -> None:
+    """Run setup script at most once per extraction root across processes.
+
+    This guards against multi-process / multi-rank runs where every worker tries to execute the same
+    setup script concurrently (e.g., Nimby package sync), which can corrupt shared state and fail
+    with git lock errors.
+    """
+    done_marker = extraction_root / ".mettagrid_setup_script.done"
+    lock_file = extraction_root / ".mettagrid_setup_script.lock"
+
+    # Fast path for common case (already done)
+    if done_marker.exists():
+        return
+
+    # Best-effort cross-process lock on POSIX; fall back to per-process execution otherwise.
+    if fcntl is None:
+        _run_setup_script(setup_script_path, extraction_root)
+        done_marker.write_text("ok\n", encoding="utf-8")
+        return
+
+    extraction_root.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "w", encoding="utf-8") as fp:
+        fcntl.flock(fp, fcntl.LOCK_EX)
+        if done_marker.exists():
+            return
+        _run_setup_script(setup_script_path, extraction_root)
+        done_marker.write_text("ok\n", encoding="utf-8")
+
+
 _executed_setup_scripts: set[Path] = set()
 
 
@@ -148,7 +182,7 @@ def load_policy_spec_from_local_dir(
     # Run setup script if specified (only once per extraction root)
     if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
         setup_script_path = extraction_root / submission_spec.setup_script
-        _run_setup_script(setup_script_path, extraction_root)
+        _run_setup_script_once(setup_script_path, extraction_root)
         _executed_setup_scripts.add(extraction_root)
 
     spec = PolicySpec(
