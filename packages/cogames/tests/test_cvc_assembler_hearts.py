@@ -224,6 +224,8 @@ def test_two_agent_heart_chorus_map_outputs_two_hearts() -> None:
         for resource, expected in expected_inputs.items():
             assert _total(before, resource) - _total(after, resource) == expected, resource
         assert _total(after, "heart") - _total(before, "heart") == 2
+        assert after[first_id]["heart"] - before[first_id]["heart"] == 1
+        assert after[second_id]["heart"] - before[second_id]["heart"] == 1
 
         _step(sim, {})
         after_noop = _capture_inventories(sim)
