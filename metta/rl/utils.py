@@ -14,20 +14,29 @@ def _get_policy_metadata_tensors(
     device: torch.device,
     batch_size: int,
     time_steps: int,
+    cache: dict[tuple[str, int, int], tuple[Tensor, Tensor]] | None = None,
 ) -> tuple[Tensor, Tensor]:
+    if cache is None:
+        cache = _POLICY_METADATA_CACHE
     key = (str(device), batch_size, time_steps)
-    cached = _POLICY_METADATA_CACHE.get(key)
+    cached = cache.get(key)
     if cached is None or cached[0].device != device:
         total = batch_size * time_steps
         cached = (
             torch.full((total,), batch_size, dtype=torch.long, device=device),
             torch.full((total,), time_steps, dtype=torch.long, device=device),
         )
-        _POLICY_METADATA_CACHE[key] = cached
+        cache[key] = cached
     return cached
 
 
-def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int) -> None:
+def ensure_sequence_metadata(
+    td: TensorDict,
+    *,
+    batch_size: int,
+    time_steps: int,
+    cache: dict[tuple[str, int, int], tuple[Tensor, Tensor]] | None = None,
+) -> None:
     """Attach required sequence metadata to ``td`` if missing."""
 
     keys = td.keys()
@@ -35,7 +44,7 @@ def ensure_sequence_metadata(td: TensorDict, *, batch_size: int, time_steps: int
     needs_bptt = "bptt" not in keys
     if not (needs_batch or needs_bptt):
         return
-    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(td.device, batch_size, time_steps)
+    batch_tensor, bptt_tensor = _get_policy_metadata_tensors(td.device, batch_size, time_steps, cache=cache)
     if needs_batch:
         td.set("batch", batch_tensor)
     if needs_bptt:

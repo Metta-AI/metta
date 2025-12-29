@@ -9,7 +9,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -59,11 +59,8 @@ class CoreTrainingLoop:
             dtype=torch.int32,
             device=device,
         )
-
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device)
-        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
-
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
 
@@ -135,22 +132,7 @@ class CoreTrainingLoop:
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
 
-                batch_elems = td.batch_size.numel()
-                device = td.device
-                if "batch" not in td.keys():
-                    key = ("batch", (batch_elems,), batch_elems, str(device))
-                    cached = self._metadata_cache.get(key)
-                    if cached is None or cached.device != device:
-                        cached = torch.full((batch_elems,), batch_elems, dtype=torch.long, device=device)
-                        self._metadata_cache[key] = cached
-                    td.set("batch", cached)
-                if "bptt" not in td.keys():
-                    key = ("bptt", (batch_elems,), 1, str(device))
-                    cached = self._metadata_cache.get(key)
-                    if cached is None or cached.device != device:
-                        cached = torch.ones((batch_elems,), dtype=torch.long, device=device)
-                        self._metadata_cache[key] = cached
-                    td.set("bptt", cached)
+                ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):

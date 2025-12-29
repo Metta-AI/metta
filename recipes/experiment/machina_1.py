@@ -50,9 +50,9 @@ def train(
             "eer_cloner",
         )
     )
-    if hasattr(tt.policy_architecture, "action_probs_config"):
-        if not needs_full_log_probs:
-            tt.policy_architecture.action_probs_config.emit_full_log_probs = False
+    action_probs_config = getattr(tt.policy_architecture, "action_probs_config", None)
+    if action_probs_config is not None and not needs_full_log_probs:
+        action_probs_config.emit_full_log_probs = False
     tt.system.torch_deterministic = False
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.

@@ -151,10 +151,7 @@ class ActionProbs(nn.Module):
         return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        if action is None:
-            return self.forward_inference(td)
-        else:
-            return self.forward_training(td, action)
+        return self.forward_inference(td) if action is None else self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
