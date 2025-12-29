@@ -38,6 +38,7 @@ def train(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         teacher=teacher,
+        maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
     losses_cfg = tt.trainer.losses
