@@ -27,7 +27,7 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
-from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
+from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
@@ -382,7 +382,8 @@ def populate_single_episode_duckdb(
     *,
     episode_tags: dict[str, str],
     policy_version_ids: list[uuid.UUID | None],
-    job: PureSingleEpisodeJob,
+    replay_uri: str | None,
+    assignments: list[int],
     results: PureSingleEpisodeResult,
 ) -> EpisodeId:
     episode_id = EpisodeId(uuid.uuid4())
@@ -391,7 +392,7 @@ def populate_single_episode_duckdb(
         conn,
         episode_id=str(episode_id),
         primary_pv_id=str(policy_version_ids[0]) if policy_version_ids[0] else None,
-        replay_url=job.replay_uri,
+        replay_url=replay_uri,
         thumbnail_url=None,
         eval_task_id=None,
     )
@@ -399,7 +400,7 @@ def populate_single_episode_duckdb(
     for key, value in episode_tags.items():
         insert_episode_tag(conn, str(episode_id), key, value)
 
-    for agent_id, assignment in enumerate(job.assignments):
+    for agent_id, assignment in enumerate(assignments):
         policy_version_id = policy_version_ids[assignment]
         if policy_version_id:
             insert_agent_policy(conn, str(episode_id), str(policy_version_id), agent_id)
@@ -418,7 +419,8 @@ def write_single_episode_to_observatory(
     *,
     episode_tags: dict[str, str],
     policy_version_ids: list[uuid.UUID | None],
-    job: PureSingleEpisodeJob,
+    replay_uri: str | None,
+    assignments: list[int],
     results: PureSingleEpisodeResult,
     stats_client: StatsClient,
 ) -> EpisodeId:
@@ -427,7 +429,8 @@ def write_single_episode_to_observatory(
             conn,
             episode_tags=episode_tags,
             policy_version_ids=policy_version_ids,
-            job=job,
+            replay_uri=replay_uri,
+            assignments=assignments,
             results=results,
         )
         conn.execute("CHECKPOINT")
