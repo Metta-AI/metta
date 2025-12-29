@@ -9,7 +9,8 @@ on:
       - main
     paths:
       - "app_backend/**"
-      - ".github/workflows/**"
+      - "metta/sim/**"
+      - ".github/workflows/build-policy-evaluator-image.yml"
   workflow_dispatch: {}
 
 jobs:

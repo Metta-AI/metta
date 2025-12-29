@@ -6,8 +6,9 @@ DuckDB files containing episode statistics with agent-level metrics.
 
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator
 
 import duckdb
 
@@ -73,6 +74,17 @@ def create_episode_stats_db(path: str | Path | None = None) -> tuple[duckdb.Duck
         conn.execute(schema_sql)
 
     return conn, db_path
+
+
+@contextmanager
+def episode_stats_db(path: str | Path | None = None) -> Generator[tuple[duckdb.DuckDBPyConnection, Path], None, None]:
+    conn, db_path = create_episode_stats_db(path)
+    try:
+        yield conn, db_path
+    finally:
+        conn.close()
+        if path is None:
+            db_path.unlink(missing_ok=True)
 
 
 def insert_episode(

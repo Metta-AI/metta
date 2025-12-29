@@ -19,7 +19,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -147,9 +147,8 @@ def train(
             ),
         ],
         rules=[
-            HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
-                attr_path="action_loss_coef",
+            ScheduleRule(
+                target_path="losses.sl_checkpointed_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -157,9 +156,8 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-            HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
-                attr_path="value_loss_coef",
+            ScheduleRule(
+                target_path="losses.sl_checkpointed_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,

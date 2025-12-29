@@ -193,6 +193,35 @@ private:
     return false;
   }
 
+  // Select output inventories.
+  // Default to actor-only. When protocol requires multiple vibes, distribute to participating vibers.
+  std::vector<Inventory*> get_output_inventories(const Protocol& protocol,
+                                                 const std::vector<Agent*>& surrounding_agents,
+                                                 Agent& actor) const {
+    if (protocol.vibes.size() <= 1) {
+      return {&actor.inventory};
+    }
+
+    std::unordered_map<ObservationType, int> required_counts;
+    for (ObservationType vibe : protocol.vibes) {
+      required_counts[vibe]++;
+    }
+
+    std::vector<Inventory*> output_inventories;
+    const size_t required = protocol.vibes.size();
+    output_inventories.reserve(required);
+    for (Agent* agent : surrounding_agents) {
+      if (agent->vibe == 0) continue;
+      auto it = required_counts.find(agent->vibe);
+      if (it == required_counts.end() || it->second <= 0) continue;
+      output_inventories.push_back(&agent->inventory);
+      it->second--;
+      if (output_inventories.size() >= required) break;
+    }
+
+    return output_inventories.empty() ? std::vector<Inventory*>{&actor.inventory} : output_inventories;
+  }
+
 public:
   // Consume resources from surrounding inventories for the given protocol
   // Intended to be private, but made public for testing. We couldn't get `friend` to work as expected.
@@ -475,10 +504,7 @@ public:
     if (!Assembler::can_afford_protocol(protocol_to_use, input_inventories)) {
       return false;
     }
-    std::vector<Inventory*> output_inventories;
-    for (const auto& [item, amount] : protocol_to_use.output_resources) {
-      output_inventories.push_back(&actor.inventory);
-    }
+    std::vector<Inventory*> output_inventories = get_output_inventories(protocol_to_use, surrounding_agents, actor);
     if (!Assembler::can_receive_output(protocol_to_use, output_inventories) && !is_clipped) {
       // If the inventories gain nothing from the protocol, don't use it.
       return false;

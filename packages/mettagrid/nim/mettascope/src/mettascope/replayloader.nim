@@ -19,7 +19,6 @@ proc onReplayLoaded*() =
   agentPaths = initTable[int, seq[PathAction]]()
   agentObjectives = initTable[int, seq[Objective]]()
 
-  fitVisibleMap(worldMapZoomInfo)
+  needsInitialFit = true
 
   echo "Replay loaded: ", replay.fileName
-

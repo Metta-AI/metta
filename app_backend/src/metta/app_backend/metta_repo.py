@@ -772,15 +772,13 @@ class MettaRepo:
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
 
             count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
-            count_result = await con.execute(count_query, params)
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
             result_row = await count_result.fetchone()
             total_count: int = result_row[0] if result_row else 0
 
             params.extend([limit, offset])
 
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
-                await cur.execute(
-                    f"""
+            policy_query = f"""
                     SELECT
                         p.id,
                         p.name,
@@ -797,9 +795,9 @@ class MettaRepo:
                     {where_clause}
                     ORDER BY p.created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
+                    """
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(policy_query, params)  # type: ignore[arg-type]
                 rows = await cur.fetchall()
 
             return rows, total_count
@@ -841,15 +839,13 @@ class MettaRepo:
                 JOIN policies p ON pv.policy_id = p.id
                 {where_clause}
             """
-            count_result = await con.execute(count_query, params)
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
             result_row = await count_result.fetchone()
             total_count: int = result_row[0] if result_row else 0
 
             params.extend([limit, offset])
 
-            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
-                await cur.execute(
-                    f"""
+            version_query = f"""
                     SELECT
                         pv.id,
                         pv.policy_id,
@@ -864,9 +860,9 @@ class MettaRepo:
                     {where_clause}
                     ORDER BY pv.created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
+                    """
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(version_query, params)  # type: ignore[arg-type]
                 rows = await cur.fetchall()
 
             return rows, total_count

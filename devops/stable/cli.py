@@ -48,6 +48,11 @@ def _write_summary(runner: Runner, state_dir: Path) -> None:
     # Discord summary (file)
     state_dir.mkdir(parents=True, exist_ok=True)
     lines = [f"**Jobs**: {header}", "", "```", *table, "```"]
+    gh_server = os.environ.get("GITHUB_SERVER_URL")
+    gh_repo = os.environ.get("GITHUB_REPOSITORY")
+    gh_run_id = os.environ.get("GITHUB_RUN_ID")
+    if gh_server and gh_repo and gh_run_id:
+        lines.append(f"\n<{gh_server}/{gh_repo}/actions/runs/{gh_run_id}>")
     (state_dir / "discord_summary.txt").write_text("\n".join(lines))
 
     # GitHub summary (env var)

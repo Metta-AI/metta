@@ -97,7 +97,7 @@ testing = [
   "pyright>=1.1.401",
   "freezegun>=1.5.5",
 ]
-lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
+lint = ["cpplint>=2.0.2", "import-linter>=2.1", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",
@@ -110,7 +110,12 @@ interactive = [
   "widgetsnbextension>=4.0.14",
 ]
 mcp-servers = ["metta-pr-similarity-mcp"]
-dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
+dev = [
+  { include-group = "testing" },
+  { include-group = "lint" },
+  { include-group = "mcp-servers" },
+  "honcho>=2.0.0",
+]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
@@ -136,12 +141,7 @@ norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 required-version = ">=0.9.0"
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "packages/mettagrid/BUILD" },
-  { file = "packages/mettagrid/MODULE.bazel" },
-  { file = "metta/**/*.{cpp,hpp}" },
-]
+cache-keys = [{ file = "pyproject.toml" }]
 default-groups = ["interactive", "dev"]
 
 [tool.uv.workspace]

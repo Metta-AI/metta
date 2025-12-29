@@ -68,7 +68,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);

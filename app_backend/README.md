@@ -5,15 +5,8 @@ Backend API for https://observatory.softmax-research.net/
 ## Local Development
 
 ```bash
-metta observatory backend [up|build|down|restart|logs]
+metta observatory --help
 ```
-
-This is a wrapper around `docker compose` operating on the `docker-compose.dev.yml` in this folder.
-
-`metta observatory backend up` starts:
-
-- Postgres on port 5432
-- Backend API on port 8000 (with migrations auto-applied)
 
 ## Production
 

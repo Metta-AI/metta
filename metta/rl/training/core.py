@@ -6,10 +6,10 @@ from pydantic import ConfigDict
 from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage
+from metta.rl.advantage import compute_advantage, compute_delta_lambda
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -53,12 +53,14 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
-        self.last_action = None
-
+        self.last_action = torch.zeros(
+            experience.total_agents,
+            1,
+            dtype=torch.int32,
+            device=device,
+        )
         # Cache environment indices to avoid reallocating per rollout batch
-        self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
-        self._metadata_cache: dict[tuple[str, tuple[int, ...], int, str], torch.Tensor] = {}
-
+        self._env_index_cache = experience._range_tensor.to(device=device)
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
 
@@ -101,7 +103,14 @@ class CoreTrainingLoop:
                 target_device = td.device
                 td["env_obs"] = o.to(device=target_device, non_blocking=True)
 
-                td["rewards"] = r.to(device=target_device, non_blocking=True)
+                rewards = r.to(device=target_device, non_blocking=True)
+                td["rewards"] = rewards
+                agent_ids = self._env_index_cache[training_env_id]
+                td["training_env_ids"] = agent_ids.unsqueeze(1)
+
+                avg_reward = context.state.avg_reward
+                baseline = avg_reward[agent_ids]
+                td["reward_baseline"] = baseline
 
                 # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
                 # MPS has two bugs:
@@ -116,21 +125,27 @@ class CoreTrainingLoop:
                     td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
                     td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
                 td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
-                td["training_env_ids"] = self._gather_env_indices(training_env_id, td.device).unsqueeze(1)
                 # Row-aligned state: provide row slot id and position within row
-                row_ids = self.experience.row_slot_ids[training_env_id].to(device=target_device, dtype=torch.long)
-                t_in_row = self.experience.t_in_row[training_env_id].to(device=target_device, dtype=torch.long)
+                row_ids = self.experience.row_slot_ids[training_env_id]
+                t_in_row = self.experience.t_in_row[training_env_id]
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td, env)
+                self.add_last_action_to_td(td)
 
-                self._ensure_rollout_metadata(td)
+                ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
                 context.training_env_id = training_env_id
                 for loss in self.losses.values():
                     loss.rollout(td, context)
+
+            avg_reward = context.state.avg_reward
+            beta = float(context.config.advantage.reward_centering.beta)
+            with torch.no_grad():
+                rewards_f32 = td["rewards"].to(dtype=torch.float32)
+                avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
+            context.state.avg_reward = avg_reward
 
             assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
             raw_actions = td["actions"].detach()
@@ -141,9 +156,6 @@ class CoreTrainingLoop:
                 )
 
             actions_column = raw_actions.view(-1, 1)
-
-            if self.last_action is None:
-                raise RuntimeError("last_action buffer was not initialized before rollout actions were generated")
 
             if self.last_action.device != actions_column.device:
                 self.last_action = self.last_action.to(device=actions_column.device)
@@ -173,47 +185,8 @@ class CoreTrainingLoop:
 
             total_steps += num_steps
 
-        if last_env_id is None:
-            raise RuntimeError("Rollout completed without receiving any environment data")
-
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
-
-    def _gather_env_indices(self, training_env_id: slice, device: torch.device) -> torch.Tensor:
-        env_indices = self._env_index_cache[training_env_id]
-        if env_indices.device != device:
-            env_indices = env_indices.to(device=device)
-        return env_indices
-
-    def _ensure_rollout_metadata(self, td: TensorDict) -> None:
-        """Populate metadata fields needed downstream while reusing cached tensors."""
-
-        batch_elems = td.batch_size.numel()
-        device = td.device
-        if "batch" not in td.keys():
-            td.set("batch", self._get_constant_tensor("batch", (batch_elems,), batch_elems, device))
-        if "bptt" not in td.keys():
-            td.set("bptt", self._get_constant_tensor("bptt", (batch_elems,), 1, device))
-
-    def _get_constant_tensor(
-        self,
-        name: str,
-        shape: tuple[int, ...],
-        value: int,
-        device: torch.device,
-    ) -> torch.Tensor:
-        if not shape:
-            shape = (1,)
-        key = (name, shape, int(value), str(device))
-        cached = self._metadata_cache.get(key)
-        if cached is None or cached.device != device:
-            if value == 1:
-                tensor = torch.ones(shape, dtype=torch.long, device=device)
-            else:
-                tensor = torch.full(shape, value, dtype=torch.long, device=device)
-            self._metadata_cache[key] = tensor
-            return tensor
-        return cached
 
     def training_phase(
         self,
@@ -231,39 +204,53 @@ class CoreTrainingLoop:
         Returns:
             Dictionary of loss statistics
         """
-        training_env_id = context.training_env_id
-        assert training_env_id is not None, "Training environment ID is required"
-
         self.experience.reset_importance_sampling_ratios()
 
         for loss in self.losses.values():
             loss.zero_loss_tracker()
 
+        advantage_cfg = context.config.advantage
+        ppo_critic = self.losses.get("ppo_critic")
+        use_delta_lambda = (
+            ppo_critic is not None
+            and getattr(ppo_critic.cfg, "critic_update", None) == "gtd_lambda"
+            and ppo_critic._loss_gate_allows("train", context)
+        )
+        advantage_method = "delta_lambda" if use_delta_lambda else "vtrace"
+
         epochs_trained = 0
 
         for _ in range(update_epochs):
             if "values" in self.experience.buffer.keys():
-                advantages = compute_advantage(
-                    self.experience.buffer["values"],
-                    self.experience.buffer["rewards"],
+                values_for_adv = self.experience.buffer["values"]
+                if values_for_adv.dim() > 2:
+                    values_for_adv = values_for_adv.mean(dim=-1)
+                centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
+                advantages_full = compute_advantage(
+                    values_for_adv,
+                    centered_rewards,
                     self.experience.buffer["dones"],
-                    torch.ones_like(self.experience.buffer["values"]),
-                    torch.zeros_like(self.experience.buffer["values"], device=self.device),
-                    self.context.config.advantage.gamma,
-                    self.context.config.advantage.gae_lambda,
+                    torch.ones_like(values_for_adv),
+                    torch.zeros_like(values_for_adv, device=self.device),
+                    advantage_cfg.gamma,
+                    advantage_cfg.gae_lambda,
                     self.device,
-                    self.context.config.advantage.vtrace_rho_clip,
-                    self.context.config.advantage.vtrace_c_clip,
+                    advantage_cfg.vtrace_rho_clip,
+                    advantage_cfg.vtrace_c_clip,
                 )
             else:
                 # Value-free setups still need a tensor shaped like the buffer for sampling.
-                advantages = torch.zeros(self.experience.buffer.batch_size, device=self.device, dtype=torch.float32)
-            self.experience.buffer["advantages_full"] = advantages
+                advantages_full = torch.zeros(
+                    self.experience.buffer.batch_size,
+                    device=self.device,
+                    dtype=torch.float32,
+                )
+            self.experience.buffer["advantages_full"] = advantages_full
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
-                    self.optimizer.zero_grad()
+                    self.optimizer.zero_grad(set_to_none=True)
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
@@ -273,16 +260,70 @@ class CoreTrainingLoop:
                     epoch=context.epoch,
                     total_timesteps=context.config.total_timesteps,
                     batch_size=context.config.batch_size,
-                    advantages=advantages,
+                    advantages=advantages_full,
                 )
                 if mb_idx == 0:
-                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages)
+                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages_full)
 
                 policy_td = shared_loss_mb_data["sampled_mb"]
                 policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
                 shared_loss_mb_data["policy_td"] = policy_td
 
+                sampled_mb = shared_loss_mb_data["sampled_mb"]
+                if "act_log_prob" in sampled_mb.keys() and "act_log_prob" in policy_td.keys():
+                    old_logprob = sampled_mb["act_log_prob"]
+                    new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+                    logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+                    shared_loss_mb_data["importance_sampling_ratio"] = logratio.exp()
+
+                if advantage_method == "delta_lambda":
+                    if "values" not in sampled_mb.keys():
+                        raise RuntimeError("delta_lambda advantages require minibatch['values']")
+
+                    new_values = policy_td["values"]
+                    if new_values.dim() == 3 and new_values.shape[-1] == 1:
+                        new_values = new_values.squeeze(-1)
+                    new_values = new_values.reshape(sampled_mb["values"].shape)
+
+                    centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                    shared_loss_mb_data["advantages_pg"] = compute_delta_lambda(
+                        values=new_values,
+                        rewards=centered_rewards,
+                        dones=sampled_mb["dones"],
+                        gamma=float(advantage_cfg.gamma),
+                        gae_lambda=float(advantage_cfg.gae_lambda),
+                    )
+                else:
+                    values_for_adv = sampled_mb["values"] if "values" in sampled_mb.keys() else None
+                    if values_for_adv is not None:
+                        if values_for_adv.dim() > 2:
+                            values_for_adv = values_for_adv.mean(dim=-1)
+
+                        importance_sampling_ratio = shared_loss_mb_data.get("importance_sampling_ratio", None)
+                        if importance_sampling_ratio is None:
+                            importance_sampling_ratio = torch.ones_like(values_for_adv)
+
+                        with torch.no_grad():
+                            centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                            shared_loss_mb_data["advantages_pg"] = compute_advantage(
+                                values_for_adv,
+                                centered_rewards,
+                                sampled_mb["dones"],
+                                importance_sampling_ratio,
+                                shared_loss_mb_data["advantages"].clone(),
+                                advantage_cfg.gamma,
+                                advantage_cfg.gae_lambda,
+                                self.device,
+                                advantage_cfg.vtrace_rho_clip,
+                                advantage_cfg.vtrace_c_clip,
+                            )
+                    else:
+                        shared_loss_mb_data["advantages_pg"] = shared_loss_mb_data["advantages"]
+
+                used_keys: set[str] = set()
                 for _loss_name, loss_obj in self.losses.items():
+                    if loss_obj._loss_gate_allows("train", context):
+                        used_keys.update(loss_obj.policy_output_keys(policy_td))
                     loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
                         shared_loss_mb_data, context, mb_idx
                     )
@@ -292,6 +333,11 @@ class CoreTrainingLoop:
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
                     break
+
+                # Ensure all policy outputs participate in the graph even if some heads
+                # aren't used by the active losses (e.g., BC-only runs). This avoids
+                # DDP unused-parameter errors without relying on find_unused_parameters.
+                total_loss = add_dummy_loss_for_unused_params(total_loss, td=policy_td, used_keys=used_keys)
 
                 total_loss.backward()
 
@@ -338,26 +384,10 @@ class CoreTrainingLoop:
         for loss in self.losses.values():
             loss.on_epoch_start(context)
 
-    def add_last_action_to_td(self, td: TensorDict, env: TrainingEnvironment) -> None:
-        env_ids = td["training_env_ids"]
-        if env_ids.dim() == 2:
-            env_ids = env_ids.squeeze(-1)
+    def add_last_action_to_td(self, td: TensorDict) -> None:
+        env_ids = td["training_env_ids"].squeeze(-1)
 
-        if env_ids.numel() == 0:
-            td["last_actions"] = torch.zeros((0, 1), dtype=torch.int32, device=td.device)
-            return
-
-        max_env_id = int(env_ids.max().item())
-        target_length = max_env_id + 1
-
-        if self.last_action is None:
-            self.last_action = torch.zeros(target_length, 1, dtype=torch.int32, device=td.device)
-        else:
-            if self.last_action.size(0) < target_length:
-                pad_shape = (target_length - self.last_action.size(0), self.last_action.size(1))
-                pad_tensor = torch.zeros(pad_shape, dtype=self.last_action.dtype, device=self.last_action.device)
-                self.last_action = torch.cat((self.last_action, pad_tensor), dim=0)
-            if self.last_action.device != td.device:
-                self.last_action = self.last_action.to(device=td.device)
+        if self.last_action.device != td.device:
+            self.last_action = self.last_action.to(device=td.device)
 
         td["last_actions"] = self.last_action[env_ids].detach()

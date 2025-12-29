@@ -123,10 +123,9 @@ def make_random_maps_curriculum(
     # Use full vibe set to maintain a single action space across train/eval.
     from mettagrid.config import vibes as vibes_module
 
-    full_vibes = [v.name for v in vibes_module.VIBES]
-    base_env.game.vibe_names = full_vibes
+    base_env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if base_env.game.actions.change_vibe:
-        base_env.game.actions.change_vibe.number_of_vibes = len(full_vibes)
+        base_env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
 
     # Replace map builder with random map generator
     # Random.Config has too_many_is_ok=True, so it will cap objects to available space
@@ -223,11 +222,11 @@ def make_random_maps_curriculum(
 
     if initial_inventory_buckets:
         # Bucket over agent's starting inventory
-        tasks.add_bucket("game.agent.initial_inventory.carbon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.oxygen", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.germanium", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.silicon", [0, 20, 50, 75])
-        tasks.add_bucket("game.agent.initial_inventory.heart", [0, 1, 2])
+        tasks.add_bucket("game.agent.inventory.initial.carbon", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.oxygen", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.germanium", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.silicon", [0, 20, 50, 75])
+        tasks.add_bucket("game.agent.inventory.initial.heart", [0, 1, 2])
 
     # Configure learning progress algorithm
     if algorithm_config is None:
@@ -286,7 +285,7 @@ def make_training_eval_suite(
         # Apply the same vibe restrictions as training
         env_cfg.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
         if env_cfg.game.actions.change_vibe:
-            env_cfg.game.actions.change_vibe.number_of_vibes = 13
+            env_cfg.game.actions.change_vibe.vibes = list(vibes_module.VIBES[:13])
         if env_cfg.game.actions.attack:
             env_cfg.game.actions.attack.enabled = False
 
@@ -424,7 +423,7 @@ def play_sparse(
 
     env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
+        env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
 
     env.game.map_builder = MapGen.Config(
         width=room_size,
@@ -488,7 +487,7 @@ def play_dense(
     # Restrict vibes to only heart_b and default
     env.game.vibe_names = [v.name for v in vibes_module.VIBES[:13]]
     if env.game.actions.change_vibe:
-        env.game.actions.change_vibe.number_of_vibes = len(env.game.vibe_names)
+        env.game.actions.change_vibe.vibes = list(vibes_module.VIBES[:13])
 
     env.game.map_builder = MapGen.Config(
         width=room_size,
@@ -564,7 +563,7 @@ def replay_curriculum(
     # Use full vibes to stay aligned with training/eval action space.
     env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
+        env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
 
     env.game.map_builder = MapGen.Config(
         width=room_size,

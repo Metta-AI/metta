@@ -167,6 +167,9 @@ class ViTReconstructionLoss(Loss):
         self.cfg: ViTReconstructionLossConfig = cfg  # type: ignore
         self.decoder = None
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"obs_shim_tokens", "obs_latent_attn"}
+
     def _init_decoder(self, latent_dim: int, context: ComponentContext) -> None:
         # 1. Derive num_attribute_classes from environment
         if self.cfg.num_attribute_classes is not None:

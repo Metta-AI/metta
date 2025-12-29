@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -58,7 +59,7 @@ class MettaSchemeResolver(SchemeResolver):
     """
 
     def __init__(self, stats_server_uri: str | None = None):
-        self._stats_server_uri = stats_server_uri or PROD_STATS_SERVER_URI
+        self._stats_server_uri = stats_server_uri or os.environ.get("STATS_SERVER_URI") or PROD_STATS_SERVER_URI
 
     @property
     def scheme(self) -> str:
@@ -87,7 +88,7 @@ class MettaSchemeResolver(SchemeResolver):
         entry = response.entries[0]
         return stats_client.get_policy_version(entry.id)
 
-    def _get_policy_version(self, uri: str) -> PolicyVersionWithName:
+    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -112,7 +113,7 @@ class MettaSchemeResolver(SchemeResolver):
         return policy_version
 
     def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
-        policy_version = self._get_policy_version(uri)
+        policy_version = self.get_policy_version(uri)
         # By default we send you to the s3 path that contains the policy spec
         if policy_version.s3_path:
             logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")

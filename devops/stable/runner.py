@@ -303,6 +303,8 @@ class Runner:
         error = f"Timeout after {job.timeout_s}s" if exit_code == 124 else None
         self._finish(job, status, exit_code, error=error)
 
+    _MAX_POLL_FAILURES = 3
+
     def _poll_remote_jobs(self) -> None:
         import sky
         import sky.jobs.client.sdk as sky_jobs_sdk
@@ -327,18 +329,20 @@ class Runner:
             request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
             queue_data = sky.get(request_id)
             if not isinstance(queue_data, list):
-                msg = f"Expected list from sky.get(), got {type(queue_data).__name__}: {str(queue_data)[:200]}"
-                raise TypeError(msg)
+                raise TypeError(f"Expected list, got {type(queue_data).__name__}: {str(queue_data)[:200]}")
             status_by_id = {}
             for item in queue_data:
-                if not isinstance(item, dict):
-                    raise TypeError(f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}")
-                status_by_id[str(item.get("job_id"))] = item
+                job_id = item.get("job_id") if isinstance(item, dict) else getattr(item, "job_id", None)
+                status_by_id[str(job_id)] = item
         except Exception as e:
-            for job in running:
-                if job.status == JobStatus.RUNNING:
-                    self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {e}")
+            self._poll_failure_count = getattr(self, "_poll_failure_count", 0) + 1
+            self._print(f"[WARN] SkyPilot poll failed ({self._poll_failure_count}/{self._MAX_POLL_FAILURES}): {e}")
+            if self._poll_failure_count >= self._MAX_POLL_FAILURES:
+                for job in running:
+                    if job.status == JobStatus.RUNNING:
+                        self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {e}")
             return
+        self._poll_failure_count = 0
 
         for job in running:
             if not job.skypilot_job_id:
@@ -351,7 +355,8 @@ class Runner:
                     self._finish(job, JobStatus.FAILED, 1, "Job not found in SkyPilot queue")
                 continue
 
-            sky_status = str(sky_job.get("status", "")).upper()
+            status = sky_job.get("status") if isinstance(sky_job, dict) else getattr(sky_job, "status", None)
+            sky_status = str(status or "").upper()
             if "SUCCEEDED" in sky_status:
                 self._finish(job, JobStatus.SUCCEEDED, 0)
             elif any(s in sky_status for s in ("FAILED", "CANCELLED")):
