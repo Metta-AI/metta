@@ -19,6 +19,13 @@ cert_manager_issuer: letsencrypt
 
 replicaCount: 2
 
+episodeRunnerImage:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-policy-evaluator
+  tag: latest
+
 env:
   RUN_MIGRATIONS: "true"
-  EPISODE_RUNNER_IMAGE: "751442549699.dkr.ecr.us-east-1.amazonaws.com/metta-policy-evaluator:latest"
+
+secrets:
+  machineToken: "machine-token-secret"
