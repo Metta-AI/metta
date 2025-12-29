@@ -302,11 +302,22 @@ def load_policy_spec_from_zip(
     if extraction_root is None:
         extraction_root = (cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()).with_suffix(".d")
     marker_file = extraction_root / ".extraction_complete"
+    lock_file = extraction_root / ".extraction.lock"
 
     if not marker_file.exists():
         extraction_root.mkdir(parents=True, exist_ok=True)
-        _extract_submission_archive(local_path, extraction_root)
-        marker_file.touch()
+
+        # Avoid multi-process races when multiple torchrun ranks try to extract the same archive
+        # into the deterministic cache directory at the same time.
+        if fcntl is None:
+            _extract_submission_archive(local_path, extraction_root)
+            marker_file.touch()
+        else:
+            with open(lock_file, "w", encoding="utf-8") as fp:
+                fcntl.flock(fp, fcntl.LOCK_EX)
+                if not marker_file.exists():
+                    _extract_submission_archive(local_path, extraction_root)
+                    marker_file.touch()
 
         # Only schedule cleanup when we're the ones that created the dir
         if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
