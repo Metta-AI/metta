@@ -231,8 +231,14 @@ def _get_missions_by_possible_wildcard(
 def find_mission(
     site_name: str,
     mission_name: str | None = None,  # None means first mission on the site
+    *,
+    include_evals: bool = False,
 ) -> Mission:
-    for mission in _get_core_missions():
+    missions = _get_core_missions()
+    if include_evals:
+        missions = [*missions, *_get_eval_missions_all()]
+
+    for mission in missions:
         if mission.site.name != site_name:
             continue
         if mission_name is not None and mission.name != mission_name:
@@ -291,20 +297,7 @@ def get_mission(
     else:
         site_name, mission_name = mission_arg.split(MAP_MISSION_DELIMITER)
 
-    try:
-        mission = find_mission(site_name, mission_name)
-    except ValueError:
-        # Fallback to eval registry
-        for m in _get_eval_missions_all():
-            if m.site.name != site_name:
-                continue
-            if mission_name is not None and m.name != mission_name:
-                continue
-            mission = m
-            break
-        else:
-            # Re-raise original error if not found in evals either
-            raise
+    mission = find_mission(site_name, mission_name, include_evals=True)
     # Apply variants
     mission = mission.with_variants(variants)
 
