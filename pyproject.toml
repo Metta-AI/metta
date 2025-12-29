@@ -110,7 +110,12 @@ interactive = [
   "widgetsnbextension>=4.0.14",
 ]
 mcp-servers = ["metta-pr-similarity-mcp"]
-dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
+dev = [
+  { include-group = "testing" },
+  { include-group = "lint" },
+  { include-group = "mcp-servers" },
+  "honcho>=2.0.0",
+]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:main"
@@ -136,12 +141,7 @@ norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 required-version = ">=0.9.0"
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "packages/mettagrid/BUILD" },
-  { file = "packages/mettagrid/MODULE.bazel" },
-  { file = "metta/**/*.{cpp,hpp}" },
-]
+cache-keys = [{ file = "pyproject.toml" }]
 default-groups = ["interactive", "dev"]
 
 [tool.uv.workspace]
