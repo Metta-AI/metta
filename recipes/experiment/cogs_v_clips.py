@@ -137,7 +137,7 @@ def make_eval_suite(
         num_cogs: Number of agents per mission (1, 2, 4, or 8)
         difficulty: Difficulty variant to apply (e.g., "standard", "hard", "story_mode")
         subset: Optional list of mission names to include (defaults to all)
-        variants: Additional mission variants to apply (lonely_heart, heart_chorus, ...)
+        variants: Additional mission variants to apply (heart_chorus, ...)
 
     Returns:
         A list of SimulationConfig objects ready for evaluation.
@@ -784,7 +784,7 @@ def train_ci() -> TrainTool:
     env = make_training_env(
         num_cogs=2,
         mission="training_facility.harvest",
-        variants=["lonely_heart", "heart_chorus", "pack_rat"],
+        variants=["heart_chorus"],
     )
     curriculum_cfg = cc.env_curriculum(env)
     return TrainTool(
@@ -828,7 +828,7 @@ def play_ci() -> PlayTool:
 )
 def train_200ep() -> TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 200 * 524288
     return tool
 
@@ -841,6 +841,6 @@ def train_200ep() -> TrainTool:
 )
 def train_2b() -> TrainTool:
     """CvC multi GPU - 2B timesteps."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 2_000_000_000
     return tool
