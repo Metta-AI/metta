@@ -27,14 +27,6 @@ ASCII_MAP = [
     list("#####"),
 ]
 
-ASCII_MAP_TWO = [
-    list("#####"),
-    list("#.@.#"),
-    list("#.&.#"),
-    list("#.@.#"),
-    list("#####"),
-]
-
 _BASE_STATION = CvCAssemblerConfig()
 FIRST_HEART_COST = _BASE_STATION.first_heart_cost
 ADDITIONAL_HEART_COST = _BASE_STATION.additional_heart_cost
@@ -209,23 +201,23 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
 
 
 def test_two_agent_heart_chorus_map_outputs_two_hearts() -> None:
-    sim = _make_simulation(num_agents=2, ascii_map=ASCII_MAP_TWO)
+    sim = _make_simulation(num_agents=2)
     try:
         positions, assembler_pos = _agent_positions(sim)
-        north = positions[(1, 2)]
-        south = positions[(3, 2)]
+        assert len(positions) == 2
+        (first_pos, first_id), (second_pos, second_id) = sorted(positions.items())
 
         _assign_inventories(
             sim,
             {
-                north: {"carbon": 15, "oxygen": 5},
-                south: {"oxygen": 10, "germanium": 3, "silicon": 45},
+                first_id: {"carbon": 15, "oxygen": 5},
+                second_id: {"oxygen": 10, "germanium": 3, "silicon": 45},
             },
         )
 
-        _step(sim, {north: "change_vibe_heart_a", south: "change_vibe_heart_a"})
+        _step(sim, {first_id: "change_vibe_heart_a", second_id: "change_vibe_heart_a"})
         before = _capture_inventories(sim)
-        _step(sim, {north: _move_action((1, 2), assembler_pos)})
+        _step(sim, {first_id: _move_action(first_pos, assembler_pos)})
         after = _capture_inventories(sim)
 
         expected_inputs = _expected_inputs(2)
