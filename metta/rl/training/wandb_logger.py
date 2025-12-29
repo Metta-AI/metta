@@ -54,10 +54,6 @@ class WandbLogger(TrainerComponent):
         for k, v in elapsed.items():
             self._prev_elapsed[k] = float(v)
 
-        for key, value in context.latest_losses_stats.items():
-            metric_key = key if "/" in key else f"loss/{key}"
-            payload[metric_key] = float(value)
-
         self._wandb_run.log(payload)
 
     def on_training_complete(self) -> None:  # noqa: D401
