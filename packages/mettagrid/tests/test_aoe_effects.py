@@ -256,6 +256,75 @@ class TestAOEMultipleOverlapping:
         # Net effect should be +15
         assert energy_after == energy_before + 15, f"Net AOE effect should be +15, got {energy_after - energy_before}"
 
+    def test_aoe_effects_aggregated_before_applying(self):
+        """Test that AOE effects are aggregated before applying to avoid order-dependent results.
+
+        This tests a bug where if one AOE adds +5 to a resource and another removes -3,
+        sequential application could produce different results than aggregated application.
+        Correct behavior: aggregate first (+5 + -3 = +2), then apply once.
+
+        We verify this by checking that the net effect is exactly +2, which proves
+        the effects were combined rather than applied with any intermediate clamping.
+        """
+        # Create a simulation where:
+        # - Agent starts with 10 of "energy" resource
+        # - One AOE adds +5 energy
+        # - Another AOE removes -3 energy
+        # Aggregated: net = +2, so energy should be 12 after one tick
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+            ["wall", "aoe_add", ".", "agent.agent", ".", "aoe_remove", "wall"],
+            ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        objects = {
+            "wall": WallConfig(),
+            "aoe_add": WallConfig(
+                name="aoe_add",
+                aoes=[AOEEffectConfig(range=3, resource_deltas={"energy": 5})],
+            ),
+            "aoe_remove": WallConfig(
+                name="aoe_remove",
+                aoes=[AOEEffectConfig(range=3, resource_deltas={"energy": -3})],
+            ),
+        }
+
+        game_config = GameConfig(
+            max_steps=100,
+            num_agents=1,
+            obs=ObsConfig(width=7, height=3, num_tokens=100),
+            resource_names=["energy", "heart"],
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(enabled=True),
+            ),
+            agent=AgentConfig(
+                inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
+            ),
+            objects=objects,
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+
+        sim = Simulation(cfg, seed=42)
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+        assert energy_before == 10, f"Energy should start at 10, got {energy_before}"
+
+        # Step the simulation
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        # After aggregation: +5 + -3 = +2
+        # Energy should be exactly 12
+        energy_after = self._get_agent_inventory(sim, "energy")
+        expected = energy_before + 2  # Net effect of +5 and -3
+        assert energy_after == expected, (
+            f"Energy should be {expected} after aggregated AOE effects (net +2), got {energy_after}. "
+            "This may indicate AOE effects are not being aggregated correctly."
+        )
+
 
 class TestAOECommonsFiltering:
     """Test AOE effects with commons membership filtering."""

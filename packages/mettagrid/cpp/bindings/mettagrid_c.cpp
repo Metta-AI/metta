@@ -653,6 +653,7 @@ void MettaGrid::_step() {
 
   // Apply AOE cell effects from the grid at each agent's location
   // Agents are checked every tick since they move around
+  // We aggregate all deltas first, then apply them to avoid order-dependent effects
   const std::string commons_tag_prefix = "commons:";
   for (auto* agent : _agents) {
     // Use individual effect sources for commons-aware filtering
@@ -664,6 +665,9 @@ void MettaGrid::_step() {
     if (agent_commons) {
       agent_commons_name = agent_commons->name;
     }
+
+    // Aggregate all deltas from all applicable AOE sources
+    std::unordered_map<InventoryItem, InventoryDelta> aggregated_deltas;
 
     for (const auto& source : cell_effects.sources) {
       const auto* config = source.config;
@@ -719,10 +723,15 @@ void MettaGrid::_step() {
         continue;  // Skip: effect ignores members, and agent is a member
       }
 
-      // Apply the effect
+      // Aggregate the deltas from this source
       for (const auto& [item, delta] : config->resource_deltas) {
-        agent->inventory.update(item, delta);
+        aggregated_deltas[item] += delta;
       }
+    }
+
+    // Apply the aggregated deltas to the agent's inventory
+    for (const auto& [item, delta] : aggregated_deltas) {
+      agent->inventory.update(item, delta);
     }
   }
 
