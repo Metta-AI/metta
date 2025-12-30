@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import (
     AttackActionConfig,
     ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
@@ -40,13 +41,13 @@ def test_exception_when_laser_not_in_inventory():
                 consumed_resources={"laser": 1},  # This should trigger an exception!
                 defense_resources={"armor": 1},
             ),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 
@@ -80,13 +81,13 @@ def test_no_exception_when_resources_in_inventory():
             noop=NoopActionConfig(enabled=True),
             move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
-            change_vibe=ChangeVibeActionConfig(enabled=False, number_of_vibes=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 

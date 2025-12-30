@@ -31,8 +31,6 @@ class MettascopeRenderer(Renderer):
         self._data_dir = str(nim_root / "data") if nim_root else "."
 
     def on_episode_start(self) -> None:
-        assert self._sim is not None
-
         # Get the GameConfig from MettaGridConfig
         game_config = self._sim.config.game
         game_config_dict = game_config.model_dump(mode="json", exclude_none=True)
@@ -80,8 +78,6 @@ class MettascopeRenderer(Renderer):
 
     def render(self) -> None:
         """Render current state and capture user input."""
-        assert self._sim is not None
-
         # Generate replay data for current state
         grid_objects = []
         total_rewards = self._sim.episode_rewards

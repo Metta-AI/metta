@@ -29,7 +29,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -129,6 +129,7 @@ def make_eval_suite(
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
     max_evals: Optional[int] = None,
+    missions: Optional[Sequence[Mission]] = None,
 ) -> list[SimulationConfig]:
     """Create a suite of evaluation simulations from CoGames missions.
 
@@ -136,15 +137,14 @@ def make_eval_suite(
         num_cogs: Number of agents per mission (1, 2, 4, or 8)
         difficulty: Difficulty variant to apply (e.g., "standard", "hard", "story_mode")
         subset: Optional list of mission names to include (defaults to all)
-        variants: Additional mission variants to apply (lonely_heart, heart_chorus, ...)
+        variants: Additional mission variants to apply (heart_chorus, ...)
 
     Returns:
         A list of SimulationConfig objects ready for evaluation.
     """
+    eval_missions = list(missions) if missions is not None else list(EVAL_MISSIONS)
     if subset:
-        missions = [m for m in EVAL_MISSIONS if m.name in subset]
-    else:
-        missions = EVAL_MISSIONS
+        eval_missions = [m for m in eval_missions if m.name in subset]
 
     variant_names = _normalize_variant_names(
         initial=[difficulty] if difficulty else None,
@@ -152,7 +152,7 @@ def make_eval_suite(
     )
 
     simulations: list[SimulationConfig] = []
-    for mission_template in missions:
+    for mission_template in eval_missions:
         if num_cogs == 1 and mission_template.name in {
             "go_together",
             "single_use_swarm",
@@ -182,7 +182,7 @@ def make_eval_suite(
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -198,7 +198,7 @@ def make_training_env(
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
-    if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
+    if change_vibe_action is not None and len(change_vibe_action.vibes) <= 1:
         allowed_vibes = env.game.vibe_names or ["default"]
         env.game.vibe_names = list(allowed_vibes)
 
@@ -217,6 +217,7 @@ def make_curriculum(
     enable_detailed_slice_logging: bool = False,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     variants: Optional[Sequence[str]] = None,
+    difficulty: str | None = None,
     dr_variants: int = 0,
     dr_rewards: bool = True,
     dr_misc: bool = False,
@@ -256,10 +257,14 @@ def make_curriculum(
                 ]
 
         for variant_set in variant_sets:
+            applied_variants = _normalize_variant_names(
+                initial=[difficulty] if difficulty else None,
+                variants=variant_set,
+            )
             mission_env = make_training_env(
                 num_cogs=num_cogs,
                 mission=mission_name,
-                variants=variant_set,
+                variants=applied_variants or None,
             )
             mission_env.game.global_obs.goal_obs = True
             mission_tasks = cc.bucketed(mission_env)
@@ -321,6 +326,8 @@ def train(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    train_difficulty: str | None = None,
+    eval_mission_source: str = "integrated_evals",
     max_evals: Optional[int] = None,
     teacher: TeacherConfig | None = None,
     use_lp: bool = True,
@@ -334,12 +341,16 @@ def train(
     if mission is not None:
         training_missions = [mission]
 
+    if train_difficulty is None:
+        train_difficulty = eval_difficulty
+
     cur_alg = LearningProgressConfig() if use_lp else DiscreteRandomConfig()
     curriculum = curriculum or make_curriculum(
         num_cogs=num_cogs,
         missions=training_missions,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
         variants=variants,
+        difficulty=train_difficulty,
         algorithm_config=cur_alg,
         dr_variants=dr_variants,
         dr_rewards=dr_rewards,
@@ -349,16 +360,23 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossesConfig())
 
     resolved_eval_variants = _resolve_eval_variants(variants, eval_variants)
+    eval_missions: Optional[list[Mission]] = None
+    if eval_mission_source == "training_missions":
+        eval_missions = [_resolve_mission_template(name) for name in training_missions]
+    elif eval_mission_source != "integrated_evals":
+        raise ValueError(f"Unknown eval_mission_source: {eval_mission_source}")
+
     eval_suite = make_eval_suite(
         num_cogs=num_cogs,
         difficulty=eval_difficulty,
         variants=resolved_eval_variants,
         max_evals=max_evals,
+        missions=eval_missions,
     )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
-        epoch_interval=600,
+        epoch_interval=150,
     )
 
     tt = TrainTool(
@@ -371,7 +389,7 @@ def train(
         tt.training_env.maps_cache_size = maps_cache_size
 
     scheduler_run_gates: list[LossRunGate] = []
-    scheduler_rules: list[HyperUpdateRule] = []
+    scheduler_rules: list[ScheduleRule] = []
 
     if teacher and teacher.enabled:
         apply_teacher_phase(
@@ -394,6 +412,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
@@ -404,6 +423,9 @@ def train_variants(
     if base_missions is None:
         base_missions = list(DEFAULT_CURRICULUM_MISSIONS)
 
+    if train_difficulty is None:
+        train_difficulty = eval_difficulty
+
     # Create tasks for each variant
     all_variant_tasks = []
     for variant in VARIANTS:
@@ -411,6 +433,8 @@ def train_variants(
             mission = _resolve_mission_template(mission_name)
             if not variant.compat(mission):
                 continue
+            if train_difficulty:
+                mission = mission.with_variants(parse_variants([train_difficulty]))
             mission_env = mission.make_env()
             mission_tasks = cc.bucketed(mission_env)
             all_variant_tasks.append(mission_tasks)
@@ -443,19 +467,28 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
+    if train_difficulty is None:
+        train_difficulty = eval_difficulty
+
+    training_variants = _normalize_variant_names(
+        initial=[train_difficulty] if train_difficulty else None,
+        variants=variants,
+    )
+
     env = make_training_env(
         num_cogs=num_cogs,
         mission=mission,
-        variants=variants,
+        variants=training_variants or None,
     )
 
     curriculum_cfg = cc.env_curriculum(env)
@@ -466,6 +499,7 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
+        train_difficulty=train_difficulty,
         teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
@@ -514,7 +548,7 @@ def evaluate_remote(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -540,7 +574,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="easy_hearts",
+        mission="training_facility.harvest",
         num_cogs=num_cogs,
         variants=variants,
     )
@@ -747,7 +781,11 @@ def sweep(
 @ci_job(timeout_s=240)
 def train_ci() -> TrainTool:
     """Minimal CvC train for CI smoke test."""
-    env = make_training_env(num_cogs=2, mission="easy_hearts", variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    env = make_training_env(
+        num_cogs=2,
+        mission="training_facility.harvest",
+        variants=["heart_chorus"],
+    )
     curriculum_cfg = cc.env_curriculum(env)
     return TrainTool(
         trainer=TrainerConfig(
@@ -775,8 +813,8 @@ def train_ci() -> TrainTool:
 @ci_job(timeout_s=120)
 def play_ci() -> PlayTool:
     """CvC play test with random policy."""
-    env = make_training_env(num_cogs=2, mission="easy_hearts")
-    sim = SimulationConfig(suite="cogs_vs_clips", name="easy_hearts_ci", env=env)
+    env = make_training_env(num_cogs=2, mission="training_facility.harvest")
+    sim = SimulationConfig(suite="cogs_vs_clips", name="harvest_ci", env=env)
     return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
 
 
@@ -790,7 +828,7 @@ def play_ci() -> PlayTool:
 )
 def train_200ep() -> TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 200 * 524288
     return tool
 
@@ -803,6 +841,6 @@ def train_200ep() -> TrainTool:
 )
 def train_2b() -> TrainTool:
     """CvC multi GPU - 2B timesteps."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 2_000_000_000
     return tool

@@ -2,14 +2,22 @@ import io
 import logging
 import uuid
 from collections import defaultdict
-from typing import Any
+from typing import Any, NewType
 
+import duckdb
 import wandb
 from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.episode_stats_db import (
+    episode_stats_db,
+    insert_agent_metric,
+    insert_agent_policy,
+    insert_episode,
+    insert_episode_tag,
+)
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.log_config import get_console, should_use_rich_console
 from metta.common.wandb.context import WandbRun
@@ -19,11 +27,14 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
+from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.util.file import http_url
+
+EpisodeId = NewType("EpisodeId", uuid.UUID)
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +328,7 @@ def render_eval_summary(
             logger.info("\n%s", "\n".join(lines))
 
 
+# NOTE: This will be removed when we switch all evaluations to the single-episode runner
 def write_eval_results_to_observatory(
     *,
     policy_version_ids: list[str],
@@ -324,62 +336,104 @@ def write_eval_results_to_observatory(
     stats_client: StatsClient,
     primary_policy_version_id: str | None = None,
 ) -> None:
-    """Write evaluation results to the observatory by creating a DuckDB and uploading it."""
-    from metta.app_backend.episode_stats_db import (
-        create_episode_stats_db,
-        insert_agent_metric,
-        insert_agent_policy,
-        insert_episode,
-        insert_episode_tag,
-    )
-
-    # Create DuckDB with episode stats
     try:
-        conn, duckdb_path = create_episode_stats_db()
+        with episode_stats_db() as (conn, duckdb_path):
+            for sim_result in rollout_results:
+                sim_config = sim_result.run
+                results = sim_result.results
 
-        # Process each simulation result
-        for sim_result in rollout_results:
-            sim_config = sim_result.run
-            results = sim_result.results
+                for e in results.episodes:
+                    episode_id = str(uuid.uuid4())
 
-            # Process each episode
-            for e in results.episodes:
-                episode_id = str(uuid.uuid4())
+                    insert_episode(
+                        conn,
+                        episode_id=episode_id,
+                        primary_pv_id=primary_policy_version_id,
+                        replay_url=e.replay_path,
+                        thumbnail_url=None,
+                        eval_task_id=None,
+                    )
 
-                # Insert episode record
-                insert_episode(
-                    conn,
-                    episode_id=episode_id,
-                    primary_pv_id=primary_policy_version_id,
-                    replay_url=e.replay_path,
-                    thumbnail_url=None,
-                    eval_task_id=None,
-                )
+                    for key, value in sim_config.episode_tags.items():
+                        insert_episode_tag(conn, episode_id, key, value)
 
-                # Insert episode tags
-                for key, value in sim_config.episode_tags.items():
-                    insert_episode_tag(conn, episode_id, key, value)
+                    for agent_id in range(len(e.assignments)):
+                        pv_id = policy_version_ids[e.assignments[agent_id]]
 
-                # Insert agent policies and metrics
-                for agent_id in range(len(e.assignments)):
-                    pv_id = policy_version_ids[e.assignments[agent_id]]
+                        insert_agent_policy(conn, episode_id, pv_id, agent_id)
 
-                    insert_agent_policy(conn, episode_id, pv_id, agent_id)
+                        insert_agent_metric(conn, episode_id, agent_id, "reward", float(e.rewards[agent_id]))
+                        agent_metrics = e.stats["agent"][agent_id]
+                        for metric_name, metric_value in agent_metrics.items():
+                            insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
-                    # Insert reward metric
-                    insert_agent_metric(conn, episode_id, agent_id, "reward", float(e.rewards[agent_id]))
-                    agent_metrics = e.stats["agent"][agent_id]
-                    for metric_name, metric_value in agent_metrics.items():
-                        insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
-
-        conn.close()
-
-        # Upload DuckDB file
-        logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
-        response = stats_client.bulk_upload_episodes(str(duckdb_path))
-        logger.info(
-            f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
-        )
-
+            conn.execute("CHECKPOINT")
+            logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
+            response = stats_client.bulk_upload_episodes(str(duckdb_path))
+            logger.info(
+                f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
+            )
     except Exception as e:
         logger.warning(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
+
+
+def populate_single_episode_duckdb(
+    conn: duckdb.DuckDBPyConnection,
+    *,
+    episode_tags: dict[str, str],
+    policy_version_ids: list[uuid.UUID | None],
+    replay_uri: str | None,
+    assignments: list[int],
+    results: PureSingleEpisodeResult,
+) -> EpisodeId:
+    episode_id = EpisodeId(uuid.uuid4())
+
+    insert_episode(
+        conn,
+        episode_id=str(episode_id),
+        primary_pv_id=str(policy_version_ids[0]) if policy_version_ids[0] else None,
+        replay_url=replay_uri,
+        thumbnail_url=None,
+        eval_task_id=None,
+    )
+
+    for key, value in episode_tags.items():
+        insert_episode_tag(conn, str(episode_id), key, value)
+
+    for agent_id, assignment in enumerate(assignments):
+        policy_version_id = policy_version_ids[assignment]
+        if policy_version_id:
+            insert_agent_policy(conn, str(episode_id), str(policy_version_id), agent_id)
+
+        insert_agent_metric(conn, str(episode_id), agent_id, "reward", results.rewards[agent_id])
+        insert_agent_metric(conn, str(episode_id), agent_id, "action_timeout", float(results.action_timeouts[agent_id]))
+
+        agent_stats = results.stats["agent"][agent_id]
+        for metric_name, metric_value in agent_stats.items():
+            insert_agent_metric(conn, str(episode_id), agent_id, metric_name, metric_value)
+
+    return episode_id
+
+
+def write_single_episode_to_observatory(
+    *,
+    episode_tags: dict[str, str],
+    policy_version_ids: list[uuid.UUID | None],
+    replay_uri: str | None,
+    assignments: list[int],
+    results: PureSingleEpisodeResult,
+    stats_client: StatsClient,
+) -> EpisodeId:
+    with episode_stats_db() as (conn, db_path):
+        episode_id = populate_single_episode_duckdb(
+            conn,
+            episode_tags=episode_tags,
+            policy_version_ids=policy_version_ids,
+            replay_uri=replay_uri,
+            assignments=assignments,
+            results=results,
+        )
+        conn.execute("CHECKPOINT")
+        response = stats_client.bulk_upload_episodes(str(db_path))
+        logger.info(f"Uploaded episode: {response.episodes_created} episodes at {response.duckdb_s3_uri}")
+    return episode_id

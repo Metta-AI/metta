@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 
 class QuantilePPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
 
@@ -96,10 +96,11 @@ class QuantilePPOCritic(Loss):
             self.burn_in_steps_iter += 1
             return
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"values"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -112,9 +113,10 @@ class QuantilePPOCritic(Loss):
             values_quantiles = self.replay.buffer["values"]  # [T, B, N]
             values_mean = values_quantiles.mean(dim=-1)  # [T, B]
 
+            centered_rewards = self.replay.buffer["rewards"] - self.replay.buffer["reward_baseline"]
             self.advantages = compute_advantage(
                 values_mean,
-                self.replay.buffer["rewards"],
+                centered_rewards,
                 self.replay.buffer["dones"],
                 torch.ones_like(values_mean),
                 torch.zeros_like(values_mean, device=self.device),

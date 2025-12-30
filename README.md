@@ -135,6 +135,39 @@ cluster management, experiment tracking and visualization, and continuous integr
 This README provides only a brief overview of research explorations. Visit the
 [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
+## Folder Hierarchy
+
+The `metta/` package has a folder hierarchy where higher folders can import from lower folders, but not vice versa. To
+add or reorder folders, edit `.importlinter` then run `metta codebase generate-folder-diagram`. Run
+`uv run lint-imports` to check for violations.
+
+<!-- FOLDER_DIAGRAM_START -->
+
+```mermaid
+graph TD
+    tools[tools]
+    gridworks[gridworks]
+    setup[setup]
+    sim[sim]
+    rl[rl]
+    sweep[sweep]
+    cogworks[cogworks]
+    adaptive[adaptive]
+    map[map]
+    common[common]
+    tools --> gridworks
+    gridworks --> setup
+    setup --> sim
+    sim --> rl
+    rl --> sweep
+    sweep --> cogworks
+    cogworks --> adaptive
+    adaptive --> map
+    map --> common
+```
+
+<!-- FOLDER_DIAGRAM_END -->
+
 ## Installation
 
 ### Quick Start

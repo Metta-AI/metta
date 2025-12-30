@@ -51,6 +51,9 @@ struct GameConfig {
 
   // Global clipper settings
   std::shared_ptr<ClipperConfig> clipper = nullptr;
+
+  // Observation encoding settings
+  unsigned int token_value_base = 256;  // Base for multi-token inventory encoding (value per token: 0 to base-1)
 };
 
 namespace py = pybind11;
@@ -95,7 +98,10 @@ inline void bind_game_config(py::module& m) {
                     unsigned int,
 
                     // Clipper
-                    const std::shared_ptr<ClipperConfig>&>(),
+                    const std::shared_ptr<ClipperConfig>&,
+
+                    // Observation encoding
+                    unsigned int>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
            py::arg("episode_truncates"),
@@ -118,7 +124,10 @@ inline void bind_game_config(py::module& m) {
            py::arg("inventory_regen_interval") = 0,
 
            // Clipper
-           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr))
+           py::arg("clipper") = std::shared_ptr<ClipperConfig>(nullptr),
+
+           // Observation encoding
+           py::arg("token_value_base") = 256)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
       .def_readwrite("episode_truncates", &GameConfig::episode_truncates)
@@ -146,7 +155,10 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("inventory_regen_interval", &GameConfig::inventory_regen_interval)
 
       // Clipper
-      .def_readwrite("clipper", &GameConfig::clipper);
+      .def_readwrite("clipper", &GameConfig::clipper)
+
+      // Observation encoding
+      .def_readwrite("token_value_base", &GameConfig::token_value_base);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

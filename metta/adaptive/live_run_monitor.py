@@ -15,12 +15,12 @@ Features:
 - Default: fetch 50 runs, display 10 most recent
 
 Usage:
-    ./metta/util/live_run_monitor.py --group my_group_name
-    ./metta/util/live_run_monitor.py --name-filter "axel.*"
-    ./metta/util/live_run_monitor.py --group my_group --name-filter "experiment.*"
-    ./metta/util/live_run_monitor.py --refresh 15 --entity myteam --project myproject
-    ./metta/util/live_run_monitor.py --fetch-limit 100 --display-limit 20
-    ./metta/util/live_run_monitor.py  # Monitor last 10 runs (fetch 50, display 10)
+    metta run-monitor --group my_group_name
+    metta run-monitor --name-filter "axel.*"
+    metta run-monitor --group my_group --name-filter "experiment.*"
+    metta run-monitor --refresh 15 --entity myteam --project myproject
+    metta run-monitor --fetch-limit 100 --display-limit 20
+    metta run-monitor  # Monitor last 10 runs (fetch 50, display 10)
 """
 
 import logging

@@ -29,24 +29,21 @@ class ObjectInfoComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("object_info")
-        if sidebar_panel is None:
-            sidebar_panel = panels.register_sidebar_panel("object_info")
+        assert sidebar_panel is not None
         self._set_panel(sidebar_panel)
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
-        return self.state.resource_names if self.state else []
+        resource_names = self.state.resource_names
+        assert resource_names is not None
+        return resource_names
 
     def update(self) -> None:
         """Render the object info panel using current environment and state."""
+        panel = self._panel
+        assert panel is not None
         if not self.state.is_sidebar_visible("object_info"):
-            self._panel.clear()
-            return
-
-        if not self.env or not self.state:
-            width = self._width if self._width else 40
-            lines = ["Object Info", "-" * min(width, 40), "Object info unavailable"]
-            self._panel.set_content(lines)
+            panel.clear()
             return
 
         if self.state.mode != RenderMode.SELECT:
@@ -57,7 +54,7 @@ class ObjectInfoComponent(MiniscopeComponent):
                 "-" * min(width, 40),
                 select_hint,
             ]
-            self._panel.set_content(lines)
+            panel.set_content(lines)
             return
 
         grid_objects = self._sim.grid_objects()
@@ -70,7 +67,7 @@ class ObjectInfoComponent(MiniscopeComponent):
             self.state.cursor_col,
             panel_height,
         )
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def _build_lines(
         self,

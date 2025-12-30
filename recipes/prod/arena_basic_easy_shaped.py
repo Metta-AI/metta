@@ -18,7 +18,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.common.wandb.context import WandbConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -117,7 +117,7 @@ def train(
 
     # Enable optional teacher phases (e.g., sliced_cloner) when provided.
     scheduler_run_gates: list[LossRunGate] = []
-    scheduler_rules: list[HyperUpdateRule] = []
+    scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=trainer_cfg,
         training_env_cfg=training_env_cfg,

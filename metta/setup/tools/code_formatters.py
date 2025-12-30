@@ -1,9 +1,10 @@
 import subprocess
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable, Dict, Iterable, Optional, Sequence, Set
+from typing import Annotated, Callable, DefaultDict, Iterable, Optional, Sequence
 
 import typer
 from pydantic import BaseModel
@@ -233,6 +234,13 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 extensions=(".py",),
             ),
             FormatterConfig(
+                name="Python Import Linter",
+                check_cmds=(("uv", "run", "lint-imports"),),
+                format_cmds=(("uv", "run", "lint-imports"),),
+                extensions=(".py",),
+                accepts_file_args=False,
+            ),
+            FormatterConfig(
                 name="JSON",
                 extensions=(".json", ".jsonc", ".code-workspace"),
                 runner=_make_prettier_runner(
@@ -241,6 +249,7 @@ def get_formatters() -> dict[str, FormatterConfig]:
                         "/charts/",
                         "packages/mettagrid/python/src/mettagrid/renderer/assets/",
                         "packages/mettagrid/nim/mettascope/data/",
+                        ".import_linter_cache/",
                     ),
                 ),
             ),
@@ -324,13 +333,12 @@ def cmd_lint(
     # Determine which files to process
     target_files = _resolve_target_files(files, staged)
 
-    files_by_formatter: Dict[str, Set[str]] = {}
+    files_by_formatter: DefaultDict[str, set[str]] = defaultdict(set)
     for f in target_files or []:
         ext = Path(f).suffix.lower()
         for formatter_name, formatter in formatters.items():
-            if formatter.extensions and ext in formatter.extensions:
-                files_by_formatter.setdefault(formatter_name, set()).add(f)
-                break
+            if ext in formatter.extensions:
+                files_by_formatter[formatter_name].add(f)
 
     # Run formatters for each type
     if not files_by_formatter:
