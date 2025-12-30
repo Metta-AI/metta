@@ -1,4 +1,5 @@
-# Lambda function for GitHub webhook service
+# GitHub webhook service Lambda function
+# Deployed via Spacelift - see devops/tf/README.md for deployment workflow
 
 data "aws_secretsmanager_secret" "github_webhook_secret" {
   name = "github/webhook-secret"
