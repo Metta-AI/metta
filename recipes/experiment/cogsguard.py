@@ -83,11 +83,13 @@ def supply_depot_config(map_name: str) -> CollectiveChestConfig:
         render_symbol="📦",
         collective="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
-        aoe=AOEEffectConfig(
-            range=10,
-            resource_deltas={"energy": 100, "damage": -100},
-            members_only=True,
-        ),
+        aoes=[
+            AOEEffectConfig(
+                range=10,
+                resource_deltas={"energy": 100, "damage": -100},
+                members_only=True,
+            )
+        ],
     )
 
 

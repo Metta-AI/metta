@@ -414,9 +414,9 @@ class GridObjectConfig(Config):
         default=None,
         description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
     )
-    aoe: Optional[AOEEffectConfig] = Field(
-        default=None,
-        description="If set, this object emits resource effects to agents within range each tick",
+    aoes: list[AOEEffectConfig] = Field(
+        default_factory=list,
+        description="List of AOE effects this object emits to agents within range each tick",
     )
 
     @model_validator(mode="after")
