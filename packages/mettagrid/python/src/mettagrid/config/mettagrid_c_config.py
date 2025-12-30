@@ -275,6 +275,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         if team_id == 0:
             objects_cpp_params["agent.default"] = cpp_agent_config
             objects_cpp_params["agent.agent"] = cpp_agent_config
+            # Register plain "agent" key for lookups that use typeName directly
+            objects_cpp_params["agent"] = cpp_agent_config
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
