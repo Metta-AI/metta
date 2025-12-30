@@ -58,7 +58,7 @@ def train(
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
-    env_cfg.game.max_steps = 1000
+    env_cfg.game.max_steps = 4000
     env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
