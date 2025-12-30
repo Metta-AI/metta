@@ -159,7 +159,9 @@ class TrainTool(Tool):
         storage_decision: PolicyStorageDecision | None = None
         stats_client: Optional[StatsClient] = None
         needs_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
-        start_method = multiprocessing.get_start_method(allow_none=True) or multiprocessing.get_context().get_start_method()
+        start_method = multiprocessing.get_start_method(allow_none=True)
+        if start_method is None:
+            start_method = multiprocessing.get_context().get_start_method()
         can_thread_preflight = needs_preflight and (
             self.training_env.vectorization == "serial" or start_method != "fork"
         )

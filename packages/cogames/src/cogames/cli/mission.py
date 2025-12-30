@@ -31,11 +31,11 @@ def _get_eval_missions_all() -> list[Mission]:
     from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
     from cogames.cogs_vs_clips.evals.spanning_evals import EVAL_MISSIONS as SPANNING_EVAL_MISSIONS
 
-    return [
-        *INTEGRATED_EVAL_MISSIONS,
-        *SPANNING_EVAL_MISSIONS,
-        *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
-    ]
+    missions: list[Mission] = []
+    missions.extend(INTEGRATED_EVAL_MISSIONS)
+    missions.extend(SPANNING_EVAL_MISSIONS)
+    missions.extend(mission_cls() for mission_cls in DIAGNOSTIC_EVALS)  # type: ignore[call-arg]
+    return missions
 
 
 def load_mission_set(mission_set: str) -> list[Mission]:
@@ -67,7 +67,7 @@ def load_mission_set(mission_set: str) -> list[Mission]:
     elif mission_set == "diagnostic_evals":
         from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 
-        missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
+        missions_list: list[Mission] = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
     elif mission_set == "integrated_evals":
         from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
 
