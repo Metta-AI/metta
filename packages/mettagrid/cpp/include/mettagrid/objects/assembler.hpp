@@ -13,6 +13,7 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/alignable.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
 #include "objects/constants.hpp"
@@ -24,7 +25,7 @@
 
 class Clipper;
 
-class Assembler : public GridObject, public Usable {
+class Assembler : public GridObject, public Usable, public Alignable {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {
