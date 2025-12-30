@@ -10,6 +10,9 @@ metta status              # Check component status
 metta install             # Reinstall if imports fail
 ```
 
+Most of the time, you shouldn't need to run install.sh or metta install. Only run these if you're having trouble with
+imports or other setup issues.
+
 ## Commands
 
 ```bash
