@@ -73,6 +73,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
+  _grid->set_tag_id_map(&_game_config.tag_id_map);  // For AOE commons filtering at registration time
   _obs_encoder = std::make_unique<ObservationEncoder>(
       game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
@@ -651,6 +652,7 @@ void MettaGrid::_step() {
   }
 
   // Apply AOE cell effects from the grid at each agent's location
+  // Agents are checked every tick since they move around
   const std::string commons_tag_prefix = "commons:";
   for (auto* agent : _agents) {
     // Use individual effect sources for commons-aware filtering
@@ -667,6 +669,22 @@ void MettaGrid::_step() {
       const auto* config = source.config;
       if (!config) {
         continue;
+      }
+
+      // Check target_tags filter first (if configured)
+      // If target_tag_ids is set, only affect objects with at least one matching tag
+      if (!config->target_tag_ids.empty()) {
+        bool has_matching_tag = false;
+        for (int tag_id : agent->tag_ids) {
+          if (std::find(config->target_tag_ids.begin(), config->target_tag_ids.end(), tag_id) !=
+              config->target_tag_ids.end()) {
+            has_matching_tag = true;
+            break;
+          }
+        }
+        if (!has_matching_tag) {
+          continue;  // Skip: agent doesn't have any matching tags
+        }
       }
 
       // Check commons membership filtering
@@ -704,6 +722,30 @@ void MettaGrid::_step() {
       // Apply the effect
       for (const auto& [item, delta] : config->resource_deltas) {
         agent->inventory.update(item, delta);
+      }
+    }
+  }
+
+  // Apply AOE effects to registered static inventory objects
+  // Objects are pre-filtered at registration time (target_tags + commons)
+  // so we just apply effects to all registered objects
+  for (const auto* aoe_helper : _grid->registered_aoe_helpers()) {
+    if (!aoe_helper->is_registered() || !aoe_helper->config()) {
+      continue;
+    }
+
+    const auto* config = aoe_helper->config();
+
+    for (GridObject* target_obj : aoe_helper->registered_inventory_objects()) {
+      // Get the HasInventory interface
+      auto* target_inventory = dynamic_cast<HasInventory*>(target_obj);
+      if (!target_inventory) {
+        continue;
+      }
+
+      // Apply the effect to the target's inventory (no filtering - already done at registration)
+      for (const auto& [item, delta] : config->resource_deltas) {
+        target_inventory->inventory.update(item, delta);
       }
     }
   }
@@ -1115,13 +1157,19 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // Bind AOEEffectConfig for AOE effects on any object
   py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
       .def(py::init<>())
-      .def(py::init<unsigned int, const std::unordered_map<InventoryItem, InventoryDelta>&, bool, bool>(),
+      .def(py::init<unsigned int,
+                    const std::unordered_map<InventoryItem, InventoryDelta>&,
+                    const std::vector<int>&,
+                    bool,
+                    bool>(),
            py::arg("range") = 1,
            py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("target_tag_ids") = std::vector<int>(),
            py::arg("members_only") = false,
            py::arg("ignore_members") = false)
       .def_readwrite("range", &AOEEffectConfig::range)
       .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas)
+      .def_readwrite("target_tag_ids", &AOEEffectConfig::target_tag_ids)
       .def_readwrite("members_only", &AOEEffectConfig::members_only)
       .def_readwrite("ignore_members", &AOEEffectConfig::ignore_members);
 

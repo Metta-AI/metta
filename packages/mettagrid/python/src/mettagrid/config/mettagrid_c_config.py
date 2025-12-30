@@ -34,13 +34,20 @@ from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
 def _convert_aoe_config(
-    aoe: Optional[AOEEffectConfig], resource_name_to_id: dict[str, int]
+    aoe: Optional[AOEEffectConfig], resource_name_to_id: dict[str, int], tag_name_to_id: dict[str, int]
 ) -> Optional[CppAOEEffectConfig]:
     """Convert Python AOEEffectConfig to C++ AOEEffectConfig."""
     if aoe is None:
         return None
     resource_deltas = {resource_name_to_id[k]: int(v) for k, v in aoe.resource_deltas.items()}
-    return CppAOEEffectConfig(aoe.range, resource_deltas, aoe.members_only, aoe.ignore_members)
+    target_tag_ids = []
+    if aoe.target_tags:
+        for tag in aoe.target_tags:
+            if tag not in tag_name_to_id:
+                available = list(tag_name_to_id.keys())
+                raise ValueError(f"Unknown tag '{tag}' in AOE target_tags. Available tags: {available}")
+            target_tag_ids.append(tag_name_to_id[tag])
+    return CppAOEEffectConfig(aoe.range, resource_deltas, target_tag_ids, aoe.members_only, aoe.ignore_members)
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -278,7 +285,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
-            cpp_wall_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
+            cpp_wall_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id, tag_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -331,7 +338,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.clip_immune = object_config.clip_immune
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
-            cpp_assembler_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
+            cpp_assembler_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id, tag_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, (ChestConfig, CommonsChestConfig)):
@@ -388,7 +395,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
-            cpp_chest_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id)
+            cpp_chest_config.aoe = _convert_aoe_config(object_config.aoe, resource_name_to_id, tag_name_to_id)
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:

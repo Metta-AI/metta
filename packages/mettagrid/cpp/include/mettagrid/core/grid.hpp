@@ -69,8 +69,10 @@ public:
 
 private:
   GridType grid;
-  std::vector<std::vector<CellEffect>> _effects;          // Legacy: accumulated effects (for simple AOE)
-  std::vector<std::vector<CellEffects>> _effect_sources;  // New: individual effect sources per cell
+  std::vector<std::vector<CellEffect>> _effects;                      // Legacy: accumulated effects (for simple AOE)
+  std::vector<std::vector<CellEffects>> _effect_sources;              // New: individual effect sources per cell
+  std::vector<AOEHelper*> _registered_aoe_helpers;                    // All registered AOE helpers for object tracking
+  const std::unordered_map<int, std::string>* _tag_id_map = nullptr;  // For commons tag lookup
 
 public:
   Grid(GridCoord height, GridCoord width)
@@ -114,6 +116,9 @@ public:
     obj->aoe.init(this, obj);  // Pass owner for commons checking
     obj->aoe.register_effects(obj->location.r, obj->location.c);
 
+    // Notify existing AOE sources about this new object
+    notify_object_added(obj);
+
     return true;
   }
 
@@ -153,6 +158,9 @@ public:
     if (grid[obj.location.r][obj.location.c] != &obj) {
       return false;  // Object not at expected location
     }
+
+    // Notify AOE sources before removing (in case this object was registered with them)
+    notify_object_removed(&obj);
 
     // Call on_remove for cleanup (includes AOE unregistration)
     obj.on_remove();
@@ -249,6 +257,54 @@ public:
       }
     }
   }
+
+  // Register an AOE helper for tracking (called when AOE is registered)
+  void register_aoe_helper(AOEHelper* helper) {
+    _registered_aoe_helpers.push_back(helper);
+  }
+
+  // Unregister an AOE helper (called when AOE is unregistered)
+  void unregister_aoe_helper(AOEHelper* helper) {
+    _registered_aoe_helpers.erase(std::remove(_registered_aoe_helpers.begin(), _registered_aoe_helpers.end(), helper),
+                                  _registered_aoe_helpers.end());
+  }
+
+  // Check if a location is within range of an AOE center (Chebyshev/square distance)
+  static bool is_in_range(GridCoord obj_r,
+                          GridCoord obj_c,
+                          GridCoord center_r,
+                          GridCoord center_c,
+                          unsigned int range) {
+    int dr = std::abs(static_cast<int>(obj_r) - static_cast<int>(center_r));
+    int dc = std::abs(static_cast<int>(obj_c) - static_cast<int>(center_c));
+    return static_cast<unsigned int>(std::max(dr, dc)) <= range;
+  }
+
+  // Get all registered AOE helpers
+  const std::vector<AOEHelper*>& registered_aoe_helpers() const {
+    return _registered_aoe_helpers;
+  }
+
+  // Set the tag_id_map for commons tag lookup (call from MettaGrid constructor)
+  void set_tag_id_map(const std::unordered_map<int, std::string>* tag_id_map) {
+    _tag_id_map = tag_id_map;
+  }
+
+  // Get the tag_id_map
+  const std::unordered_map<int, std::string>* tag_id_map() const {
+    return _tag_id_map;
+  }
+
+  // Notify all AOE helpers about a new object being added
+  // Call this after adding an object that might be affected by AOEs
+  void notify_object_added(GridObject* obj);
+
+  // Notify all AOE helpers about an object being removed
+  // Call this before removing an object
+  void notify_object_removed(GridObject* obj);
+
+  // Refresh all AOE registrations (call when alignment changes)
+  void refresh_aoe_registrations();
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_HPP_
