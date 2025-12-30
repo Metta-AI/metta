@@ -11,6 +11,33 @@ variable "asana_project_gid" {
   description = "Asana project GID for bugs (not a secret)"
 }
 
+# Build Lambda package zip file
+resource "null_resource" "build_lambda_package" {
+  triggers = {
+    # Rebuild when source code or dependencies change
+    source_hash = sha256(join("", [
+      for f in fileset("${path.module}/../src", "**/*.py") : filesha256("${path.module}/../src/${f}")
+    ]))
+    pyproject_hash = filesha256("${path.module}/../pyproject.toml")
+    lambda_handler_hash = filesha256("${path.module}/../lambda_function.py")
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      cd ${path.module}/.. && \
+      rm -rf .lambda_package ${path.module}/webhook_service.zip && \
+      mkdir -p .lambda_package && \
+      python3 -m pip install --target .lambda_package asana boto3 fastapi httpx mangum pydantic pydantic-settings requests 'uvicorn[standard]' && \
+      cp -r src .lambda_package/ && \
+      cp lambda_function.py .lambda_package/ && \
+      cd .lambda_package && \
+      zip -r ${path.module}/webhook_service.zip . -q && \
+      cd .. && \
+      rm -rf .lambda_package
+    EOT
+  }
+}
+
 data "aws_secretsmanager_secret" "github_webhook_secret" {
   name = "github/webhook-secret"
 }
@@ -75,6 +102,8 @@ resource "aws_iam_role_policy" "webhook_lambda_policy" {
 }
 
 resource "aws_lambda_function" "webhook_service" {
+  depends_on = [null_resource.build_lambda_package]
+
   filename         = "${path.module}/webhook_service.zip"
   function_name    = "github-webhook-service"
   role            = aws_iam_role.webhook_lambda_role.arn
