@@ -75,21 +75,8 @@ class Settings(BaseSettings):
                     except ClientError:
                         pass
 
-            if not self.ASANA_WORKSPACE_GID:
-                try:
-                    response = client.get_secret_value(SecretId="asana/workspace-gid")
-                    self.ASANA_WORKSPACE_GID = response["SecretString"]
-                except ClientError:
-                    pass
-
-            # Note: asana/bugs-project-gid might be different from ASANA_PROJECT_GID
-            # You may need to create a separate secret or use the existing one
-            if not self.ASANA_PROJECT_GID:
-                try:
-                    response = client.get_secret_value(SecretId="asana/bugs-project-gid")
-                    self.ASANA_PROJECT_GID = response["SecretString"]
-                except ClientError:
-                    pass
+            # ASANA_WORKSPACE_GID and ASANA_PROJECT_GID should be set as environment variables
+            # They are not secrets and should not be read from Secrets Manager
 
             # Load GitHub token for PR description updates
             if not self.GITHUB_TOKEN:
