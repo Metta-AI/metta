@@ -96,7 +96,7 @@ def support_aoe(range: int = 10) -> AOEEffectConfig:
     """AOE effect that provides support to nearby agents."""
     return AOEEffectConfig(
         range=range,
-        resource_deltas={"support": 1, "energy": 100, "damage": -100},
+        resource_deltas={"support": 10, "energy": 100, "damage": -100},
         members_only=True,
     )
 
@@ -222,7 +222,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "gear": ResourceLimitsConfig(
                         limit=0, resources=["weapon", "shield", "battery"], modifiers={"gear": 1}
                     ),
-                    "support": ResourceLimitsConfig(limit=1, resources=["support"]),
+                    "support": ResourceLimitsConfig(limit=10, resources=["support"]),
                 },
                 initial={
                     "gear": 10,
