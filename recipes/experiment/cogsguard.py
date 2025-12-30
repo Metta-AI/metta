@@ -106,7 +106,7 @@ def attack_aoe(range: int = 10) -> AOEEffectConfig:
     return AOEEffectConfig(
         range=range,
         resource_deltas={"damage": 1, "support": -100},
-        members_only=True,
+        ignore_members=True,
     )
 
 
