@@ -101,19 +101,25 @@ def support_aoe(range: int = 10) -> AOEEffectConfig:
     )
 
 
+def attack_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that attacks nearby agents."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"damage": 1, "support": -100},
+        members_only=True,
+    )
+
+
 def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool = True) -> CommonsChestConfig:
     """Supply depot that receives element resources via default vibe into commons."""
+    aoes = [support_aoe(), attack_aoe()]
     return CommonsChestConfig(
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
         commons=team,
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
-<<<<<<< HEAD
-        aoes=[support_aoe()],
-=======
-        aoe=support_aoe() if has_aoe else None,
->>>>>>> 16a1dec145 (cp)
+        aoes=aoes if has_aoe else [],
     )
 
 
