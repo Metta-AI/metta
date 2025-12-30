@@ -69,7 +69,7 @@ class AOEEffectConfig:
     ignore_members: bool
 
 class GridObjectConfig:
-    aoe: Optional[AOEEffectConfig]
+    aoes: list[AOEEffectConfig]
 
 class LimitDef:
     def __init__(
@@ -98,7 +98,7 @@ class WallConfig(GridObjectConfig):
     type_name: str
     tag_ids: list[int]
     initial_vibe: int
-    aoe: Optional[AOEEffectConfig]
+    aoes: list[AOEEffectConfig]
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -175,7 +175,7 @@ class AssemblerConfig(GridObjectConfig):
     start_clipped: bool
     chest_search_distance: int
     initial_vibe: int
-    aoe: Optional[AOEEffectConfig]
+    aoes: list[AOEEffectConfig]
 
 class ChestConfig(GridObjectConfig):
     def __init__(
@@ -191,7 +191,7 @@ class ChestConfig(GridObjectConfig):
     initial_inventory: dict[int, int]
     inventory_config: InventoryConfig
     initial_vibe: int
-    aoe: Optional[AOEEffectConfig]
+    aoes: list[AOEEffectConfig]
 
 class CommonsChestConfig(ChestConfig):
     def __init__(

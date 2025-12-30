@@ -79,10 +79,10 @@ struct GridObjectConfig {
   std::string type_name;
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
-  std::optional<AOEEffectConfig> aoe;  // If set, object emits AOE effects
+  std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoe(std::nullopt) {}
+      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
 
   virtual ~GridObjectConfig() = default;
 };
@@ -179,7 +179,7 @@ private:
 
 class GridObject : public HasVibe {
 private:
-  std::optional<AOEEffectConfig> _aoe_config;
+  std::vector<AOEEffectConfig> _aoe_configs;
 
 public:
   GridObjectId id{};
@@ -187,7 +187,7 @@ public:
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
-  AOEHelper aoe;  // AOE effect helper
+  std::vector<AOEHelper> aoes;  // AOE effect helpers (one per config)
 
   virtual ~GridObject() = default;
 
@@ -196,21 +196,26 @@ public:
             const GridLocation& object_location,
             const std::vector<int>& tags,
             ObservationType object_vibe = 0,
-            const std::optional<AOEEffectConfig>& aoe_config = std::nullopt) {
+            const std::vector<AOEEffectConfig>& aoe_configs = {}) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;
-    if (aoe_config.has_value()) {
-      _aoe_config = aoe_config.value();
-      this->aoe.set_config(&_aoe_config.value());
+    if (!aoe_configs.empty()) {
+      _aoe_configs = aoe_configs;
+      aoes.resize(_aoe_configs.size());
+      for (size_t i = 0; i < _aoe_configs.size(); ++i) {
+        aoes[i].set_config(&_aoe_configs[i]);
+      }
     }
   }
 
   // Called when this object is removed. Override for cleanup.
   virtual void on_remove() {
-    aoe.unregister_effects();
+    for (auto& aoe : aoes) {
+      aoe.unregister_effects();
+    }
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const {
