@@ -53,4 +53,5 @@ jobs:
           release: webhook-service
           chart: ./devops/charts/webhook-service
           image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: --set env.ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }} --set env.ASANA_PROJECT_GID=${{ vars.ASANA_PROJECT_GID }}
 
