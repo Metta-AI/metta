@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import atexit
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import logging
 import os
@@ -13,7 +15,7 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
@@ -22,9 +24,23 @@ from mettagrid.util.file import read as s3_read
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
+_EXTRACTION_LOCK_FILENAME = ".extraction.lock"
+_SETUP_LOCK_FILENAME = ".setup.lock"
+_SETUP_COMPLETE_FILENAME = ".setup_complete"
 
 _registered_cleanup_dirs: set[Path] = set()
 _registered_cleanup_files: set[Path] = set()
+
+
+@contextmanager
+def _file_lock(lock_file: Path) -> Iterator[None]:
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_file, "a+") as lock_fd:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
 
 
 def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
@@ -130,6 +146,19 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
     logger.info("Setup script completed successfully")
 
 
+def _run_setup_script_once(setup_script_path: Path, extraction_root: Path) -> None:
+    marker_file = extraction_root / _SETUP_COMPLETE_FILENAME
+    if marker_file.exists():
+        return
+
+    with _file_lock(extraction_root / _SETUP_LOCK_FILENAME):
+        if marker_file.exists():
+            return
+
+        _run_setup_script(setup_script_path, extraction_root)
+        marker_file.touch()
+
+
 _executed_setup_scripts: set[Path] = set()
 
 
@@ -148,7 +177,7 @@ def load_policy_spec_from_local_dir(
     # Run setup script if specified (only once per extraction root)
     if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
         setup_script_path = extraction_root / submission_spec.setup_script
-        _run_setup_script(setup_script_path, extraction_root)
+        _run_setup_script_once(setup_script_path, extraction_root)
         _executed_setup_scripts.add(extraction_root)
 
     spec = PolicySpec(
@@ -269,15 +298,16 @@ def load_policy_spec_from_zip(
         extraction_root = (cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()).with_suffix(".d")
     marker_file = extraction_root / ".extraction_complete"
 
-    if not marker_file.exists():
-        extraction_root.mkdir(parents=True, exist_ok=True)
-        _extract_submission_archive(local_path, extraction_root)
-        marker_file.touch()
+    extraction_root.mkdir(parents=True, exist_ok=True)
+    with _file_lock(extraction_root / _EXTRACTION_LOCK_FILENAME):
+        if not marker_file.exists():
+            _extract_submission_archive(local_path, extraction_root)
+            marker_file.touch()
 
-        # Only schedule cleanup when we're the ones that created the dir
-        if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-            _registered_cleanup_dirs.add(extraction_root)
-            atexit.register(_cleanup_cache_dir, extraction_root)
+            # Only schedule cleanup when we're the ones that created the dir
+            if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+                _registered_cleanup_dirs.add(extraction_root)
+                atexit.register(_cleanup_cache_dir, extraction_root)
 
     policy_spec = load_policy_spec_from_local_dir(extraction_root, device=device)
 

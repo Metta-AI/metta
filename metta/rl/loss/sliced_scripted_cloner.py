@@ -20,6 +20,13 @@ class SlicedScriptedClonerConfig(LossConfig):
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    restrict_ppo_to_ppo_mask: bool = Field(
+        default=True,
+        description=(
+            "If True (default), restrict downstream PPO losses to the PPO slice only. "
+            "If False, downstream losses receive all slices so they can choose their own masking."
+        ),
+    )
 
     def create(
         self,
@@ -113,9 +120,9 @@ class SlicedScriptedCloner(Loss):
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
-
-        # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
-        shared_loss_data = shared_loss_data[train_ppo_mask]
+        shared_loss_data_for_downstream = shared_loss_data
+        if self.cfg.restrict_ppo_to_ppo_mask:
+            shared_loss_data_for_downstream = shared_loss_data[train_ppo_mask]
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
@@ -142,7 +149,7 @@ class SlicedScriptedCloner(Loss):
         self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
         self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
 
-        return loss, shared_loss_data, False
+        return loss, shared_loss_data_for_downstream, False
 
     def on_train_phase_end(self, context: ComponentContext | None = None) -> None:
         self._update_slices()
