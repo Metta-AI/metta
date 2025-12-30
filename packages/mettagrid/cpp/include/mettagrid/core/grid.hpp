@@ -112,9 +112,11 @@ public:
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
     this->grid[obj->location.r][obj->location.c] = obj;
 
-    // Register AOE effects if configured
-    obj->aoe.init(this, obj);  // Pass owner for commons checking
-    obj->aoe.register_effects(obj->location.r, obj->location.c);
+    // Register AOE effects if configured (one helper per AOE config)
+    for (auto& aoe : obj->aoes) {
+      aoe.init(this, obj);  // Pass owner for commons checking
+      aoe.register_effects(obj->location.r, obj->location.c);
+    }
 
     // Notify existing AOE sources about this new object
     notify_object_added(obj);

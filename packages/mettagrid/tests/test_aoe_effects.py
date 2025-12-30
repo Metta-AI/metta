@@ -69,12 +69,14 @@ class TestAOEEffectsBasic:
                 "wall": WallConfig(),
                 "aoe_source": WallConfig(
                     name="aoe_source",
-                    aoe=AOEEffectConfig(
-                        range=aoe_range,
-                        resource_deltas=resource_deltas,
-                        members_only=members_only,
-                        ignore_members=ignore_members,
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=aoe_range,
+                            resource_deltas=resource_deltas,
+                            members_only=members_only,
+                            ignore_members=ignore_members,
+                        )
+                    ],
                 ),
             },
         )
@@ -178,12 +180,14 @@ class TestAOEMultipleOverlapping:
         for i, source in enumerate(sources, 1):
             objects[f"aoe_source_{i}"] = WallConfig(
                 name=f"aoe_source_{i}",
-                aoe=AOEEffectConfig(
-                    range=source.get("range", 3),
-                    resource_deltas=source.get("resource_deltas", {"energy": 5}),
-                    members_only=source.get("members_only", False),
-                    ignore_members=source.get("ignore_members", False),
-                ),
+                aoes=[
+                    AOEEffectConfig(
+                        range=source.get("range", 3),
+                        resource_deltas=source.get("resource_deltas", {"energy": 5}),
+                        members_only=source.get("members_only", False),
+                        ignore_members=source.get("ignore_members", False),
+                    )
+                ],
             )
 
         game_config = GameConfig(
@@ -305,12 +309,14 @@ class TestAOECommonsFiltering:
                 "aoe_source": WallConfig(
                     name="aoe_source",
                     commons=source_commons,
-                    aoe=AOEEffectConfig(
-                        range=2,
-                        resource_deltas={"energy": 10},
-                        members_only=members_only,
-                        ignore_members=ignore_members,
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=2,
+                            resource_deltas={"energy": 10},
+                            members_only=members_only,
+                            ignore_members=ignore_members,
+                        )
+                    ],
                 ),
             },
         )
@@ -519,20 +525,24 @@ class TestAOEAlignmentChange:
                 "aoe_red": WallConfig(
                     name="aoe_red",
                     commons="team_red",
-                    aoe=AOEEffectConfig(
-                        range=3,
-                        resource_deltas={"energy": 10},
-                        members_only=True,  # Only for team_red members
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=3,
+                            resource_deltas={"energy": 10},
+                            members_only=True,  # Only for team_red members
+                        )
+                    ],
                 ),
                 "aoe_blue": WallConfig(
                     name="aoe_blue",
                     commons="team_blue",
-                    aoe=AOEEffectConfig(
-                        range=3,
-                        resource_deltas={"heart": 5},
-                        members_only=True,  # Only for team_blue members
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=3,
+                            resource_deltas={"heart": 5},
+                            members_only=True,  # Only for team_blue members
+                        )
+                    ],
                 ),
             },
         )
@@ -635,10 +645,12 @@ class TestAOEEffectsAddRemove:
                 "wall": WallConfig(),
                 "aoe_source": WallConfig(
                     name="aoe_source",
-                    aoe=AOEEffectConfig(
-                        range=1,
-                        resource_deltas={"energy": 10},
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=1,
+                            resource_deltas={"energy": 10},
+                        )
+                    ],
                 ),
             },
         )
@@ -724,11 +736,13 @@ class TestAOETargetTags:
                 "wall": WallConfig(),
                 "aoe_source": WallConfig(
                     name="aoe_source",
-                    aoe=AOEEffectConfig(
-                        range=2,
-                        resource_deltas={"energy": 10},
-                        target_tags=target_tags,
-                    ),
+                    aoes=[
+                        AOEEffectConfig(
+                            range=2,
+                            resource_deltas={"energy": 10},
+                            target_tags=target_tags,
+                        )
+                    ],
                 ),
             },
         )
