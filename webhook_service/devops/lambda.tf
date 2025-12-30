@@ -1,6 +1,16 @@
 # GitHub webhook service Lambda function
 # Deployed via Spacelift - see devops/tf/README.md for deployment workflow
 
+variable "asana_workspace_gid" {
+  type        = string
+  description = "Asana workspace GID (not a secret)"
+}
+
+variable "asana_project_gid" {
+  type        = string
+  description = "Asana project GID for bugs (not a secret)"
+}
+
 data "aws_secretsmanager_secret" "github_webhook_secret" {
   name = "github/webhook-secret"
 }
@@ -15,22 +25,6 @@ data "aws_secretsmanager_secret" "asana_access_token" {
 
 data "aws_secretsmanager_secret_version" "asana_access_token_version" {
   secret_id = data.aws_secretsmanager_secret.asana_access_token.id
-}
-
-data "aws_secretsmanager_secret" "asana_workspace_gid" {
-  name = "asana/workspace-gid"
-}
-
-data "aws_secretsmanager_secret_version" "asana_workspace_gid_version" {
-  secret_id = data.aws_secretsmanager_secret.asana_workspace_gid.id
-}
-
-data "aws_secretsmanager_secret" "asana_project_gid" {
-  name = "asana/bugs-project-gid"
-}
-
-data "aws_secretsmanager_secret_version" "asana_project_gid_version" {
-  secret_id = data.aws_secretsmanager_secret.asana_project_gid.id
 }
 
 resource "aws_iam_role" "webhook_lambda_role" {
@@ -73,9 +67,7 @@ resource "aws_iam_role_policy" "webhook_lambda_policy" {
         ]
         Resource = [
           data.aws_secretsmanager_secret.github_webhook_secret.arn,
-          data.aws_secretsmanager_secret.asana_access_token.arn,
-          data.aws_secretsmanager_secret.asana_workspace_gid.arn,
-          data.aws_secretsmanager_secret.asana_project_gid.arn
+          data.aws_secretsmanager_secret.asana_access_token.arn
         ]
       }
     ]
@@ -93,8 +85,10 @@ resource "aws_lambda_function" "webhook_service" {
 
   environment {
     variables = {
-      USE_AWS_SECRETS = "true"
-      AWS_REGION      = "us-east-1"
+      USE_AWS_SECRETS   = "true"
+      AWS_REGION        = "us-east-1"
+      ASANA_WORKSPACE_GID = var.asana_workspace_gid
+      ASANA_PROJECT_GID   = var.asana_project_gid
     }
   }
 
