@@ -483,7 +483,6 @@ proc getAoeRange(typeName: string): int =
     return 0
   let objects = game["objects"]
   if typeName notin objects:
-    echo "AOE lookup: typeName '", typeName, "' not found in objects. Keys: ", objects.keys.toSeq
     return 0
   let objConfig = objects[typeName]
   if "aoes" notin objConfig or objConfig["aoes"].kind != JArray:

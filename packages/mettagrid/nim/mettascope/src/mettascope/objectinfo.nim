@@ -98,6 +98,88 @@ proc getCommonsName(commonsId: int): string =
     return commonsConfig["name"].getStr
   return ""
 
+proc getAoeConfig(typeName: string): JsonNode =
+  ## Get the AOE config for an object type. Returns nil if no AOE config.
+  if replay.isNil or replay.mgConfig.isNil:
+    return nil
+  if "game" notin replay.mgConfig:
+    return nil
+  let game = replay.mgConfig["game"]
+  if "objects" notin game:
+    return nil
+  let objects = game["objects"]
+  if typeName notin objects:
+    return nil
+  let objConfig = objects[typeName]
+  if "aoe" notin objConfig or objConfig["aoe"].kind == JNull:
+    return nil
+  return objConfig["aoe"]
+
+proc isAgentAffectedByAoe(agentCommonsId: int, sourceCommonsId: int, membersOnly: bool, ignoreMembers: bool): bool =
+  ## Check if an agent is affected by an AOE based on commons filtering.
+  if membersOnly:
+    # Only affect agents with matching commons
+    return agentCommonsId >= 0 and agentCommonsId == sourceCommonsId
+  if ignoreMembers:
+    # Ignore agents with matching commons
+    return agentCommonsId < 0 or agentCommonsId != sourceCommonsId
+  # No filter, affect all agents
+  return true
+
+type
+  AoeSourceEffect* = object
+    source*: Entity
+    aoeConfig*: JsonNode
+    aoeRange*: int
+    membersOnly*: bool
+    ignoreMembers*: bool
+
+proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
+  ## Find all AOE sources that affect this agent.
+  result = @[]
+  if replay.isNil:
+    return
+  let agentPos = agent.location.at(step).xy
+  for obj in replay.objects:
+    if obj.isAgent:
+      continue
+    let aoeConfig = getAoeConfig(obj.typeName)
+    if aoeConfig.isNil:
+      continue
+    # Get AOE range
+    var aoeRange = 0
+    if "range" in aoeConfig:
+      if aoeConfig["range"].kind == JInt:
+        aoeRange = aoeConfig["range"].getInt
+      elif aoeConfig["range"].kind == JFloat:
+        aoeRange = aoeConfig["range"].getFloat.int
+    if aoeRange <= 0:
+      continue
+    # Check distance (Chebyshev/square)
+    let sourcePos = obj.location.at(step).xy
+    let dx = abs(agentPos.x - sourcePos.x)
+    let dy = abs(agentPos.y - sourcePos.y)
+    let distance = max(dx, dy)
+    if distance > aoeRange:
+      continue
+    # Get filter settings
+    var membersOnly = false
+    var ignoreMembers = false
+    if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
+      membersOnly = aoeConfig["members_only"].getBool
+    if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
+      ignoreMembers = aoeConfig["ignore_members"].getBool
+    # Check if agent is affected by this source
+    if not isAgentAffectedByAoe(agent.commonsId, obj.commonsId, membersOnly, ignoreMembers):
+      continue
+    result.add(AoeSourceEffect(
+      source: obj,
+      aoeConfig: aoeConfig,
+      aoeRange: aoeRange,
+      membersOnly: membersOnly,
+      ignoreMembers: ignoreMembers
+    ))
+
 proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draws the object info panel using silky widgets.
   frame(frameId, contentPos, contentSize):
@@ -259,6 +341,91 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
             for i, resource in protocol.outputs:
               icon("resources/" & replay.config.game.resourceNames[resource.itemId])
               text("x" & $resource.count)
+
+    # AOE Effects - show on source objects
+    let aoeConfig = getAoeConfig(cur.typeName)
+    if aoeConfig != nil:
+      sk.advance(vec2(0, theme.spacing.float32))
+      text("AOE Source")
+
+      # Get AOE range
+      var aoeRange = 0
+      if "range" in aoeConfig:
+        if aoeConfig["range"].kind == JInt:
+          aoeRange = aoeConfig["range"].getInt
+        elif aoeConfig["range"].kind == JFloat:
+          aoeRange = aoeConfig["range"].getFloat.int
+      text(&"  Range: {aoeRange}")
+
+      # Get resource deltas
+      if "resource_deltas" in aoeConfig and aoeConfig["resource_deltas"].kind == JObject:
+        text("  Per-tick effects:")
+        for key, value in aoeConfig["resource_deltas"].pairs:
+          var delta = 0
+          if value.kind == JInt:
+            delta = value.getInt
+          elif value.kind == JFloat:
+            delta = value.getFloat.int
+          let sign = if delta >= 0: "+" else: ""
+          text(&"    {key}: {sign}{delta}")
+
+      # Get filter settings
+      var membersOnly = false
+      var ignoreMembers = false
+      if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
+        membersOnly = aoeConfig["members_only"].getBool
+      if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
+        ignoreMembers = aoeConfig["ignore_members"].getBool
+
+      if membersOnly:
+        text("  Filter: Members only")
+      elif ignoreMembers:
+        text("  Filter: Ignore members")
+
+    # AOE Effects - show incoming effects on agents
+    if cur.isAgent:
+      let aoeSources = getAoeSourcesAffectingAgent(cur)
+      if aoeSources.len > 0:
+        sk.advance(vec2(0, theme.spacing.float32))
+        text("Incoming AOE Effects")
+
+        # Aggregate all resource deltas from all sources
+        var totalDeltas = initTable[string, int]()
+        for effect in aoeSources:
+          let aoeConfig = effect.aoeConfig
+          if "resource_deltas" in aoeConfig and aoeConfig["resource_deltas"].kind == JObject:
+            for key, value in aoeConfig["resource_deltas"].pairs:
+              var delta = 0
+              if value.kind == JInt:
+                delta = value.getInt
+              elif value.kind == JFloat:
+                delta = value.getFloat.int
+              if key notin totalDeltas:
+                totalDeltas[key] = 0
+              totalDeltas[key] = totalDeltas[key] + delta
+
+        # Show totals with current -> new values
+        let inv = cur.inventory.at(step)
+        for resourceName, delta in totalDeltas.pairs:
+          let resourceIdx = replay.itemNames.find(resourceName)
+          var currentAmount = 0
+          if resourceIdx >= 0:
+            for item in inv:
+              if item.itemId == resourceIdx:
+                currentAmount = item.count
+                break
+          let newAmount = currentAmount + delta
+          let sign = if delta >= 0: "+" else: ""
+          text(&"  {resourceName}: {currentAmount} → {newAmount} ({sign}{delta})")
+
+        # List sources
+        sk.advance(vec2(0, theme.spacing.float32 / 2))
+        text("  Sources:")
+        for effect in aoeSources:
+          let sourcePos = effect.source.location.at(step).xy
+          let commonsName = getCommonsName(effect.source.commonsId)
+          let commonsInfo = if commonsName.len > 0: " [" & commonsName & "]" else: ""
+          text(&"    {effect.source.typeName}{commonsInfo} @ ({sourcePos.x}, {sourcePos.y})")
 
 
 proc selectObject*(obj: Entity) =
