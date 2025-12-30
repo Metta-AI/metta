@@ -87,18 +87,15 @@ def support_aoe(range: int = 10) -> AOEEffectConfig:
     )
 
 
-def supply_depot_config(map_name: str) -> CollectiveChestConfig:
-    """Supply depot that receives element resources via default vibe into collective.
-
-    Also emits AOE effect that restores energy, reduces damage, and provides support for nearby agents.
-    """
+def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool = True) -> CollectiveChestConfig:
+    """Supply depot that receives element resources via default vibe into collective."""
     return CollectiveChestConfig(
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
-        collective="cogs",
+        collective=team,
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
-        aoes=[support_aoe()],
+        aoe=support_aoe() if has_aoe else None,
     )
 
 
@@ -276,9 +273,9 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
         inventory_regen_interval=1,
         objects={
             "wall": CvCWallConfig().station_cfg(),
-            "assembler": main_nexus_config("assembler").model_copy(update={"collective": "cogs"}),
-            "charger": supply_depot_config("charger"),
-            "chest": supply_depot_config("chest"),
+            "assembler": main_nexus_config("assembler"),
+            "charger": supply_depot_config("charger", "clips"),
+            "chest": supply_depot_config("chest", "cogs", has_aoe=False),
             "carbon_extractor": resource_chest_config("carbon_extractor", "carbon"),
             "oxygen_extractor": resource_chest_config("oxygen_extractor", "oxygen"),
             "germanium_extractor": resource_chest_config("germanium_extractor", "germanium"),
@@ -302,6 +299,9 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                         "heart": 0,
                     },
                 ),
+            ),
+            CollectiveConfig(
+                name="clips",
             ),
         ],
     )
