@@ -42,6 +42,7 @@ def train(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         teacher=teacher,
+        maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
     losses_cfg = tt.trainer.losses
@@ -63,8 +64,7 @@ def train(
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
-    if max_steps is not None:
-        env_cfg.game.max_steps = max_steps
+    env_cfg.game.max_steps = 1000
     env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
@@ -81,8 +81,7 @@ def train(
         mission="machina_1.open_world",
         variants=eval_variant_names or None,
     )
-    if max_steps is not None:
-        eval_env.game.max_steps = max_steps
+    eval_env.game.max_steps = 1000
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
