@@ -1,0 +1,23 @@
+host: webhook.observatory.softmax-research.net
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-webhook-service
+  tag: "" # will be set by CI/CD pipeline
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/webhook-service
+
+# Optional: Kubernetes secret for additional env vars
+# secret_name: webhook-service-env
+
+cert_manager_issuer: letsencrypt
+
+replicaCount: 2
+
+env:
+  USE_AWS_SECRETS: "true"
+  AWS_REGION: "us-east-1"
+
