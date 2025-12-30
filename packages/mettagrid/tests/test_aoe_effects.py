@@ -685,3 +685,135 @@ class TestAOEEffectsAddRemove:
             assert energy_current == expected_energy, (
                 f"After step {step_num}: expected {expected_energy} energy, got {energy_current}"
             )
+
+
+class TestAOETargetTags:
+    """Test AOE effects with target_tags filtering."""
+
+    def _create_sim_with_target_tags(
+        self,
+        target_tags: list[str] | None = None,
+        agent_tags: list[str] | None = None,
+    ) -> Simulation:
+        """Create a simulation with AOE source that has target_tags filtering."""
+        # Use specific tags for agent
+        agent_tags = agent_tags or ["friendly"]
+
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "aoe_source", ".", ".", "wall"],
+            ["wall", ".", "agent.agent", ".", "wall"],
+            ["wall", ".", ".", ".", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        game_config = GameConfig(
+            max_steps=100,
+            num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            resource_names=["energy", "heart"],
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(enabled=True),
+            ),
+            agent=AgentConfig(
+                inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
+                tags=agent_tags,
+            ),
+            objects={
+                "wall": WallConfig(),
+                "aoe_source": WallConfig(
+                    name="aoe_source",
+                    aoe=AOEEffectConfig(
+                        range=2,
+                        resource_deltas={"energy": 10},
+                        target_tags=target_tags,
+                    ),
+                ),
+            },
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+
+        return Simulation(cfg, seed=42)
+
+    def _get_agent_inventory(self, sim: Simulation, resource: str) -> int:
+        """Get agent's inventory for a specific resource."""
+        objects = sim.grid_objects()
+        agents = [obj for obj in objects.values() if "agent_id" in obj]
+        assert len(agents) == 1
+        resource_idx = sim.resource_names.index(resource)
+        return agents[0]["inventory"][resource_idx]
+
+    def test_target_tags_none_affects_all(self):
+        """Test that target_tags=None affects all objects."""
+        sim = self._create_sim_with_target_tags(target_tags=None)
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Agent should receive effect (no target_tags filter). Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_target_tags_matching_affects_agent(self):
+        """Test that agent with matching tag receives the effect."""
+        sim = self._create_sim_with_target_tags(target_tags=["friendly"], agent_tags=["friendly"])
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Agent should receive effect (has matching tag). Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_target_tags_not_matching_skips_agent(self):
+        """Test that agent without matching tag does NOT receive the effect."""
+        # Use wall tag (which exists) as target, agent has different tag
+        sim = self._create_sim_with_target_tags(target_tags=["wall"], agent_tags=["friendly"])
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"Agent should NOT receive effect (no matching tag). Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_target_tags_one_of_multiple_matches(self):
+        """Test that agent receives effect if any of its tags match target_tags."""
+        # Both friendly and hero must be in the game (hero from agent, friendly from target_tags)
+        sim = self._create_sim_with_target_tags(target_tags=["friendly", "hero"], agent_tags=["friendly", "hero"])
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Agent should receive effect (has 'friendly' tag). Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_target_tags_empty_list_affects_all(self):
+        """Test that empty target_tags list affects all objects."""
+        sim = self._create_sim_with_target_tags(target_tags=[], agent_tags=["any_tag"])
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Agent should receive effect (empty target_tags). Before: {energy_before}, After: {energy_after}"
+        )

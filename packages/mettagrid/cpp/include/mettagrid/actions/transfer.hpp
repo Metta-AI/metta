@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -142,6 +143,18 @@ public:
         if (actual != 0) {
           _log_transfer(actor, resource, actual, "to." + target_group);
         }
+      }
+    }
+
+    // Align target's collective to actor's collective if enabled
+    if (_align) {
+      Collective* actor_collective = actor.getCollective();
+      Collective* target_collective = target->getCollective();
+      if (actor_collective != nullptr && actor_collective != target_collective) {
+        target->setCollective(actor_collective);
+        actor.stats.incr(_action_prefix(actor_group) + "aligned");
+        // Refresh AOE registrations since collective membership changed
+        _grid->refresh_aoe_registrations();
       }
     }
 
