@@ -82,7 +82,7 @@ resource "aws_iam_role_policy" "webhook_lambda_policy" {
 }
 
 resource "aws_lambda_function" "webhook_service" {
-  filename         = "webhook_service.zip"
+  filename         = "${path.module}/webhook_service.zip"
   function_name    = "github-webhook-service"
   role            = aws_iam_role.webhook_lambda_role.arn
   handler         = "lambda_function.handler"
@@ -97,7 +97,7 @@ resource "aws_lambda_function" "webhook_service" {
     }
   }
 
-  source_code_hash = filebase64sha256("webhook_service.zip")
+  source_code_hash = filebase64sha256("${path.module}/webhook_service.zip")
 }
 
 resource "aws_lambda_function_url" "webhook_service_url" {
