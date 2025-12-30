@@ -12,6 +12,7 @@ import stat
 import subprocess
 import sys
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -106,28 +107,87 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
 
     The script is executed with the extraction root as the working directory.
     """
+    # NOTE: In distributed training we may have multiple Python processes (e.g. torchrun ranks)
+    # on the same machine trying to load the same extracted submission concurrently.
+    # Many setup scripts (e.g. Nim / compiler toolchains) are not concurrency-safe and may
+    # write to shared caches (like ~/.nimby), causing flaky failures.
+    #
+    # To make this robust, we guard setup script execution with:
+    # - an inter-process lock file under extraction_root
+    # - a durable "setup completed" marker file under extraction_root
+    #
+    # This ensures only one process runs the setup script, and others wait/skip.
+
     if not setup_script_path.exists():
         raise FileNotFoundError(f"Setup script not found: {setup_script_path}")
 
     if not setup_script_path.suffix == ".py":
         raise ValueError(f"Setup script must be a .py file: {setup_script_path}")
 
-    logger.info("Running setup script: %s", setup_script_path)
+    @contextmanager
+    def _interprocess_lock(lock_path: Path):
+        """
+        Best-effort inter-process lock.
 
-    result = subprocess.run(
-        [sys.executable, str(setup_script_path)],
-        cwd=extraction_root,
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
+        On Linux this uses fcntl.flock(). On platforms without fcntl we fall back to
+        no-op locking (the worst-case behavior is the previous flakiness).
+        """
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        f = open(lock_path, "a+")
+        try:
+            try:
+                import fcntl  # type: ignore[import-not-found]
 
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Setup script failed with exit code {result.returncode}:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            except Exception:
+                # If fcntl isn't available or locking fails, proceed without locking.
+                pass
+            yield
+        finally:
+            try:
+                try:
+                    import fcntl  # type: ignore[import-not-found]
+
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                except Exception:
+                    pass
+            finally:
+                f.close()
+
+    # Stable marker keyed by the script path relative to extraction root.
+    try:
+        rel = setup_script_path.relative_to(extraction_root)
+        rel_str = str(rel)
+    except ValueError:
+        rel_str = str(setup_script_path)
+    marker_hash = hashlib.sha256(rel_str.encode()).hexdigest()[:16]
+    marker_file = extraction_root / f".setup_complete_{marker_hash}"
+    lock_file = extraction_root / ".setup_lock"
+
+    with _interprocess_lock(lock_file):
+        if marker_file.exists():
+            logger.info("Setup script already completed (marker exists): %s", setup_script_path)
+            return
+
+        logger.info("Running setup script: %s", setup_script_path)
+
+        result = subprocess.run(
+            [sys.executable, str(setup_script_path)],
+            cwd=extraction_root,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
 
-    logger.info("Setup script completed successfully")
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Setup script failed with exit code {result.returncode}:\n"
+                f"stdout: {result.stdout}\n"
+                f"stderr: {result.stderr}"
+            )
+
+        marker_file.touch()
+        logger.info("Setup script completed successfully")
 
 
 _executed_setup_scripts: set[Path] = set()
