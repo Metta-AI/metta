@@ -57,15 +57,21 @@ public:
 struct AOEEffectConfig {
   unsigned int range = 1;                                             // Radius of effect (Manhattan distance)
   std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;  // Per-tick resource changes
-  bool members_only = false;                                          // Only affect objects with matching commons
-  bool ignore_members = false;                                        // Ignore objects with matching commons
+  std::vector<int> target_tag_ids;  // If non-empty, only affect objects with these tags
+  bool members_only = false;        // Only affect objects with matching commons
+  bool ignore_members = false;      // Ignore objects with matching commons
 
   AOEEffectConfig() = default;
   AOEEffectConfig(unsigned int range,
                   const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas,
+                  const std::vector<int>& target_tag_ids = {},
                   bool members_only = false,
                   bool ignore_members = false)
-      : range(range), resource_deltas(resource_deltas), members_only(members_only), ignore_members(ignore_members) {}
+      : range(range),
+        resource_deltas(resource_deltas),
+        target_tag_ids(target_tag_ids),
+        members_only(members_only),
+        ignore_members(ignore_members) {}
 };
 
 struct GridObjectConfig {
@@ -83,6 +89,9 @@ struct GridObjectConfig {
 
 // Forward declaration for Alignable (to check commons membership)
 class Alignable;
+
+// Forward declaration for HasInventory
+class HasInventory;
 
 // Helper class for managing AOE effects on grid objects
 class AOEHelper {
@@ -111,6 +120,30 @@ public:
   // Unregister AOE effects (call on demolish or removal)
   void unregister_effects();
 
+  // Try to register an inventory object with this AOE
+  // Returns true if the object was registered (passes all filters)
+  // Called when a static HasInventory object is placed within range or alignment changes
+  bool try_register_inventory_object(GridObject* obj);
+
+  // Unregister an inventory object (when it's removed from the grid)
+  void unregister_inventory_object(GridObject* obj);
+
+  // Re-evaluate all registered objects (call when alignment changes might affect filtering)
+  void refresh_registrations();
+
+  // Get the set of registered static inventory objects (already filtered)
+  const std::vector<GridObject*>& registered_inventory_objects() const {
+    return _registered_inventory_objects;
+  }
+
+  // Check if an object matches the target_tag_ids filter
+  // Returns true if target_tag_ids is empty or if the object has at least one matching tag
+  bool matches_target_tags(const GridObject* obj) const;
+
+  // Check if an object passes all AOE filters (target_tags + commons)
+  // tag_id_map is needed for commons tag lookup on non-Alignable objects
+  bool passes_all_filters(GridObject* obj, const std::unordered_map<int, std::string>& tag_id_map) const;
+
   // Get the config
   const AOEEffectConfig* config() const {
     return _config;
@@ -121,6 +154,19 @@ public:
     return _owner;
   }
 
+  // Check if this AOE is currently registered
+  bool is_registered() const {
+    return _registered;
+  }
+
+  // Get the center location
+  GridCoord location_r() const {
+    return _location_r;
+  }
+  GridCoord location_c() const {
+    return _location_c;
+  }
+
 private:
   const AOEEffectConfig* _config = nullptr;
   Grid* _grid = nullptr;
@@ -128,6 +174,7 @@ private:
   bool _registered = false;
   GridCoord _location_r = 0;
   GridCoord _location_c = 0;
+  std::vector<GridObject*> _registered_inventory_objects;  // Static objects affected by this AOE
 };
 
 class GridObject : public HasVibe {
