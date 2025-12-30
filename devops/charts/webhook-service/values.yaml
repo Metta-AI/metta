@@ -20,4 +20,7 @@ replicaCount: 2
 env:
   USE_AWS_SECRETS: "true"
   AWS_REGION: "us-east-1"
+  # Asana GIDs - set these from GitHub Variables or pass as values
+  # ASANA_WORKSPACE_GID: "" # Set from vars.ASANA_WORKSPACE_GID
+  # ASANA_PROJECT_GID: "" # Set from vars.ASANA_PROJECT_GID
 

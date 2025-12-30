@@ -38,6 +38,7 @@ jobs:
         with:
           image_name: metta-webhook-service
           dockerfile: ./webhook_service/Dockerfile
+          context: .
           aws_role: ${{ vars.AWS_ROLE }}
 
       - name: Configure EKS
