@@ -19,15 +19,10 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ObsConfig,
-    TransferActionConfig,
-    VibeTransfer,
     WallConfig,
 )
 from mettagrid.simulator import Simulation
 from mettagrid.test_support.map_builders import ObjectNameMapBuilder
-
-# Vibe names from the global VIBES list
-HEART_VIBE_NAME = "heart_a"  # VIBES[10].name for alignment
 
 
 class TestAOEEffectsBasic:
@@ -361,13 +356,6 @@ class TestAOECommonsFiltering:
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(enabled=True),
                 change_vibe=ChangeVibeActionConfig(enabled=True),
-                transfer=TransferActionConfig(
-                    enabled=True,
-                    align=True,
-                    vibe_transfers=[
-                        VibeTransfer(vibe=HEART_VIBE_NAME, target={}, actor={}),
-                    ],
-                ),
             ),
             agent=AgentConfig(
                 inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
@@ -540,11 +528,7 @@ class TestAOECommonsFiltering:
 
 
 class TestAOEAlignmentChange:
-    """Test that changing agent alignment affects which AOE effects apply.
-
-    Note: Alignment changes require the Transfer action with align=True, which
-    only works when an agent moves into another agent with the appropriate vibe.
-    """
+    """Test that agents in different teams receive their respective AOE effects."""
 
     def _create_sim_with_two_team_agents(self) -> Simulation:
         """Create a simulation with two agents in different teams and team-specific AOE effects."""
@@ -569,13 +553,6 @@ class TestAOEAlignmentChange:
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(enabled=True),
                 change_vibe=ChangeVibeActionConfig(enabled=True),
-                transfer=TransferActionConfig(
-                    enabled=True,
-                    align=True,
-                    vibe_transfers=[
-                        VibeTransfer(vibe=HEART_VIBE_NAME, target={}, actor={}),
-                    ],
-                ),
             ),
             agents=[
                 AgentConfig(
