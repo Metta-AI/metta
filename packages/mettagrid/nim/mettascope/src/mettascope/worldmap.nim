@@ -472,8 +472,11 @@ proc drawGrid*() =
 =======
 proc getAoeRange(typeName: string): int =
   ## Get max AOE range for an object type from config. Returns 0 if no AOE.
+<<<<<<< HEAD
   if typeName == "agent":
     return 0  # Agents are stored under game.agent, not game.objects, and don't emit AOE.
+=======
+>>>>>>> 99c5b8dd5a (cp)
   if replay.isNil or replay.mgConfig.isNil:
     return 0
   if "game" notin replay.mgConfig:

@@ -32,7 +32,7 @@ type
     `type`*: string
     swappable*: bool
     recipes*: seq[RecipeInfoConfig]
-    aoe*: AOEConfig
+    aoes*: seq[AOEConfig]
 
   GameConfig* = object
     resourceNames*: seq[string]
