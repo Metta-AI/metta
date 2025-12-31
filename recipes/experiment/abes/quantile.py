@@ -14,7 +14,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import default_nodes
 from metta.rl.nodes.ppo_critic import PPOCriticConfig
 from metta.rl.nodes.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig

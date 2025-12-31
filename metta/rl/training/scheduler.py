@@ -276,7 +276,7 @@ class NodeScheduler(TrainerComponent):
         # Re-initialize per apply call to False iff there exists at least one gate
         # for this (node, phase) in the current pass; otherwise leave unset so
         # downstream defaults (True) still apply when no gates exist for a phase.
-        seen_loss_phase: set[tuple[str, str]] = set()
+        seen_node_phase: set[tuple[str, str]] = set()
 
         for gate in self.config.run_gates:
             if gate.phase != phase:
@@ -288,10 +288,10 @@ class NodeScheduler(TrainerComponent):
                 entry = {}
                 gates[node_name] = entry
             key = (node_name, phase)
-            if key not in seen_loss_phase:
+            if key not in seen_node_phase:
                 # Initialize to False for this apply pass; subsequent gates OR into it
                 entry[phase] = False
-                seen_loss_phase.add(key)
+                seen_node_phase.add(key)
             entry[phase] = bool(entry[phase]) or bool(allowed)
 
         # If a teacher/supervisor rollout node is gated OFF, disable the supervisor to avoid extra forwards.
@@ -401,5 +401,11 @@ def _set_attr_path(obj: object, path: str, value: Any) -> None:
     parts = path.split(".")
     target = obj
     for part in parts[:-1]:
-        target = getattr(target, part)
-    setattr(target, parts[-1], value)
+        if isinstance(target, dict):
+            target = target[part]
+        else:
+            target = getattr(target, part)
+    if isinstance(target, dict):
+        target[parts[-1]] = value
+    else:
+        setattr(target, parts[-1], value)

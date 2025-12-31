@@ -2,7 +2,6 @@
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.nodes.grpo import GRPOConfig
-from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
