@@ -54,8 +54,7 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
-        self.rollout_graph = TrainingGraph(_build_rollout_nodes(self, losses))
-        self.train_graph = TrainingGraph(_build_train_nodes(self, losses))
+        self.graph = TrainingGraph(_build_nodes(self, losses))
         self.last_action = torch.zeros(
             experience.total_agents,
             1,
@@ -102,7 +101,8 @@ class CoreTrainingLoop:
                 "raw_infos": raw_infos,
                 "total_steps": total_steps,
             }
-            self.rollout_graph.run(context, workspace)
+            workspace["phase"] = "rollout"
+            self.graph.run(context, workspace)
             total_steps = workspace["total_steps"]
             last_env_id = workspace.get("last_env_id", last_env_id)
 
@@ -180,7 +180,8 @@ class CoreTrainingLoop:
                     "advantage_method": advantage_method,
                     "max_grad_norm": max_grad_norm,
                 }
-                self.train_graph.run(context, workspace)
+                workspace["phase"] = "train"
+                self.graph.run(context, workspace)
                 stop_update_epoch_mb = bool(workspace["stop_update_epoch"])
 
                 if stop_update_epoch_mb:
@@ -220,6 +221,10 @@ class CoreTrainingLoop:
         td["last_actions"] = self.last_action[env_ids].detach()
 
 
+def _build_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
+    return _build_rollout_nodes(core, losses) + _build_train_nodes(core, losses)
+
+
 def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
     nodes: list[Node] = [
         _rollout_env_wait_node(core),
@@ -236,6 +241,7 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
                 name=name,
                 deps=(prev_dep,),
                 fn=_loss_rollout_fn(loss),
+                enabled=_phase_enabled("rollout"),
             )
         )
         prev_dep = name
@@ -243,11 +249,36 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
     deps = (prev_dep,) if has_losses else ("rollout.td_prep",)
     nodes.extend(
         [
-            Node(name="rollout.reward_center", deps=deps, fn=_rollout_reward_center_fn(core)),
-            Node(name="rollout.actions_check", deps=deps, fn=_rollout_actions_check_fn(core)),
-            Node(name="rollout.send_actions", deps=("rollout.actions_check",), fn=_rollout_send_actions_fn(core)),
-            Node(name="rollout.collect_infos", deps=("rollout.send_actions",), fn=_rollout_collect_infos_fn()),
-            Node(name="rollout.step_count", deps=("rollout.send_actions",), fn=_rollout_step_count_fn()),
+            Node(
+                name="rollout.reward_center",
+                deps=deps,
+                fn=_rollout_reward_center_fn(core),
+                enabled=_phase_enabled("rollout"),
+            ),
+            Node(
+                name="rollout.actions_check",
+                deps=deps,
+                fn=_rollout_actions_check_fn(core),
+                enabled=_phase_enabled("rollout"),
+            ),
+            Node(
+                name="rollout.send_actions",
+                deps=("rollout.actions_check",),
+                fn=_rollout_send_actions_fn(core),
+                enabled=_phase_enabled("rollout"),
+            ),
+            Node(
+                name="rollout.collect_infos",
+                deps=("rollout.send_actions",),
+                fn=_rollout_collect_infos_fn(),
+                enabled=_phase_enabled("rollout"),
+            ),
+            Node(
+                name="rollout.step_count",
+                deps=("rollout.send_actions",),
+                fn=_rollout_step_count_fn(),
+                enabled=_phase_enabled("rollout"),
+            ),
         ]
     )
 
@@ -256,12 +287,37 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
 
 def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
     nodes: list[Node] = [
-        Node(name="train.sample_mb", fn=_train_sample_mb_fn(core)),
-        Node(name="train.returns", deps=("train.sample_mb",), fn=_train_returns_fn()),
-        Node(name="train.policy_forward", deps=("train.returns",), fn=_train_policy_forward_fn(core)),
-        Node(name="train.importance_ratio", deps=("train.policy_forward",), fn=_train_importance_ratio_fn()),
-        Node(name="train.advantages_pg", deps=("train.importance_ratio",), fn=_train_advantages_pg_fn(core)),
-        Node(name="train.used_keys", deps=("train.policy_forward",), fn=_train_used_keys_fn(core)),
+        Node(name="train.sample_mb", fn=_train_sample_mb_fn(core), enabled=_phase_enabled("train")),
+        Node(
+            name="train.returns",
+            deps=("train.sample_mb",),
+            fn=_train_returns_fn(),
+            enabled=_phase_enabled("train"),
+        ),
+        Node(
+            name="train.policy_forward",
+            deps=("train.returns",),
+            fn=_train_policy_forward_fn(core),
+            enabled=_phase_enabled("train"),
+        ),
+        Node(
+            name="train.importance_ratio",
+            deps=("train.policy_forward",),
+            fn=_train_importance_ratio_fn(),
+            enabled=_phase_enabled("train"),
+        ),
+        Node(
+            name="train.advantages_pg",
+            deps=("train.importance_ratio",),
+            fn=_train_advantages_pg_fn(core),
+            enabled=_phase_enabled("train"),
+        ),
+        Node(
+            name="train.used_keys",
+            deps=("train.policy_forward",),
+            fn=_train_used_keys_fn(core),
+            enabled=_phase_enabled("train"),
+        ),
     ]
 
     has_losses = False
@@ -269,11 +325,13 @@ def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[
     for loss in losses.values():
         name = f"train.loss.{loss.instance_name}"
         has_losses = True
+        rollout_dep = f"rollout.loss.{loss.instance_name}"
         nodes.append(
             Node(
                 name=name,
-                deps=(prev_dep,),
+                deps=(prev_dep, rollout_dep),
                 fn=_loss_train_fn(loss),
+                enabled=_phase_enabled("train"),
             )
         )
         prev_dep = name
@@ -333,7 +391,7 @@ def _rollout_env_wait_node(core: CoreTrainingLoop) -> Node:
         workspace["last_env_id"] = training_env_id
         return {}
 
-    return Node(name="rollout.env_wait", fn=_fn)
+    return Node(name="rollout.env_wait", fn=_fn, enabled=_phase_enabled("rollout"))
 
 
 def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
@@ -379,7 +437,7 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
             workspace["baseline"] = baseline
         return {}
 
-    return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn)
+    return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn, enabled=_phase_enabled("rollout"))
 
 
 def _loss_rollout_fn(loss: Loss):
@@ -677,4 +735,11 @@ def _train_on_mb_end_fn(core: CoreTrainingLoop):
 
 
 def _train_continue_enabled(context: ComponentContext, workspace: dict[str, Any]) -> bool:
-    return not bool(workspace.get("stop_update_epoch", False))
+    return _phase_enabled("train")(context, workspace) and not bool(workspace.get("stop_update_epoch", False))
+
+
+def _phase_enabled(phase: str):
+    def _enabled(context: ComponentContext, workspace: dict[str, Any]) -> bool:
+        return workspace.get("phase") == phase
+
+    return _enabled
