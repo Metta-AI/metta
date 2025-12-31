@@ -10,8 +10,10 @@ This tests the AOE system functionality where:
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
+    AlignActionConfig,
     AOEEffectConfig,
     ChangeVibeActionConfig,
+    CommonsChestConfig,
     CommonsConfig,
     GameConfig,
     InventoryConfig,
@@ -876,4 +878,137 @@ class TestAOETargetTags:
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before + 10, (
             f"Agent should receive effect (empty target_tags). Before: {energy_before}, After: {energy_after}"
+        )
+
+
+class TestAOEAfterAlignmentChange:
+    """Test that AOE effects update correctly when source alignment changes."""
+
+    def _create_sim_with_alignable_aoe(
+        self,
+        members_only: bool = False,
+        ignore_members: bool = False,
+    ) -> Simulation:
+        """Create a simulation with an agent and CommonsChest with AOE that can be scrambled."""
+        game_map = [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "agent.agent", ".", "chest", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ]
+
+        game_config = GameConfig(
+            max_steps=100,
+            num_agents=1,
+            obs=ObsConfig(width=5, height=5, num_tokens=100),
+            resource_names=["energy", "heart"],
+            commons=[
+                CommonsConfig(name="cogs", inventory=InventoryConfig()),
+            ],
+            actions=ActionsConfig(
+                noop=NoopActionConfig(),
+                move=MoveActionConfig(enabled=True),
+                change_vibe=ChangeVibeActionConfig(enabled=True),
+                scramble=AlignActionConfig(
+                    vibe="swords",
+                    set_to_none=True,
+                ),
+            ),
+            agent=AgentConfig(
+                inventory=InventoryConfig(initial={"energy": 100, "heart": 10}),
+                commons="cogs",
+            ),
+            objects={
+                "wall": WallConfig(),
+                "chest": CommonsChestConfig(
+                    name="chest",
+                    commons="cogs",  # Starts aligned to same commons as agent
+                    aoes=[
+                        AOEEffectConfig(
+                            range=3,
+                            resource_deltas={"energy": 10},
+                            members_only=members_only,
+                            ignore_members=ignore_members,
+                        )
+                    ],
+                ),
+            },
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(map_data=game_map)
+
+        return Simulation(cfg, seed=42)
+
+    def _get_agent_inventory(self, sim: Simulation, resource: str) -> int:
+        """Get agent's inventory for a specific resource."""
+        objects = sim.grid_objects()
+        agents = [obj for obj in objects.values() if "agent_id" in obj]
+        assert len(agents) == 1
+        resource_idx = sim.resource_names.index(resource)
+        return agents[0]["inventory"][resource_idx]
+
+    def _scramble_chest(self, sim: Simulation):
+        """Move agent onto chest with swords vibe to scramble it."""
+        # Change to swords vibe
+        sim.agent(0).set_action("change_vibe_swords")
+        sim.step()
+        # Move east to empty space
+        sim.agent(0).set_action("move_east")
+        sim.step()
+        # Move east onto the chest - triggers scramble
+        sim.agent(0).set_action("move_east")
+        sim.step()
+
+    def test_members_only_stops_after_scramble(self):
+        """Test that members_only AOE stops applying after source is un-aligned."""
+        sim = self._create_sim_with_alignable_aoe(members_only=True, ignore_members=False)
+
+        # Before scramble: agent and chest share commons, so members_only should apply
+        energy_before = self._get_agent_inventory(sim, "energy")
+        sim.agent(0).set_action("noop")
+        sim.step()
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Before scramble: agent should receive effect (same commons). "
+            f"Before: {energy_before}, After: {energy_after}"
+        )
+
+        # Scramble the chest (remove its alignment)
+        self._scramble_chest(sim)
+
+        # After scramble: chest has no commons, so members_only should NOT apply to anyone
+        energy_before = self._get_agent_inventory(sim, "energy")
+        sim.agent(0).set_action("noop")
+        sim.step()
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"After scramble: agent should NOT receive effect (source has no commons). "
+            f"Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_ignore_members_affects_all_after_scramble(self):
+        """Test that ignore_members AOE skips everyone after source is un-aligned."""
+        sim = self._create_sim_with_alignable_aoe(members_only=False, ignore_members=True)
+
+        # Before scramble: agent and chest share commons, so ignore_members skips the agent
+        energy_before = self._get_agent_inventory(sim, "energy")
+        sim.agent(0).set_action("noop")
+        sim.step()
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"Before scramble: agent should NOT receive effect (same commons, ignore_members). "
+            f"Before: {energy_before}, After: {energy_after}"
+        )
+
+        # Scramble the chest (remove its alignment)
+        self._scramble_chest(sim)
+
+        # After scramble: chest has no commons, so ignore_members should skip everyone
+        energy_before = self._get_agent_inventory(sim, "energy")
+        sim.agent(0).set_action("noop")
+        sim.step()
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"After scramble: agent should still NOT receive effect (source has no commons). "
+            f"Before: {energy_before}, After: {energy_after}"
         )
