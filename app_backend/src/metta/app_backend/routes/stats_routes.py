@@ -316,9 +316,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 replay_url = episode_row[2]
                 thumbnail_url = episode_row[3]
                 attributes = episode_row[4] or {}
-                eval_task_id = (
-                    uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
-                )
+                eval_task_id = uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
 
                 tags = read_episode_tags(conn, str(episode_id))
 
