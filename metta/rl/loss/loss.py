@@ -136,6 +136,8 @@ class Loss:
     loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
+    trainable_only: bool = False
+    loss_profiles: set[int] | None = None
 
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 

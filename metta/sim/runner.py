@@ -52,7 +52,9 @@ def _run_single_simulation(
             slot_policies=slot_policies,
             policy_env_info=env_interface,
             agent_slot_map=agent_slot_tensor,
-        ).to(controller_device)
+        )
+        if hasattr(controller, "to"):
+            controller = controller.to(controller_device)
         multi_agent_policies.append(controller)
     else:
         if not policy_specs:
