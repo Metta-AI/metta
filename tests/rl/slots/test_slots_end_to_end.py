@@ -259,9 +259,9 @@ def test_slot_metadata_injection_single_agent():
     from metta.rl.training.core import CoreTrainingLoop
 
     CoreTrainingLoop._inject_slot_metadata(loop, td, slice(0, 1))
-    assert torch.equal(td["slot_id"], torch.tensor([[3]]))
-    assert torch.equal(td["loss_profile_id"], torch.tensor([[2]]))
-    assert torch.equal(td["is_trainable_agent"], torch.tensor([[True]]))
+    assert torch.equal(td["slot_id"], torch.tensor([3]))
+    assert torch.equal(td["loss_profile_id"], torch.tensor([2]))
+    assert torch.equal(td["is_trainable_agent"], torch.tensor([True]))
 
 
 def test_action_supervisor_profile_alias():
