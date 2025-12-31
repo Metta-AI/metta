@@ -207,8 +207,7 @@ def download_policy_spec_from_s3_dir(
 
     normalized_path = s3_path.rstrip("/")
     extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()
-    marker_file = extraction_root / ".download_complete"
-    if marker_file.exists():
+    if (extraction_root / ".download_complete").exists():
         return extraction_root
 
     parsed = parse_uri(normalized_path, allow_none=False)
@@ -225,7 +224,7 @@ def download_policy_spec_from_s3_dir(
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(s3_read(f"s3://{parsed.bucket}/{key}"))
 
-    marker_file.touch()
+    (extraction_root / ".download_complete").touch()
 
     if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
         _registered_cleanup_dirs.add(extraction_root)
@@ -268,12 +267,10 @@ def load_policy_spec_from_path(
         extraction_root = force_dest or (
             cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()
         ).with_suffix(".d")
-        marker_file = extraction_root / ".extraction_complete"
-
-        if not marker_file.exists():
+        if not (extraction_root / ".extraction_complete").exists():
             extraction_root.mkdir(parents=True, exist_ok=True)
             _extract_submission_archive(local_path, extraction_root)
-            marker_file.touch()
+            (extraction_root / ".extraction_complete").touch()
 
             if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
                 _registered_cleanup_dirs.add(extraction_root)
