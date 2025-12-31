@@ -5,10 +5,7 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
-<<<<<<< HEAD
-=======
 import itertools
->>>>>>> origin/main
 import logging
 from typing import Optional, Sequence
 
@@ -30,13 +27,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
-<<<<<<< HEAD
-from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
-=======
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
->>>>>>> origin/main
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -343,12 +335,9 @@ def train(
     max_evals: Optional[int] = None,
     teacher: TeacherConfig | None = None,
     use_lp: bool = True,
-<<<<<<< HEAD
-=======
     dr_variants: int = 0,
     dr_rewards: bool = True,
     dr_misc: bool = False,
->>>>>>> origin/main
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
@@ -427,10 +416,7 @@ def train_variants(
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-<<<<<<< HEAD
-=======
     train_difficulty: str | None = None,
->>>>>>> origin/main
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Create a training tool with curriculum tasks for all variants.
@@ -490,10 +476,7 @@ def train_single_mission(
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-<<<<<<< HEAD
-=======
     train_difficulty: str | None = None,
->>>>>>> origin/main
     teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
 ) -> TrainTool:
@@ -520,10 +503,7 @@ def train_single_mission(
         variants=variants,
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
-<<<<<<< HEAD
-=======
         train_difficulty=train_difficulty,
->>>>>>> origin/main
         teacher=teacher,
         maps_cache_size=maps_cache_size,
     )
@@ -787,25 +767,7 @@ def sweep(
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
-<<<<<<< HEAD
-    search_space = {
-        **SP.LEARNING_RATE,
-        **SP.PPO_CLIP_COEF,
-        **SP.PPO_GAE_LAMBDA,
-        **SP.PPO_VF_COEF,
-        **SP.ADAM_EPS,
-        **SP.PPO_ENT_COEF,
-        **SP.param(
-            "trainer.total_timesteps",
-            D.INT_UNIFORM,
-            min=5e8,
-            max=2e9,
-            search_center=1e9,
-        ),
-    }
-=======
     search_space = get_cvc_sweep_search_space()
->>>>>>> origin/main
 
     return make_sweep(
         name=sweep_name,

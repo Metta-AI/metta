@@ -21,11 +21,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-<<<<<<< HEAD
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
-=======
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
->>>>>>> origin/main
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
@@ -151,11 +147,7 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
     scheduler_run_gates: list[LossRunGate] = []
-<<<<<<< HEAD
-    scheduler_rules: list[HyperUpdateRule] = []
-=======
     scheduler_rules: list[ScheduleRule] = []
->>>>>>> origin/main
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
 
     if teacher and teacher.enabled:

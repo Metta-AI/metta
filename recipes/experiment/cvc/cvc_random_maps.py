@@ -123,16 +123,9 @@ def make_random_maps_curriculum(
     # Use full vibe set to maintain a single action space across train/eval.
     from mettagrid.config import vibes as vibes_module
 
-<<<<<<< HEAD
-    full_vibes = [v.name for v in vibes_module.VIBES]
-    base_env.game.vibe_names = full_vibes
-    if base_env.game.actions.change_vibe:
-        base_env.game.actions.change_vibe.number_of_vibes = len(full_vibes)
-=======
     base_env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if base_env.game.actions.change_vibe:
         base_env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
->>>>>>> origin/main
 
     # Replace map builder with random map generator
     # Random.Config has too_many_is_ok=True, so it will cap objects to available space
@@ -430,11 +423,7 @@ def play_sparse(
 
     env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-<<<<<<< HEAD
-        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
-=======
         env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
->>>>>>> origin/main
 
     env.game.map_builder = MapGen.Config(
         width=room_size,
@@ -574,11 +563,7 @@ def replay_curriculum(
     # Use full vibes to stay aligned with training/eval action space.
     env.game.vibe_names = [v.name for v in vibes_module.VIBES]
     if env.game.actions.change_vibe:
-<<<<<<< HEAD
-        env.game.actions.change_vibe.number_of_vibes = len(vibes_module.VIBES)
-=======
         env.game.actions.change_vibe.vibes = list(vibes_module.VIBES)
->>>>>>> origin/main
 
     env.game.map_builder = MapGen.Config(
         width=room_size,
