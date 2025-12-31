@@ -245,7 +245,7 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
             Node(name="rollout.actions_check", deps=deps, fn=_rollout_actions_check_fn(core)),
             Node(name="rollout.send_actions", deps=("rollout.actions_check",), fn=_rollout_send_actions_fn(core)),
             Node(name="rollout.collect_infos", deps=("rollout.send_actions",), fn=_rollout_collect_infos_fn()),
-            Node(name="rollout.step_count", deps=("rollout.env_wait",), fn=_rollout_step_count_fn()),
+            Node(name="rollout.step_count", deps=("rollout.send_actions",), fn=_rollout_step_count_fn()),
         ]
     )
 
@@ -479,7 +479,7 @@ def _train_sample_mb_fn(core: CoreTrainingLoop):
         if workspace["mb_idx"] == 0:
             shared_loss_mb_data["advantages_full"] = NonTensorData(workspace["advantages_full"])
         workspace["shared_loss_data"] = shared_loss_mb_data
-        workspace["loss_terms"] = []
+        workspace["loss_values"] = {}
         return {}
 
     return _fn
@@ -583,7 +583,7 @@ def _loss_train_fn(loss: Loss):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         loss_val, shared, stop = loss.train(workspace["shared_loss_data"], context, workspace["mb_idx"])
         workspace["shared_loss_data"] = shared
-        workspace["loss_terms"].append(loss_val)
+        workspace["loss_values"][loss.instance_name] = loss_val
         if stop:
             workspace["stop_update_epoch"] = True
         return {}
@@ -594,7 +594,7 @@ def _loss_train_fn(loss: Loss):
 def _train_loss_sum_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         total = torch.tensor(0.0, dtype=torch.float32, device=core.device)
-        for term in workspace["loss_terms"]:
+        for term in workspace["loss_values"].values():
             total = total + term
         workspace["total_loss"] = total
         return {}
