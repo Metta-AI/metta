@@ -195,7 +195,16 @@ def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] =
             return None
 
         users_response = users_api.get_users_for_workspace(workspace_gid, {"opt_fields": "email,gid"})
-        users = users_response.get("data", [])
+        # Handle Asana API response - can be dict or generator
+        users: list[dict[str, Any]] = []
+        if isinstance(users_response, dict):
+            users = users_response.get("data", []) or []
+        elif users_response:
+            # If it's a generator or other iterable, convert to list
+            try:
+                users = [item for item in users_response if isinstance(item, dict)]
+            except (TypeError, AttributeError):
+                users = []
 
         # Find user by email (case-insensitive)
         asana_email_lower = asana_email.lower()

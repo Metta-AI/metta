@@ -33,11 +33,11 @@ def create_github_webhook_router() -> APIRouter:
             logger.warning("GITHUB_WEBHOOK_SECRET not set - skipping signature verification (dev mode)")
             return True
 
-        if not signature_header:
+        if not signature_header or "=" not in signature_header:
             return False
 
         # GitHub sends the signature as "sha256=<hash>"
-        hash_algorithm, github_signature = signature_header.split("=")
+        hash_algorithm, github_signature = signature_header.split("=", 1)
         if hash_algorithm != "sha256":
             return False
 
