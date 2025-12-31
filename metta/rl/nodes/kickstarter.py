@@ -8,15 +8,16 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.teacher_policy import load_teacher_policy
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
+from metta.rl.nodes.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class KickstarterConfig(LossConfig):
+class KickstarterConfig(NodeConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -35,7 +36,7 @@ class KickstarterConfig(LossConfig):
         return Kickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class Kickstarter(Loss):
+class Kickstarter(NodeBase):
     """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
     value against the student's using a KL divergence and MSE loss respectively.
     """
@@ -122,3 +123,14 @@ class Kickstarter(Loss):
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="kickstarter",
+        config_cls=KickstarterConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

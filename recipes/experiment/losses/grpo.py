@@ -1,8 +1,8 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
-from metta.rl.loss.grpo import GRPOConfig
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes.grpo import GRPOConfig
+from metta.rl.nodes.losses import LossesConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool

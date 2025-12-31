@@ -1,8 +1,8 @@
 """Arena recipe with CMPO (Conservative Model-Based Policy Optimization)."""
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.rl.loss.cmpo import CMPOConfig
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes.cmpo import CMPOConfig
+from metta.rl.nodes.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool

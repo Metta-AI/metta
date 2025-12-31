@@ -7,7 +7,7 @@ from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
-from metta.rl.loss.loss import Loss
+from metta.rl.nodes.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from metta.rl.training.graph import Node, TrainingGraph
 from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training

@@ -4,24 +4,24 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss import contrastive_config
-from metta.rl.loss.action_supervised import ActionSupervisedConfig
-from metta.rl.loss.cmpo import CMPOConfig
-from metta.rl.loss.dynamics import DynamicsConfig
-from metta.rl.loss.ema import EMAConfig
-from metta.rl.loss.eer_cloner import EERClonerConfig
-from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
-from metta.rl.loss.grpo import GRPOConfig
-from metta.rl.loss.kickstarter import KickstarterConfig
-from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.ppo_actor import PPOActorConfig
-from metta.rl.loss.ppo_critic import PPOCriticConfig
-from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
-from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
-from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
-from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
-from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
+from metta.rl.nodes import contrastive_config
+from metta.rl.nodes.action_supervised import ActionSupervisedConfig
+from metta.rl.nodes.cmpo import CMPOConfig
+from metta.rl.nodes.dynamics import DynamicsConfig
+from metta.rl.nodes.ema import EMAConfig
+from metta.rl.nodes.eer_cloner import EERClonerConfig
+from metta.rl.nodes.eer_kickstarter import EERKickstarterConfig
+from metta.rl.nodes.grpo import GRPOConfig
+from metta.rl.nodes.kickstarter import KickstarterConfig
+from metta.rl.nodes.logit_kickstarter import LogitKickstarterConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.ppo_actor import PPOActorConfig
+from metta.rl.nodes.ppo_critic import PPOCriticConfig
+from metta.rl.nodes.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.nodes.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
+from metta.rl.nodes.sliced_kickstarter import SlicedKickstarterConfig
+from metta.rl.nodes.sliced_scripted_cloner import SlicedScriptedClonerConfig
+from metta.rl.nodes.vit_reconstruction import ViTReconstructionLossConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
@@ -80,7 +80,7 @@ class LossesConfig(Config):
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
 
-    def _configs(self) -> dict[str, LossConfig]:
+    def _configs(self) -> dict[str, NodeConfig]:
         # losses are run in the order they are listed here. This is not ideal and we should refactor this config.
         # also, the way it's setup doesn't let the experimenter give names to losses.
         loss_configs = {
@@ -89,7 +89,7 @@ class LossesConfig(Config):
         return loss_configs
 
     @property
-    def loss_configs(self) -> dict[str, LossConfig]:
+    def loss_configs(self) -> dict[str, NodeConfig]:
         return self._configs()
 
     def init_losses(
@@ -98,7 +98,7 @@ class LossesConfig(Config):
         trainer_cfg: "TrainerConfig",
         env: TrainingEnvironment,
         device: torch.device,
-    ) -> dict[str, Loss]:
+    ) -> dict[str, NodeBase]:
         return {
             loss_name: loss_cfg.create(policy, trainer_cfg, env, device, loss_name)
             for loss_name, loss_cfg in self._configs().items()

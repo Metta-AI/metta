@@ -8,8 +8,9 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.teacher_policy import load_teacher_policy
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
+from metta.rl.nodes.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 from metta.rl.utils import prepare_policy_forward_td
 from mettagrid.util.uri_resolvers.schemes import (
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class SLCheckpointedKickstarterConfig(LossConfig):
+class SLCheckpointedKickstarterConfig(NodeConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -45,7 +46,7 @@ class SLCheckpointedKickstarterConfig(LossConfig):
         return SLCheckpointedKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class SLCheckpointedKickstarter(Loss):
+class SLCheckpointedKickstarter(NodeBase):
     """This is currently only student-led. No blockers to make it teacher-led, but not needed yet.
     It should be better at avoiding student-led curriculum hacking since we keep changing the teacher."""
 
@@ -85,6 +86,17 @@ class SLCheckpointedKickstarter(Loss):
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="sl_checkpointed_kickstarter",
+        config_cls=SLCheckpointedKickstarterConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]
 
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec

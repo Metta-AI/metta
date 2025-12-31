@@ -25,7 +25,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule

@@ -7,15 +7,16 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.teacher_policy import load_teacher_policy
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
+from metta.rl.nodes.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class EERKickstarterConfig(LossConfig):
+class EERKickstarterConfig(NodeConfig):
     teacher_uri: str = Field(default="")
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
@@ -33,13 +34,13 @@ class EERKickstarterConfig(LossConfig):
         return EERKickstarter(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class EERKickstarter(Loss):
+class EERKickstarter(NodeBase):
     """Expected Entropy Regularization Kickstarter. See "Distilling Policy Distillation."
 
     Implements:
     1. Reward shaping: r' = r + lambda * log(pi_teacher(a|s))
        This corresponds to minimizing Expected Entropy Regularized objective.
-    2. Auxiliary Distillation Loss: KL(pi_student || pi_teacher) minimization term.
+    2. Auxiliary Distillation NodeBase: KL(pi_student || pi_teacher) minimization term.
     """
 
     __slots__ = ("teacher_policy", "last_teacher_log_probs", "has_last_probs")
@@ -149,3 +150,14 @@ class EERKickstarter(Loss):
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
 
         return loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="eer_kickstarter",
+        config_cls=EERKickstarterConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

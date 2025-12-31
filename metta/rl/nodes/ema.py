@@ -8,12 +8,13 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
 
 
-class EMAConfig(LossConfig):
+class EMAConfig(NodeConfig):
     decay: float = Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
@@ -29,7 +30,7 @@ class EMAConfig(LossConfig):
         return EMA(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class EMA(Loss):
+class EMA(NodeBase):
     __slots__ = ("target_model",)
 
     def __init__(
@@ -83,3 +84,14 @@ class EMA(Loss):
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
         return loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="ema",
+        config_cls=EMAConfig,
+        default_enabled=False,
+        has_rollout=False,
+        has_train=True,
+    )
+]

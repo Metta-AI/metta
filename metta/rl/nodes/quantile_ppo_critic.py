@@ -10,11 +10,12 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class QuantilePPOCriticConfig(LossConfig):
+class QuantilePPOCriticConfig(NodeConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
@@ -31,7 +32,7 @@ class QuantilePPOCriticConfig(LossConfig):
         return QuantilePPOCritic(policy, trainer_cfg, env, device, instance_name, self)
 
 
-class QuantilePPOCritic(Loss):
+class QuantilePPOCritic(NodeBase):
     """Quantile PPO value loss."""
 
     __slots__ = (
@@ -146,7 +147,7 @@ class QuantilePPOCritic(Loss):
             newvalue = policy_td["values"]  # [B, N]
 
         if newvalue is not None:
-            # Quantile Regression Loss
+            # Quantile Regression NodeBase
             # Target is 'returns' broadcasted
             target = returns.unsqueeze(-1)  # [B, 1]
 
@@ -166,10 +167,10 @@ class QuantilePPOCritic(Loss):
                     vf_clip_coef,
                 )
 
-                # Loss with unclipped
+                # NodeBase with unclipped
                 loss_unclipped = self.quantile_loss(newvalue, target)
 
-                # Loss with clipped
+                # NodeBase with clipped
                 loss_clipped = self.quantile_loss(newvalue_clipped, target)
 
                 v_loss = torch.max(loss_unclipped, loss_clipped).mean()
@@ -217,7 +218,7 @@ class QuantilePPOCritic(Loss):
         indicator = (diff < 0).float()
         quantile_weight = torch.abs(self.tau_hat - indicator)
 
-        # Loss = sum over quantiles of (weight * huber_loss)
+        # NodeBase = sum over quantiles of (weight * huber_loss)
         # We return mean over batch later, here just sum over quantiles
         loss = (quantile_weight * huber_loss).sum(dim=-1)
 
@@ -237,3 +238,14 @@ class QuantilePPOCritic(Loss):
             self.loss_tracker["explained_variance"].append(float(ev))
 
         super().on_train_phase_end(context)
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="quantile_ppo_critic",
+        config_cls=QuantilePPOCriticConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

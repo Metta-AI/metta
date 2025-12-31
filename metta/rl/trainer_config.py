@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes import GraphConfig
 from metta.rl.training import HeartbeatConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
@@ -75,7 +75,7 @@ class TorchProfilerConfig(Config):
 
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=10_000_000_000, gt=0)
-    losses: LossesConfig = Field(default_factory=LossesConfig)
+    graph: GraphConfig = Field(default_factory=GraphConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
