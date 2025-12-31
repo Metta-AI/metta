@@ -14,7 +14,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes.losses import LossesConfig
+from metta.rl.nodes import GraphConfig
 from metta.rl.nodes.ppo_critic import PPOCriticConfig
 from metta.rl.nodes.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
@@ -107,9 +107,11 @@ def train(
 
     eval_simulations = simulations()
     trainer_cfg = TrainerConfig(
-        losses=LossesConfig(
-            ppo_critic=PPOCriticConfig(enabled=False),
-            quantile_ppo_critic=QuantilePPOCriticConfig(enabled=True),
+        graph=GraphConfig(
+            nodes={
+                "ppo_critic": PPOCriticConfig(enabled=False),
+                "quantile_ppo_critic": QuantilePPOCriticConfig(enabled=True),
+            }
         )
     )
 

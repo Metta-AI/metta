@@ -46,7 +46,7 @@ from metta.rl.training import (
     WandbAborterConfig,
     WandbLogger,
 )
-from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
+from metta.rl.training.scheduler import NodeScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
     PolicyStorageDecision,
@@ -364,7 +364,7 @@ class TrainTool(Tool):
             trainer.register(WandbLogger(wandb_run))
 
         if self.scheduler is not None:
-            trainer.register(LossScheduler(self.scheduler))
+            trainer.register(NodeScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():

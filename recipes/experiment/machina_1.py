@@ -43,9 +43,9 @@ def train(
         maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
-    losses_cfg = tt.trainer.losses
+    nodes_cfg = tt.trainer.graph.nodes
     needs_full_log_probs = any(
-        getattr(losses_cfg, name).enabled
+        (nodes_cfg.get(name) and nodes_cfg[name].enabled)
         for name in (
             "supervisor",
             "sliced_scripted_cloner",

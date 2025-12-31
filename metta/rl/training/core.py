@@ -7,7 +7,8 @@ from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
-from metta.rl.nodes.loss import Loss
+from metta.rl.nodes.base import NodeBase
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from metta.rl.training.graph import Node, TrainingGraph
 from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
@@ -33,7 +34,8 @@ class CoreTrainingLoop:
         self,
         policy: Policy,
         experience: Experience,
-        losses: dict[str, Loss],
+        nodes: dict[str, NodeBase],
+        node_specs: list[NodeSpec],
         optimizer: torch.optim.Optimizer,
         device: torch.device,
         context: ComponentContext,
@@ -43,18 +45,20 @@ class CoreTrainingLoop:
         Args:
             policy: The policy to train
             experience: Experience buffer for storing rollouts
-            losses: Dictionary of loss instances to use
+        nodes: Dictionary of node instances to use
             optimizer: Optimizer for policy updates
             device: Device to run on
         """
         self.policy = policy
         self.experience = experience
-        self.losses = losses
+        self.nodes = nodes
+        self.node_specs = {spec.key: spec for spec in node_specs}
+        self.node_specs_order = list(node_specs)
         self.optimizer = optimizer
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
-        self.graph = TrainingGraph(_build_nodes(self, losses))
+        self.graph = TrainingGraph(_build_nodes(self, nodes, self.node_specs_order))
         self.last_action = torch.zeros(
             experience.total_agents,
             1,
@@ -83,9 +87,11 @@ class CoreTrainingLoop:
         raw_infos: list[dict[str, Any]] = []
         self.experience.reset_for_rollout()
 
-        # Notify losses of rollout start
-        for loss in self.losses.values():
-            loss.on_rollout_start(context)
+        # Notify nodes of rollout start
+        for name, node in self.nodes.items():
+            spec = self.node_specs.get(name)
+            if spec and spec.has_rollout:
+                node.on_rollout_start(context)
 
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
@@ -123,19 +129,20 @@ class CoreTrainingLoop:
             max_grad_norm: Maximum gradient norm for clipping
 
         Returns:
-            Dictionary of loss statistics
+            Dictionary of node statistics
         """
         self.experience.reset_importance_sampling_ratios()
 
-        for loss in self.losses.values():
-            loss.zero_loss_tracker()
+        for node in self.nodes.values():
+            node.zero_loss_tracker()
 
         advantage_cfg = context.config.advantage
-        ppo_critic = self.losses.get("ppo_critic")
+        ppo_critic = self.nodes.get("ppo_critic")
         use_delta_lambda = (
             ppo_critic is not None
             and getattr(ppo_critic.cfg, "critic_update", None) == "gtd_lambda"
-            and ppo_critic._loss_gate_allows("train", context)
+            and ppo_critic.cfg.enabled
+            and ppo_critic.node_gate_allows("train", context)
         )
         advantage_method = "delta_lambda" if use_delta_lambda else "vtrace"
 
@@ -192,16 +199,18 @@ class CoreTrainingLoop:
             if stop_update_epoch:
                 break
 
-        # Notify losses of training phase end
-        for loss_obj in self.losses.values():
-            loss_obj.on_train_phase_end(context)
+        # Notify nodes of training phase end
+        for name, node in self.nodes.items():
+            spec = self.node_specs.get(name)
+            if spec and spec.has_train:
+                node.on_train_phase_end(context)
 
-        # Collect statistics from all losses
-        losses_stats = {}
-        for _loss_name, loss_obj in self.losses.items():
-            losses_stats.update(loss_obj.stats())
+        # Collect statistics from all nodes
+        graph_stats: dict[str, float] = {}
+        for _node_name, node in self.nodes.items():
+            graph_stats.update(node.stats())
 
-        return losses_stats, epochs_trained
+        return graph_stats, epochs_trained
 
     def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the start of each epoch.
@@ -209,8 +218,8 @@ class CoreTrainingLoop:
         Args:
             context: Shared trainer context providing epoch state
         """
-        for loss in self.losses.values():
-            loss.on_epoch_start(context)
+        for node in self.nodes.values():
+            node.on_epoch_start(context)
 
     def add_last_action_to_td(self, td: TensorDict) -> None:
         env_ids = td["training_env_ids"].squeeze(-1)
@@ -221,33 +230,47 @@ class CoreTrainingLoop:
         td["last_actions"] = self.last_action[env_ids].detach()
 
 
-def _build_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
-    return _build_rollout_nodes(core, losses) + _build_train_nodes(core, losses)
+def _build_nodes(
+    core: CoreTrainingLoop,
+    nodes: dict[str, NodeBase],
+    node_specs: list[NodeSpec],
+) -> list[Node]:
+    return _build_rollout_nodes(core, nodes, node_specs) + _build_train_nodes(core, nodes, node_specs)
 
 
-def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
-    nodes: list[Node] = [
+def _build_rollout_nodes(
+    core: CoreTrainingLoop,
+    nodes: dict[str, NodeBase],
+    node_specs: list[NodeSpec],
+) -> list[Node]:
+    graph_nodes: list[Node] = [
         _rollout_env_wait_node(core),
         _rollout_td_prep_node(core),
     ]
 
-    has_losses = False
+    has_nodes = False
     prev_dep = "rollout.td_prep"
-    for loss in losses.values():
-        name = f"rollout.loss.{loss.instance_name}"
-        has_losses = True
-        nodes.append(
+    for spec in node_specs:
+        if not spec.has_rollout:
+            continue
+        node = nodes.get(spec.key)
+        if node is None:
+            continue
+        name = f"rollout.{spec.key}"
+        has_nodes = True
+        deps = _resolve_node_deps("rollout", prev_dep, spec.rollout_requires)
+        graph_nodes.append(
             Node(
                 name=name,
-                deps=(prev_dep,),
-                fn=_loss_rollout_fn(loss),
-                enabled=_phase_enabled("rollout"),
+                deps=deps,
+                fn=_node_rollout_fn(node),
+                enabled=_node_phase_enabled("rollout", node),
             )
         )
         prev_dep = name
 
-    deps = (prev_dep,) if has_losses else ("rollout.td_prep",)
-    nodes.extend(
+    deps = (prev_dep,) if has_nodes else ("rollout.td_prep",)
+    graph_nodes.extend(
         [
             Node(
                 name="rollout.reward_center",
@@ -282,11 +305,15 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
         ]
     )
 
-    return nodes
+    return graph_nodes
 
 
-def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
-    nodes: list[Node] = [
+def _build_train_nodes(
+    core: CoreTrainingLoop,
+    nodes: dict[str, NodeBase],
+    node_specs: list[NodeSpec],
+) -> list[Node]:
+    graph_nodes: list[Node] = [
         Node(name="train.sample_mb", fn=_train_sample_mb_fn(core), enabled=_phase_enabled("train")),
         Node(
             name="train.returns",
@@ -320,24 +347,31 @@ def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[
         ),
     ]
 
-    has_losses = False
+    has_nodes = False
     prev_dep = "train.advantages_pg"
-    for loss in losses.values():
-        name = f"train.loss.{loss.instance_name}"
-        has_losses = True
-        rollout_dep = f"rollout.loss.{loss.instance_name}"
-        nodes.append(
+    for spec in node_specs:
+        if not spec.has_train:
+            continue
+        node = nodes.get(spec.key)
+        if node is None:
+            continue
+        name = f"train.{spec.key}"
+        has_nodes = True
+        deps = list(_resolve_node_deps("train", prev_dep, spec.train_requires))
+        if spec.has_rollout:
+            deps.append(f"rollout.{spec.key}")
+        graph_nodes.append(
             Node(
                 name=name,
-                deps=(prev_dep, rollout_dep),
-                fn=_loss_train_fn(loss),
-                enabled=_phase_enabled("train"),
+                deps=tuple(deps),
+                fn=_node_train_fn(node),
+                enabled=_node_phase_enabled("train", node),
             )
         )
         prev_dep = name
 
-    deps = (prev_dep,) if has_losses else ("train.advantages_pg",)
-    nodes.extend(
+    deps = (prev_dep,) if has_nodes else ("train.advantages_pg",)
+    graph_nodes.extend(
         [
             Node(
                 name="train.loss_sum",
@@ -372,7 +406,7 @@ def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[
         ]
     )
 
-    return nodes
+    return graph_nodes
 
 
 def _rollout_env_wait_node(core: CoreTrainingLoop) -> Node:
@@ -440,14 +474,14 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
     return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn, enabled=_phase_enabled("rollout"))
 
 
-def _loss_rollout_fn(loss: Loss):
+def _node_rollout_fn(node: NodeBase):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         with context.stopwatch("_rollout.inference"):
-            loss.rollout(workspace["td"], context)
+            node.rollout(workspace["td"], context)
         td = workspace["td"]
         if "actions" in td:
             workspace["actions_candidate"] = td["actions"]
-            workspace["actions_source"] = loss.instance_name
+            workspace["actions_source"] = node.node_name
         return {}
 
     return _fn
@@ -475,7 +509,7 @@ def _rollout_actions_check_fn(core: CoreTrainingLoop):
         if "actions_candidate" in workspace:
             td["actions"] = workspace["actions_candidate"]
         if "actions" not in td:
-            raise RuntimeError("No loss performed inference - at least one loss must generate actions")
+            raise RuntimeError("No node performed inference - at least one rollout node must generate actions")
 
         raw_actions = td["actions"].detach()
         if raw_actions.dim() != 1:
@@ -650,20 +684,24 @@ def _train_used_keys_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         used_keys: set[str] = set()
         policy_td = workspace["shared_loss_data"]["policy_td"]
-        for loss in core.losses.values():
-            if loss._loss_gate_allows("train", context):
-                used_keys.update(loss.policy_output_keys(policy_td))
+        for name, node in core.nodes.items():
+            spec = core.node_specs.get(name)
+            if spec is None or not spec.has_train:
+                continue
+            if not node.cfg.enabled or not node.node_gate_allows("train", context):
+                continue
+            used_keys.update(node.policy_output_keys(policy_td))
         workspace["used_keys"] = used_keys
         return {}
 
     return _fn
 
 
-def _loss_train_fn(loss: Loss):
+def _node_train_fn(node: NodeBase):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
-        loss_val, shared, stop = loss.train(workspace["shared_loss_data"], context, workspace["mb_idx"])
+        loss_val, shared, stop = node.train(workspace["shared_loss_data"], context, workspace["mb_idx"])
         workspace["shared_loss_data"] = shared
-        workspace["loss_values"][loss.instance_name] = loss_val
+        workspace["loss_values"][node.node_name] = loss_val
         if stop:
             workspace["stop_update_epoch"] = True
         return {}
@@ -710,9 +748,9 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
             return {}
 
         actual_max_grad_norm = float(workspace.get("max_grad_norm", 0.5))
-        for loss_obj in core.losses.values():
-            if hasattr(loss_obj.cfg, "max_grad_norm"):
-                actual_max_grad_norm = loss_obj.cfg.max_grad_norm
+        for node in core.nodes.values():
+            if hasattr(node.cfg, "max_grad_norm"):
+                actual_max_grad_norm = node.cfg.max_grad_norm
                 break
 
         torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)
@@ -727,8 +765,10 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
 
 def _train_on_mb_end_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
-        for loss_obj in core.losses.values():
-            loss_obj.on_mb_end(context, workspace["mb_idx"])
+        for name, node in core.nodes.items():
+            spec = core.node_specs.get(name)
+            if spec and spec.has_train:
+                node.on_mb_end(context, workspace["mb_idx"])
         return {}
 
     return _fn
@@ -743,3 +783,21 @@ def _phase_enabled(phase: str):
         return workspace.get("phase") == phase
 
     return _enabled
+
+
+def _node_phase_enabled(phase: str, node: NodeBase):
+    def _enabled(context: ComponentContext, workspace: dict[str, Any]) -> bool:
+        if workspace.get("phase") != phase:
+            return False
+        if not node.cfg.enabled:
+            return False
+        return node.node_gate_allows(phase, context)
+
+    return _enabled
+
+
+def _resolve_node_deps(prefix: str, base_dep: str, extra_deps: tuple[str, ...]) -> tuple[str, ...]:
+    deps = [base_dep] if base_dep else []
+    for dep in extra_deps:
+        deps.append(dep if "." in dep else f"{prefix}.{dep}")
+    return tuple(deps)

@@ -10,7 +10,7 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.nodes.contrastive_config import ContrastiveConfig
-from metta.rl.nodes.losses import LossesConfig
+from metta.rl.nodes import GraphConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -108,7 +108,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        losses=LossesConfig(contrastive=contrastive_config),
+        graph=GraphConfig(nodes={"contrastive": contrastive_config}),
     )
 
     return TrainTool(

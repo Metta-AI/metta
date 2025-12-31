@@ -116,8 +116,8 @@ class CheckpointManager:
             result["stopwatch_state"] = state["stopwatch_state"]
         if "curriculum_state" in state:
             result["curriculum_state"] = state["curriculum_state"]
-        if "loss_states" in state:
-            result["loss_states"] = state["loss_states"]
+        if "node_states" in state:
+            result["node_states"] = state["node_states"]
         return result
 
     def save_trainer_state(
@@ -128,7 +128,7 @@ class CheckpointManager:
         avg_reward: torch.Tensor | float | None = None,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
-        loss_states: Optional[Dict[str, Any]] = None,
+        node_states: Optional[Dict[str, Any]] = None,
     ):
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
@@ -144,8 +144,8 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:
             state["curriculum_state"] = curriculum_state
-        if loss_states is not None:
-            state["loss_states"] = loss_states
+        if node_states is not None:
+            state["node_states"] = node_states
 
         with tempfile.NamedTemporaryFile(
             dir=self.checkpoint_dir,

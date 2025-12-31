@@ -2,7 +2,7 @@
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.nodes.grpo import GRPOConfig
-from metta.rl.nodes.losses import LossesConfig
+from metta.rl.nodes import GraphConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
@@ -52,7 +52,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        losses=LossesConfig(grpo=grpo_config),
+        graph=GraphConfig(nodes={"grpo": grpo_config}),
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -85,8 +85,8 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
+    graph_config = GraphConfig(
+        nodes={"grpo": grpo_config},
     )
 
     # Configure optimizer
@@ -101,7 +101,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        graph=graph_config,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -134,8 +134,8 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
+    graph_config = GraphConfig(
+        nodes={"grpo": grpo_config},
     )
 
     # Configure optimizer
@@ -150,7 +150,7 @@ def basic_easy_shaped() -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        graph=graph_config,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )

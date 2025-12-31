@@ -18,10 +18,10 @@ from metta.cogworks.curriculum.curriculum import (
     DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes.losses import LossesConfig
+from metta.rl.nodes import GraphConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
@@ -168,9 +168,9 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
-    trainer_cfg = TrainerConfig(losses=LossesConfig())
+    trainer_cfg = TrainerConfig(graph=GraphConfig())
     scheduler = None
-    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_run_gates: list[NodeRunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
 

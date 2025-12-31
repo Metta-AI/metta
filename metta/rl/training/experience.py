@@ -103,7 +103,7 @@ class Experience:
         )
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int64)
 
-        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
+        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per node gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     @property
@@ -164,7 +164,7 @@ class Experience:
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
-        # Only include values if they exist (not all losses use value networks)
+        # Only include values if they exist (not all nodes use value networks)
         if "values" in self.buffer.keys():
             stats["values"] = self.buffer["values"].mean().item()
         if "ratio" in self.buffer.keys():
@@ -295,30 +295,30 @@ class Experience:
         shared_loss_mb_data["prio_weights"] = prio_weights
 
         shared_loss_mb_data["sampled_mb"] = minibatch
-        # broadcasting indices lets slicing work on it too. that way losses can more easily update buffer using indices
+        # broadcasting indices lets slicing work on it too. that way nodes can more easily update buffer using indices
         shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
         shared_loss_mb_data["advantages"] = advantages[indices]
 
         return shared_loss_mb_data
 
     @staticmethod
-    def from_losses(
+    def from_nodes(
         total_agents: int,
         batch_size: int,
         bptt_horizon: int,
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],
+        nodes: Dict[str, Any],
         device: torch.device | str,
         sampling_config: Any,  # av fix
     ) -> "Experience":
-        """Create experience buffer with merged specs from policy and losses."""
+        """Create experience buffer with merged specs from policy and nodes."""
 
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())
-        for loss in losses.values():
-            spec = loss.get_experience_spec()
+        for node in nodes.values():
+            spec = node.get_experience_spec()
             merged_spec_dict.update(dict(spec.items()))
 
         merged_spec_dict.setdefault(
@@ -337,6 +337,6 @@ class Experience:
             device=device,
             sampling_config=sampling_config,
         )
-        for loss in losses.values():
-            loss.attach_replay_buffer(experience)
+        for node in nodes.values():
+            node.attach_replay_buffer(experience)
         return experience

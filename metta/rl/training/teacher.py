@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.scheduler import LossRunGate, ScheduleRule
+from metta.rl.training.scheduler import NodeRunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
 
@@ -62,7 +62,7 @@ def apply_teacher_phase(
     trainer_cfg: TrainerConfig,
     training_env_cfg: TrainingEnvironmentConfig,
     scheduler_rules: list[ScheduleRule],
-    scheduler_run_gates: list[LossRunGate],
+    scheduler_run_gates: list[NodeRunGate],
     teacher_cfg: TeacherConfig,
     default_steps: int = DEFAULT_TEACHER_STEPS,
 ) -> None:
@@ -72,8 +72,8 @@ def apply_teacher_phase(
         return
 
     total_steps = teacher_cfg.steps or default_steps
-    losses = trainer_cfg.losses
-    loss_cfg = _select_teacher_loss_cfg(losses=losses, mode=teacher_cfg.mode)
+    nodes = trainer_cfg.graph.nodes
+    loss_cfg = _select_teacher_node_cfg(nodes=nodes, mode=teacher_cfg.mode)
     if loss_cfg is not None:
         _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
 
@@ -81,26 +81,26 @@ def apply_teacher_phase(
         if end_at_step:
             scheduler_run_gates.extend(
                 [
-                    LossRunGate(loss_instance_name=name, phase="rollout", end_at_step=end_at_step),
-                    LossRunGate(loss_instance_name=name, phase="train", end_at_step=end_at_step),
+                    NodeRunGate(node_name=name, phase="rollout", end_at_step=end_at_step),
+                    NodeRunGate(node_name=name, phase="train", end_at_step=end_at_step),
                 ]
             )
 
     def _gate_critic_after_teacher() -> None:
         if total_steps:
             scheduler_run_gates.append(
-                LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
+                NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
             )
-            if trainer_cfg.losses.quantile_ppo_critic.enabled:
+            if trainer_cfg.graph.nodes["quantile_ppo_critic"].enabled:
                 scheduler_run_gates.append(
-                    LossRunGate(loss_instance_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
+                    NodeRunGate(node_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
                 )
 
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:
         if total_steps and start_value > 0.0:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path=f"losses.{loss_name}.{attr_path}",
+                    target_path=f"graph.nodes.{loss_name}.{attr_path}",
                     mode="progress",
                     style="linear",
                     start_value=start_value,
@@ -115,7 +115,7 @@ def apply_teacher_phase(
         training_env_cfg.supervisor_policy_uri = teacher_cfg.policy_uri
 
     if teacher_cfg.mode == "sliced_cloner":
-        slicer = losses.sliced_scripted_cloner
+        slicer = nodes["sliced_scripted_cloner"]
         slicer.enabled = True
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
@@ -134,15 +134,15 @@ def apply_teacher_phase(
     elif teacher_cfg.mode == "sliced_cloner_no_ppo":
         """This will anneal teacher-led and student-led loss proportions, thereby leaving the PPO critic proportions to
         grow. PPO critic won't update weights because vf_coef is 0.0. PPO actor is disabled."""
-        slicer = losses.sliced_scripted_cloner
+        slicer = nodes["sliced_scripted_cloner"]
         slicer.enabled = True
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
         _gate_loss("sliced_scripted_cloner")
         _gate_critic_after_teacher()
-        losses.ppo_critic.vf_coef = 0.0
-        losses.ppo_actor.enabled = False
+        nodes["ppo_critic"].vf_coef = 0.0
+        nodes["ppo_actor"].enabled = False
         _anneal(
             "sliced_scripted_cloner", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion
         )
@@ -153,21 +153,21 @@ def apply_teacher_phase(
         )
 
     elif teacher_cfg.mode == "supervisor":
-        supervisor = losses.supervisor
+        supervisor = nodes["supervisor"]
         supervisor.enabled = True
         supervisor.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
         # Legacy BC behavior: stay in pure-supervisor mode for the whole run.
         # Do not gate off the supervisor or re-enable PPO later.
-        losses.ppo_actor.enabled = False
-        losses.ppo_critic.enabled = False
-        losses.quantile_ppo_critic.enabled = False
+        nodes["ppo_actor"].enabled = False
+        nodes["ppo_critic"].enabled = False
+        nodes["quantile_ppo_critic"].enabled = False
         scheduler_run_gates.clear()
         scheduler_rules.clear()
 
     elif teacher_cfg.mode == "sliced_kickstarter":
         _require_policy_uri(teacher_cfg)
-        sliced_kick = losses.sliced_kickstarter
+        sliced_kick = nodes["sliced_kickstarter"]
         sliced_kick.enabled = True
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
@@ -186,7 +186,7 @@ def apply_teacher_phase(
 
     elif teacher_cfg.mode == "eer_kickstarter":
         _require_policy_uri(teacher_cfg)
-        eer_kick = losses.eer_kickstarter
+        eer_kick = nodes["eer_kickstarter"]
         eer_kick.enabled = True
         eer_kick.teacher_uri = teacher_cfg.policy_uri
 
@@ -195,7 +195,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.eer_kickstarter.action_loss_coef",
+                    target_path="graph.nodes.eer_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.action_loss_coef,
@@ -206,7 +206,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.eer_kickstarter.value_loss_coef",
+                    target_path="graph.nodes.eer_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.value_loss_coef,
@@ -217,7 +217,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.eer_kickstarter.r_lambda",
+                    target_path="graph.nodes.eer_kickstarter.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.r_lambda,
@@ -228,7 +228,7 @@ def apply_teacher_phase(
             )
     elif teacher_cfg.mode == "kickstarter":
         _require_policy_uri(teacher_cfg)
-        ks = losses.kickstarter
+        ks = nodes["kickstarter"]
         ks.enabled = True
         ks.teacher_uri = teacher_cfg.policy_uri
         ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
@@ -239,7 +239,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.kickstarter.action_loss_coef",
+                    target_path="graph.nodes.kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.action_loss_coef,
@@ -250,7 +250,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.kickstarter.value_loss_coef",
+                    target_path="graph.nodes.kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.value_loss_coef,
@@ -262,7 +262,7 @@ def apply_teacher_phase(
 
     elif teacher_cfg.mode == "logit_kickstarter":
         _require_policy_uri(teacher_cfg)
-        logit = losses.logit_kickstarter
+        logit = nodes["logit_kickstarter"]
         logit.enabled = True
         logit.teacher_uri = teacher_cfg.policy_uri
         logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
@@ -273,7 +273,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.logit_kickstarter.action_loss_coef",
+                    target_path="graph.nodes.logit_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.action_loss_coef,
@@ -284,7 +284,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.logit_kickstarter.value_loss_coef",
+                    target_path="graph.nodes.logit_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.value_loss_coef,
@@ -296,7 +296,7 @@ def apply_teacher_phase(
 
     elif teacher_cfg.mode == "eer_cloner":
         _require_policy_uri(teacher_cfg)
-        eer_cl = losses.eer_cloner
+        eer_cl = nodes["eer_cloner"]
         eer_cl.enabled = True
 
         _gate_loss("eer_cloner")
@@ -304,7 +304,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.eer_cloner.action_loss_coef",
+                    target_path="graph.nodes.eer_cloner.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.action_loss_coef,
@@ -315,7 +315,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="losses.eer_cloner.r_lambda",
+                    target_path="graph.nodes.eer_cloner.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.r_lambda,
@@ -349,19 +349,19 @@ def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> No
             raise ValueError(f"Invalid teacher.kwargs override for mode='{teacher_cfg.mode}': {key}={value!r}") from e
 
 
-def _select_teacher_loss_cfg(*, losses: Any, mode: TeacherMode) -> Config | None:
+def _select_teacher_node_cfg(*, nodes: dict[str, Any], mode: TeacherMode) -> Config | None:
     if mode in {"sliced_cloner", "sliced_cloner_no_ppo"}:
-        return losses.sliced_scripted_cloner
+        return nodes.get("sliced_scripted_cloner")
     if mode == "supervisor":
-        return losses.supervisor
+        return nodes.get("supervisor")
     if mode == "sliced_kickstarter":
-        return losses.sliced_kickstarter
+        return nodes.get("sliced_kickstarter")
     if mode == "eer_kickstarter":
-        return losses.eer_kickstarter
+        return nodes.get("eer_kickstarter")
     if mode == "kickstarter":
-        return losses.kickstarter
+        return nodes.get("kickstarter")
     if mode == "logit_kickstarter":
-        return losses.logit_kickstarter
+        return nodes.get("logit_kickstarter")
     if mode == "eer_cloner":
-        return losses.eer_cloner
+        return nodes.get("eer_cloner")
     return None

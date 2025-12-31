@@ -24,12 +24,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
     reporter._context = SimpleNamespace(  # type: ignore[attr-defined, assignment]
         config=SimpleNamespace(
             optimizer=SimpleNamespace(learning_rate=0.0, type="adam"),
-            losses=SimpleNamespace(
-                loss_configs={
-                    "ppo_actor": SimpleNamespace(enabled=False),
-                    "ppo_critic": SimpleNamespace(enabled=False),
-                }
-            ),
+            graph=SimpleNamespace(nodes={}),
         ),
         stopwatch=timer,
         experience=SimpleNamespace(stats=lambda: {}),
@@ -54,7 +49,7 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
     reporter = _reporter(existing)
 
     payload = reporter._build_wandb_payload(
-        losses_stats={},
+        graph_stats={},
         experience=reporter.context.experience,
         trainer_cfg=reporter.context.config,
         policy=None,

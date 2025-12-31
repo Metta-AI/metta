@@ -152,10 +152,10 @@ class ScheduleRule(Config):
             self._apply_progress(obj=obj, epoch=int(epoch), agent_step=int(agent_step))
 
 
-class LossRunGate(Config):
-    """Per-loss, per-phase run gating over epochs/steps/cycles."""
+class NodeRunGate(Config):
+    """Per-node, per-phase run gating over epochs/steps/cycles."""
 
-    loss_instance_name: str
+    node_name: str
     phase: Literal["rollout", "train"]
 
     begin_at_epoch: Optional[int] = None
@@ -189,20 +189,20 @@ class LossRunGate(Config):
 class SchedulerConfig(Config):
     # Unified rules list only
     rules: list[ScheduleRule] = Field(default_factory=list)
-    run_gates: list[LossRunGate] = Field(default_factory=list)
+    run_gates: list[NodeRunGate] = Field(default_factory=list)
 
 
-class LossScheduler(TrainerComponent):
+class NodeScheduler(TrainerComponent):
     """Trainer-level scheduler for both:
     1) updates to any hyperparameters and
-    2) gating as to whether entire losses should run or not given the current epoch or agent step.
+    2) gating as to whether entire nodes should run or not given the current epoch or agent step.
 
     Usage (from an experiments recipe):
 
         from metta.tools.train import TrainTool
         from metta.rl.training import TrainingEnvironmentConfig, EvaluatorConfig
         from metta.rl.training.scheduler import (
-            SchedulerConfig, ScheduleRule, LossRunGate
+            SchedulerConfig, ScheduleRule, NodeRunGate
         )
 
         def train(...):
@@ -215,16 +215,16 @@ class LossScheduler(TrainerComponent):
                     # Gate when a loss is allowed to run per phase
                     run_gates=[
                         # Start PPO training after epoch 5
-                        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_epoch=5),
+                        NodeRunGate(node_name="ppo_actor", phase="train", begin_at_epoch=5),
                         # Allow PPO rollout from the start (explicit for clarity)
-                        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_epoch=0),
+                        NodeRunGate(node_name="ppo_actor", phase="rollout", begin_at_epoch=0),
                     ],
 
                     # Hyperparameter updates (progress- or metric-driven)
                     rules=[
                         # Linearly anneal PPO actor entropy coefficient from 0.02 -> 0.0 over epochs 0..50
                         ScheduleRule(
-                            target_path="losses.ppo_actor.ent_coef",
+                            target_path="graph.nodes.ppo_actor.ent_coef",
                             mode="progress",
                             style="linear",
                             start_value=0.02,
@@ -235,7 +235,7 @@ class LossScheduler(TrainerComponent):
 
                         # Drive a hyperparameter from a rollout metric (with smoothing and clamping)
                         ScheduleRule(
-                            target_path="losses.ppo_critic.vf_coef",
+                            target_path="graph.nodes.ppo_critic.vf_coef",
                             mode="metric",
                             metric_key="your_metric_key",  # key found in StatsReporter.state.rollout_stats
                             ema_beta=0.9,
@@ -247,7 +247,7 @@ class LossScheduler(TrainerComponent):
             )
 
     Notes:
-    - "target_path" is relative to the TrainerConfig root (e.g., "losses.ppo_actor.ent_coef").
+    - "target_path" is relative to the TrainerConfig root (e.g., "graph.nodes.ppo_actor.ent_coef").
     - For metric-driven rules, "metric_key" must exist in rollout stats accumulated by
       the StatsReporter (flattened keys from env infos).
     """
@@ -267,10 +267,10 @@ class LossScheduler(TrainerComponent):
         epoch = self.context.epoch
         agent_step = self.context.agent_step
         # 1) Apply run gates for the requested phase
-        gates = getattr(self.context, "loss_run_gates", None)
+        gates = getattr(self.context, "node_run_gates", None)
         if gates is None:
             gates = {}
-            self.context.loss_run_gates = gates
+            self.context.node_run_gates = gates
 
         # OR-combine semantics across gates for the same loss/phase.
         # Re-initialize per apply call to False iff there exists at least one gate
@@ -281,13 +281,13 @@ class LossScheduler(TrainerComponent):
         for gate in self.config.run_gates:
             if gate.phase != phase:
                 continue
-            loss_name = gate.loss_instance_name
+            node_name = gate.node_name
             allowed = gate.is_active(epoch=epoch, agent_step=agent_step)
-            entry = gates.get(loss_name)
+            entry = gates.get(node_name)
             if entry is None:
                 entry = {}
-                gates[loss_name] = entry
-            key = (loss_name, phase)
+                gates[node_name] = entry
+            key = (node_name, phase)
             if key not in seen_loss_phase:
                 # Initialize to False for this apply pass; subsequent gates OR into it
                 entry[phase] = False
@@ -297,8 +297,8 @@ class LossScheduler(TrainerComponent):
         # If a teacher/supervisor rollout loss is gated OFF, disable the supervisor to avoid extra forwards.
         if phase == "rollout":
             sup_off = False
-            for loss_name, entry in gates.items():
-                if loss_name in {"sliced_scripted_cloner", "supervisor", "sliced_kickstarter", "logit_kickstarter"}:
+            for node_name, entry in gates.items():
+                if node_name in {"sliced_scripted_cloner", "supervisor", "sliced_kickstarter", "logit_kickstarter"}:
                     if entry.get("rollout") is False:
                         sup_off = True
                         break
@@ -319,11 +319,14 @@ class LossScheduler(TrainerComponent):
         self._sync_optimizer_from_config()
 
         # 3) If the train phase is gated to false, restrict which experience keys
-        #    must be present based on which losses are active for rollout.
+        #    must be present based on which nodes are active for rollout.
         #    Check if any loss has train phase disabled (gated to False)
         train_disabled = False
-        for loss_name in self.context.losses.keys():
-            entry = gates.get(loss_name)
+        for node_name, node in self.context.nodes.items():
+            spec = self.context.node_specs.get(node_name)
+            if spec is None or not spec.has_train:
+                continue
+            entry = gates.get(node_name)
             if entry and entry.get("train") is False:
                 train_disabled = True
                 break
@@ -340,20 +343,23 @@ class LossScheduler(TrainerComponent):
         self.apply(phase="rollout")
 
     # ----------------- Experience key management -----------------
-    def _active_rollout_loss_names(self) -> Iterable[str]:
-        """Return loss instance names that are active for rollout in the current epoch."""
-        gates = getattr(self.context, "loss_run_gates", None) or {}
-        for loss_name in self.context.losses.keys():
-            entry = gates.get(loss_name)
+    def _active_rollout_node_names(self) -> Iterable[str]:
+        """Return node names that are active for rollout in the current epoch."""
+        gates = getattr(self.context, "node_run_gates", None) or {}
+        for node_name, node in self.context.nodes.items():
+            spec = self.context.node_specs.get(node_name)
+            if spec is None or not spec.has_rollout:
+                continue
+            entry = gates.get(node_name)
             if not entry:
                 # No gates configured for this loss; default to active.
-                yield loss_name
+                yield node_name
                 continue
             if bool(entry.get("rollout", True)):
-                yield loss_name
+                yield node_name
 
     def _update_experience_store_keys_for_rollout(self) -> None:
-        """Update experience buffer to only require keys for active rollout losses."""
+        """Update experience buffer to only require keys for active rollout nodes."""
         context = self.context
         experience = getattr(context, "experience", None)
         if experience is None:
@@ -363,12 +369,12 @@ class LossScheduler(TrainerComponent):
         policy_spec = context.policy.get_agent_experience_spec()
         active_keys: set[Any] = set(policy_spec.keys(include_nested=True, leaves_only=True))
 
-        # Include spec keys from losses that are active for rollout this epoch.
-        for loss_name in self._active_rollout_loss_names():
-            loss = context.losses.get(loss_name)
-            if loss is None:
+        # Include spec keys from nodes that are active for rollout this epoch.
+        for node_name in self._active_rollout_node_names():
+            node = context.nodes.get(node_name)
+            if node is None:
                 continue
-            spec = loss.get_experience_spec()
+            spec = node.get_experience_spec()
             active_keys.update(spec.keys(include_nested=True, leaves_only=True))
 
         active_keys.add("reward_baseline")
