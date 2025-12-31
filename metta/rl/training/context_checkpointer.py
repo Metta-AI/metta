@@ -32,9 +32,8 @@ class ContextCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
-        target_path = self._checkpoint_manager.checkpoint_dir
-        target_path.mkdir(parents=True, exist_ok=True)
-        logger.debug("Trainer checkpoints will be written to %s", target_path)
+        self._checkpoint_manager.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("Trainer checkpoints will be written to %s", self._checkpoint_manager.checkpoint_dir)
         self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
     # ------------------------------------------------------------------

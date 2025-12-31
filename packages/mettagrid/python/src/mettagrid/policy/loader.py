@@ -34,10 +34,11 @@ def initialize_or_load_policy(
     kwargs = policy_spec.init_kwargs or {}
     if "architecture_spec" in kwargs:
         architecture_spec = kwargs["architecture_spec"]
-        policy_architecture = load_symbol("metta.agent.policy.PolicyArchitecture", strict=True).from_spec(
-            architecture_spec
+        policy = (
+            load_symbol("metta.agent.policy.PolicyArchitecture", strict=True)
+            .from_spec(architecture_spec)
+            .make_policy(policy_env_info)
         )
-        policy = policy_architecture.make_policy(policy_env_info)
         device = torch.device(device_override or kwargs.get("device", "cpu"))
         policy = policy.to(device)
         state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
