@@ -3,7 +3,8 @@ import uuid
 import pytest
 
 from cogames.policy.chaos_monkey import ChaosMonkeyPolicy
-from metta.app_backend.clients.stats_client import NotAuthenticatedError, StatsClient
+from metta.app_backend.clients.base_client import get_machine_token
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.stats_routes import EpisodeQueryRequest
 from metta.sim.handle_results import write_eval_results_to_observatory
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
@@ -17,10 +18,15 @@ def _get_stats_client() -> StatsClient:
     stats_server_uri = auto_stats_server_uri()
     if not stats_server_uri:
         pytest.skip("Stats server not configured; skipping observatory smoke test.")
-    try:
-        return StatsClient.create(stats_server_uri)
-    except NotAuthenticatedError:
+    machine_token = get_machine_token(stats_server_uri)
+    if not machine_token:
         pytest.skip("No observatory auth token available; skipping observatory smoke test.")
+
+    stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+    response = stats_client._http_client.get("/whoami", headers={"X-Auth-Token": machine_token})
+    if response.status_code != 200 or response.json().get("user_email") in {"unknown", None}:
+        pytest.skip("No observatory auth token available; skipping observatory smoke test.")
+    return stats_client
 
 
 def test_chaos_monkey_observatory_roundtrip() -> None:

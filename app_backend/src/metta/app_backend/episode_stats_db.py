@@ -194,10 +194,19 @@ def read_agent_metrics(conn: duckdb.DuckDBPyConnection, episode_id: str) -> list
 
 def read_policy_metrics(conn: duckdb.DuckDBPyConnection, episode_id: str) -> list[tuple[str, str, float]]:
     """Read policy metrics for a specific episode."""
-    try:
-        result = conn.execute(
-            "SELECT policy_version_id, metric, value FROM episode_policy_metrics WHERE episode_id = ?", [episode_id]
-        )
-    except duckdb.CatalogException:
+    if not _table_exists(conn, "episode_policy_metrics"):
         return []
+    result = conn.execute(
+        "SELECT policy_version_id, metric, value FROM episode_policy_metrics WHERE episode_id = ?", [episode_id]
+    )
     return [(row[0], row[1], float(row[2])) for row in result.fetchall()]
+
+
+def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = ?",
+            [table_name],
+        ).fetchone()
+        is not None
+    )

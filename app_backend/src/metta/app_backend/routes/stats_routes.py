@@ -128,10 +128,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies")
     @timed_http_handler
     async def upsert_policy(policy: PolicyCreate, user: UserOrToken) -> UUIDResponse:
-        if policy.is_system_policy:
-            user_id = "system"
-        else:
-            user_id = user
+        user_id = "system" if policy.is_system_policy else user
 
         policy_id = await stats_repo.upsert_policy(name=policy.name, user_id=user_id, attributes=policy.attributes)
         return UUIDResponse(id=policy_id)
@@ -244,14 +241,19 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies/submit/complete")
     @timed_http_handler
     async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> UUIDResponse:
+        from botocore.exceptions import ClientError
+
         s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
 
-        try:
-            session = aioboto3.Session()
-            async with session.client("s3") as s3_client:  # type: ignore
+        session = aioboto3.Session()
+        async with session.client("s3") as s3_client:  # type: ignore
+            try:
                 await s3_client.head_object(Bucket=OBSERVATORY_S3_BUCKET, Key=s3_key)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
+            except ClientError as exc:
+                error_code = exc.response.get("Error", {}).get("Code")
+                if error_code in {"404", "NoSuchKey", "NotFound"}:
+                    raise HTTPException(status_code=400, detail="Uploaded submission not found in S3.") from exc
+                raise
 
         return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
 
@@ -302,70 +304,71 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         async with session.client("s3") as s3_client:  # type: ignore
             await s3_client.download_file(OBSERVATORY_S3_BUCKET, s3_key, temp_file_path)
 
-        conn = duckdb.connect(temp_file_path, read_only=True)
+        with duckdb.connect(temp_file_path, read_only=True) as conn:
+            episodes = read_episodes(conn)
 
-        episodes = read_episodes(conn)
+            episodes_created = 0
+            for episode_row in episodes:
+                episode_id = uuid.UUID(episode_row[0]) if isinstance(episode_row[0], str) else episode_row[0]
+                primary_pv_id = (
+                    uuid.UUID(episode_row[1]) if isinstance(episode_row[1], str) and episode_row[1] else None
+                )
+                replay_url = episode_row[2]
+                thumbnail_url = episode_row[3]
+                attributes = episode_row[4] or {}
+                eval_task_id = (
+                    uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
+                )
 
-        episodes_created = 0
-        for episode_row in episodes:
-            episode_id = uuid.UUID(episode_row[0]) if isinstance(episode_row[0], str) else episode_row[0]
-            primary_pv_id = uuid.UUID(episode_row[1]) if isinstance(episode_row[1], str) and episode_row[1] else None
-            replay_url = episode_row[2]
-            thumbnail_url = episode_row[3]
-            attributes = episode_row[4] or {}
-            eval_task_id = uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
+                tags = read_episode_tags(conn, str(episode_id))
 
-            tags = read_episode_tags(conn, str(episode_id))
+                agent_policy_map_str = read_agent_policies(conn, str(episode_id))
+                agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
+                policy_agent_counts = Counter(agent_policy_map.values())
 
-            agent_policy_map_str = read_agent_policies(conn, str(episode_id))
-            agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
-            policy_agent_counts = Counter(agent_policy_map.values())
+                agent_metrics_result = read_agent_metrics(conn, str(episode_id))
 
-            agent_metrics_result = read_agent_metrics(conn, str(episode_id))
+                policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
+                explicit_reward_policies: set[uuid.UUID] = set()
 
-            policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
-            explicit_reward_policies: set[uuid.UUID] = set()
+                for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
+                    pv_id = uuid.UUID(pv_id_str)
+                    policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
+                    if metric_name == "reward":
+                        explicit_reward_policies.add(pv_id)
 
-            for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
-                pv_id = uuid.UUID(pv_id_str)
-                policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
-                if metric_name == "reward":
-                    explicit_reward_policies.add(pv_id)
+                for agent_id, metric_name, metric_value in agent_metrics_result:
+                    if metric_name != "reward":
+                        continue
 
-            for agent_id, metric_name, metric_value in agent_metrics_result:
-                if metric_name != "reward":
-                    continue
+                    pv_id = agent_policy_map.get(int(agent_id))
+                    if pv_id is None or pv_id in explicit_reward_policies:
+                        continue
 
-                pv_id = agent_policy_map.get(int(agent_id))
-                if pv_id is None or pv_id in explicit_reward_policies:
-                    continue
+                    metrics = policy_metrics.setdefault(pv_id, {})
+                    metrics["reward"] = metrics.get("reward", 0.0) + float(metric_value)
 
-                metrics = policy_metrics.setdefault(pv_id, {})
-                metrics["reward"] = metrics.get("reward", 0.0) + float(metric_value)
+                policy_versions = list(policy_agent_counts.items())
+                policy_metrics_list = [
+                    (pv_id, metric_name, value)
+                    for pv_id, metrics in policy_metrics.items()
+                    for metric_name, value in metrics.items()
+                ]
 
-            policy_versions = list(policy_agent_counts.items())
-            policy_metrics_list = [
-                (pv_id, metric_name, value)
-                for pv_id, metrics in policy_metrics.items()
-                for metric_name, value in metrics.items()
-            ]
+                await stats_repo.record_episode(
+                    id=episode_id,
+                    data_uri=s3_uri,
+                    primary_pv_id=primary_pv_id,
+                    replay_url=replay_url,
+                    attributes=attributes,
+                    eval_task_id=eval_task_id,
+                    thumbnail_url=thumbnail_url,
+                    tags=tags,
+                    policy_versions=policy_versions,
+                    policy_metrics=policy_metrics_list,
+                )
 
-            await stats_repo.record_episode(
-                id=episode_id,
-                data_uri=s3_uri,
-                primary_pv_id=primary_pv_id,
-                replay_url=replay_url,
-                attributes=attributes,
-                eval_task_id=eval_task_id,
-                thumbnail_url=thumbnail_url,
-                tags=tags,
-                policy_versions=policy_versions,
-                policy_metrics=policy_metrics_list,
-            )
-
-            episodes_created += 1
-
-        conn.close()
+                episodes_created += 1
 
         return BulkEpisodeUploadResponse(episodes_created=episodes_created, duckdb_s3_uri=s3_uri)
 

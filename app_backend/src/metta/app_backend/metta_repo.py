@@ -219,11 +219,7 @@ class MettaRepo:
 
     async def close(self) -> None:
         if self._pool:
-            try:
-                await self._pool.close()
-            except RuntimeError:
-                # Event loop might be closed, ignore
-                pass
+            await self._pool.close()
 
     async def create_eval_task(
         self,
