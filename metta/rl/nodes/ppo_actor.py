@@ -10,8 +10,8 @@ from torchrl.data import Composite, UnboundedContinuous
 from metta.agent.policy import Policy
 from metta.rl.advantage import normalize_advantage_distributed
 from metta.rl.nodes.base import NodeBase, NodeConfig
-from metta.rl.training import ComponentContext, TrainingEnvironment
 from metta.rl.nodes.registry import NodeSpec
+from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
 class PPOActorConfig(NodeConfig):

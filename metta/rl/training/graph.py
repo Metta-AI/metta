@@ -41,9 +41,7 @@ class TrainingGraph:
                 edges[dep].append(node.name)
                 in_degree[node.name] += 1
 
-        queue: deque[str] = deque(
-            sorted((name for name, deg in in_degree.items() if deg == 0), key=index.__getitem__)
-        )
+        queue: deque[str] = deque(sorted((name for name, deg in in_degree.items() if deg == 0), key=index.__getitem__))
 
         while queue:
             name = queue.popleft()

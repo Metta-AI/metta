@@ -9,8 +9,8 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.nodes.cmpo import CMPOConfig
 from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.cmpo import CMPOConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 try:

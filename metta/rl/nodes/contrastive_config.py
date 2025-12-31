@@ -5,8 +5,8 @@ import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.nodes.contrastive import ContrastiveLoss
 from metta.rl.nodes.base import NodeConfig
+from metta.rl.nodes.contrastive import ContrastiveLoss
 from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import TrainingEnvironment
 

@@ -88,9 +88,7 @@ def apply_teacher_phase(
 
     def _gate_critic_after_teacher() -> None:
         if total_steps:
-            scheduler_run_gates.append(
-                NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
-            )
+            scheduler_run_gates.append(NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps))
             if trainer_cfg.nodes["quantile_ppo_critic"].enabled:
                 scheduler_run_gates.append(
                     NodeRunGate(node_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)

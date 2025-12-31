@@ -15,8 +15,6 @@ class NodeSpec:
     default_enabled: bool
     has_rollout: bool = True
     has_train: bool = True
-    rollout_requires: tuple[str, ...] = ()
-    train_requires: tuple[str, ...] = ()
 
 
 DEFAULT_NODE_ORDER: tuple[str, ...] = (

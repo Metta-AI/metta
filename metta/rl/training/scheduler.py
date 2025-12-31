@@ -323,7 +323,7 @@ class NodeScheduler(TrainerComponent):
         #    Check if any node has train phase disabled (gated to False)
         train_disabled = False
         node_specs = getattr(self.context, "node_specs", {}) or {}
-        for node_name, node in self.context.nodes.items():
+        for node_name, _node in self.context.nodes.items():
             spec = node_specs.get(node_name)
             if spec is None or not spec.has_train:
                 continue
@@ -348,7 +348,7 @@ class NodeScheduler(TrainerComponent):
         """Return node names that are active for rollout in the current epoch."""
         gates = getattr(self.context, "node_run_gates", None) or {}
         node_specs = getattr(self.context, "node_specs", {}) or {}
-        for node_name, node in self.context.nodes.items():
+        for node_name, _node in self.context.nodes.items():
             spec = node_specs.get(node_name)
             if spec is None or not spec.has_rollout:
                 continue
