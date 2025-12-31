@@ -172,6 +172,7 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
     @staticmethod
     def load_from_uri(
         uri: str,

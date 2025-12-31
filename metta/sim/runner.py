@@ -57,7 +57,9 @@ def _run_single_simulation(
     else:
         if not policy_specs:
             raise ValueError("At least one policy spec is required when policy_slots are not provided")
-        multi_agent_policies = [initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs]
+        multi_agent_policies = [
+            initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
+        ]
 
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)

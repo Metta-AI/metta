@@ -107,7 +107,6 @@ class PPOCritic(Loss):
         indices = shared_loss_data["indices"]
         if isinstance(indices, NonTensorData):
             indices = indices.data
-        prio_weights = shared_loss_data["prio_weights"]
 
         # Advantages are computed in the core loop and passed through shared_loss_data.
         # Keep the full advantages around for explained variance logging and prioritized sampling.
