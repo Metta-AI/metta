@@ -13,7 +13,7 @@ module "observatory_irsa" {
   }
 
   role_policy_arns = {
-    s3_policy = aws_iam_policy.observatory_s3.arn
+    policy = aws_iam_policy.observatory_s3.arn
     secrets_policy = aws_iam_policy.observatory_secrets.arn
   }
 }
