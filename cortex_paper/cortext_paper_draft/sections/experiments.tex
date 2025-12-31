@@ -1,0 +1,72 @@
+\section{Experiments and Results}
+\label{sec:experiments}
+
+We describe the evaluation suite and report results. \todo{replace all placeholder numbers with final results.}
+
+\subsection{ICL diagnostics}
+
+\textbf{Goal.} We quantify how mechanism diversity (Axis A) and trace dynamics (Axis B) impact memory. We isolate the benefits of Axon meta-recurrence.
+
+\textbf{Protocol.} We use \code{delayed\_recall}, \code{majority}, and \code{dyck}. Along Axis A, we compare single-mechanism stacks (Associative: \code{X}, \code{M}) against heterogeneous Columns (e.g., \code{Ag}, \code{A}, \code{S}). Along Axis B, we ablate Axon components (\code{A} experts and \code{^} projections where supported) to measure performance under strict TBPTT, and we vary column width and stack depth to study scaling. \todo{Author: Please define or replace the \code{Ag} pattern notation here.}
+
+\textbf{Results (diagnostics).}
+\begin{table}[h]
+  \centering
+  \caption{Memory diagnostics summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Pattern & Depth & top-$k$ & Score & Notes \\
+    \midrule
+    \code{S} & 3 & -- & \todo{metric} & \todo{notes} \\
+    \code{M} & 3 & -- & \todo{metric} & \todo{notes} \\
+    \code{AXMS} & 3 & 2 & \todo{metric} & \todo{notes} \\
+    \code{AXMS^} & 3 & 2 & \todo{metric} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Axon ablation.} We compare performance with and without AxonCell and AxonLayer, and sweep TBPTT length to isolate trace-driven credit assignment. We report normalized task scores and stability metrics. \todo{Insert Figure: Performance vs.\ TBPTT length.}
+
+\subsection{Open-ended learning}
+
+\textbf{Goal.} We evaluate the best architecture in an open-ended setting.
+\textbf{Protocol.} We train with the best recipe from ICL sweeps.
+\textbf{Results.} We report learning curves and stability statistics, including median return and interquartile range across seeds. \todo{Insert Figure.} \todo{Author: Please state the number of seeds and how curves are aggregated (mean/median, smoothing) here.}
+
+\subsection{Implementation details}
+We summarize the experimental setup to enable reproducibility. We will report the final model configuration, training budget, and evaluation protocol used for all results. \todo{fill with concrete values.}
+We will report model sizes (depth, width, pattern strings), training setup (optimizer, schedule, TBPTT length, batch size), compute budget (hardware, tokens/steps, wall-clock), and evaluation details (seeds, metrics, checkpoint selection).
+
+\subsection{External benchmarks}
+
+\textbf{Goal.} We evaluate transfer to \textbf{Craftax} (complex open-ended) and \textbf{Memory Gym} (endless memory tasks). \cite{craftax2024,pleines2023memorygym}
+
+\textbf{Results (Craftax).}
+\begin{table}[h]
+  \centering
+  \caption{Craftax summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Model & Params & Score & AUC & Notes \\
+    \midrule
+    GRU & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    TrXL & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    Cortex & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Results (Memory Gym).}
+\begin{table}[h]
+  \centering
+  \caption{Memory Gym summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Model & Params & Score & AUC & Notes \\
+    \midrule
+    GRU & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    TrXL & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    Cortex & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}

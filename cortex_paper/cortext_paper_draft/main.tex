@@ -1,0 +1,62 @@
+\documentclass{article}
+\usepackage[T1]{fontenc} % ensure Times fonts defined under pdfLaTeX
+
+% NeurIPS 2025 style file (included in Styles/).
+% For anonymous submission, remove [preprint].
+\usepackage[preprint,nonatbib]{Styles/neurips_2025}
+
+\usepackage[utf8]{inputenc}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{listings}
+
+% Bibliography
+\usepackage{biblatex}
+\addbibresource{references.bib}
+
+% Hyperlinks last
+\usepackage{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\parnobf}[1]{\vspace{0.25em}\noindent\textbf{#1.}}
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+
+\title{Cortex: Composable Recurrent Backbones for Scalable Agent Memory}
+\author{Anonymous Authors}
+\date{}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/related_work}
+\input{sections/method}
+\input{sections/taxonomy}
+\input{sections/blocks}
+\input{sections/columns}
+\input{sections/stacks}
+\input{sections/axon}
+\input{sections/scalable_systems}
+\input{sections/experiments}
+\input{sections/discussion}
+\input{sections/conclusion}
+\printbibliography
+\input{sections/appendix}
+
+\end{document}

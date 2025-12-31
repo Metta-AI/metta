@@ -1,0 +1,7 @@
+\section{Scalable Agent Memory Systems}
+
+\subsection{CortexTD}
+The \code{CortexTD} component wraps the stack. It manages state across rollout and training. It handles checkpointing and resets automatically. \todo{Author: Please describe the state container interface and reset policy here.} \todo{Author: Please clarify how CortexTD interacts with TBPTT boundaries and truncation lengths here.}
+
+\subsection{Synthetic tasks}
+We include tasks to verify state handling: \code{delayed\_recall} (long-range retention), \code{majority} (counting), and \code{dyck} (stack behavior). \todo{Author: Please define each task, its metric, and the typical sequence lengths used here.} \todo{Author: Please state how tasks are generated (e.g., distributions, sequence lengths, curriculum) here.}

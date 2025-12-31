@@ -1,0 +1,7 @@
+\begin{abstract}
+Long-term memory is a fundamental challenge for autonomous agents, especially in complex, partially observable environments. Existing approaches for building recurrent neural network backbones often tightly couple the memory mechanism with the network architecture, making it difficult to explore and combine different memory systems. To address this, we introduce \textbf{Cortex}, a modular framework that decouples the memory mechanism from the network architecture. This separation allows for rapid prototyping and analysis of different memory systems, accelerating research into scalable agent memory.
+
+Cortex provides a taxonomy of memory cells, categorizing them based on how they represent information (e.g., storing raw history versus summarizing it) and how they learn (e.g., using backpropagation through time versus more sophisticated trace-based methods). We introduce \textbf{AxonLayer}, a novel recurrent layer that can learn its own recurrence, a concept we call meta-recurrence. We also describe how to scale the width of the network using \textbf{Columns}, which are routed mixtures of experts.
+
+Our experiments demonstrate that Cortex can be used to build a variety of memory systems that excel at different tasks, from solving long-range memory-dependent problems to efficiently learning in open-ended environments. We provide an evaluation protocol covering memory diagnostics, open-ended learning, and external benchmarks (Craftax, Memory Gym) to facilitate future research.
+\end{abstract}

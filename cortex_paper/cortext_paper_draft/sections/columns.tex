@@ -1,0 +1,15 @@
+\section{Columns: Horizontal Scaling}
+
+A \textbf{Column} executes multiple expert Blocks in parallel. It routes deltas through a learned router.
+
+\subsection{Routing and stabilization}
+Each Column runs expert Blocks in parallel, computes routing scores $r_{t,e}$ (global + token refinement), selects the top-$k$ experts per token, and stabilizes the combined residual with an E-axis mixer and a ReZero-style parameter. \todo{Author: Please define the E-axis mixer and cite if it is drawn from prior work here.} \todo{Author: Please specify the router architecture and load-balancing loss, if any, here.}
+
+The column output is:
+\begin{equation}
+  \Delta_{\mathrm{col}}(x)_t = \mathrm{Mixer}\Big(\sum_{e=1}^E w_{t,e}\,\Delta_e(x)_t\Big), \qquad
+  y = x + \alpha\,\Delta_{\mathrm{col}}(x).
+\end{equation}
+
+\subsection{Expert patterns}
+We specify architectures via compact patterns (e.g., \code{"AXMS"}): \code{A} denotes Axon, \code{X} Transformer-XL, \code{M} mLSTM, \code{S} sLSTM, and \code{^} enables Axonified projections (see Section~\ref{sec:axon}).

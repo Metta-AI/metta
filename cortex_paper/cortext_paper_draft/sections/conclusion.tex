@@ -1,0 +1,22 @@
+\section{Conclusion}
+
+In this work, we introduced \textbf{Cortex}, a novel modular library designed to tackle the complexities of scalable agent memory. Our core contribution lies in the explicit separation of memory logic (Cells) from architectural structure (Blocks, Columns, Stacks), providing an unprecedented level of flexibility and reusability in recurrent neural network design.
+
+\todo{Author: Briefly summarize the main contributions: the modular framework, the uniform interface, and the architectural primitives (Cells, Blocks, Columns, Stacks).}
+
+We further proposed \textbf{AxonLayer}, a key innovation that enables meta-recurrence by integrating stateful dynamics directly into linear projections. This approach allows for a more pervasive and distributed form of temporal processing, moving beyond traditional localized memory units. We also established a two-axis taxonomy for memory cells, facilitating a clearer understanding and systematic exploration of diverse memory mechanisms.
+
+\todo{Author: Summarize the key findings from the experiments (once available). How did Cortex perform on ICL diagnostics, open-ended learning, and external benchmarks? Highlight the most significant results supporting Cortex's claims of scalability, efficiency, and flexibility.}
+
+The modularity of Cortex not only simplifies the construction of complex recurrent backbones but also accelerates the exploration of architectural innovations, enabling faster iteration and deeper insights into memory systems. It provides a robust platform for developing and understanding high-performance agents in challenging, partially observable environments.
+
+Looking ahead, the Cortex framework opens several exciting avenues for future research.
+\todo{Author: Propose concrete future work directions. This could include:
+\begin{itemize}
+    		item Further optimization of routing mechanisms and load balancing in Columns.
+    		item Exploration of novel Cell types and their hybridization within the Cortex framework.
+    		item Deeper theoretical analysis of meta-recurrence and its learning dynamics.
+    		item Application of Cortex to new domains and more complex agent tasks.
+    		item Development of tools for automated architecture search leveraging Cortex's modularity.
+\end{itemize}
+}

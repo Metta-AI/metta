@@ -1,0 +1,8 @@
+\section{Blocks: Stabilized Wrappers}
+
+\textbf{Blocks} wrap cells to manage projections, normalization, and routing. This keeps the cell equation pure. Common blocks include \code{PassThroughBlock} (applies residual), \code{PreUpBlock} (projects up, runs cell, projects down), \code{PostUpBlock} (runs cell, then applies gated FFN), and \code{PostUpGatedBlock} (gates both cell and FFN for deep-stack stability). All blocks consistently apply LayerNorm before the main projection and incorporate residuals after the cell computation, ensuring stable training.
+
+We define a block by its residual delta:
+\begin{equation}
+  y = x + \Delta(x, s).
+\end{equation}

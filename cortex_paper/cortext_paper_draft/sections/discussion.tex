@@ -1,0 +1,18 @@
+\section{Discussion}
+
+The development of Cortex provides a novel framework for understanding and constructing agent memory systems. Here, we delve into the broader implications of its modular design, the concept of meta-recurrence, and acknowledge inherent limitations that point to future research directions.
+
+\subsection{Modularity: Accelerating Architecture Search and Understanding}
+The core strength of Cortex lies in its modularity. By standardizing the interface for recurrence (Cells) and cleanly separating it from architectural concerns (Blocks, Columns, Stacks), Cortex significantly streamlines the process of exploring the vast space of recurrent neural network architectures.
+\todo{Author: Elaborate on how Cortex's modularity simplifies architecture search and experimentation. Provide examples of novel architectural combinations that become easy to construct. Compare the ease of exploration in Cortex with traditional, tightly coupled architectures. Discuss how this modularity contributes to scientific understanding of memory systems.}
+
+\subsection{Meta-recurrence: Distributing Temporal Inductive Bias}
+AxonLayer introduces a paradigm shift by turning linear projections into stateful primitives, embedding recurrence directly within the feed-forward backbone. This concept of "meta-recurrence" suggests that temporal inductive bias is not, and perhaps should not be, confined solely to dedicated memory cells.
+\todo{Author: Expand on the implications of meta-recurrence. How does distributing recurrence throughout the network change our understanding of neural network design? What are the theoretical advantages or disadvantages? How might this impact the learning capacity or generalization of models? Connect it back to the experimental findings (once available).}
+
+\subsection{Limitations and Future Work}
+While Cortex offers significant advantages, it also highlights inherent challenges in designing complex memory systems. One primary concern is the routing overhead associated with Mixture-of-Experts (MoE) architectures, as employed in Columns.
+\todo{Author: For routing overhead, explain why it is a concern (e.g., computational cost, complexity) and if any solutions were explored (e.g., specific ReZero implementations, sparse routing strategies). Discuss the potential "interference" when mixing diverse memory types (e.g., content-addressable with summary-state). Are there specific observations from experiments (once available) that support this? Propose concrete future research directions based on these limitations. For example, investigate novel regularizers designed to mitigate interference in heterogeneous memory compositions, or explore more efficient routing mechanisms.}
+
+\subsection{Broader Impact}
+\todo{Author: Discuss the broader implications of Cortex for AI agents, understanding biological memory (if applicable), or other relevant fields. How does this work advance the state of the art in agent memory and sequential decision-making?}

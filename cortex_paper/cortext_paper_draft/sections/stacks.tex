@@ -1,0 +1,12 @@
+\section{Stacks: Vertical Scaling}
+
+A \textbf{Stack} composes Blocks and Columns sequentially.
+We distinguish vertical scaling (depth) from horizontal scaling (Columns). This separation allows us to disentangle memory capacity from memory diversity. \todo{Author: Please specify whether parameters are shared across layers and how depth is scheduled here.}
+
+\begin{lstlisting}[language=Python]
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=4,
+    pattern="AXMS",
+)
+\end{lstlisting}

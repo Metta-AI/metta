@@ -1,0 +1,491 @@
+\documentclass{article}
+\usepackage[T1]{fontenc} % ensure Times fonts defined under pdfLaTeX
+
+% NeurIPS 2025 style file (included in Styles/).
+% For anonymous submission, remove [preprint].
+\usepackage[preprint,nonatbib]{Styles/neurips_2025}
+
+\usepackage[utf8]{inputenc}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{listings}
+
+% Bibliography
+\usepackage{biblatex}
+\addbibresource{references.bib}
+
+% Hyperlinks last
+\usepackage{hyperref}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\parnobf}[1]{\vspace{0.25em}\noindent\textbf{#1.}}
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{TODO:} #1}}
+
+\title{Cortex: Composable Recurrent Backbones for Scalable Agent Memory}
+\author{Anonymous Authors}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================================
+% ABSTRACT
+% ============================================================================
+\begin{abstract}
+Long-term memory is a fundamental challenge for autonomous agents, especially in complex, partially observable environments. Existing approaches for building recurrent neural network backbones often tightly couple the memory mechanism with the network architecture, making it difficult to explore and combine different memory systems. To address this, we introduce \textbf{Cortex}, a modular framework that decouples the memory mechanism from the network architecture. This separation allows for rapid prototyping and analysis of different memory systems, accelerating research into scalable agent memory.
+
+Cortex provides a taxonomy of memory cells, categorizing them based on how they represent information (e.g., storing raw history versus summarizing it) and how they learn (e.g., using backpropagation through time versus more sophisticated trace-based methods). We introduce \textbf{AxonLayer}, a novel recurrent layer that can learn its own recurrence, a concept we call meta-recurrence. We also describe how to scale the width of the network using \textbf{Columns}, which are routed mixtures of experts.
+
+Our experiments demonstrate that Cortex can be used to build a variety of memory systems that excel at different tasks, from solving long-range memory-dependent problems to efficiently learning in open-ended environments. We provide an evaluation protocol covering memory diagnostics, open-ended learning, and external benchmarks (Craftax, Memory Gym) to facilitate future research.
+\end{abstract}
+
+% ============================================================================
+% INTRODUCTION
+% ============================================================================
+\section{Introduction}
+
+Neural network architectures for sequential data typically fall into two broad families: models that reprocess a fixed context window, and models that carry state forward across steps. The first class---often built around attention or convolution---trades compute for flexibility by recomputing representations from a sliding window of recent tokens or observations. The second class---recurrent or state-space models---updates a compact state online, enabling constant-time inference per step. Both families are useful in reinforcement learning, where agents act continuously and experience streams of observations, rewards, and actions.
+
+In RL, the environment advances at every timestep and the agent must update its policy and internal state repeatedly. This creates strong temporal locality: adjacent steps share most of their context, and the effective computation resembles a sliding window with heavy reuse. Efficient inference therefore benefits from architectures that can preserve and update state rather than recomputing history. However, the credit assignment signal often spans much longer horizons than the window used for training (e.g., TBPTT), which puts pressure on the memory mechanism to retain and expose long-range information.
+
+Sequential decision-making under partial observability thus requires explicit memory. Agents must infer latent state from observations spanning thousands of steps, and the memory mechanism must balance long-horizon credit assignment with efficient online updates. Transformers handle long dependencies but suffer from expensive inference. \cite{dai2019transformerxl,parisotto2020gtrxl} Recurrent alternatives offer efficient inference but lack unified implementations. \cite{beck2024xlstm}
+
+We propose \textbf{Cortex}, a modular system for recurrent backbones. Cortex makes memory mechanisms composable. It scales architectures vertically (depth) and horizontally (mixtures of experts) without rewriting system glue. \cite{shazeer2017moe,lepikhin2021gshard,fedus2022switch}
+
+We summarize our contributions as follows: (i) a composable abstraction hierarchy spanning \textbf{Cells}, \textbf{Blocks}, \textbf{Columns}, and \textbf{Stacks} with a uniform interface and explicit state; (ii) \textbf{AxonLayer} as a stateful replacement for \code{nn.Linear} alongside a two-axis taxonomy of memory cells; and (iii) scalable architectures that grow in width via routed Columns and in depth via Stacks, together with an evaluation suite spanning diagnostics and RL benchmarks.
+
+% ============================================================================
+% RELATED WORK
+% ============================================================================
+\section{Related Work}
+This section surveys existing work in recurrent sequence models, long-horizon memory systems, and modular architectures, highlighting the landscape where Cortex makes its contributions. We position Cortex at the intersection of these fields.
+
+\parnobf{Recurrent, trace-augmented, and truncation-aware memory}
+Cortex draws on recurrent approaches that balance inference efficiency with long-horizon credit assignment, including gated RNN variants and explicit trace mechanisms. Truncated backpropagation motivates updates that preserve learning signals across segment boundaries, which can be integrated as lightweight state updates inside the Cell interface. \cite{beck2024xlstm,pramanik2023agalite,elelimy2024rtu} Cortex further simplifies the integration of such sophisticated memory mechanisms by providing a flexible interface that decouples them from architectural choices.
+
+\parnobf{Content-addressable and hybrid memory}
+Long-context attention and fast-weight style memories provide content-based retrieval and associative updates, and several systems combine such mechanisms with gated recurrences. Cortex models these as content-addressable Cells and elevates hybrid compositions to first-class patterns that can be mixed within Columns or Stacks, offering a unified approach to complex memory architectures. \cite{dai2019transformerxl,parisotto2020gtrxl,beck2024xlstm}
+
+\parnobf{Structured sequence models}
+State-space, linear-recurrence, and long-range convolutional operators provide efficient long-sequence processing with structured dynamics. Cortex is compatible with these models as Cells, separating their recurrence from architectural scaffolding while preserving their computational advantages, thus providing a flexible platform for their integration. \cite{gu2022s4,smith2023s5,gu2023mamba,poli2023hyena,vandenoord2016wavenet,bai2018tcn}
+
+\parnobf{Modularity, conditional compute, and stability}
+Columns implement routed mixtures of expert Blocks to scale width, connecting to modular and MoE systems with routing and load-balancing considerations. We draw on stabilization ideas from RL transformers and apply them consistently at the Block level to reduce sensitivity to the underlying Cell. Cortex extends these ideas by providing a unified framework for composing modular components and managing stability across different memory mechanisms. \cite{shazeer2017moe,lepikhin2021gshard,fedus2022switch,parisotto2020gtrxl}
+
+\parnobf{Benchmarks and diagnostics}
+We evaluate Cortex on diagnostic memory tasks and open-ended benchmarks that stress long-horizon dependencies and continual learning, which helps attribute gains to specific memory mechanisms rather than scale alone. \cite{craftax2024,pleines2023memorygym}
+
+% ============================================================================
+% METHOD
+% ============================================================================
+\section{Method}
+
+\subsection{Problem setting and design goals}
+\parnobf{Truncation-aware memory}
+Most deep RL systems train with \textbf{truncated backpropagation through time (TBPTT)}, i.e., backpropagation through a fixed-length unroll rather than the full episode. TBPTT improves efficiency but cuts the gradient path at chunk boundaries, which limits credit assignment to short windows. Cortex targets this regime by making memory mechanisms explicit and swappable: cells can include streaming traces or other online updates without changing the surrounding architecture. The precise TBPTT setting and truncation lengths used in our experiments are detailed in Section~\ref{sec:experiments}.
+
+\parnobf{Scalability goals}
+We design for scalable memory along three fronts: depth (stacking), width (expert mixtures), and mechanism diversity (content-addressable, summary-state, and local filters). The key design choice is to keep the interface stable while letting the underlying cell implement the memory equation, so that scaling up or mixing mechanisms does not require rewriting system glue. The concrete design goals and constraints used in the library are further elaborated in the implementation details.
+
+\subsection{Cortex architecture}
+\parnobf{Philosophy}
+We separate concerns: \textbf{Cells} implement recurrence, while \textbf{Blocks}, \textbf{Columns}, and \textbf{Stacks} handle architectural decisions. This separation lets us reuse the same cell across multiple architectural wrappers.
+
+\parnobf{Abstractions}
+Cortex implements a stack-based architecture with four abstractions: \textbf{Cells} encapsulate recurrence (gates, state update; e.g., LSTM, mLSTM, Attention), \textbf{Blocks} wrap cells to handle projections, normalization, and residuals, \textbf{Columns} execute expert Blocks in parallel for horizontal scaling, and \textbf{Stacks} compose Blocks/Columns sequentially for vertical scaling. \cite{shazeer2017moe,lepikhin2021gshard,fedus2022switch}
+
+\parnobf{Uniform interface}
+All abstractions share the same forward signature. Inputs are batch-first (\code{[B, T, H]}), state is a nested TensorDict (cell $\rightarrow$ block $\rightarrow$ column $\rightarrow$ stack), and resets propagate automatically. This uniformity allows agents to treat a deep MoE stack identically to a single cell.
+
+\parnobf{Figure overview}
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][2.2in][c]{0.95\linewidth}{\centering \todo{Figure 1 placeholder: Cortex architecture diagram.}}}
+  \caption{Cortex architecture overview.}
+  \label{fig:cortex-arch}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][2.0in][c]{0.95\linewidth}{\centering \todo{Figure 2 placeholder: AxonLayer schematic.}}}
+  \caption{AxonLayer: static vs.\ streaming projections.}
+  \label{fig:axonlayer}
+\end{figure}
+
+\subsection{Formal definitions}
+\parnobf{Notation}
+Let $x \in \mathbb{R}^{B\times T\times H}$ be a batch of sequences with batch size $B$, length $T$, and hidden size $H$. Each module takes $(x, s)$ and returns $(y, s')$ where $s$ is a structured state tree.
+
+\parnobf{Configuration shorthand}
+We describe architectures with a compact pattern string (e.g., \code{AXMS^}) and a small set of scalars (depth $L$, expert count $E$, and top-$k$). For example, a pattern can specify the per-layer expert mix, while the trailing \code{^} toggles AxonLayer in eligible projections. The exact mapping from pattern characters to Cells and any expansion rules are provided in Appendix A.
+
+\parnobf{Unified interface}
+All Cortex modules implement a shared forward signature:
+\begin{equation}
+  (y, s') = f(x, s; \theta).
+\end{equation}
+State is a nested TensorDict organized by module type (cell $\rightarrow$ block $\rightarrow$ column $\rightarrow$ stack). Each module owns a named subtree so that resets and checkpointing can be applied uniformly across depth and width. \todo{specify state schema and reset semantics.} \todo{provide a small illustrative state-tree example for a 2-layer stack with a Column.}
+
+\parnobf{Cells}
+A Cell defines the recurrence:
+\begin{equation}
+  h_{t+1} = \Phi(h_t, x_t; \theta),
+\end{equation}
+optionally with auxiliary traces $z_t$ for long-horizon credit assignment. We use this form to express Axon-style trace updates and fast-weight variants as special cases. \todo{provide AxonCell and mLSTM update equations.}
+
+\parnobf{AxonCell (placeholder)}
+We express AxonCell with an explicit trace update:
+\begin{align}
+  h_{t+1} &= f(h_t, x_t, z_t; \theta), \\
+  z_{t+1} &= u(z_t, h_t, x_t; \theta).
+\end{align}
+\todo{insert exact AxonCell recurrence, trace update, and any boundary correction terms.}
+
+\parnobf{Content-addressable cells (placeholder)}
+We represent associative memory updates with a key--value store $M_t$:
+\begin{align}
+  r_t &= \mathrm{Read}(x_t, M_t), \\
+  M_{t+1} &= \mathrm{Write}(M_t, x_t; \theta).
+\end{align}
+\todo{specify the exact update for XL/attention, mLSTM, or other fast-weight variants.}
+
+\parnobf{Blocks}
+Blocks wrap Cells to manage projections, normalization, and residuals. The residual form is:
+\begin{equation}
+  y = x + \Delta(x, s),
+\end{equation}
+where $\Delta$ may include projections and gating. We use consistent normalization and residual ordering across Blocks to enable swapping cells without architectural rewrites. \todo{specify PreUp/PostUp variants and normalization order.}
+
+\parnobf{Columns}
+A Column routes tokens across $E$ expert Blocks. Let $w_{t,e}$ be routing weights and $\Delta_e$ the expert deltas. The Column output is:
+\begin{equation}
+  \Delta_{\mathrm{col}}(x)_t = \mathrm{Mixer}\Big(\sum_{e=1}^E w_{t,e}\,\Delta_e(x)_t\Big).
+\end{equation}
+\todo{define router, top-$k$ selection, and stabilization terms.}
+
+\parnobf{Stacks}
+A Stack composes Blocks and Columns sequentially:
+\begin{equation}
+  x^{(l+1)} = f^{(l)}(x^{(l)}, s^{(l)}), \quad l=1,\dots,L.
+\end{equation}
+\todo{define depth/width scaling and parameter sharing choices.}
+
+\parnobf{AxonLayer}
+AxonLayer replaces static linear projections with streaming dynamics:
+\begin{equation}
+  y_t = W_t x_t, \quad W_{t+1} = g(W_t, x_t, s_t).
+\end{equation}
+\todo{specify trace update, stability constraints, and integration with Cells.} \todo{clarify which projections are Axonified and how this interacts with normalization/residuals.}
+
+\parnobf{Implementation details (summary)}
+We report full hyperparameters in Section~\ref{sec:experiments}. Here we only note the minimal configuration needed to interpret results: depth, width, pattern string, routing top-$k$, and whether AxonLayer is enabled. \todo{add exact defaults once experiments are finalized.}
+
+% ============================================================================
+% TAXONOMY
+% ============================================================================
+\section{Memory Cells: A Two-Axis Taxonomy}
+
+We classify Cortex cells along two orthogonal axes: \textbf{Axis A} (inference-time representation) and \textbf{Axis B} (learning-signal span).
+
+\begin{table}[t]
+  \centering
+  \caption{Two-axis classification of Cortex cell families.}
+  \label{tab:cell-taxonomy}
+  \small
+  \begin{tabular}{p{0.34\linewidth}p{0.40\linewidth}p{0.22\linewidth}}
+    \toprule
+    Cell family & Axis A: inference-time memory & Axis B: learning signal span \\
+    \midrule
+    Attention/XL (\code{XLCell}) & Content-addressable / associative & BPTT-only \\
+    AGaLiTe (\code{AGaLiTeCell}) & Content-addressable / associative & BPTT-only \\
+    mLSTM (\code{mLSTMCell}) & Content-addressable / associative (matrix) & BPTT-only \\
+    Axon (\code{AxonCell}) & Summary-state dynamical (linear) & Trace-augmented \\
+    (s)LSTM / GRU & Summary-state dynamical (gated) & BPTT-only \\
+    CausalConv1d & Local temporal filters & BPTT-only \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Axis A: Inference-time representation}
+Under Axis A, we distinguish three primary categories of memory mechanisms based on how they represent and store information:
+
+\parnobf{Content-addressable stores}
+These mechanisms retrieve information by matching a query against stored keys. Representative examples include Attention/XL (\code{XLCell}) that stores past activations, AGaLiTe (\code{AGaLiTeCell}) as a gated linear transformer variant, and mLSTM (\code{mLSTMCell}) with fast-weight-like matrix memory. \cite{dai2019transformerxl,pramanik2023agalite,beck2024xlstm}
+
+\parnobf{Summary-state dynamical systems}
+These mechanisms compress history into a fixed-size state. The linear/Axon family (\textbf{AxonCell}) implements a streaming RTU with diagonal input weights and compact eligibility traces, while nonlinear gated variants (e.g., \textbf{sLSTMCell}) use multiplicative gates to control writing and forgetting. \cite{elelimy2024rtu,beck2024xlstm}
+
+\parnobf{Local temporal filters}
+These mechanisms represent memory as a finite impulse response, often implemented with causal or dilated convolutions. \textbf{CausalConv1d} streams efficiently but has a local horizon. The receptive-field length used in experiments and its comparison to TBPTT horizons are detailed in Section~\ref{sec:experiments}.
+
+\subsection{Axis B: Learning signal span}
+Under Axis B, we categorize memory mechanisms based on how they propagate learning signals and manage credit assignment over time:
+
+\parnobf{BPTT-only}
+Most mechanisms rely on gradients flowing through the unrolled graph. Under TBPTT, the truncation horizon limits learning. This includes Attention, mLSTM, and gated RNNs.
+
+\parnobf{Trace-augmented}
+\textbf{Axon} maintains eligibility traces and boundary corrections. These allow credit assignment to flow across chunk boundaries, supporting online learning.
+
+\subsection{Hybridization}
+Cortex mixes these axes. An MoE Column can route between a trace-augmented expert (Axon), a content-addressable expert (mLSTM), and a nonlinear expert (sLSTM). This taxonomy maps directly to the Cell choices used in our Method section and experimental configurations.
+
+% ============================================================================
+% BLOCKS
+% ============================================================================
+\section{Blocks: Stabilized Wrappers}
+
+\textbf{Blocks} wrap cells to manage projections, normalization, and routing. This keeps the cell equation pure. Common blocks include \code{PassThroughBlock} (applies residual), \code{PreUpBlock} (projects up, runs cell, projects down), \code{PostUpBlock} (runs cell, then applies gated FFN), and \code{PostUpGatedBlock} (gates both cell and FFN for deep-stack stability). All blocks consistently apply LayerNorm before the main projection and incorporate residuals after the cell computation, ensuring stable training.
+
+We define a block by its residual delta:
+\begin{equation}
+  y = x + \Delta(x, s).
+\end{equation}
+
+% ============================================================================
+% COLUMNS
+% ============================================================================
+\section{Columns: Horizontal Scaling}
+
+A \textbf{Column} executes multiple expert Blocks in parallel. It routes deltas through a learned router.
+
+\subsection{Routing and stabilization}
+Each Column runs expert Blocks in parallel, computes routing scores $r_{t,e}$ (global + token refinement), selects the top-$k$ experts per token, and stabilizes the combined residual with an E-axis mixer and a ReZero-style parameter. \todo{Author: Please define the E-axis mixer and cite if it is drawn from prior work here.} \todo{Author: Please specify the router architecture and load-balancing loss, if any, here.}
+
+The column output is:
+\begin{equation}
+  \Delta_{\mathrm{col}}(x)_t = \mathrm{Mixer}\Big(\sum_{e=1}^E w_{t,e}\,\Delta_e(x)_t\Big), \qquad
+  y = x + \alpha\,\Delta_{\mathrm{col}}(x).
+\end{equation}
+
+\subsection{Expert patterns}
+We specify architectures via compact patterns (e.g., \code{"AXMS"}): \code{A} denotes Axon, \code{X} Transformer-XL, \code{M} mLSTM, \code{S} sLSTM, and \code{^} enables Axonified projections (see Section~\ref{sec:axon}).
+
+% ============================================================================
+% STACKS
+% ============================================================================
+\section{Stacks: Vertical Scaling}
+
+A \textbf{Stack} composes Blocks and Columns sequentially.
+We distinguish vertical scaling (depth) from horizontal scaling (Columns). This separation allows us to disentangle memory capacity from memory diversity. \todo{Author: Please specify whether parameters are shared across layers and how depth is scheduled here.}
+
+\begin{lstlisting}[language=Python]
+stack = build_cortex_auto_stack(
+    d_hidden=256,
+    num_layers=4,
+    pattern="AXMS",
+)
+\end{lstlisting}
+
+% ============================================================================
+% AXON
+% ============================================================================
+\section{Axon and AxonLayer: Meta-recurrence for Scalable Memory}
+\label{sec:axon}
+
+We introduce \textbf{Axon} in two distinct but related roles within the Cortex framework: \textbf{AxonCell} (denoted as \code{A} in patterns), a standalone memory cell with streaming traces for long-horizon credit assignment, and \textbf{AxonLayer}, a novel stateful linear operator that introduces recurrence directly into feed-forward projections.
+
+\subsection{AxonCell: A Trace-Augmented Memory Unit}
+AxonCell is designed as a memory unit that explicitly manages eligibility traces to facilitate credit assignment over extended temporal horizons, particularly beneficial in Truncated Backpropagation Through Time (TBPTT) settings.
+\todo{Describe AxonCell's core mechanism, its state, and how streaming traces are managed. Refer to the formal equations in the Method section for full details.}
+
+\subsection{AxonLayer: Embedding Temporal Inductive Bias}
+AxonLayer extends the concept of recurrence beyond the traditional cell by replacing static \code{nn.Linear} projections with dynamic, stateful operations. This allows the network to learn and adapt its internal transformations based on temporal context.
+\todo{Elaborate on the streaming dynamics of AxonLayer. Explain how it maintains and updates its internal state and eligibility traces. Provide a high-level explanation of the underlying mechanism (e.g., how $W_{t+1} = g(W_t, x_t, s_t)$ works in practice). Discuss its benefits over static projections.}
+
+\subsubsection{Meta-recurrence}
+We term this approach \textbf{meta-recurrence} because recurrence is embedded within the fundamental linear transformations of the network (e.g., Q/K/V projections in attention mechanisms, or gating functions in recurrent units), rather than being confined solely to the primary memory cell.
+\todo{Explain the power and implications of meta-recurrence. How does it enhance the network's ability to process sequential data? Provide concrete examples of how it can appear within Q/K/V projections and gates. Discuss computational implications and potential benefits for complex tasks.}
+
+\subsection{Integration within Cortex}
+AxonLayer seamlessly integrates with Cortex's modular abstractions. It can be toggled via the `^` symbol in architectural patterns and can enhance the temporal processing capabilities of various Blocks, Columns, and Stacks.
+\todo{Provide examples of how AxonLayer interacts with Blocks (e.g., how it can modify the projections within a PreUpBlock or PostUpBlock) and its impact on the overall architecture. Clarify the conditions under which projections are "Axonified."}
+
+% ============================================================================
+% SCALABLE SYSTEMS
+% ============================================================================
+\section{Scalable Agent Memory Systems}
+
+\subsection{CortexTD}
+The \code{CortexTD} component wraps the stack. It manages state across rollout and training. It handles checkpointing and resets automatically. \todo{Author: Please describe the state container interface and reset policy here.} \todo{Author: Please clarify how CortexTD interacts with TBPTT boundaries and truncation lengths here.}
+
+\subsection{Synthetic tasks}
+We include tasks to verify state handling: \code{delayed\_recall} (long-range retention), \code{majority} (counting), and \code{dyck} (stack behavior). \todo{Author: Please define each task, its metric, and the typical sequence lengths used here.} \todo{Author: Please state how tasks are generated (e.g., distributions, sequence lengths, curriculum) here.}
+
+% ============================================================================
+% EXPERIMENTS
+% ============================================================================
+\section{Experiments and Results}
+\label{sec:experiments}
+
+We describe the evaluation suite and report results. \todo{replace all placeholder numbers with final results.}
+
+\subsection{ICL diagnostics}
+
+\textbf{Goal.} We quantify how mechanism diversity (Axis A) and trace dynamics (Axis B) impact memory. We isolate the benefits of Axon meta-recurrence.
+
+\textbf{Protocol.} We use \code{delayed\_recall}, \code{majority}, and \code{dyck}. Along Axis A, we compare single-mechanism stacks (Associative: \code{X}, \code{M}) against heterogeneous Columns (e.g., \code{Ag}, \code{A}, \code{S}). Along Axis B, we ablate Axon components (\code{A} experts and \code{^} projections where supported) to measure performance under strict TBPTT, and we vary column width and stack depth to study scaling. \todo{Author: Please define or replace the \code{Ag} pattern notation here.}
+
+\textbf{Results (diagnostics).}
+\begin{table}[h]
+  \centering
+  \caption{Memory diagnostics summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Pattern & Depth & top-$k$ & Score & Notes \\
+    \midrule
+    \code{S} & 3 & -- & \todo{metric} & \todo{notes} \\
+    \code{M} & 3 & -- & \todo{metric} & \todo{notes} \\
+    \code{AXMS} & 3 & 2 & \todo{metric} & \todo{notes} \\
+    \code{AXMS^} & 3 & 2 & \todo{metric} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Axon ablation.} We compare performance with and without AxonCell and AxonLayer, and sweep TBPTT length to isolate trace-driven credit assignment. We report normalized task scores and stability metrics. \todo{Insert Figure: Performance vs.\ TBPTT length.}
+
+\subsection{Open-ended learning}
+
+\textbf{Goal.} We evaluate the best architecture in an open-ended setting.
+\textbf{Protocol.} We train with the best recipe from ICL sweeps.
+\textbf{Results.} We report learning curves and stability statistics, including median return and interquartile range across seeds. \todo{Insert Figure.} \todo{Author: Please state the number of seeds and how curves are aggregated (mean/median, smoothing) here.}
+
+\subsection{Implementation details}
+We summarize the experimental setup to enable reproducibility. We will report the final model configuration, training budget, and evaluation protocol used for all results. \todo{fill with concrete values.}
+We will report model sizes (depth, width, pattern strings), training setup (optimizer, schedule, TBPTT length, batch size), compute budget (hardware, tokens/steps, wall-clock), and evaluation details (seeds, metrics, checkpoint selection).
+
+\subsection{External benchmarks}
+
+\textbf{Goal.} We evaluate transfer to \textbf{Craftax} (complex open-ended) and \textbf{Memory Gym} (endless memory tasks). \cite{craftax2024,pleines2023memorygym}
+
+\textbf{Results (Craftax).}
+\begin{table}[h]
+  \centering
+  \caption{Craftax summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Model & Params & Score & AUC & Notes \\
+    \midrule
+    GRU & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    TrXL & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    Cortex & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Results (Memory Gym).}
+\begin{table}[h]
+  \centering
+  \caption{Memory Gym summary (template).}
+  \begin{tabular}{lcccc}
+    \toprule
+    Model & Params & Score & AUC & Notes \\
+    \midrule
+    GRU & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    TrXL & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    Cortex & \todo{params} & \todo{score} & \todo{auc} & \todo{notes} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================================
+% DISCUSSION
+% ============================================================================
+\section{Discussion}
+
+The development of Cortex provides a novel framework for understanding and constructing agent memory systems. Here, we delve into the broader implications of its modular design, the concept of meta-recurrence, and acknowledge inherent limitations that point to future research directions.
+
+\subsection{Modularity: Accelerating Architecture Search and Understanding}
+The core strength of Cortex lies in its modularity. By standardizing the interface for recurrence (Cells) and cleanly separating it from architectural concerns (Blocks, Columns, Stacks), Cortex significantly streamlines the process of exploring the vast space of recurrent neural network architectures.
+\todo{Author: Elaborate on how Cortex's modularity simplifies architecture search and experimentation. Provide examples of novel architectural combinations that become easy to construct. Compare the ease of exploration in Cortex with traditional, tightly coupled architectures. Discuss how this modularity contributes to scientific understanding of memory systems.}
+
+\subsection{Meta-recurrence: Distributing Temporal Inductive Bias}
+AxonLayer introduces a paradigm shift by turning linear projections into stateful primitives, embedding recurrence directly within the feed-forward backbone. This concept of "meta-recurrence" suggests that temporal inductive bias is not, and perhaps should not be, confined solely to dedicated memory cells.
+\todo{Author: Expand on the implications of meta-recurrence. How does distributing recurrence throughout the network change our understanding of neural network design? What are the theoretical advantages or disadvantages? How might this impact the learning capacity or generalization of models? Connect it back to the experimental findings (once available).}
+
+\subsection{Limitations and Future Work}
+While Cortex offers significant advantages, it also highlights inherent challenges in designing complex memory systems. One primary concern is the routing overhead associated with Mixture-of-Experts (MoE) architectures, as employed in Columns.
+\todo{Author: For routing overhead, explain why it is a concern (e.g., computational cost, complexity) and if any solutions were explored (e.g., specific ReZero implementations, sparse routing strategies). Discuss the potential "interference" when mixing diverse memory types (e.g., content-addressable with summary-state). Are there specific observations from experiments (once available) that support this? Propose concrete future research directions based on these limitations. For example, investigate novel regularizers designed to mitigate interference in heterogeneous memory compositions, or explore more efficient routing mechanisms.}
+
+\subsection{Broader Impact}
+\todo{Author: Discuss the broader implications of Cortex for AI agents, understanding biological memory (if applicable), or other relevant fields. How does this work advance the state of the art in agent memory and sequential decision-making?}
+
+% ============================================================================
+% CONCLUSION
+% ============================================================================
+\section{Conclusion}
+
+In this work, we introduced \textbf{Cortex}, a novel modular library designed to tackle the complexities of scalable agent memory. Our core contribution lies in the explicit separation of memory logic (Cells) from architectural structure (Blocks, Columns, Stacks), providing an unprecedented level of flexibility and reusability in recurrent neural network design.
+
+\todo{Author: Briefly summarize the main contributions: the modular framework, the uniform interface, and the architectural primitives (Cells, Blocks, Columns, Stacks).}
+
+We further proposed \textbf{AxonLayer}, a key innovation that enables meta-recurrence by integrating stateful dynamics directly into linear projections. This approach allows for a more pervasive and distributed form of temporal processing, moving beyond traditional localized memory units. We also established a two-axis taxonomy for memory cells, facilitating a clearer understanding and systematic exploration of diverse memory mechanisms.
+
+\todo{Author: Summarize the key findings from the experiments (once available). How did Cortex perform on ICL diagnostics, open-ended learning, and external benchmarks? Highlight the most significant results supporting Cortex's claims of scalability, efficiency, and flexibility.}
+
+The modularity of Cortex not only simplifies the construction of complex recurrent backbones but also accelerates the exploration of architectural innovations, enabling faster iteration and deeper insights into memory systems. It provides a robust platform for developing and understanding high-performance agents in challenging, partially observable environments.
+
+Looking ahead, the Cortex framework opens several exciting avenues for future research.
+\todo{Author: Propose concrete future work directions. This could include:
+\begin{itemize}
+    		item Further optimization of routing mechanisms and load balancing in Columns.
+    		item Exploration of novel Cell types and their hybridization within the Cortex framework.
+    		item Deeper theoretical analysis of meta-recurrence and its learning dynamics.
+    		item Application of Cortex to new domains and more complex agent tasks.
+    		item Development of tools for automated architecture search leveraging Cortex's modularity.
+\end{itemize}
+}
+
+% ============================================================================
+% BIBLIOGRAPHY
+% ============================================================================
+\printbibliography
+
+% ============================================================================
+% APPENDIX
+% ============================================================================
+\appendix
+\section{Appendix}
+
+This appendix provides supplementary information and additional details to support the main body of the paper.
+
+\subsection{Detailed Experimental Configurations}
+This section will detail the precise configurations used for all experiments, ensuring reproducibility.
+\todo{Author: Include full hyperparameters for all models and tasks. Specify optimizer choices, learning rate schedules, batch sizes, and any regularization techniques used. Detail the specific hardware (GPUs, CPUs) and software environments (e.g., PyTorch version, other libraries) used for training and evaluation.}
+
+\subsection{Compute and Memory Footprint Analysis}
+Here we provide an analysis of the computational resources and memory footprint required for training and inference with various Cortex configurations.
+\todo{Author: Add a subsection detailing the "Compute and Memory" aspects. This should include:
+\begin{itemize}
+    \item Training times for key experiments.
+    \item Inference latency and throughput.
+    \item Memory usage (GPU memory, CPU RAM) for different model sizes (depth, width, cell types).
+    \item Comparison of resource usage across different Cortex architectures and baseline models.
+\end{itemize}
+}
+
+\subsection{Pattern String Definitions and Hyperparameters}
+This section expands on the compact pattern strings introduced in the Method section, providing a comprehensive mapping and associated hyperparameters.
+\todo{Author: List all pattern strings used in experiments and their exact mapping to Cell types and architectural configurations. Define any router-specific hyperparameters (e.g., gating network architecture, expert capacity factors, load-balancing coefficients) that are not covered elsewhere.}
+
+\subsection{Additional Experimental Results and Ablations}
+This section will present any supplementary experimental results, extended ablation studies, or additional figures/tables that further support the findings discussed in the main paper.
+\todo{Author: Include sweep outputs that might be too verbose for the main paper. Add any further diagnostic plots, error analyses, or qualitative results that provide deeper insights but are not critical for the main narrative.}
+
+\end{document}
+

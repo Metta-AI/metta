@@ -1,0 +1,101 @@
+\section{Method}
+
+\subsection{Problem setting and design goals}
+\parnobf{Truncation-aware memory}
+Most deep RL systems train with \textbf{truncated backpropagation through time (TBPTT)}, i.e., backpropagation through a fixed-length unroll rather than the full episode. TBPTT improves efficiency but cuts the gradient path at chunk boundaries, which limits credit assignment to short windows. Cortex targets this regime by making memory mechanisms explicit and swappable: cells can include streaming traces or other online updates without changing the surrounding architecture. The precise TBPTT setting and truncation lengths used in our experiments are detailed in Section~\ref{sec:experiments}.
+
+\parnobf{Scalability goals}
+We design for scalable memory along three fronts: depth (stacking), width (expert mixtures), and mechanism diversity (content-addressable, summary-state, and local filters). The key design choice is to keep the interface stable while letting the underlying cell implement the memory equation, so that scaling up or mixing mechanisms does not require rewriting system glue. The concrete design goals and constraints used in the library are further elaborated in the implementation details.
+
+\subsection{Cortex architecture}
+\parnobf{Philosophy}
+We separate concerns: \textbf{Cells} implement recurrence, while \textbf{Blocks}, \textbf{Columns}, and \textbf{Stacks} handle architectural decisions. This separation lets us reuse the same cell across multiple architectural wrappers.
+
+\parnobf{Abstractions}
+Cortex implements a stack-based architecture with four abstractions: \textbf{Cells} encapsulate recurrence (gates, state update; e.g., LSTM, mLSTM, Attention), \textbf{Blocks} wrap cells to handle projections, normalization, and residuals, \textbf{Columns} execute expert Blocks in parallel for horizontal scaling, and \textbf{Stacks} compose Blocks/Columns sequentially for vertical scaling. \cite{shazeer2017moe,lepikhin2021gshard,fedus2022switch}
+
+\parnobf{Uniform interface}
+All abstractions share the same forward signature. Inputs are batch-first (\code{[B, T, H]}), state is a nested TensorDict (cell $\rightarrow$ block $\rightarrow$ column $\rightarrow$ stack), and resets propagate automatically. This uniformity allows agents to treat a deep MoE stack identically to a single cell.
+
+\parnobf{Figure overview}
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][2.2in][c]{0.95\linewidth}{\centering \todo{Figure 1 placeholder: Cortex architecture diagram.}}}
+  \caption{Cortex architecture overview.}
+  \label{fig:cortex-arch}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \fbox{\parbox[c][2.0in][c]{0.95\linewidth}{\centering \todo{Figure 2 placeholder: AxonLayer schematic.}}}
+  \caption{AxonLayer: static vs.\ streaming projections.}
+  \label{fig:axonlayer}
+\end{figure}
+
+\subsection{Formal definitions}
+\parnobf{Notation}
+Let $x \in \mathbb{R}^{B\times T\times H}$ be a batch of sequences with batch size $B$, length $T$, and hidden size $H$. Each module takes $(x, s)$ and returns $(y, s')$ where $s$ is a structured state tree.
+
+\parnobf{Configuration shorthand}
+We describe architectures with a compact pattern string (e.g., \code{AXMS^}) and a small set of scalars (depth $L$, expert count $E$, and top-$k$). For example, a pattern can specify the per-layer expert mix, while the trailing \code{^} toggles AxonLayer in eligible projections. The exact mapping from pattern characters to Cells and any expansion rules are provided in Appendix A.
+
+\parnobf{Unified interface}
+All Cortex modules implement a shared forward signature:
+\begin{equation}
+  (y, s') = f(x, s; \theta).
+\end{equation}
+State is a nested TensorDict organized by module type (cell $\rightarrow$ block $\rightarrow$ column $\rightarrow$ stack). Each module owns a named subtree so that resets and checkpointing can be applied uniformly across depth and width. \todo{specify state schema and reset semantics.} \todo{provide a small illustrative state-tree example for a 2-layer stack with a Column.}
+
+\parnobf{Cells}
+A Cell defines the recurrence:
+\begin{equation}
+  h_{t+1} = \Phi(h_t, x_t; \theta),
+\end{equation}
+optionally with auxiliary traces $z_t$ for long-horizon credit assignment. We use this form to express Axon-style trace updates and fast-weight variants as special cases. \todo{provide AxonCell and mLSTM update equations.}
+
+\parnobf{AxonCell (placeholder)}
+We express AxonCell with an explicit trace update:
+\begin{align}
+  h_{t+1} &= f(h_t, x_t, z_t; \theta), \\
+  z_{t+1} &= u(z_t, h_t, x_t; \theta).
+\end{align}
+\todo{insert exact AxonCell recurrence, trace update, and any boundary correction terms.}
+
+\parnobf{Content-addressable cells (placeholder)}
+We represent associative memory updates with a key--value store $M_t$:
+\begin{align}
+  r_t &= \mathrm{Read}(x_t, M_t), \\
+  M_{t+1} &= \mathrm{Write}(M_t, x_t; \theta).
+\end{align}
+\todo{specify the exact update for XL/attention, mLSTM, or other fast-weight variants.}
+
+\parnobf{Blocks}
+Blocks wrap Cells to manage projections, normalization, and residuals. The residual form is:
+\begin{equation}
+  y = x + \Delta(x, s),
+\end{equation}
+where $\Delta$ may include projections and gating. We use consistent normalization and residual ordering across Blocks to enable swapping cells without architectural rewrites. \todo{specify PreUp/PostUp variants and normalization order.}
+
+\parnobf{Columns}
+A Column routes tokens across $E$ expert Blocks. Let $w_{t,e}$ be routing weights and $\Delta_e$ the expert deltas. The Column output is:
+\begin{equation}
+  \Delta_{\mathrm{col}}(x)_t = \mathrm{Mixer}\Big(\sum_{e=1}^E w_{t,e}\,\Delta_e(x)_t\Big).
+\end{equation}
+\todo{define router, top-$k$ selection, and stabilization terms.}
+
+\parnobf{Stacks}
+A Stack composes Blocks and Columns sequentially:
+\begin{equation}
+  x^{(l+1)} = f^{(l)}(x^{(l)}, s^{(l)}), \quad l=1,\dots,L.
+\end{equation}
+\todo{define depth/width scaling and parameter sharing choices.}
+
+\parnobf{AxonLayer}
+AxonLayer replaces static linear projections with streaming dynamics:
+\begin{equation}
+  y_t = W_t x_t, \quad W_{t+1} = g(W_t, x_t, s_t).
+\end{equation}
+\todo{specify trace update, stability constraints, and integration with Cells.} \todo{clarify which projections are Axonified and how this interacts with normalization/residuals.}
+
+\parnobf{Implementation details (summary)}
+We report full hyperparameters in Section~\ref{sec:experiments}. Here we only note the minimal configuration needed to interpret results: depth, width, pattern string, routing top-$k$, and whether AxonLayer is enabled. \todo{add exact defaults once experiments are finalized.}

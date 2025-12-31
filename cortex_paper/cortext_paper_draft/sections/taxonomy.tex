@@ -1,0 +1,46 @@
+\section{Memory Cells: A Two-Axis Taxonomy}
+
+We classify Cortex cells along two orthogonal axes: \textbf{Axis A} (inference-time representation) and \textbf{Axis B} (learning-signal span).
+
+\begin{table}[t]
+  \centering
+  \caption{Two-axis classification of Cortex cell families.}
+  \label{tab:cell-taxonomy}
+  \small
+  \begin{tabular}{p{0.34\linewidth}p{0.40\linewidth}p{0.22\linewidth}}
+    \toprule
+    Cell family & Axis A: inference-time memory & Axis B: learning signal span \\
+    \midrule
+    Attention/XL (\code{XLCell}) & Content-addressable / associative & BPTT-only \\
+    AGaLiTe (\code{AGaLiTeCell}) & Content-addressable / associative & BPTT-only \\
+    mLSTM (\code{mLSTMCell}) & Content-addressable / associative (matrix) & BPTT-only \\
+    Axon (\code{AxonCell}) & Summary-state dynamical (linear) & Trace-augmented \\
+    (s)LSTM / GRU & Summary-state dynamical (gated) & BPTT-only \\
+    CausalConv1d & Local temporal filters & BPTT-only \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Axis A: Inference-time representation}
+Under Axis A, we distinguish three primary categories of memory mechanisms based on how they represent and store information:
+
+\parnobf{Content-addressable stores}
+These mechanisms retrieve information by matching a query against stored keys. Representative examples include Attention/XL (\code{XLCell}) that stores past activations, AGaLiTe (\code{AGaLiTeCell}) as a gated linear transformer variant, and mLSTM (\code{mLSTMCell}) with fast-weight-like matrix memory. \cite{dai2019transformerxl,pramanik2023agalite,beck2024xlstm}
+
+\parnobf{Summary-state dynamical systems}
+These mechanisms compress history into a fixed-size state. The linear/Axon family (\textbf{AxonCell}) implements a streaming RTU with diagonal input weights and compact eligibility traces, while nonlinear gated variants (e.g., \textbf{sLSTMCell}) use multiplicative gates to control writing and forgetting. \cite{elelimy2024rtu,beck2024xlstm}
+
+\parnobf{Local temporal filters}
+These mechanisms represent memory as a finite impulse response, often implemented with causal or dilated convolutions. \textbf{CausalConv1d} streams efficiently but has a local horizon. The receptive-field length used in experiments and its comparison to TBPTT horizons are detailed in Section~\ref{sec:experiments}.
+
+\subsection{Axis B: Learning signal span}
+Under Axis B, we categorize memory mechanisms based on how they propagate learning signals and manage credit assignment over time:
+
+\parnobf{BPTT-only}
+Most mechanisms rely on gradients flowing through the unrolled graph. Under TBPTT, the truncation horizon limits learning. This includes Attention, mLSTM, and gated RNNs.
+
+\parnobf{Trace-augmented}
+\textbf{Axon} maintains eligibility traces and boundary corrections. These allow credit assignment to flow across chunk boundaries, supporting online learning.
+
+\subsection{Hybridization}
+Cortex mixes these axes. An MoE Column can route between a trace-augmented expert (Axon), a content-addressable expert (mLSTM), and a nonlinear expert (sLSTM). This taxonomy maps directly to the Cell choices used in our Method section and experimental configurations. 

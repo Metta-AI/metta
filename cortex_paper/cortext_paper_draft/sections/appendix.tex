@@ -1,0 +1,27 @@
+\appendix
+\section{Appendix}
+
+This appendix provides supplementary information and additional details to support the main body of the paper.
+
+\subsection{Detailed Experimental Configurations}
+This section will detail the precise configurations used for all experiments, ensuring reproducibility.
+\todo{Author: Include full hyperparameters for all models and tasks. Specify optimizer choices, learning rate schedules, batch sizes, and any regularization techniques used. Detail the specific hardware (GPUs, CPUs) and software environments (e.g., PyTorch version, other libraries) used for training and evaluation.}
+
+\subsection{Compute and Memory Footprint Analysis}
+Here we provide an analysis of the computational resources and memory footprint required for training and inference with various Cortex configurations.
+\todo{Author: Add a subsection detailing the "Compute and Memory" aspects. This should include:
+\begin{itemize}
+    \item Training times for key experiments.
+    \item Inference latency and throughput.
+    \item Memory usage (GPU memory, CPU RAM) for different model sizes (depth, width, cell types).
+    \item Comparison of resource usage across different Cortex architectures and baseline models.
+\end{itemize}
+}
+
+\subsection{Pattern String Definitions and Hyperparameters}
+This section expands on the compact pattern strings introduced in the Method section, providing a comprehensive mapping and associated hyperparameters.
+\todo{Author: List all pattern strings used in experiments and their exact mapping to Cell types and architectural configurations. Define any router-specific hyperparameters (e.g., gating network architecture, expert capacity factors, load-balancing coefficients) that are not covered elsewhere.}
+
+\subsection{Additional Experimental Results and Ablations}
+This section will present any supplementary experimental results, extended ablation studies, or additional figures/tables that further support the findings discussed in the main paper.
+\todo{Author: Include sweep outputs that might be too verbose for the main paper. Add any further diagnostic plots, error analyses, or qualitative results that provide deeper insights but are not critical for the main narrative.}

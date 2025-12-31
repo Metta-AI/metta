@@ -1,0 +1,17 @@
+\section{Related Work}
+This section surveys existing work in recurrent sequence models, long-horizon memory systems, and modular architectures, highlighting the landscape where Cortex makes its contributions. We position Cortex at the intersection of these fields.
+
+\parnobf{Recurrent, trace-augmented, and truncation-aware memory}
+Cortex draws on recurrent approaches that balance inference efficiency with long-horizon credit assignment, including gated RNN variants and explicit trace mechanisms. Truncated backpropagation motivates updates that preserve learning signals across segment boundaries, which can be integrated as lightweight state updates inside the Cell interface. \cite{beck2024xlstm,pramanik2023agalite,elelimy2024rtu} Cortex further simplifies the integration of such sophisticated memory mechanisms by providing a flexible interface that decouples them from architectural choices.
+
+\parnobf{Content-addressable and hybrid memory}
+Long-context attention and fast-weight style memories provide content-based retrieval and associative updates, and several systems combine such mechanisms with gated recurrences. Cortex models these as content-addressable Cells and elevates hybrid compositions to first-class patterns that can be mixed within Columns or Stacks, offering a unified approach to complex memory architectures. \cite{dai2019transformerxl,parisotto2020gtrxl,beck2024xlstm}
+
+\parnobf{Structured sequence models}
+State-space, linear-recurrence, and long-range convolutional operators provide efficient long-sequence processing with structured dynamics. Cortex is compatible with these models as Cells, separating their recurrence from architectural scaffolding while preserving their computational advantages, thus providing a flexible platform for their integration. \cite{gu2022s4,smith2023s5,gu2023mamba,poli2023hyena,vandenoord2016wavenet,bai2018tcn}
+
+\parnobf{Modularity, conditional compute, and stability}
+Columns implement routed mixtures of expert Blocks to scale width, connecting to modular and MoE systems with routing and load-balancing considerations. We draw on stabilization ideas from RL transformers and apply them consistently at the Block level to reduce sensitivity to the underlying Cell. Cortex extends these ideas by providing a unified framework for composing modular components and managing stability across different memory mechanisms. \cite{shazeer2017moe,lepikhin2021gshard,fedus2022switch,parisotto2020gtrxl}
+
+\parnobf{Benchmarks and diagnostics}
+We evaluate Cortex on diagnostic memory tasks and open-ended benchmarks that stress long-horizon dependencies and continual learning, which helps attribute gains to specific memory mechanisms rather than scale alone. \cite{craftax2024,pleines2023memorygym}

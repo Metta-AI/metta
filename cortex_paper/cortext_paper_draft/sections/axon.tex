@@ -1,0 +1,20 @@
+\section{Axon and AxonLayer: Meta-recurrence for Scalable Memory}
+\label{sec:axon}
+
+We introduce \textbf{Axon} in two distinct but related roles within the Cortex framework: \textbf{AxonCell} (denoted as \code{A} in patterns), a standalone memory cell with streaming traces for long-horizon credit assignment, and \textbf{AxonLayer}, a novel stateful linear operator that introduces recurrence directly into feed-forward projections.
+
+\subsection{AxonCell: A Trace-Augmented Memory Unit}
+AxonCell is designed as a memory unit that explicitly manages eligibility traces to facilitate credit assignment over extended temporal horizons, particularly beneficial in Truncated Backpropagation Through Time (TBPTT) settings.
+\todo{Describe AxonCell's core mechanism, its state, and how streaming traces are managed. Refer to the formal equations in the Method section for full details.}
+
+\subsection{AxonLayer: Embedding Temporal Inductive Bias}
+AxonLayer extends the concept of recurrence beyond the traditional cell by replacing static \code{nn.Linear} projections with dynamic, stateful operations. This allows the network to learn and adapt its internal transformations based on temporal context.
+\todo{Elaborate on the streaming dynamics of AxonLayer. Explain how it maintains and updates its internal state and eligibility traces. Provide a high-level explanation of the underlying mechanism (e.g., how $W_{t+1} = g(W_t, x_t, s_t)$ works in practice). Discuss its benefits over static projections.}
+
+\subsubsection{Meta-recurrence}
+We term this approach \textbf{meta-recurrence} because recurrence is embedded within the fundamental linear transformations of the network (e.g., Q/K/V projections in attention mechanisms, or gating functions in recurrent units), rather than being confined solely to the primary memory cell.
+\todo{Explain the power and implications of meta-recurrence. How does it enhance the network's ability to process sequential data? Provide concrete examples of how it can appear within Q/K/V projections and gates. Discuss computational implications and potential benefits for complex tasks.}
+
+\subsection{Integration within Cortex}
+AxonLayer seamlessly integrates with Cortex's modular abstractions. It can be toggled via the `^` symbol in architectural patterns and can enhance the temporal processing capabilities of various Blocks, Columns, and Stacks.
+\todo{Provide examples of how AxonLayer interacts with Blocks (e.g., how it can modify the projections within a PreUpBlock or PostUpBlock) and its impact on the overall architecture. Clarify the conditions under which projections are "Axonified."}
