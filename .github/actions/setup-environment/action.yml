@@ -53,12 +53,14 @@ runs:
 
     - name: Set up nim
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        curl -L -o nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64
+        gh release download --repo treeform/nimby --pattern 'nimby-Linux-X64' --output nimby --clobber
         chmod +x nimby
         ./nimby use 2.2.6
         echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
-        mv nimby "$HOME/.nimby/nim/bin/nimby"
+        install -m 0755 nimby "$HOME/.nimby/nim/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
@@ -120,33 +122,15 @@ runs:
 
         case "${{ inputs.install-mode }}" in
 
-          "minimal")
-            # don't install any packages
-            ;;
-
           "testing")
             # Install main dependencies + testing group, excluding interactive and dev
-            uv sync --no-group interactive --no-group dev --group testing --all-packages
+            uv sync --no-group interactive --no-group dev --group testing --group lint --all-packages
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
           "runtime")
             # Install only main dependencies, excluding all groups
             uv sync --no-group interactive --no-group dev
-            ;;
-
-          "metta-cli")
-            # Install lint group + minimal metta package dependencies for CLI
-            # This enables using `metta lint` and other metta commands while keeping install fast
-            uv sync --only-group lint
-            # Install metta package with only the minimal dependencies needed for CLI
-            # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
-            uv pip install -e . --no-deps
-            uv pip install typer rich pydantic pyyaml colorama omegaconf skypilot sqlmodel
-            # Install workspace packages that metta CLI imports (with their dependencies)
-            uv pip install -e common
-            uv pip install -e packages/gitta
-            uv pip install -e softmax
             ;;
 
         esac

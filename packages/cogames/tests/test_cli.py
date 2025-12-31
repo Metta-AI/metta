@@ -98,7 +98,7 @@ def test_missions_help_command():
     output = result.stdout
     assert "missions" in output
     assert "play" in output
-    assert "train" in output
+    assert "tutorial" in output
 
 
 def test_make_mission_command():

@@ -77,7 +77,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "system": {"enabled": True},
             "uv": {"enabled": True},
             "nodejs": {"enabled": False},
-            "githooks": {"enabled": True},
+            "githooks": {"enabled": False},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},

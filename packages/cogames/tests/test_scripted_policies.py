@@ -49,7 +49,6 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
     PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
     PolicyUnderTest("ladybug"),
-    PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
@@ -62,7 +61,7 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
 
 
-def _policy_param(policy: PolicyUnderTest) -> pytest.ParameterSet:
+def _policy_param(policy: PolicyUnderTest):  # -> pytest.ParameterSet
     marks = ()
     if policy.requires_nim and not _nim_bindings_available():
         marks = pytest.mark.skip("Nim bindings missing. Run `nim c nim_agents.nim` to build them.")
@@ -98,6 +97,7 @@ def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulato
         teacher_actions = env.teacher_actions
         assert teacher_actions.shape == (env_config.game.num_agents,)
 
+        assert env._sim is not None
         noop_idx = env._sim.action_names.index("noop")
         noop_actions = np.full(env_config.game.num_agents, noop_idx, dtype=np.int32)
 

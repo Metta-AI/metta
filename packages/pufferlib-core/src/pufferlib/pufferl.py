@@ -82,7 +82,6 @@ def _enable_tf32_matmul() -> None:
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
         # Backend perf optimization
-        _enable_tf32_matmul()
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 

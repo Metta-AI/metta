@@ -69,7 +69,7 @@ class EvaluateTool(Tool):
             return None
         try:
             resolver = MettaSchemeResolver(self.stats_server_uri)
-            return resolver._get_policy_version(uri)
+            return resolver.get_policy_version(uri)
         except Exception:
             return None
 
@@ -151,6 +151,7 @@ class EvaluateTool(Tool):
                 wandb_writer=wandb_writer,
                 max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
+                device_override="cpu",
             )
 
         render_eval_summary(

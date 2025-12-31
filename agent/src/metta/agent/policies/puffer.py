@@ -29,6 +29,31 @@ class PufferPolicyConfig(PolicyArchitecture):
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
 
+class _OptionalLoadLinear(nn.Linear):
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        weight_key = prefix + "weight"
+        if weight_key not in state_dict:
+            return
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
+
 class PufferPolicy(Policy):
     """Policy that exactly matches PufferLib architecture"""
 
@@ -39,6 +64,8 @@ class PufferPolicy(Policy):
         self.config = config or PufferPolicyConfig()
         self.is_continuous = False
         self.action_space = policy_env_info.action_space
+        self.out_width = policy_env_info.obs_width
+        self.out_height = policy_env_info.obs_height
 
         self.num_layers = 24
         hidden_size = 512
@@ -81,6 +108,7 @@ class PufferPolicy(Policy):
         self.total_actions = len(policy_env_info.actions.actions())
         self.policy.actor = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, self.total_actions), std=0.01)
         self.policy.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
+        self.gtd_aux = pufferlib.pytorch.layer_init(_OptionalLoadLinear(hidden_size, 1), std=1)
 
         self.lstm = nn.LSTM(input_size=512, hidden_size=512, num_layers=1)
 
@@ -157,7 +185,8 @@ class PufferPolicy(Policy):
     def decode_actions(self, hidden):
         logits = self.policy.actor(hidden)
         value = self.policy.value(hidden)
-        return logits, value
+        h_value = self.gtd_aux(hidden)
+        return logits, value, h_value
 
     @torch._dynamo.disable  # Avoid graph breaks from TensorDict operations
     def forward(self, td: TensorDict, state=None, action: torch.Tensor = None):
@@ -172,7 +201,7 @@ class PufferPolicy(Policy):
         batch_size = encoded_obs.shape[0]
 
         # Initialize state if None
-        if self._hidden_state is None or self._cell_state is None or self._hidden_state.shape[1] != batch_size:
+        if self._hidden_state is None or self._cell_state is None:
             device = encoded_obs.device
             self._hidden_state = torch.zeros(1, batch_size, 512, device=device)
             self._cell_state = torch.zeros(1, batch_size, 512, device=device)
@@ -183,10 +212,11 @@ class PufferPolicy(Policy):
 
         # [1, B, 512] -> [B, 512]
         core_features = lstm_output.squeeze(0)
-        logits, value = self.decode_actions(core_features)
+        logits, value, h_value = self.decode_actions(core_features)
 
         td["logits"] = logits
         td["values"] = value.flatten()
+        td["h_values"] = h_value.flatten()
         self.action_probs(td, action)
 
         return td

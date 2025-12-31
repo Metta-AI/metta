@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.token_encoder import coordinates
 
 
@@ -36,7 +37,7 @@ class ObsSwinEncoderConfig(ComponentConfig):
     out_dim: int = 256
     mask_key: Optional[str] = "obs_mask"
 
-    def make_component(self, env=None):
+    def make_component(self, env: PolicyEnvInterface):
         return ObsSwinEncoder(config=self, env=env)
 
 
@@ -219,10 +220,8 @@ class SwinBlock(nn.Module):
 class ObsSwinEncoder(nn.Module):
     """Swin-style encoder operating directly on token observations."""
 
-    def __init__(self, config: ObsSwinEncoderConfig, env=None) -> None:
+    def __init__(self, config: ObsSwinEncoderConfig, env: PolicyEnvInterface) -> None:
         super().__init__()
-        if env is None:
-            raise ValueError("Env is required to determine observation dimensions")
         self.config = config
         self.obs_height = env.obs_height
         self.obs_width = env.obs_width

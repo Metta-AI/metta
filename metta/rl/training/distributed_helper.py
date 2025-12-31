@@ -52,10 +52,7 @@ class DistributedHelper:
 
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
-        # Keep TF32 fast paths enabled on compatible GPUs
         if torch.cuda.is_available():
-            torch.backends.cuda.matmul.fp32_precision = "tf32"
-            # Enable SDPA optimizations for better attention performance
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             torch.backends.cuda.enable_math_sdp(True)

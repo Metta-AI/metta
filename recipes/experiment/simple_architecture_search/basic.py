@@ -2,13 +2,6 @@ from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
-from metta.agent.policies.agalite import AGaLiTeConfig
-from metta.agent.policies.fast import FastConfig
-from metta.agent.policies.fast_dynamics import FastDynamicsConfig
-from metta.agent.policies.memory_free import MemoryFreeConfig
-from metta.agent.policies.puffer import PufferPolicyConfig
-from metta.agent.policies.trxl import TRXLConfig
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -17,29 +10,13 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import (
-    SweepParameters as SP,
-)
-from metta.sweep.core import (
-    grid_search,
-)
+from metta.sweep.core import SweepParameters as SP
+from metta.sweep.core import grid_search
 from metta.tools.eval import EvaluateTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
-# Architecture configurations for benchmark testing
-ARCHITECTURES = {
-    "vit": ViTDefaultConfig(),
-    # Cortexified transformer policies
-    # "transformer" and "vit_sliding" removed in favor of Cortex-based TRXL
-    "fast": FastConfig(),
-    "fast_dynamics": FastDynamicsConfig(),
-    "memory_free": MemoryFreeConfig(),
-    "agalite": AGaLiTeConfig(),
-    "trxl": TRXLConfig(),
-    "puffer": PufferPolicyConfig(),
-}
+from recipes.experiment.architectures import architecture_names, get_architecture
 
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
@@ -116,7 +93,9 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    policy_architecture = ARCHITECTURES[arch_type]
+    if arch_type not in architecture_names():
+        raise ValueError(f"Unknown arch_type={arch_type!r} (expected one of: {', '.join(architecture_names())})")
+    policy_architecture = get_architecture(arch_type)
 
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
@@ -173,7 +152,7 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
 
 def sweep_architecture(sweep_name: str) -> SweepTool:
     # NB: arch_type matches the corresponding input to "train", the train_entrypoint.
-    architecture_parameter = SP.categorical("arch_type", list(ARCHITECTURES.keys()))
+    architecture_parameter = SP.categorical("arch_type", architecture_names())
     return grid_search(
         name=sweep_name,
         recipe="recipes.experiment.simple_architecture_search.basic",

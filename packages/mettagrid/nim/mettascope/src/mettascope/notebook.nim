@@ -23,6 +23,9 @@ when defined(emscripten):
       return false;
     }
 
+    // notify the iframe parent that we are ready to receive replay data.
+    window.parent.postMessage({ type: 'mettascopeReady' }, '*');
+
     // Listen for postMessage events from parent windows (Jupyter notebooks).
     window.addEventListener('message', function(event) {
       if (!isValidOrigin(event.origin) || !event.data || event.data.type !== 'replayData') {
@@ -76,7 +79,7 @@ when defined(emscripten):
     if binaryLen > 0:
       copyMem(fileData[0].addr, binaryPtr, binaryLen)
     
-    if fileName.endsWith(".json.z"):
+    if fileName.endsWith(".json.gz") or fileName.endsWith(".json.z"):
       try:
         common.replay = loadReplay(fileData, fileName)
         onReplayLoaded()

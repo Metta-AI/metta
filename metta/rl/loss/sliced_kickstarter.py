@@ -1,20 +1,16 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
+from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
-from metta.rl.utils import prepare_policy_forward_td
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.mpt_policy import MptPolicy
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -22,14 +18,13 @@ if TYPE_CHECKING:
 
 class SlicedKickstarterConfig(LossConfig):
     teacher_uri: str = Field(default="")
-    action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
+    action_loss_coef: float = Field(default=0.6, ge=0, le=10.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-    student_forward: bool = Field(default=True)  # probably always true for sliced_kickstarter
 
     # PPO consumes whatever portion of the batch isn't claimed by these slices
-    student_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     # Optional slot wiring to route teacher/student via SlotControllerPolicy
     teacher_slot_id: str | None = Field(
@@ -55,7 +50,7 @@ class SlicedKickstarterConfig(LossConfig):
 class SlicedKickstarter(Loss):
     """Forward a teacher policy and distil its logits/values into the student."""
 
-    __slots__ = ("teacher_policy", "student_forward", "rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
+    __slots__ = ("teacher_policy", "rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
     def __init__(
         self,
@@ -67,17 +62,8 @@ class SlicedKickstarter(Loss):
         cfg: "SlicedKickstarterConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-        self.student_forward = self.cfg.student_forward
+        self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
         self.loss_profiles = None  # inherit default filtering (all)
-
-        base_policy_env_info = getattr(self.env, "policy_env_info", None)
-        if base_policy_env_info is None:
-            raise RuntimeError("Environment metadata is required to instantiate teacher policy")
-
-        teacher_spec = policy_spec_from_uri(self.cfg.teacher_uri, device=self.device)
-        self.teacher_policy = initialize_or_load_policy(base_policy_env_info, teacher_spec)
-        if isinstance(self.teacher_policy, MptPolicy):
-            self.teacher_policy = self.teacher_policy._policy
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -89,6 +75,8 @@ class SlicedKickstarter(Loss):
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
 
         return Composite(
+            rewards=scalar_f32,
+            actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32),
             teacher_logits=logits_f32,
             teacher_values=scalar_f32,
             stud_mask=boolean,
@@ -133,13 +121,14 @@ class SlicedKickstarter(Loss):
         td["ppo_mask"] = self.ppo_mask
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"logits", "values"}
 
     def run_train(
         self,
@@ -147,36 +136,16 @@ class SlicedKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch, indices = sequential_sample(self.replay, mb_idx)
-        shared_loss_data = shared_loss_data.clone()
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-        shared_loss_data = self._filter_minibatch(shared_loss_data)
-
         minibatch = shared_loss_data["sampled_mb"]
-        indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
+        student_td = shared_loss_data["policy_td"]
 
-        if minibatch.batch_size.numel() == 0:
-            return self._zero_tensor, shared_loss_data, False
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
         train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
         # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
-        shared_loss_data["sampled_mb"] = minibatch[train_ppo_mask]
-        shared_loss_data["indices"] = NonTensorData(indices[train_ppo_mask])
-        # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
-
-        # sliced kickstarter MUST run first since it decides what to pass to PPO
-        student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        self.policy.reset_memory()
-        student_td = self.policy.forward(student_td, action=flat_actions)
-        student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td[train_ppo_mask]  # this is for passing to PPO losses
+        shared_loss_data = shared_loss_data[train_ppo_mask]
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
@@ -202,16 +171,18 @@ class SlicedKickstarter(Loss):
         # value loss
         teacher_value = minibatch["teacher_values"].detach()
         student_value = student_td["values"]
-        ks_value_loss = ((teacher_value.detach() - student_value) ** 2).mean()
+        ks_value_loss_vec = (teacher_value.detach() - student_value) ** 2
+        ks_value_loss = ks_value_loss_vec.mean()
 
         loss = ks_action_loss * self.cfg.action_loss_coef + ks_value_loss * self.cfg.value_loss_coef
+        shared_loss_data["ks_val_loss_vec"] = ks_value_loss_vec
 
         self.loss_tracker["ks_act_loss"].append(float(ks_action_loss.item()))
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
-        self.loss_tracker["ks_led_proportion"].append(float(self.cfg.led_proportion))
-        self.loss_tracker["ks_student_proportion"].append(float(self.cfg.student_proportion))
+        self.loss_tracker["ks_led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["ks_student_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
@@ -224,8 +195,8 @@ class SlicedKickstarter(Loss):
 
         rand_assignments = torch.rand(B, device=self.device)
 
-        stud_threshold = self.cfg.student_proportion
-        teacher_threshold = stud_threshold + self.cfg.led_proportion
+        stud_threshold = self.cfg.student_led_proportion
+        teacher_threshold = stud_threshold + self.cfg.teacher_led_proportion
 
         self.stud_mask = rand_assignments < stud_threshold
         self.teacher_mask = (rand_assignments >= stud_threshold) & (rand_assignments < teacher_threshold)

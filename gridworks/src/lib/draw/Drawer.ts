@@ -36,7 +36,7 @@ type ObjectLayer = {
 type ObjectDrawer = ObjectLayer[];
 
 const objectDrawers: Record<string, ObjectDrawer> = {
-  empty: [{ tile: "wall.49" }], // empty spaces act as terrain flooring
+  empty: [],
   wall: [{ tile: "wall" }], // unused by Drawer but used by AsciiEditor
   ...Object.fromEntries(
     TILE_NAMES.map((tile) => [tile, [{ tile }] as ObjectDrawer])
@@ -83,11 +83,16 @@ function visibleRegion(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
 }
 
 export class Drawer {
-  private constructor(public readonly tileSets: TileSetCollection) {}
+  private constructor(
+    public readonly tileSets: TileSetCollection,
+    private cachedOffscreenFloorBitmap: ImageBitmap | null = null
+  ) {}
 
   static async load(): Promise<Drawer> {
     const tileSets = await loadMettaTileSets();
-    return new Drawer(tileSets);
+    const drawer = new Drawer(tileSets);
+    await drawer.generateOffscreenFloorBitmap();
+    return drawer;
   }
 
   drawTile({
@@ -128,38 +133,42 @@ export class Drawer {
 
   drawWalls(ctx: CanvasRenderingContext2D, grid: MettaGrid, walls: Cell[]) {
     // Ported from worldmap.nim in mettascope
-    const wallsGrid: boolean[][] = Array.from({ length: grid.width }, () =>
-      Array.from({ length: grid.height }, () => true)
-    );
+    const wallSet = new Set<number>();
+
     for (const wall of walls) {
-      wallsGrid[wall.c][wall.r] = false;
+      wallSet.add(wall.c + wall.r * grid.width);
     }
 
-    const checkWall = (x: number, y: number) => {
+    const isFloor = (x: number, y: number) => {
       if (x < 0 || y < 0 || x >= grid.width || y >= grid.height) {
         return 0;
       }
-      return wallsGrid[x][y] ? 1 : 0;
+      return wallSet.has(x + y * grid.width) ? 0 : 1;
     };
 
     for (let x = 0; x < grid.width; x++) {
       for (let y = 0; y < grid.height; y++) {
-        if (wallsGrid[x][y]) {
+        if (isFloor(x, y)) {
           continue;
         }
 
         const pattern =
-          1 * checkWall(x - 1, y - 1) + // NW
-          2 * checkWall(x, y - 1) + // N
-          4 * checkWall(x + 1, y - 1) + // NE
-          8 * checkWall(x + 1, y) + // E
-          16 * checkWall(x + 1, y + 1) + // SE
-          32 * checkWall(x, y + 1) + // S
-          64 * checkWall(x - 1, y + 1) + // SW
-          128 * checkWall(x - 1, y); // W
+          1 * isFloor(x - 1, y - 1) + // NW
+          2 * isFloor(x, y - 1) + // N
+          4 * isFloor(x + 1, y - 1) + // NE
+          8 * isFloor(x + 1, y) + // E
+          16 * isFloor(x + 1, y + 1) + // SE
+          32 * isFloor(x, y + 1) + // S
+          64 * isFloor(x - 1, y + 1) + // SW
+          128 * isFloor(x - 1, y); // W
 
         const tile = wallPatternToTile[pattern];
 
+        // First draw a void layer to cover up the terrain
+        ctx.fillStyle = BACKGROUND_MAP_COLOR;
+        ctx.fillRect(x, y, 1, 1);
+
+        // Then draw the wall tile
         this.drawTile({
           ctx,
           tile: `wall.${tile}`,
@@ -170,13 +179,78 @@ export class Drawer {
     }
   }
 
+  private async generateOffscreenFloorBitmap() {
+    if (this.cachedOffscreenFloorBitmap) {
+      return this.cachedOffscreenFloorBitmap;
+    }
+
+    const bitmapSize = 10;
+    const tileSize = 64;
+
+    const getWeightedRandomInt = (weights: number[]): number => {
+      const totalWeight = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * totalWeight;
+      for (let i = 0; i < weights.length; i++) {
+        r -= weights[i];
+        if (r <= 0) {
+          return i;
+        }
+      }
+      return weights.length - 1; // Fallback
+    };
+
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmapSize * tileSize;
+    canvas.height = bitmapSize * tileSize;
+    const ctx = canvas.getContext("2d")!;
+
+    for (let i = 0; i < bitmapSize * bitmapSize; i++) {
+      const weights = [100, 50, 25, 10, 5, 2, 1];
+      const tileIndex = getWeightedRandomInt(weights) + 49;
+      const tileName = `wall.${tileIndex}`;
+      const tileBitmap = this.tileSets.bitmap(tileName);
+      const x = (i % bitmapSize) * tileSize;
+      const y = Math.floor(i / bitmapSize) * tileSize;
+      ctx.drawImage(tileBitmap, x, y, tileSize, tileSize);
+    }
+
+    const bitmap = await createImageBitmap(canvas);
+    this.cachedOffscreenFloorBitmap = bitmap;
+    return bitmap;
+  }
+
+  private drawFloor(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+    const tile = this.cachedOffscreenFloorBitmap;
+
+    if (tile === null) {
+      // Invariant: generateOffscreenFloorBitmap must be called before drawFloor
+      throw new Error("Offscreen floor bitmap not generated before drawFloor");
+    }
+
+    const step = 10;
+
+    for (let x = 0; x < grid.width; x += step) {
+      for (let y = 0; y < grid.height; y += step) {
+        const w = Math.min(step, grid.width - x);
+        const h = Math.min(step, grid.height - y);
+        ctx.drawImage(tile, 0, 0, tile.width, tile.height, x, y, w, h);
+      }
+    }
+  }
+
   drawGrid(ctx: CanvasRenderingContext2D, grid: MettaGrid) {
+    // Preserve pixelated look when zoomed in
+    ctx.imageSmoothingEnabled = false;
+
     // Only draw the visible region of the grid - helps performance on big maps when zoomed in
     const { minX, minY, maxX, maxY } = visibleRegion(ctx, grid);
 
     // Clear drawing area
     ctx.fillStyle = BACKGROUND_MAP_COLOR;
     ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+
+    // Draw floor over entire visible region
+    this.drawFloor(ctx, grid);
 
     // Sort objects into walls and other objects
     const objects: MettaObject[] = [];
@@ -199,13 +273,6 @@ export class Drawer {
 
     this.drawWalls(ctx, grid, walls);
     for (const object of objects) {
-      // First draw the flooring layer
-      this.drawTile({
-        ctx,
-        tile: "wall.49",
-        c: object.c,
-        r: object.r,
-      });
       // Draw the object itself
       this.drawObject(ctx, object);
     }

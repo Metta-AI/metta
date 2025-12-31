@@ -32,7 +32,6 @@ class SkypilotDispatcher(Dispatcher):
     def _dispatch_skypilot(self, job: JobDefinition, display_id: str) -> str:
         cmd_parts = [
             SKYPILOT_LAUNCH_PATH,
-            "--no-spot",
             "--heartbeat-timeout-seconds=10000",
         ]
 
@@ -68,7 +67,7 @@ class SkypilotDispatcher(Dispatcher):
                     log("Skypilot launch %s for %s:\n%s", label, display_id, stream)
 
             if process.returncode != 0:
-                error_msg = f"Skypilot launch failed with return code {process.returncode}"
+                error_msg = f"Skypilot launch failed with return code {process.returncode}: {' '.join(cmd_parts)}"
                 if stderr:
                     error_msg = f"{error_msg}: {stderr}"
                 logger.error("Failed to launch %s on Skypilot: %s", display_id, error_msg, exc_info=True)

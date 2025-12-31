@@ -41,12 +41,13 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
   const isMouseDown = useIsMouseDown();
 
   const enablePan = !panOnSpace || spacePressed;
+  const maxZoom = Math.max(grid.width, grid.height) * 1.5;
 
   const { setContainer, panZoomHandlers, setZoom, setPan, pan, zoom } =
     usePanZoom({
       minZoom: 1,
-      maxZoom: 10,
-      zoomSensitivity: 0.004,
+      maxZoom,
+      zoomSensitivity: 0.005,
       enablePan,
     });
 
@@ -106,23 +107,46 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       .scale(scale);
   }, [zoom, pan, scale, dpr]);
 
-  const drawGridOnly = useCallback(() => {
+  const drawGrid = useCallback(() => {
     if (!drawer || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d");
     if (!context) return;
 
-    context.save();
     context.resetTransform();
     context.fillStyle = "#eee";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.restore();
 
     context.setTransform(transform);
 
     try {
       drawer.drawGrid(context, grid);
       drawExtra?.(context);
+
+      // Draw hover overlay on top of the grid
+      context.save();
+      context.setTransform(transform);
+      context.lineWidth = 0.03;
+
+      if (hoveredCell && grid.cellInGrid(hoveredCell)) {
+        context.strokeStyle = "white";
+        const margin = 0.03;
+        context.roundRect(
+          hoveredCell.c + margin,
+          hoveredCell.r + margin,
+          1 - 2 * margin,
+          1 - 2 * margin,
+          0.1
+        );
+        context.stroke();
+      }
+
+      if (selectedCell && grid.cellInGrid(selectedCell)) {
+        context.strokeStyle = "blue";
+        context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
+        context.stroke();
+      }
+      context.restore();
     } catch (e) {
       context.resetTransform();
       context.fillStyle = "black";
@@ -134,52 +158,14 @@ export const MapViewerBrowserOnly: FC<MapViewerProps> = ({
       console.error(e);
       return;
     }
-  }, [drawer, grid, transform, drawExtra]);
-
-  const drawHoverOverlay = useCallback(() => {
-    if (!drawer || !canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const context = canvas.getContext("2d");
-
-    if (!context) return;
-
-    context.save();
-    context.setTransform(transform);
-    context.lineWidth = 0.03;
-
-    if (hoveredCell && grid.cellInGrid(hoveredCell)) {
-      context.strokeStyle = "white";
-      const margin = 0.03;
-      context.roundRect(
-        hoveredCell.c + margin,
-        hoveredCell.r + margin,
-        1 - 2 * margin,
-        1 - 2 * margin,
-        0.1
-      );
-      context.stroke();
-    }
-
-    if (selectedCell && grid.cellInGrid(selectedCell)) {
-      context.strokeStyle = "blue";
-      context.roundRect(selectedCell.c, selectedCell.r, 1, 1, 0.1);
-      context.stroke();
-    }
-    context.restore();
-  }, [drawer, grid, transform, hoveredCell, selectedCell]);
+  }, [drawer, grid, transform, drawExtra, hoveredCell, selectedCell]);
 
   useCallOnWindowResize(initCanvas);
   useCallOnElementResize(canvasRef.current, initCanvas);
 
-  // TODO - avoid rendering if not visible
   useEffect(() => {
-    drawGridOnly();
-  }, [drawGridOnly]);
-
-  useEffect(() => {
-    drawHoverOverlay();
-  }, [drawHoverOverlay]);
+    drawGrid();
+  }, [drawGrid]);
 
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen
   // useStressTest(draw, canvasRef.current);

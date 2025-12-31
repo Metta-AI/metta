@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
@@ -10,9 +10,7 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
 
 
 class ActionSupervisedConfig(LossConfig):
@@ -20,7 +18,7 @@ class ActionSupervisedConfig(LossConfig):
     sample_enabled: bool = True  # True means sequentially sample from the buffer during train in this loss
     rollout_forward_enabled: bool = True  # Control the rollout. If true, ensure ppo_critic is not also running rollout
     train_forward_enabled: bool = True  # Forward policy during training. Same as above re PPO concurency collisions.
-    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     # Controls whether to add the imitation loss to the environment rewards.
     add_action_loss_to_rewards: bool = Field(default=False)
@@ -39,12 +37,6 @@ class ActionSupervisedConfig(LossConfig):
 
 
 class ActionSupervised(Loss):
-    __slots__ = (
-        "rollout_forward_enabled",
-        "train_forward_enabled",
-        "sample_enabled",
-    )
-
     def __init__(
         self,
         policy: Policy,
@@ -55,15 +47,13 @@ class ActionSupervised(Loss):
         cfg: "ActionSupervisedConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
-        # unpack config into slots
-        self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
-        self.train_forward_enabled = self.cfg.train_forward_enabled
-        self.sample_enabled = self.cfg.sample_enabled
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+        action_spec = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
 
         return Composite(
+            actions=action_spec,
             teacher_actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long),
             rewards=scalar_f32,
             dones=scalar_f32,
@@ -71,24 +61,21 @@ class ActionSupervised(Loss):
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        if not self.rollout_forward_enabled:  # this can also be achived with loss run gates
-            return
+        with torch.no_grad():
+            self.policy.forward(td)
 
-        if self.rollout_forward_enabled:  # flag offered for speed in cases where purely teacher led
-            with torch.no_grad():
-                self.policy.forward(td)
-
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         assert self.replay is not None
         self.replay.store(data_td=td, env_id=env_slice)
 
-        if torch.rand(1) < self.cfg.led_proportion:
+        if torch.rand(1) < self.cfg.teacher_led_proportion:
             # Save td["action"] into the td that goes to the replay buffer but then overwrite it with teacher actions
             # when sending to the environment. After it gets sent to env it is no longer used.
             # NOTE: teacher-leading means actions reported to wandb are teacher actions, not student actions
-            td["actions"] = td["teacher_actions"]
+            td["actions"] = td["teacher_actions"].to(td["actions"].dtype)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs", "act_log_prob"} if self.cfg.add_action_loss_to_rewards else {"full_log_probs"}
 
     def run_train(
         self,
@@ -96,23 +83,8 @@ class ActionSupervised(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        if self.sample_enabled:
-            minibatch, indices = sequential_sample(self.replay, mb_idx)
-            shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)
-            # this writes to the same key that ppo uses, assuming we're using only one method of sampling at a time
-
         minibatch = shared_loss_data["sampled_mb"]
-
-        if self.train_forward_enabled:
-            policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-            flat_actions = minibatch["actions"].reshape(B * TT, -1)
-            self.policy.reset_memory()
-            policy_td = self.policy.forward(policy_td, action=flat_actions)
-            policy_td = policy_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = policy_td
-        else:
-            policy_td = shared_loss_data["policy_td"]
+        policy_td = shared_loss_data["policy_td"]
 
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
         teacher_actions = minibatch["teacher_actions"]
@@ -121,7 +93,6 @@ class ActionSupervised(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0], minibatch.shape[1])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 

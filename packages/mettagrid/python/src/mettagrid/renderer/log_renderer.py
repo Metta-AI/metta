@@ -18,8 +18,6 @@ class LogRenderer(Renderer):
     @override
     def on_episode_start(self) -> None:
         """Log episode start."""
-        assert self._sim is not None
-
         logger.info("=== Episode Start ===")
         logger.info(f"Num agents: {self._sim.num_agents}")
         logger.info(f"Max steps: {self._sim.config.game.max_steps}")
@@ -27,8 +25,6 @@ class LogRenderer(Renderer):
     @override
     def on_step(self) -> None:
         """Log each step."""
-        assert self._sim is not None
-
         current_step = self._sim.current_step
         logger.info("--------------------------------")
         logger.info(f"Step {current_step}")
@@ -38,8 +34,6 @@ class LogRenderer(Renderer):
     @override
     def on_episode_end(self) -> None:
         """Log episode end."""
-        assert self._sim is not None
-
         logger.info("================================")
         logger.info("=== Episode End ===")
         logger.info(f"Total steps: {self._sim.current_step}")

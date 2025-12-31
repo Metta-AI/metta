@@ -42,6 +42,8 @@ def _run_single_simulation(
     replay_dir: str | None,
     seed: int,
 ) -> SimulationRunResult:
+    device_override: str | None = None,
+) -> SimulationRunResult:
     sim_cfg = SimulationRunConfig.model_validate(simulation)
     policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data] if policy_data else None
 
@@ -54,7 +56,7 @@ def _run_single_simulation(
         registry = SlotRegistry()
         slots_cfg = sim_cfg.policy_slots
         slot_lookup = {slot_cfg.id: idx for idx, slot_cfg in enumerate(slots_cfg)}
-        controller_device = torch.device("cpu")
+        controller_device = torch.device(device_override) if device_override else torch.device("cpu")
 
         num_agents = env_interface.num_agents
         agent_map = sim_cfg.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
@@ -83,7 +85,9 @@ def _run_single_simulation(
     else:
         if not policy_specs:
             raise ValueError("policy_specs required when no policy_slots provided")
-        multi_agent_policies = [initialize_or_load_policy(env_interface, spec) for spec in policy_specs]
+        multi_agent_policies = [
+            initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
+        ]
 
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
@@ -132,6 +136,7 @@ def run_simulations(
     seed: int,
     max_workers: int | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
+    device_override: str | None = None,
 ) -> list[SimulationRunResult]:
     if not policy_specs and not any(sim.policy_slots for sim in simulations):
         raise ValueError("At least one policy spec or simulation-level policy slot is required")
@@ -140,7 +145,9 @@ def run_simulations(
         sequential_rollouts: list[SimulationRunResult] = []
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-            sequential_rollouts.append(_run_single_simulation(simulation, policy_specs or [], replay_dir, seed))
+            sequential_rollouts.append(
+                _run_single_simulation(simulation, policy_specs, replay_dir, seed, device_override)
+            )
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
         return sequential_rollouts
@@ -162,6 +169,7 @@ def run_simulations(
                 policy_payloads,
                 os.path.join(replay_dir, f"sim_{idx}") if replay_dir else None,
                 seed,
+                device_override,
             ): idx
             for idx, payload in enumerate(simulation_payloads)
         }

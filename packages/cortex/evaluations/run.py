@@ -21,6 +21,8 @@ from synthetic_datasets import (  # type: ignore[import-not-found]
 )
 from torch.utils.data import DataLoader
 
+from metta.rl.torch_init import enable_determinism
+
 # Globals used by optional Axons parity probe
 AXONS_PARITY_PROBE: int = 0
 EPOCH_IDX: int = 0
@@ -340,15 +342,6 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-
-def _enable_determinism() -> None:
-    """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.use_deterministic_algorithms(True)
-    set_tf32_precision("ieee")
-    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
-    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
 
 
 def train_one(
@@ -729,7 +722,7 @@ def main() -> None:
 
     set_seed(args.seed)
     if args.deterministic:
-        _enable_determinism()
+        enable_determinism()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("device=%s seed=%d", device, args.seed)
 

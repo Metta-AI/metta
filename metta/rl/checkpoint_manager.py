@@ -8,9 +8,8 @@ import torch
 
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
-from mettagrid.policy.mpt_policy import MptPolicy
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,13 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
-    def __init__(self, run: str, system_cfg: SystemConfig, require_remote_enabled: bool = False):
+    def __init__(
+        self,
+        run: str,
+        system_cfg: SystemConfig,
+        require_remote_enabled: bool = False,
+        storage_decision: PolicyStorageDecision | None = None,
+    ):
         if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
         if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
@@ -37,12 +42,13 @@ class CheckpointManager:
 
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
-            self._setup_remote_prefix()
+            self._setup_remote_prefix(storage_decision)
         if require_remote_enabled and self._remote_prefix is None:
             raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
-    def _setup_remote_prefix(self) -> None:
-        storage_decision = auto_policy_storage_decision(self.run_name)
+    def _setup_remote_prefix(self, storage_decision: PolicyStorageDecision | None = None) -> None:
+        if storage_decision is None:
+            storage_decision = auto_policy_storage_decision(self.run_name)
         if storage_decision.remote_prefix:
             self._remote_prefix = storage_decision.remote_prefix
             if storage_decision.reason == "env_override":
@@ -56,6 +62,12 @@ class CheckpointManager:
         elif storage_decision.reason == "no_base_prefix":
             logger.info("Remote prefix unset; policies will remain local.")
 
+    @property
+    def output_uri(self) -> str:
+        if self._remote_prefix:
+            return self._remote_prefix
+        return f"file://{self.checkpoint_dir}"
+
     def get_latest_checkpoint(self) -> str | None:
         def try_resolve(uri: str) -> tuple[str, int] | None:
             try:
@@ -68,7 +80,7 @@ class CheckpointManager:
             return None
 
         local = try_resolve(f"file://{self.checkpoint_dir}")
-        remote = try_resolve(self._remote_prefix) if self._remote_prefix else None
+        remote = try_resolve(self.output_uri) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
         if not candidates:
             return None
@@ -81,7 +93,7 @@ class CheckpointManager:
         local_uri = save_mpt(self.checkpoint_dir / filename, architecture=architecture, state_dict=state_dict)
 
         if self._remote_prefix:
-            remote_uri = save_mpt(f"{self._remote_prefix}/{filename}", architecture=architecture, state_dict=state_dict)
+            remote_uri = save_mpt(f"{self.output_uri}/{filename}", architecture=architecture, state_dict=state_dict)
             logger.debug("Policy checkpoint saved remotely to %s", remote_uri)
             return remote_uri
 
@@ -98,6 +110,8 @@ class CheckpointManager:
             "epoch": state.get("epoch", 0),
             "agent_step": state.get("agent_step", 0),
         }
+        if "avg_reward" in state:
+            result["avg_reward"] = state["avg_reward"]
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
         if "curriculum_state" in state:
@@ -111,6 +125,7 @@ class CheckpointManager:
         optimizer,
         epoch: int,
         agent_step: int,
+        avg_reward: torch.Tensor | float | None = None,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
@@ -123,6 +138,8 @@ class CheckpointManager:
             optimizer.eval()
 
         state: dict[str, Any] = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        if avg_reward is not None:
+            state["avg_reward"] = torch.as_tensor(avg_reward).detach().to(device="cpu")
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:
@@ -148,7 +165,3 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
-
-
-# Here temporarily for backwards-compatibility but we will move it
-CheckpointPolicy = MptPolicy

@@ -120,10 +120,10 @@ class StarterCogPolicyImpl(StatefulPolicyImpl[StarterCogState]):
 
 
 class StarterPolicy(MultiAgentPolicy):
-    short_names = ["scripted_starter"]
+    # short_names = ["scripted_starter"]  # Uncomment to register a shorthand
 
-    def __init__(self, policy_env_info: PolicyEnvInterface):
-        super().__init__(policy_env_info)
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: str = "cpu"):
+        super().__init__(policy_env_info, device=device)
         self._agent_policies: dict[int, StatefulAgentPolicy[StarterCogState]] = {}
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[StarterCogState]:

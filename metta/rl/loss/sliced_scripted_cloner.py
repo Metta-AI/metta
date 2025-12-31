@@ -1,16 +1,14 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import sequential_sample
 from metta.rl.training import ComponentContext
-from metta.rl.utils import add_dummy_loss_for_unused_params, prepare_policy_forward_td
 
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
@@ -20,8 +18,8 @@ class SlicedScriptedClonerConfig(LossConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
     # PPO consumes whatever portion of the batch isn't claimed by these slices
-    student_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_slot_id: str | None = Field(
         default=None, description="Slot id that should act during teacher-led slices."
     )
@@ -61,13 +59,23 @@ class SlicedScriptedCloner(Loss):
 
     def get_experience_spec(self) -> Composite:
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
+        actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int32)
         boolean = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool)
+        rewards = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        dones = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        truncateds = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
+        act_log_prob = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
             teacher_actions=teacher_actions,
+            actions=actions,
+            act_log_prob=act_log_prob,
             stud_mask=boolean,
             teacher_mask=boolean,
             ppo_mask=boolean,
+            rewards=rewards,
+            dones=dones,
+            truncateds=truncateds,
         )
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -96,9 +104,9 @@ class SlicedScriptedCloner(Loss):
 
             if self.teacher_mask.any():
                 # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
-                teacher_actions = td["teacher_actions"].to(td["actions"].dtype)
+                teacher_actions = td["teacher_actions"].to(dtype=torch.long)
                 teacher_log_probs = td["full_log_probs"].gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
-                td["actions"][self.teacher_mask] = teacher_actions[self.teacher_mask]
+                td["actions"][self.teacher_mask] = teacher_actions.to(td["actions"].dtype)[self.teacher_mask]
                 td["act_log_prob"][self.teacher_mask] = teacher_log_probs[self.teacher_mask]
 
         td["stud_mask"] = self.stud_mask
@@ -106,13 +114,14 @@ class SlicedScriptedCloner(Loss):
         td["ppo_mask"] = self.ppo_mask
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
         if self.teacher_mask.any():
             td["actions"][self.teacher_mask] = td["teacher_actions"].to(td["actions"].dtype)[self.teacher_mask]
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"full_log_probs"}
 
     def run_train(
         self,
@@ -120,33 +129,16 @@ class SlicedScriptedCloner(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch, indices = sequential_sample(self.replay, mb_idx)
-        shared_loss_data = shared_loss_data.clone()
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-        shared_loss_data = self._filter_minibatch(shared_loss_data)
-
         minibatch = shared_loss_data["sampled_mb"]
-        indices = shared_loss_data["indices"]
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
+        student_td = shared_loss_data["policy_td"]
 
-        if minibatch.batch_size.numel() == 0:
-            return self._zero_tensor, shared_loss_data, False
-
+        # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-        # Make the entire minibatch available to PPO instead of masking out teacher-led slices.
+        train_ppo_mask = minibatch["ppo_mask"][:, 0]
 
-        # sliced cloner MUST run first since it decides what to pass to PPO
-        student_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-        self.policy.reset_memory()
-        student_td = self.policy.forward(student_td, action=flat_actions)
-        student_td = student_td.reshape(B, TT)
-        shared_loss_data["policy_td"] = student_td  # this is for passing to PPO losses
+        # cut down all of shared_loss_data to just the ppo mask before passing out to PPO losses
+        shared_loss_data = shared_loss_data[train_ppo_mask]
 
         minibatch = minibatch[train_teacher_mask | train_stud_mask]
         student_td = student_td[train_teacher_mask | train_stud_mask]
@@ -167,12 +159,11 @@ class SlicedScriptedCloner(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
-        loss = add_dummy_loss_for_unused_params(loss, td=student_td, used_keys=["full_log_probs", "act_log_prob"])
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["led_proportion"].append(float(self.cfg.led_proportion))
-        self.loss_tracker["student_proportion"].append(float(self.cfg.student_proportion))
+        self.loss_tracker["led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["student_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
@@ -185,8 +176,8 @@ class SlicedScriptedCloner(Loss):
 
         rand_assignments = torch.rand(B, device=self.device)
 
-        stud_threshold = self.cfg.student_proportion
-        teacher_threshold = stud_threshold + self.cfg.led_proportion
+        stud_threshold = self.cfg.student_led_proportion
+        teacher_threshold = stud_threshold + self.cfg.teacher_led_proportion
 
         self.stud_mask = rand_assignments < stud_threshold
         self.teacher_mask = (rand_assignments >= stud_threshold) & (rand_assignments < teacher_threshold)

@@ -29,6 +29,7 @@ from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 from recipes.experiment import cogs_v_clips
+from recipes.experiment.architectures import get_architecture
 
 # Diagnostic missions where scripted agents can get reward
 DIAGNOSTIC_MISSIONS: tuple[str, ...] = (
@@ -211,15 +212,19 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
 
 def _enforce_training_vibes(env: MettaGridConfig) -> None:
     """Enforce the training set of vibes and action space consistency."""
+<<<<<<< HEAD
     training_vibe_names = [v.name for v in vibes.VIBES]
     env.game.vibe_names = training_vibe_names
+=======
+    env.game.vibe_names = [v.name for v in vibes.VIBES]
+>>>>>>> origin/main
 
     if env.game.actions:
         # Configure vibe action
         if env.game.actions.change_vibe:
-            env.game.actions.change_vibe.number_of_vibes = len(training_vibe_names)
+            env.game.actions.change_vibe.vibes = list(vibes.VIBES)
             # Filter initial vibe
-            if env.game.agent.initial_vibe >= len(training_vibe_names):
+            if env.game.agent.initial_vibe >= len(vibes.VIBES):
                 env.game.agent.initial_vibe = 0
 
         # This ensures action space is 19 (1 noop + 4 move + 14 vibes)
@@ -462,6 +467,7 @@ def train(
     variants: Optional[Sequence[str] | str] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
+    arch_type: str = "vit",
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips with mission-variant curriculum.
 
@@ -524,6 +530,7 @@ def train(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
     )
 
 
@@ -587,7 +594,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
     if env.game.actions:
         if env.game.actions.change_vibe:
-            env.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            env.game.actions.change_vibe.vibes = [vibes.VIBE_BY_NAME[name] for name in vibe_names]
             if env.game.agent.initial_vibe >= len(vibe_names):
                 env.game.agent.initial_vibe = 0
         if env.game.actions.attack:
@@ -596,7 +603,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     num_vibes: Optional[int] = None,

@@ -6,7 +6,8 @@ Verifies that the grid-search scheduler is constructed and can emit suggestions.
 
 from typing import Any
 
-from metta.sweep.core import CategoricalParameterConfig, grid_search
+from metta.sweep.core import grid_search
+from metta.sweep.parameter_config import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler
 
 

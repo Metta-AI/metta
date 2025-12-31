@@ -151,8 +151,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             return self._score_tasks_basic(task_ids)
 
     def _score_tasks_bidirectional(self, task_ids: List[int]) -> Dict[int, float]:
-        """Score tasks with per-task LP, then sigmoid + normalize per call."""
+        """Score tasks using bidirectional learning progress with per-call normalization.
 
+        Steps:
+        1) compute per-task LP (abs gap + perf bonus) with optional smoothing on fast/slow
+        2) drop non-progress tasks (lp <= 0) from the normalized mass
+        3) standardize remaining scores, apply sigmoid, normalize
+        """
         if not task_ids:
             return {}
 
@@ -197,6 +202,23 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._cache_valid_tasks.add(task_id)
         return score
 
+    def _get_bidirectional_eviction_score(self, task_id: int) -> float:
+        """Eviction-specific score without the exploration floor, so ties favor low-progress tasks."""
+        # If we lack history, fall back to exploration bonus (allows eviction of cold tasks if needed)
+        if task_id not in self._per_task_fast or task_id not in self._outcomes or len(self._outcomes[task_id]) < 2:
+            return self.hypers.exploration_bonus
+
+        fast = self._per_task_fast[task_id]
+        slow = self._per_task_slow[task_id]
+
+        if self.hypers.progress_smoothing != 0.0:
+            fast = float(self._reweight(fast))
+            slow = float(self._reweight(slow))
+
+        lp = abs(fast - slow)
+        perf_bonus = max(fast, 0) * self.hypers.lp_gain
+        return lp + perf_bonus
+
     def _get_basic_learning_progress_score(self, task_id: int) -> float:
         """Calculate basic learning progress score using EMA variance."""
         # Return cached score if valid
@@ -234,15 +256,12 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if not task_ids:
             return None
 
-        # Use the same scoring signal as sampling; lower score = lower learning progress
-        scores = self.score_tasks(task_ids)
-
-        def _evict_key(tid: int) -> tuple[float, int, int]:
-            task_stats = self.task_tracker.get_task_stats(tid) or {"completion_count": 0}
-            # Fewest presentations is preferred when scores tie; final tie-breaker on task_id for determinism
-            return (scores.get(tid, self.hypers.exploration_bonus), task_stats["completion_count"], tid)
-
-        return min(task_ids, key=_evict_key)
+        if self.hypers.use_bidirectional:
+            scores = {tid: self._get_bidirectional_eviction_score(tid) for tid in task_ids}
+        else:
+            # Respect basic scorer configuration to avoid missing per-task fields
+            scores = {tid: self._get_basic_learning_progress_score(tid) for tid in task_ids}
+        return min(task_ids, key=lambda tid: scores.get(tid, 0.0))
 
     def should_evict_task(self, task_id: int, min_presentations: int = 5) -> bool:
         """Check if a task should be evicted based on criteria."""
@@ -413,12 +432,14 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         learning_progress_array = self._learning_progress()
         mean_learning_progress = float(np.mean(learning_progress_array)) if len(learning_progress_array) > 0 else 0.0
-        success_rates = [np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()]
-        mean_task_success_rate = float(np.mean(success_rates)) if success_rates else 0.0
 
         return {
             "num_tracked_tasks": float(len(self._outcomes)),
-            "mean_task_success_rate": mean_task_success_rate,
+            "mean_task_success_rate": float(
+                np.mean([np.mean(vals) if vals else DEFAULT_SUCCESS_RATE for vals in self._outcomes.values()])
+            )
+            if self._outcomes
+            else 0.0,
             "mean_learning_progress": mean_learning_progress,
         }
 
@@ -450,9 +471,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         }
 
     # Bidirectional learning progress implementation (integrated from modules)
-
-    def _learning_progress(self, reweight: bool = True) -> np.ndarray:
-        """Calculate learning progress per task from the per-task EMAs."""
+    def _learning_progress(self) -> np.ndarray:
+        """Calculate learning progress per task from per-task EMAs (no cached arrays)."""
         if not self._outcomes:
             return np.array([])
 
@@ -474,15 +494,15 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 normalized = (success_rate - baseline) / denominator
                 fast = slow = normalized
 
+            if self.hypers.progress_smoothing != 0.0:
+                fast = float(self._reweight(fast))
+                slow = float(self._reweight(slow))
+
             fast_list.append(fast)
             slow_list.append(slow)
 
         fast_arr = np.asarray(fast_list, dtype=float)
         slow_arr = np.asarray(slow_list, dtype=float)
-
-        if reweight:
-            fast_arr = self._reweight(fast_arr)
-            slow_arr = self._reweight(slow_arr)
 
         lp = np.abs(fast_arr - slow_arr)
         performance_bonus = np.maximum(fast_arr, 0) * self.hypers.lp_gain
@@ -490,10 +510,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return lp + performance_bonus
 
     def _reweight(self, probs: np.ndarray | float) -> np.ndarray | float:
-        """Apply progress smoothing reweighting to probability values.
-
-        Accepts either a scalar or an array and returns the same shape/type.
-        """
+        """Apply progress smoothing reweighting to probability values."""
         arr = np.asarray(probs, dtype=float)
         smoothing = self.hypers.progress_smoothing
         numerator = arr * (1.0 - smoothing)
@@ -503,7 +520,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         denominator = np.where(denominator <= 0, 1.0, denominator)
         result = numerator / denominator
 
-        if np.ndim(probs) == 0:
+        if arr.ndim == 0:
             return float(result)
         return result
 
@@ -512,24 +529,37 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 
     def _normalize_bidirectional_scores(self, raw_scores: np.ndarray) -> np.ndarray:
-        """Apply exploration floor, center, sigmoid, and normalize."""
+        """Apply smoothing, drop zero-progress, standardize, sigmoid, normalize."""
         if raw_scores.size == 0:
             return raw_scores
 
-        # Ensure every task retains some exploration weight so it can still be sampled
-        min_weight = max(self.hypers.exploration_bonus, 1e-6)
-        raw_scores = np.maximum(raw_scores, min_weight)
+        # Remove non-progress tasks from the mass
+        positive_mask = raw_scores > 0
+        if not np.any(positive_mask):
+            return np.zeros_like(raw_scores)
 
-        # Center (but do not standardize) so smoothing magnitude is preserved
-        if len(raw_scores) > 1:
-            raw_scores = raw_scores - np.mean(raw_scores)
+        sub = raw_scores[positive_mask]
 
-        subprobs = self._sigmoid(raw_scores)
+        # Optional smoothing already applied in _get_bidirectional_learning_progress_score
+        if sub.size > 2:
+            std = np.std(sub)
+            if std > 0:
+                sub = (sub - np.mean(sub)) / std
+            else:
+                sub = sub - np.mean(sub)
 
-        total = float(np.sum(subprobs))
+        # Keep sigmoid normalization even when we skip standardization for small batches
+        sub = self._sigmoid(sub)
+
+        total = float(np.sum(sub))
         if total > 0:
-            return subprobs / total
-        return np.ones_like(subprobs) / len(subprobs)
+            sub = sub / total
+        else:
+            sub = np.ones_like(sub) / len(sub)
+
+        scores = np.zeros_like(raw_scores)
+        scores[positive_mask] = sub
+        return scores
 
     def get_state(self) -> Dict[str, Any]:
         """Get learning progress algorithm state for checkpointing."""
@@ -543,7 +573,7 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if hasattr(self, "_outcomes"):
             state.update(
                 {
-                    # Deep-copy mutable state to avoid aliasing after checkpoint is captured
+                    # Deep-copy mutable state to avoid aliasing while training continues
                     "outcomes": {k: list(v) for k, v in self._outcomes.items()},
                     "counter": dict(self._counter),
                     "per_task_fast": dict(self._per_task_fast),
@@ -573,10 +603,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
                 self._counter = {}
                 self._per_task_fast = {}
                 self._per_task_slow = {}
-                self._score_cache = {}
-                self._cache_valid_tasks = set()
 
-            # Scoring formula may differ across versions; invalidate cached scores
+            # Always recompute scores after loading to avoid stale cached values
             self._score_cache = {}
             self._cache_valid_tasks = set()
 

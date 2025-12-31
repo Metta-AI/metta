@@ -45,6 +45,7 @@ class TrainerState:
 
     epoch: int = 0
     agent_step: int = 0
+    avg_reward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0, dtype=torch.float32))
     latest_policy_uri: Optional[str] = None
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
@@ -62,7 +63,7 @@ class ComponentContext:
     def __init__(
         self,
         *,
-        state: Optional[TrainerState],
+        state: TrainerState,
         policy: Policy,
         env: TrainingEnvironment,
         experience: Experience,
@@ -70,10 +71,12 @@ class ComponentContext:
         config: Any,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
+        get_train_epoch_fn: Callable[[], Callable[[], None]],
+        set_train_epoch_fn: Callable[[Callable[[], None]], None],
         run_name: Optional[str] = None,
         curriculum: Optional["Curriculum"] = None,
     ) -> None:
-        self.state = state or TrainerState()
+        self.state = state
         self.policy = policy
         self.env = env
         self.experience = experience
@@ -92,8 +95,8 @@ class ComponentContext:
         self.losses: Dict[str, Any] = {}
         self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
         self.loss_scheduler: Any | None = None
-        self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
-        self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+        self.get_train_epoch_fn = get_train_epoch_fn
+        self.set_train_epoch_fn = set_train_epoch_fn
         self.slot_id_per_agent: Optional[torch.Tensor] = None
         self.loss_profile_id_per_agent: Optional[torch.Tensor] = None
         self.trainable_agent_mask: Optional[torch.Tensor] = None
@@ -205,11 +208,7 @@ class ComponentContext:
     # Training epoch callable indirection
     # ------------------------------------------------------------------
     def get_train_epoch_callable(self) -> Callable[[], None]:
-        if self.get_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no getter for train epoch callable")
         return self.get_train_epoch_fn()
 
     def set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
-        if self.set_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no setter for train epoch callable")
         self.set_train_epoch_fn(fn)

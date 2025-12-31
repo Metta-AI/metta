@@ -81,6 +81,8 @@ class AgentControlComponent(MiniscopeComponent):
 
     def update(self) -> None:
         """Update the agent control panel display."""
+        panel = self._panel
+        assert panel is not None
         # Get agent selection info
         if self._state.selected_agent is not None:
             agent_text = f"[Agent {self._state.selected_agent}]"
@@ -103,5 +105,4 @@ class AgentControlComponent(MiniscopeComponent):
             content = table
 
         # Set panel content
-        if self._panel is not None:
-            self._panel.set_content(content)
+        panel.set_content(content)

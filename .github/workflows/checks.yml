@@ -181,7 +181,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          install-mode: "metta-cli"
+          install-mode: "testing"
 
       - name: Run linting and formatting
         run: uv run python .github/scripts/run_ci_stage.py lint
@@ -265,8 +265,14 @@ jobs:
           fi
           uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
 
+      - name: Python type checking
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py pyright
+
   recipe-tests:
-    name: "Tests - Recipes (recipes.validation.ci_suite.py)"
+    name: "Tests - Recipes"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -286,7 +292,7 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          uv run python .github/scripts/run_ci_stage.py recipe-tests --no-interactive
+          uv run python .github/scripts/run_ci_stage.py recipe-tests --non-interactive
 
   cpp-tests:
     name: "Tests - C++ and Nim"

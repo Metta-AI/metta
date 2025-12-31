@@ -9,9 +9,7 @@ import logging
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
-from cogames.cli.mission import find_mission, parse_variants
-from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
-from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER
 from cogames.cogs_vs_clips.variants import VARIANTS
 from metta.agent.policies.vit_size_2 import ViTSize2Config
 from metta.cogworks.curriculum.curriculum import (
@@ -23,19 +21,27 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
+<<<<<<< HEAD
 from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+=======
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
+>>>>>>> origin/main
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
-from mettagrid.config.mettagrid_config import MettaGridConfig
-from recipes.experiment.cogs_v_clips import make_eval_suite
+from recipes.experiment.cogs_v_clips import (
+    _resolve_eval_variants,
+    _resolve_mission_template,
+    make_eval_suite,
+    make_training_env,
+)
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "easy_hearts",
+    "training_facility.harvest",
     "oxygen_bottleneck",
     "energy_starved",
 ]
@@ -50,7 +56,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"training_facility{MAP_MISSION_DELIMITER}harvest",
     f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
     f"training_facility{MAP_MISSION_DELIMITER}repair",
-    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
     f"hello_world{MAP_MISSION_DELIMITER}open_world",
     f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
     f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
@@ -59,96 +64,8 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}quadrant_buildings",
     f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
     # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
-
-
-def _normalize_variant_names(
-    *,
-    initial: Optional[Sequence[str]] = None,
-    variants: Optional[Sequence[str]] = None,
-) -> list[str]:
-    names: list[str] = []
-    for source in (initial, variants):
-        if not source:
-            continue
-        for name in source:
-            if name not in names:
-                names.append(name)
-    return names
-
-
-def _resolve_mission_template(name: str) -> Mission:
-    for mission in MISSIONS:
-        if mission.name == name or mission.full_name() == name:
-            return mission
-
-    if MAP_MISSION_DELIMITER not in name:
-        return find_mission(name, None)
-
-    if name.count(MAP_MISSION_DELIMITER) > 1:
-        raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
-
-    site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
-    return find_mission(site_name, mission_name)
-
-
-def _resolve_eval_variants(
-    train_variants: Optional[Sequence[str]],
-    eval_variants: Optional[Sequence[str]],
-) -> Optional[list[str]]:
-    if eval_variants is not None:
-        return list(eval_variants)
-    if train_variants is not None:
-        return list(train_variants)
-    return None
-
-
-def _prepare_mission(
-    base_mission: Mission,
-    *,
-    num_cogs: int,
-    variant_names: Sequence[str] | None = None,
-) -> Mission:
-    mission = base_mission
-    variant_objects = parse_variants(list(variant_names)) if variant_names else []
-    if variant_objects:
-        mission = mission.with_variants(variant_objects)
-    mission = mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
-    return mission
-
-
-def make_training_env(
-    num_cogs: int = 4,
-    mission: str = "easy_hearts",
-    variants: Optional[Sequence[str]] = None,
-) -> MettaGridConfig:
-    """Create a single training environment from a mission."""
-    mission_template = _resolve_mission_template(mission)
-
-    variant_names = _normalize_variant_names(variants=variants)
-    prepared_mission = _prepare_mission(
-        mission_template,
-        num_cogs=num_cogs,
-        variant_names=variant_names,
-    )
-    env = prepared_mission.make_env()
-
-    # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
-    change_vibe_action = getattr(env.game.actions, "change_vibe", None)
-    if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
-        allowed_vibes = env.game.vibe_names or ["default"]
-        env.game.vibe_names = list(allowed_vibes)
-
-        chest = env.game.objects.get("chest")
-        vibe_transfers = getattr(chest, "vibe_transfers", None) if chest is not None else None
-        if isinstance(vibe_transfers, dict):
-            allowed = set(allowed_vibes)
-            chest.vibe_transfers = {vibe: transfers for vibe, transfers in vibe_transfers.items() if vibe in allowed}
-
-    return env
 
 
 def make_curriculum(
@@ -234,7 +151,11 @@ def train(
     trainer_cfg = TrainerConfig(losses=LossesConfig())
     scheduler = None
     scheduler_run_gates: list[LossRunGate] = []
+<<<<<<< HEAD
     scheduler_rules: list[HyperUpdateRule] = []
+=======
+    scheduler_rules: list[ScheduleRule] = []
+>>>>>>> origin/main
     training_env_cfg = TrainingEnvironmentConfig(curriculum=curriculum)
 
     if teacher and teacher.enabled:
@@ -329,7 +250,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -371,12 +292,13 @@ def evaluate(
             variants=variants,
         ),
         policy_uris=policy_uris,
+        result_file_path="/dev/null",
     )
 
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -402,7 +324,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="easy_hearts",
+        mission="training_facility.harvest",
         num_cogs=num_cogs,
         variants=variants,
     )

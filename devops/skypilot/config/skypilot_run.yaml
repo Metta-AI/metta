@@ -4,39 +4,39 @@ resources:
     - region: us-east-1
       use_spot: true
       accelerators: "L4:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
-      image_id: ami-0ebd2b5422ef02377
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       use_spot: true
       accelerators: "A10G:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
-      image_id: ami-0ebd2b5422ef02377
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       accelerators: "L4:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
-      image_id: ami-0ebd2b5422ef02377
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       accelerators: "A10G:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-09)
-      image_id: ami-0ebd2b5422ef02377
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-west-2
       use_spot: true
       accelerators: "L4:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-09)
-      image_id: ami-0d768b1ffc196e09c
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       use_spot: true
       accelerators: "A10G:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-09)
-      image_id: ami-0d768b1ffc196e09c
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       accelerators: "L4:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-09)
-      image_id: ami-0d768b1ffc196e09c
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       accelerators: "A10G:1"
-      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-09)
-      image_id: ami-0d768b1ffc196e09c
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
   cpus: 8+
   job_recovery:
     strategy: EAGER_NEXT_REGION

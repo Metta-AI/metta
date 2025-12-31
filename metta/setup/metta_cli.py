@@ -5,8 +5,11 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 import concurrent.futures
+import re
+import shutil
 import subprocess
 import sys
+import time
 import webbrowser
 from enum import StrEnum
 from pathlib import Path
@@ -21,18 +24,17 @@ import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
-from metta.setup.local_commands import app as local_app
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
 from metta.setup.tools.code_formatters import app as code_formatters_app
+from metta.setup.tools.codebase import app as codebase_app
+from metta.setup.tools.observatory.cli import app as observatory_app
 from metta.setup.tools.publish import cmd_publish
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
 from metta.setup.utils import debug, error, info, success, warning
-from metta.utils.live_run_monitor import app as run_monitor_app
-from softmax.dashboard.report import app as softmax_system_health_app
 
 if TYPE_CHECKING:
     from metta.setup.registry import SetupModule
@@ -596,6 +598,82 @@ def cmd_pr_feed(
         raise typer.Exit(1) from e
 
 
+def _list_repo_dockerfiles(repo_root: Path) -> list[Path]:
+    try:
+        output = subprocess.check_output(["git", "ls-files", "*Dockerfile*"], cwd=repo_root, text=True)
+    except subprocess.CalledProcessError as e:
+        error(f"Failed to enumerate Dockerfiles: {e}")
+        raise typer.Exit(e.returncode) from None
+    return [
+        (repo_root / line.strip()).resolve()
+        for line in output.splitlines()
+        if line.strip() and (repo_root / line.strip()).is_file()
+    ]
+
+
+def _tag_for_dockerfile(dockerfile: Path, repo_root: Path, tag_prefix: str) -> str:
+    rel = dockerfile.relative_to(repo_root)
+    base = rel.as_posix().replace("/", "-").lower()
+    base = re.sub(r"[^a-z0-9._-]", "-", base)
+    base = re.sub(r"-+", "-", base).strip("-") or "image"
+    return f"{tag_prefix}-{base}:latest"
+
+
+@app.command(
+    name="build-dockerfiles",
+    help="Build all repository Dockerfiles.\n\nUse this to test that changes do not break Dockerfile builds.",
+)
+def cmd_build_dockerfiles(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be built without building")] = False,
+):
+    tag_prefix = "metta"
+    repo_root = get_repo_root()
+    dockerfiles = _list_repo_dockerfiles(repo_root)
+    if not dockerfiles:
+        warning("No Dockerfiles found in repository.")
+        return
+
+    builds = [(df, _tag_for_dockerfile(df, repo_root, tag_prefix)) for df in sorted(dockerfiles)]
+
+    if dry_run:
+        print(f"Would build {len(builds)} Dockerfiles:")
+        for dockerfile, tag in builds:
+            print(f"  {dockerfile.relative_to(repo_root)} -> {tag}")
+        return
+
+    if shutil.which("docker") is None:
+        error("Docker is not installed or not on PATH.")
+        raise typer.Exit(1) from None
+
+    print(f"Building {len(builds)} Dockerfiles...")
+    durations: list[tuple[Path, str, float]] = []
+
+    for dockerfile, tag in builds:
+        rel_path = dockerfile.relative_to(repo_root)
+        print(f"Building {tag} from {rel_path}...")
+        start = time.perf_counter()
+        try:
+            subprocess.check_output(
+                ["docker", "build", "--network=host", "-f", str(dockerfile), "-t", tag, str(repo_root)],
+                cwd=repo_root,
+                stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as e:
+            duration = time.perf_counter() - start
+            error(f"Build failed for {rel_path} ({tag}) after {duration:.1f}s")
+            if e.output:
+                error(e.output.decode() if isinstance(e.output, bytes) else e.output)
+            raise typer.Exit(e.returncode) from None
+        duration = time.perf_counter() - start
+        durations.append((dockerfile, tag, duration))
+        success(f"Built {tag} in {duration:.1f}s")
+
+    success("All Dockerfiles built successfully.")
+    print("Build durations (slowest first):")
+    for _, tag, duration in sorted(durations, key=lambda x: x[2], reverse=True):
+        print(f"  {duration:.1f}s - {tag}")
+
+
 # Report env details command
 @app.command(name="report-env-details", help="Report environment details including UV project directory")
 def cmd_report_env_details():
@@ -639,10 +717,26 @@ def cmd_gridworks(ctx: typer.Context):
     subprocess.run(cmd, cwd=get_repo_root(), check=False)
 
 
-app.add_typer(run_monitor_app, name="run-monitor", help="Monitor training runs.")
-app.add_typer(local_app, name="local")
+@app.command(
+    name="run-monitor",
+    help="Monitor training runs.",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def cmd_run_monitor(ctx: typer.Context) -> None:
+    """Launch the live run monitor CLI without importing it at module load time."""
+    from metta.adaptive import live_run_monitor
+
+    live_run_monitor.app(
+        prog_name="metta run-monitor",
+        standalone_mode=False,
+        args=list(ctx.args),
+    )
+
+
+app.add_typer(observatory_app, name="observatory")
 app.add_typer(book_app, name="book")
-app.add_typer(softmax_system_health_app, name="softmax-system-health")
+app.add_typer(codebase_app, name="codebase")
 app.add_typer(python_test_runner_app, name="pytest")
 app.add_typer(cpp_test_runner_app, name="cpptest")
 app.add_typer(nim_test_runner_app, name="nimtest")

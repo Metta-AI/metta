@@ -40,17 +40,16 @@ ANNEALERS: dict[AnnealStyle, Callable[[float, float, float], float]] = {
 }
 
 
-class HyperUpdateRule(Config):
-    """Unified rule for updating loss hyperparameters.
+class ScheduleRule(Config):
+    """Unified rule for scheduling config updates.
 
     Supports two modes:
     - progress: anneal between start/end values over epoch or agent_step ranges
     - metric: derive value from a reported metric with optional transform/EMA/clamp
     """
 
-    # Target selection
-    loss_instance_name: str
-    attr_path: str
+    # Target selection (path relative to TrainerConfig)
+    target_path: str
 
     # Mode selection (None => inferred: metric if metric_key set else progress)
     mode: Optional[Literal["progress", "metric"]] = None
@@ -100,7 +99,7 @@ class HyperUpdateRule(Config):
 
         fn = ANNEALERS[self.style]
         value = fn(self._progress(epoch=epoch, agent_step=agent_step), float(self.start_value), float(self.end_value))
-        _set_attr_path(obj, self.attr_path, float(value))
+        _set_attr_path(obj, self.target_path, float(value))
 
     # -------------- metric helpers --------------
     def _read_metric(self, ctx) -> Optional[float]:
@@ -140,7 +139,7 @@ class HyperUpdateRule(Config):
                 metric = float(self.transform(metric))
             except Exception:
                 return
-        _set_attr_path(obj, self.attr_path, self._smooth_and_clamp(metric))
+        _set_attr_path(obj, self.target_path, self._smooth_and_clamp(metric))
 
     # -------------- main apply --------------
     def apply(self, *, obj: object, ctx) -> None:
@@ -189,7 +188,7 @@ class LossRunGate(Config):
 
 class SchedulerConfig(Config):
     # Unified rules list only
-    rules: list[HyperUpdateRule] = Field(default_factory=list)
+    rules: list[ScheduleRule] = Field(default_factory=list)
     run_gates: list[LossRunGate] = Field(default_factory=list)
 
 
@@ -203,7 +202,7 @@ class LossScheduler(TrainerComponent):
         from metta.tools.train import TrainTool
         from metta.rl.training import TrainingEnvironmentConfig, EvaluatorConfig
         from metta.rl.training.scheduler import (
-            SchedulerConfig, HyperUpdateRule, LossRunGate
+            SchedulerConfig, ScheduleRule, LossRunGate
         )
 
         def train(...):
@@ -216,17 +215,16 @@ class LossScheduler(TrainerComponent):
                     # Gate when a loss is allowed to run per phase
                     run_gates=[
                         # Start PPO training after epoch 5
-                        LossRunGate(loss_instance_name="ppo", phase="train", begin_at_epoch=5),
+                        LossRunGate(loss_instance_name="ppo_actor", phase="train", begin_at_epoch=5),
                         # Allow PPO rollout from the start (explicit for clarity)
-                        LossRunGate(loss_instance_name="ppo", phase="rollout", begin_at_epoch=0),
+                        LossRunGate(loss_instance_name="ppo_actor", phase="rollout", begin_at_epoch=0),
                     ],
 
                     # Hyperparameter updates (progress- or metric-driven)
                     rules=[
-                        # Linearly anneal PPO entropy coefficient from 0.02 -> 0.0 over epochs 0..50
-                        HyperUpdateRule(
-                            loss_instance_name="ppo",
-                            attr_path="ent_coef",
+                        # Linearly anneal PPO actor entropy coefficient from 0.02 -> 0.0 over epochs 0..50
+                        ScheduleRule(
+                            target_path="losses.ppo_actor.ent_coef",
                             mode="progress",
                             style="linear",
                             start_value=0.02,
@@ -235,22 +233,9 @@ class LossScheduler(TrainerComponent):
                             end_epoch=50,
                         ),
 
-                        # Cosine-anneal a nested attribute (V-trace rho_clip) 1.0 -> 2.0 over 0..100 epochs
-                        HyperUpdateRule(
-                            loss_instance_name="ppo",
-                            attr_path="vtrace.rho_clip",
-                            mode="progress",
-                            style="cosine",
-                            start_value=1.0,
-                            end_value=2.0,
-                            start_epoch=0,
-                            end_epoch=100,
-                        ),
-
                         # Drive a hyperparameter from a rollout metric (with smoothing and clamping)
-                        HyperUpdateRule(
-                            loss_instance_name="ppo",
-                            attr_path="vf_coef",
+                        ScheduleRule(
+                            target_path="losses.ppo_critic.vf_coef",
                             mode="metric",
                             metric_key="your_metric_key",  # key found in StatsReporter.state.rollout_stats
                             ema_beta=0.9,
@@ -262,10 +247,7 @@ class LossScheduler(TrainerComponent):
             )
 
     Notes:
-    - The "loss_instance_name" should match the registered loss instance name (e.g., "ppo")
-      or the lower-cased loss class name.
-    - "attr_path" is relative to the loss's config object (e.g., "ent_coef", "vf_coef",
-      or nested like "vtrace.rho_clip").
+    - "target_path" is relative to the TrainerConfig root (e.g., "losses.ppo_actor.ent_coef").
     - For metric-driven rules, "metric_key" must exist in rollout stats accumulated by
       the StatsReporter (flattened keys from env infos).
     """
@@ -333,12 +315,10 @@ class LossScheduler(TrainerComponent):
 
         # 2) Apply unified rules
         for rule in self.config.rules:
-            loss = self.context.losses.get(rule.loss_instance_name)
-            if loss is None:
-                # Skip silently to allow optional losses
-                continue
-            # Apply updates to the loss config object
-            rule.apply(obj=loss.cfg, ctx=self.context)
+            rule.apply(obj=self.context.config, ctx=self.context)
+
+        # Keep optimizer learning rate in sync with TrainerConfig if it changed.
+        self._sync_optimizer_from_config()
 
         # 3) If the train phase is gated to false, restrict which experience keys
         #    must be present based on which losses are active for rollout.
@@ -393,12 +373,22 @@ class LossScheduler(TrainerComponent):
             spec = loss.get_experience_spec()
             active_keys.update(spec.keys(include_nested=True, leaves_only=True))
 
+        active_keys.add("reward_baseline")
+
         # If for some reason no keys were found, fall back to writing all keys.
         if not active_keys:
             experience.reset_store_keys()
             return
 
         experience.set_store_keys(active_keys)
+
+    def _sync_optimizer_from_config(self) -> None:
+        """Propagate TrainerConfig optimizer learning_rate into the live optimizer."""
+        optimizer = self.context.optimizer
+        trainer_cfg = self.context.config
+        lr = float(trainer_cfg.optimizer.learning_rate)
+        for group in optimizer.param_groups:
+            group["lr"] = lr
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

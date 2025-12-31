@@ -236,9 +236,9 @@ class LSTMPolicy(MultiAgentPolicy):
 
     short_names = ["lstm"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, device: Optional[torch.device] = None):
-        super().__init__(policy_env_info)
-        self._device = device if device is not None else torch.device("cpu")
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: str = "cpu"):
+        super().__init__(policy_env_info, device=device)
+        self._device = torch.device(device)
         self._policy_env_info = policy_env_info
         self._net = LSTMPolicyNet(policy_env_info).to(self._device)
         self._agent_policy = LSTMAgentPolicy(self._net, self._device, policy_env_info)

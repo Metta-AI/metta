@@ -631,17 +631,10 @@ proc validateAssemblerFields*(obj: JsonNode, objName: string, issues: var seq[Va
 proc validateBuildingFields*(obj: JsonNode, objName: string, issues: var seq[ValidationIssue]) =
   ## Validate all building-specific fields (legacy buildings).
   let buildingFields = [
-    "input_resources", "output_resources", "output_limit", "conversion_remaining",
-    "is_converting", "conversion_duration"
+    "input_resources", "output_resources", "conversion_remaining",
+    "is_converting"
   ]
   requireFields(obj, buildingFields, objName, issues)
-
-  # Validate static building fields.
-  validateStaticValue(obj, "output_limit", "float", objName & ".output_limit", issues)
-  validateNonNegativeNumber(obj, "output_limit", objName & ".output_limit", issues)
-
-  validateStaticValue(obj, "conversion_duration", "float", objName & ".conversion_duration", issues)
-  validateNonNegativeNumber(obj, "conversion_duration", objName & ".conversion_duration", issues)
 
   # Validate dynamic building fields (always time series).
   validateInventoryFormat(obj, "input_resources", objName & ".input_resources", issues)
@@ -654,8 +647,9 @@ proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues:
   let objName = "Object " & $objIndex
 
   # All objects have these required fields.
+  # type_name is optional if type_id is present (loader can resolve it).
   let requiredFields = [
-    "id", "type_name", "location", "orientation", "inventory", "inventory_max", "color"
+    "id", "location", "orientation", "inventory", "inventory_max", "color"
   ]
   requireFields(obj, requiredFields, objName, issues)
 
@@ -663,15 +657,33 @@ proc validateObject*(obj: JsonNode, objIndex: int, replayData: JsonNode, issues:
   validateStaticValue(obj, "id", "int", objName & ".id", issues)
   validatePositiveInt(obj, "id", objName & ".id", issues)
 
-  validateStaticValue(obj, "type_name", "string", objName & ".type_name", issues)
-  if "type_name" in obj and "type_names" in replayData:
-    let typeName = obj["type_name"].getStr()
-    let typeNames = replayData["type_names"].to(seq[string])
-    if typeName notin typeNames:
-      issues.add(ValidationIssue(
-        message: &"{objName}.type_name '{typeName}' not in type_names list",
-        field: objName & ".type_name"
-      ))
+  # type_name is required unless type_id is present (which allows fallback resolution).
+  if "type_name" notin obj and "type_id" notin obj:
+    issues.add(ValidationIssue(
+      message: &"{objName} must have either 'type_name' or 'type_id'",
+      field: objName & ".type_name"
+    ))
+  elif "type_name" in obj:
+    validateStaticValue(obj, "type_name", "string", objName & ".type_name", issues)
+    if "type_names" in replayData:
+      let typeName = obj["type_name"].getStr()
+      let typeNames = replayData["type_names"].to(seq[string])
+      if typeName notin typeNames:
+        issues.add(ValidationIssue(
+          message: &"{objName}.type_name '{typeName}' not in type_names list",
+          field: objName & ".type_name"
+        ))
+  elif "type_id" in obj:
+    # Validate type_id is in range if present.
+    validateStaticValue(obj, "type_id", "int", objName & ".type_id", issues)
+    if "type_names" in replayData:
+      let typeId = obj["type_id"].getInt()
+      let typeNames = replayData["type_names"].to(seq[string])
+      if typeId < 0 or typeId >= typeNames.len:
+        issues.add(ValidationIssue(
+          message: &"{objName}.type_id {typeId} out of range (0..{typeNames.len - 1})",
+          field: objName & ".type_id"
+        ))
 
   # Validate dynamic fields (always time series).
   validateLocation(obj, "location", objName & ".location", issues)
