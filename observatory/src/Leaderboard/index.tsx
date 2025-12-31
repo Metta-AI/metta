@@ -51,12 +51,16 @@ export const Leaderboard: FC = () => {
   }
 
   useEffect(() => {
+    let ignore = false
     const load = async () => {
       setPublicLeaderboard((prev) => ({ ...prev, loading: prev.entries.length === 0, error: null }))
       try {
         // Use the new endpoint that returns entries with VOR already computed
         const response = await repo.getPublicLeaderboard()
         setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
+        if (!ignore) {
+          setPublicLeaderboard({ entries: response.entries, loading: false, error: null })
+        }
       } catch (error: any) {
         setPublicLeaderboard({ entries: [], loading: false, error: error.message ?? 'Failed to load leaderboard' })
       }
@@ -64,6 +68,7 @@ export const Leaderboard: FC = () => {
     load()
     const intervalId = window.setInterval(() => load(), REFRESH_INTERVAL_MS)
     return () => {
+      ignore = true
       window.clearInterval(intervalId)
     }
   }, [repo])

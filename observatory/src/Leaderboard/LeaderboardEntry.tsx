@@ -235,7 +235,7 @@ export const LeaderboardEntry: FC<{ entry: LeaderboardPolicyEntry }> = ({ entry 
                               ) : simReplays.length === 0 ? (
                                 '—'
                               ) : (
-                                <div className="flex flex-wrap gap-">
+                                <div className="flex flex-wrap gap-2">
                                   {simReplays.map((replay, replayIndex) => {
                                     const label =
                                       replay.episode_id && replay.episode_id.length > 0
