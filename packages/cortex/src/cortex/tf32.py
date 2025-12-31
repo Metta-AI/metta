@@ -8,16 +8,11 @@ def set_tf32_precision(mode: bool | str) -> None:
         return
 
     enabled = mode if isinstance(mode, bool) else mode.lower() == "tf32"
-    matmul_has_fp32 = hasattr(torch.backends.cuda.matmul, "fp32_precision")
-    cudnn_conv = getattr(torch.backends.cudnn, "conv", None)
-    cudnn_has_fp32 = cudnn_conv is not None and hasattr(cudnn_conv, "fp32_precision")
 
-    if matmul_has_fp32:
-        torch.backends.cuda.matmul.fp32_precision = "tf32" if enabled else "ieee"
-    if cudnn_has_fp32:
-        cudnn_conv.fp32_precision = "tf32" if enabled else "ieee"
-
-    if not matmul_has_fp32 and hasattr(torch.backends.cuda.matmul, "allow_tf32"):
+    # Always use the legacy API to avoid conflicts with PyTorch's internal code
+    # (e.g., torch._inductor) which still reads from allow_tf32.
+    # Setting both APIs causes "mix of legacy and new APIs" errors.
+    if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
         torch.backends.cuda.matmul.allow_tf32 = enabled
-    if not cudnn_has_fp32 and hasattr(torch.backends.cudnn, "allow_tf32"):
+    if hasattr(torch.backends.cudnn, "allow_tf32"):
         torch.backends.cudnn.allow_tf32 = enabled
