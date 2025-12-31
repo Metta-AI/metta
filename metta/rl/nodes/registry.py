@@ -15,6 +15,8 @@ class NodeSpec:
     default_enabled: bool
     has_rollout: bool = True
     has_train: bool = True
+    writes_actions: bool = False
+    produces_experience: bool = False
     rollout_requires: tuple[str, ...] = ()
     train_requires: tuple[str, ...] = ()
 

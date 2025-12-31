@@ -93,6 +93,21 @@ class CoreTrainingLoop:
             if spec and spec.has_rollout:
                 node.on_rollout_start(context)
 
+        active_rollout_producers = [
+            name
+            for name, node in self.nodes.items()
+            if (spec := self.node_specs.get(name))
+            and spec.has_rollout
+            and spec.produces_experience
+            and node.cfg.enabled
+            and node.node_gate_allows("rollout", context)
+        ]
+        if len(active_rollout_producers) > 1:
+            logger.warning(
+                "Multiple rollout nodes are producing experience: %s. Ensure only one is active per rollout.",
+                ", ".join(active_rollout_producers),
+            )
+
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
@@ -249,6 +264,10 @@ def _build_rollout_nodes(
     ]
 
     rollout_node_names: list[str] = []
+    rollout_names_available = {
+        f"rollout.{spec.key}" for spec in node_specs if spec.has_rollout and nodes.get(spec.key) is not None
+    }
+    rollout_names_available.update({"rollout.env_wait", "rollout.td_prep"})
     base_dep = "rollout.td_prep"
     for spec in node_specs:
         if not spec.has_rollout:
@@ -257,12 +276,12 @@ def _build_rollout_nodes(
         if node is None:
             continue
         name = f"rollout.{spec.key}"
-        deps = _resolve_node_deps("rollout", base_dep, spec.rollout_requires)
+        deps = _resolve_node_deps("rollout", base_dep, spec.rollout_requires, rollout_names_available)
         graph_nodes.append(
             Node(
                 name=name,
                 deps=deps,
-                fn=_node_rollout_fn(node),
+                fn=_node_rollout_fn(node, spec),
                 enabled=_node_phase_enabled("rollout", node),
             )
         )
@@ -312,6 +331,14 @@ def _build_train_nodes(
     nodes: dict[str, NodeBase],
     node_specs: list[NodeSpec],
 ) -> list[Node]:
+    base_train_nodes = {
+        "train.sample_mb",
+        "train.returns",
+        "train.policy_forward",
+        "train.importance_ratio",
+        "train.advantages_pg",
+        "train.used_keys",
+    }
     graph_nodes: list[Node] = [
         Node(name="train.sample_mb", fn=_train_sample_mb_fn(core), enabled=_phase_enabled("train")),
         Node(
@@ -347,6 +374,11 @@ def _build_train_nodes(
     ]
 
     train_node_names: list[str] = []
+    train_names_available = {
+        f"train.{spec.key}" for spec in node_specs if spec.has_train and nodes.get(spec.key) is not None
+    }
+    train_names_available.update({f"rollout.{spec.key}" for spec in node_specs if spec.has_rollout})
+    train_names_available.update(base_train_nodes)
     base_dep = "train.advantages_pg"
     for spec in node_specs:
         if not spec.has_train:
@@ -355,7 +387,7 @@ def _build_train_nodes(
         if node is None:
             continue
         name = f"train.{spec.key}"
-        deps = list(_resolve_node_deps("train", base_dep, spec.train_requires))
+        deps = list(_resolve_node_deps("train", base_dep, spec.train_requires, train_names_available))
         if spec.has_rollout:
             deps.append(f"rollout.{spec.key}")
         graph_nodes.append(
@@ -472,14 +504,14 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
     return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn, enabled=_phase_enabled("rollout"))
 
 
-def _node_rollout_fn(node: NodeBase):
+def _node_rollout_fn(node: NodeBase, spec: NodeSpec):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         with context.stopwatch("_rollout.inference"):
             node.rollout(workspace["td"], context)
         td = workspace["td"]
-        if "actions" in td:
+        if spec.writes_actions and "actions" in td:
             workspace["actions_candidate"] = td["actions"]
-            workspace["actions_source"] = node.node_name
+            workspace.setdefault("actions_sources", []).append(node.node_name)
         return {}
 
     return _fn
@@ -506,6 +538,9 @@ def _rollout_actions_check_fn(core: CoreTrainingLoop):
         training_env_id = workspace["training_env_id"]
         if "actions_candidate" in workspace:
             td["actions"] = workspace["actions_candidate"]
+            sources = workspace.get("actions_sources")
+            if sources and len(sources) > 1:
+                logger.debug("Action candidates from rollout nodes: %s (using last).", ", ".join(sources))
         if "actions" not in td:
             raise RuntimeError("No node performed inference - at least one rollout node must generate actions")
 
@@ -794,8 +829,16 @@ def _node_phase_enabled(phase: str, node: NodeBase):
     return _enabled
 
 
-def _resolve_node_deps(prefix: str, base_dep: str, extra_deps: tuple[str, ...]) -> tuple[str, ...]:
+def _resolve_node_deps(
+    prefix: str,
+    base_dep: str,
+    extra_deps: tuple[str, ...],
+    available: set[str] | None = None,
+) -> tuple[str, ...]:
     deps = [base_dep] if base_dep else []
     for dep in extra_deps:
-        deps.append(dep if "." in dep else f"{prefix}.{dep}")
+        name = dep if "." in dep else f"{prefix}.{dep}"
+        if available is not None and name not in available:
+            continue
+        deps.append(name)
     return tuple(deps)

@@ -140,5 +140,6 @@ NODE_SPECS = [
         default_enabled=True,
         has_rollout=False,
         has_train=True,
+        train_requires=("sliced_kickstarter", "sliced_scripted_cloner", "supervisor"),
     )
 ]

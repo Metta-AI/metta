@@ -315,11 +315,29 @@ class Experience:
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and nodes."""
 
+        def _spec_signature(spec) -> tuple:
+            shape = getattr(spec, "shape", None)
+            shape = tuple(shape) if shape is not None else ()
+            dtype = getattr(spec, "dtype", None)
+            return (type(spec), shape, dtype)
+
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())
-        for node in nodes.values():
+        spec_sources = {key: "policy" for key in merged_spec_dict}
+        spec_signatures = {key: _spec_signature(spec) for key, spec in merged_spec_dict.items()}
+
+        for node_name, node in nodes.items():
             spec = node.get_experience_spec()
-            merged_spec_dict.update(dict(spec.items()))
+            for key, value in spec.items():
+                if key in merged_spec_dict:
+                    if _spec_signature(value) != spec_signatures[key]:
+                        raise ValueError(
+                            "Experience spec conflict for key '%s': %s vs node '%s'"
+                            % (key, spec_sources[key], node_name)
+                        )
+                merged_spec_dict[key] = value
+                spec_sources[key] = f"node '{node_name}'"
+                spec_signatures[key] = _spec_signature(value)
 
         merged_spec_dict.setdefault(
             "reward_baseline",
