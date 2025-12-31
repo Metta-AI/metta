@@ -286,7 +286,15 @@ class Loss:
         if mask is None:
             return shared_loss_data
 
-        row_mask = mask if mask.dim() == 1 else mask.any(dim=-1)
+        if mask.dim() == 1:
+            row_mask = mask
+        elif mask.dim() == len(mb.batch_size):
+            row_mask = mask.any(dim=-1)
+        else:
+            raise ValueError(
+                "loss_profile_id/is_trainable_agent must be row-aligned scalars; "
+                f"got mask shape {tuple(mask.shape)} for minibatch {tuple(mb.batch_size)}"
+            )
 
         filtered = shared_loss_data.clone()
         filtered["sampled_mb"] = mb[row_mask]

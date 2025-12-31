@@ -2,6 +2,7 @@ import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.rl.trainer_config import SamplingConfig
 from metta.rl.training.core import CoreTrainingLoop
 from metta.rl.training.experience import Experience
 
@@ -79,6 +80,7 @@ def test_slot_metadata_injected_and_repeated_by_envs():
         max_minibatch_size=2,
         experience_spec=policy.get_agent_experience_spec(),
         device=device,
+        sampling_config=SamplingConfig(),
     )
 
     optimizer = torch.optim.SGD(policy.parameters(), lr=0.1)

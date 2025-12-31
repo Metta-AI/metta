@@ -210,7 +210,7 @@ class CoreTrainingLoop:
 
         def _expand(meta: torch.Tensor) -> torch.Tensor:
             meta = meta.to(device=device)
-            return meta.view(1, num_agents).expand(num_envs, num_agents)
+            return meta.repeat(num_envs)
 
         td.set("slot_id", _expand(slot_ids))
 
