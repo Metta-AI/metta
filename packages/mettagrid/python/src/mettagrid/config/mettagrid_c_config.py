@@ -539,21 +539,40 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     )
 
     # Process align action
-    align_cfg = actions_config.align
-    align_vibe_id = 0
-    if align_cfg.vibe and align_cfg.vibe in vibe_name_to_id:
-        align_vibe_id = vibe_name_to_id[align_cfg.vibe]
-    elif align_cfg.vibe and align_cfg.enabled:
-        raise ValueError(f"Unknown vibe name '{align_cfg.vibe}' in align.vibe")
-    align_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.cost.items()}
-    align_collective_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.collective_cost.items()}
-    actions_cpp_params["align"] = CppAlignActionConfig(
-        required_resources={resource_name_to_id[k]: int(v) for k, v in align_cfg.required_resources.items()},
-        vibe=align_vibe_id,
-        cost=align_cost_cpp,
-        collective_cost=align_collective_cost_cpp,
-        enabled=align_cfg.enabled,
-    )
+    if actions_config.align:
+        align_cfg = actions_config.align
+        align_vibe_id = 0
+        if align_cfg.vibe and align_cfg.vibe in vibe_name_to_id:
+            align_vibe_id = vibe_name_to_id[align_cfg.vibe]
+        elif align_cfg.vibe:
+            raise ValueError(f"Unknown vibe name '{align_cfg.vibe}' in align.vibe")
+        align_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.cost.items()}
+        align_collective_cost_cpp = {resource_name_to_id[k]: v for k, v in align_cfg.collective_cost.items()}
+        actions_cpp_params["align"] = CppAlignActionConfig(
+            required_resources={resource_name_to_id[k]: int(v) for k, v in align_cfg.required_resources.items()},
+            vibe=align_vibe_id,
+            cost=align_cost_cpp,
+            collective_cost=align_collective_cost_cpp,
+            set_to_none=align_cfg.set_to_none,
+        )
+
+    # Process scramble action (uses AlignActionConfig with set_to_none=True)
+    if actions_config.scramble:
+        scramble_cfg = actions_config.scramble
+        scramble_vibe_id = 0
+        if scramble_cfg.vibe and scramble_cfg.vibe in vibe_name_to_id:
+            scramble_vibe_id = vibe_name_to_id[scramble_cfg.vibe]
+        elif scramble_cfg.vibe:
+            raise ValueError(f"Unknown vibe name '{scramble_cfg.vibe}' in scramble.vibe")
+        scramble_cost_cpp = {resource_name_to_id[k]: v for k, v in scramble_cfg.cost.items()}
+        scramble_collective_cost_cpp = {resource_name_to_id[k]: v for k, v in scramble_cfg.collective_cost.items()}
+        actions_cpp_params["scramble"] = CppAlignActionConfig(
+            required_resources={resource_name_to_id[k]: int(v) for k, v in scramble_cfg.required_resources.items()},
+            vibe=scramble_vibe_id,
+            cost=scramble_cost_cpp,
+            collective_cost=scramble_collective_cost_cpp,
+            set_to_none=scramble_cfg.set_to_none,
+        )
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)

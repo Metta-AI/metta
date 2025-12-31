@@ -54,6 +54,7 @@ public:
     _attack_handler = nullptr;
     _transfer_handler = nullptr;
     _align_handler = nullptr;
+    _scramble_handler = nullptr;
 
     for (const auto& [name, handler] : handlers) {
       if (name == "attack") {
@@ -62,6 +63,8 @@ public:
         _transfer_handler = dynamic_cast<Transfer*>(handler);
       } else if (name == "align") {
         _align_handler = dynamic_cast<Align*>(handler);
+      } else if (name == "scramble") {
+        _scramble_handler = dynamic_cast<Align*>(handler);
       }
     }
   }
@@ -103,9 +106,10 @@ protected:
       }
     }
 
-    // Transfer and Align can both trigger on the same vibe
+    // Transfer, Align, and Scramble can all trigger on the same vibe
     bool transfer_success = false;
     bool align_success = false;
+    bool scramble_success = false;
 
     if (_transfer_handler && _transfer_handler->has_transfer_for_vibe(actor.vibe)) {
       transfer_success = _transfer_handler->try_transfer(actor, target_object);
@@ -115,7 +119,11 @@ protected:
       align_success = _align_handler->try_align(actor, target_object);
     }
 
-    if (transfer_success || align_success) {
+    if (_scramble_handler && _scramble_handler->get_vibe() == actor.vibe) {
+      scramble_success = _scramble_handler->try_align(actor, target_object);
+    }
+
+    if (transfer_success || align_success || scramble_success) {
       return true;
     }
 
@@ -159,6 +167,7 @@ private:
   Attack* _attack_handler = nullptr;
   Transfer* _transfer_handler = nullptr;
   Align* _align_handler = nullptr;
+  Align* _scramble_handler = nullptr;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

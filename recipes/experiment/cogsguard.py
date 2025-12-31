@@ -176,10 +176,13 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 vibes=["battery", "heart", "gear"],  # Transfer triggered for these vibes
             ),
             align=AlignActionConfig(
-                enabled=True,
                 vibe="heart",
                 cost={"heart": 1},
                 collective_cost={},
+            ),
+            scramble=AlignActionConfig(
+                vibe="weapon",
+                set_to_none=True,
             ),
         ),
         agent=AgentConfig(
