@@ -188,7 +188,7 @@ class CoreTrainingLoop:
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
-    def _inject_slot_metadata(self, td: TensorDict) -> None:
+    def _inject_slot_metadata(self, td: TensorDict, _training_env_id: slice | None = None) -> None:
         ctx = self.context
         slot_ids = ctx.slot_id_per_agent
         if slot_ids is None:
