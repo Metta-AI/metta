@@ -1,7 +1,9 @@
 import contextlib
 import logging
+import multiprocessing
 import os
 import platform
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -47,6 +49,7 @@ from metta.rl.training import (
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
+    PolicyStorageDecision,
     auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
@@ -146,14 +149,44 @@ class TrainTool(Tool):
                 class_path = resolve_policy_class_path(sup_uri)
                 supervisor_policy_spec = PolicySpec(class_path=class_path)
 
+        run_name = self.run or "default"
+        preflight_executor: ThreadPoolExecutor | None = None
+        storage_future: Future[PolicyStorageDecision] | None = None
+        stats_future: Future[Optional[StatsClient]] | None = None
+        storage_decision: PolicyStorageDecision | None = None
+        stats_client: Optional[StatsClient] = None
+        needs_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
+        start_method = multiprocessing.get_start_method(allow_none=True)
+        if start_method is None:
+            start_method = multiprocessing.get_context().get_start_method()
+        can_thread_preflight = needs_preflight and (
+            self.training_env.vectorization == "serial" or start_method != "fork"
+        )
+        if can_thread_preflight:
+            preflight_executor = ThreadPoolExecutor(max_workers=2)
+            if not self.system.local_only:
+                storage_future = preflight_executor.submit(auto_policy_storage_decision, run_name)
+            if distributed_helper.is_master() and self.stats_server_uri:
+                stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
+
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
+
+        if needs_preflight and not can_thread_preflight:
+            if not self.system.local_only:
+                storage_decision = auto_policy_storage_decision(run_name)
+            if distributed_helper.is_master() and self.stats_server_uri:
+                stats_client = self._maybe_create_stats_client(distributed_helper)
 
         self._configure_torch_backends()
 
+        if storage_future:
+            storage_decision = storage_future.result()
+
         checkpoint_manager = CheckpointManager(
-            run=self.run or "default",
+            run=run_name,
             system_cfg=self.system,
             require_remote_enabled=self.evaluator.evaluate_remote,
+            storage_decision=storage_decision,
         )
 
         init_logging(run_dir=checkpoint_manager.run_dir)
@@ -179,7 +212,13 @@ class TrainTool(Tool):
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        stats_client = self._maybe_create_stats_client(distributed_helper)
+        if stats_future:
+            stats_client = stats_future.result()
+        elif stats_client is None:
+            stats_client = self._maybe_create_stats_client(distributed_helper)
+
+        if preflight_executor is not None:
+            preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
 
         try:

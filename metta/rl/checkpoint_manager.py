@@ -10,7 +10,7 @@ from safetensors.torch import save_file as save_safetensors_file
 
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
@@ -64,7 +64,13 @@ def write_checkpoint_bundle(
 class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
-    def __init__(self, run: str, system_cfg: SystemConfig, require_remote_enabled: bool = False):
+    def __init__(
+        self,
+        run: str,
+        system_cfg: SystemConfig,
+        require_remote_enabled: bool = False,
+        storage_decision: PolicyStorageDecision | None = None,
+    ):
         self.run_name = run
         self.run_dir = system_cfg.data_dir / self.run_name
         self.checkpoint_dir = self.run_dir / "checkpoints"
@@ -75,12 +81,13 @@ class CheckpointManager:
 
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
-            self._setup_remote_prefix()
+            self._setup_remote_prefix(storage_decision)
         if require_remote_enabled and self._remote_prefix is None:
             raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
-    def _setup_remote_prefix(self) -> None:
-        storage_decision = auto_policy_storage_decision(self.run_name)
+    def _setup_remote_prefix(self, storage_decision: PolicyStorageDecision | None = None) -> None:
+        if storage_decision is None:
+            storage_decision = auto_policy_storage_decision(self.run_name)
         if storage_decision.remote_prefix:
             self._remote_prefix = storage_decision.remote_prefix
             if storage_decision.reason == "env_override":
