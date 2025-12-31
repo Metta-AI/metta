@@ -1,15 +1,12 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from __future__ import annotations
+from typing import Optional, Sequence
 
-from typing import TYPE_CHECKING, Optional, Sequence
-
-if TYPE_CHECKING:
-    from metta.agent.policy import PolicyArchitecture
-    from metta.rl.training.teacher import TeacherConfig
-    from metta.tools.stub import StubTool
-    from metta.tools.sweep import SweepTool
-    from metta.tools.train import TrainTool
+from metta.agent.policy import PolicyArchitecture
+from metta.rl.training.teacher import TeacherConfig
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
+from metta.tools.train import TrainTool
 
 
 def train(
