@@ -111,14 +111,11 @@ def _walk_and_import_package(package_name: str) -> None:
     if package_path is None:
         return
 
-    def _should_skip(module_name: str) -> bool:
-        return ".bindings" in module_name
-
     # Check all paths (packages can have multiple paths)
     for path in package_path:
         # Use iter_modules to find modules and packages
         for _finder, name, ispkg in pkgutil.iter_modules([path], package_name + "."):
-            if _should_skip(name):
+            if ".bindings" in name:
                 continue
             try:
                 importlib.import_module(name)
