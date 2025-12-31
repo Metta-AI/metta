@@ -98,7 +98,6 @@ class S3SchemeResolver(SchemeResolver):
 
     Supported formats:
       - s3://bucket/path/to/checkpoints:latest (resolves to highest epoch checkpoint)
-      - s3://bucket/path/to/run:v5 (checkpoint dir with policy_spec.json)
       - s3://bucket/path/to/run:v5.zip (checkpoint zip)
     """
 
@@ -131,17 +130,10 @@ class S3SchemeResolver(SchemeResolver):
             return None
         best: tuple[int, str] | None = None
         for obj in response["Contents"]:
-            uri = None
             key = obj["Key"]
-            if key.endswith("policy_spec.json"):
-                key_dir = key.removesuffix("/policy_spec.json")
-                if not key_dir:
-                    continue
-                uri = f"s3://{parsed.bucket}/{key_dir}"
-            elif key.endswith(".zip"):
-                uri = f"s3://{parsed.bucket}/{key}"
-            else:
+            if not key.endswith(".zip"):
                 continue
+            uri = f"s3://{parsed.bucket}/{key}"
 
             info = self.parse(uri).checkpoint_info
             if info and (best is None or info[1] > best[0]):
@@ -293,8 +285,7 @@ def checkpoint_uri_for_epoch(base_uri: str, epoch: int) -> str:
         return f"file://{parsed.local_path.parent / f'{filename}{suffix}'}"
     if parsed.scheme == "s3":
         key_dir = parsed.key.rsplit("/", 1)[0] if "/" in parsed.key else ""
-        suffix = ".zip" if parsed.key.endswith(".zip") else ""
-        return f"s3://{parsed.bucket}/{key_dir + '/' if key_dir else ''}{filename}{suffix}"
+        return f"s3://{parsed.bucket}/{key_dir + '/' if key_dir else ''}{filename}.zip"
     raise ValueError(f"Unsupported URI scheme for checkpoint reloading: {parsed.scheme}")
 
 
