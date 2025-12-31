@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from metta.rl.trainer_config import TrainerConfig
-from metta.rl.training.scheduler import NodeRunGate, ScheduleRule
+from metta.rl.training.scheduler import RunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
 
@@ -62,7 +62,7 @@ def apply_teacher_phase(
     trainer_cfg: TrainerConfig,
     training_env_cfg: TrainingEnvironmentConfig,
     scheduler_rules: list[ScheduleRule],
-    scheduler_run_gates: list[NodeRunGate],
+    scheduler_run_gates: list[RunGate],
     teacher_cfg: TeacherConfig,
     default_steps: int = DEFAULT_TEACHER_STEPS,
 ) -> None:
@@ -81,17 +81,17 @@ def apply_teacher_phase(
         if end_at_step:
             scheduler_run_gates.extend(
                 [
-                    NodeRunGate(node_name=name, phase="rollout", end_at_step=end_at_step),
-                    NodeRunGate(node_name=name, phase="train", end_at_step=end_at_step),
+                    RunGate(node_name=name, phase="rollout", end_at_step=end_at_step),
+                    RunGate(node_name=name, phase="train", end_at_step=end_at_step),
                 ]
             )
 
     def _gate_critic_after_teacher() -> None:
         if total_steps:
-            scheduler_run_gates.append(NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps))
+            scheduler_run_gates.append(RunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps))
             if trainer_cfg.nodes["quantile_ppo_critic"].enabled:
                 scheduler_run_gates.append(
-                    NodeRunGate(node_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
+                    RunGate(node_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
                 )
 
     def _anneal(loss_name: str, attr_path: str, start_value: float) -> None:

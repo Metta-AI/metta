@@ -71,13 +71,7 @@ class Trainer:
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
-        node_specs = discover_node_specs()
-        nodes = {}
-        for spec in node_specs:
-            cfg = self._cfg.nodes.get(spec.key)
-            if cfg is None or not getattr(cfg, "enabled", False):
-                continue
-            nodes[spec.key] = cfg.create(self._policy, self._cfg, self._env, self._device, spec.key)
+        node_specs, nodes = self._build_nodes()
         self._policy.train()
 
         batch_info = self._env.batch_info
@@ -148,6 +142,16 @@ class Trainer:
             node.attach_context(self._context)
 
         self._prev_agent_step_for_step_callbacks: int = 0
+
+    def _build_nodes(self) -> tuple[list[Any], dict[str, Any]]:
+        node_specs = discover_node_specs()
+        nodes: dict[str, Any] = {}
+        for spec in node_specs:
+            cfg = self._cfg.nodes.get(spec.key)
+            if cfg is None or not getattr(cfg, "enabled", False):
+                continue
+            nodes[spec.key] = cfg.create(self._policy, self._cfg, self._env, self._device, spec.key)
+        return node_specs, nodes
 
     @property
     def context(self) -> ComponentContext:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable
 
 from metta.rl.nodes.base import NodeConfig
@@ -37,14 +38,8 @@ DEFAULT_NODE_ORDER: tuple[str, ...] = (
     "logit_kickstarter",
 )
 
-_NODE_SPECS_CACHE: list[NodeSpec] | None = None
-
-
-def discover_node_specs() -> list[NodeSpec]:
-    global _NODE_SPECS_CACHE
-    if _NODE_SPECS_CACHE is not None:
-        return list(_NODE_SPECS_CACHE)
-
+@lru_cache(maxsize=1)
+def _discover_node_specs_cached() -> tuple[NodeSpec, ...]:
     specs: list[NodeSpec] = []
 
     package = importlib.import_module("metta.rl.nodes")
@@ -56,9 +51,13 @@ def discover_node_specs() -> list[NodeSpec]:
         if module_specs:
             specs.extend(module_specs)
 
-    _NODE_SPECS_CACHE = _sort_specs(specs)
-    _ensure_unique_keys(_NODE_SPECS_CACHE)
-    return list(_NODE_SPECS_CACHE)
+    specs = _sort_specs(specs)
+    _ensure_unique_keys(specs)
+    return tuple(specs)
+
+
+def discover_node_specs() -> list[NodeSpec]:
+    return list(_discover_node_specs_cached())
 
 
 def node_specs_by_key() -> dict[str, NodeSpec]:

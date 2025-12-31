@@ -28,7 +28,7 @@ from metta.common.wandb.context import WandbConfig
 from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -392,7 +392,7 @@ def train(
     if maps_cache_size is not None:
         tt.training_env.maps_cache_size = maps_cache_size
 
-    scheduler_run_gates: list[NodeRunGate] = []
+    scheduler_run_gates: list[RunGate] = []
     scheduler_rules: list[ScheduleRule] = []
 
     if teacher and teacher.enabled:

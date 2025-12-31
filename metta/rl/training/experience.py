@@ -11,6 +11,13 @@ from metta.common.util.collections import duplicates
 from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 
+def _spec_signature(spec) -> tuple:
+    shape = getattr(spec, "shape", None)
+    shape = tuple(shape) if shape is not None else ()
+    dtype = getattr(spec, "dtype", None)
+    return (type(spec), shape, dtype)
+
+
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
 
@@ -314,12 +321,6 @@ class Experience:
         sampling_config: Any,  # av fix
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and nodes."""
-
-        def _spec_signature(spec) -> tuple:
-            shape = getattr(spec, "shape", None)
-            shape = tuple(shape) if shape is not None else ()
-            dtype = getattr(spec, "dtype", None)
-            return (type(spec), shape, dtype)
 
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())

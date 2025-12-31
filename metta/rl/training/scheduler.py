@@ -152,7 +152,7 @@ class ScheduleRule(Config):
             self._apply_progress(obj=obj, epoch=int(epoch), agent_step=int(agent_step))
 
 
-class NodeRunGate(Config):
+class RunGate(Config):
     """Per-node, per-phase run gating over epochs/steps/cycles."""
 
     node_name: str
@@ -189,10 +189,10 @@ class NodeRunGate(Config):
 class SchedulerConfig(Config):
     # Unified rules list only
     rules: list[ScheduleRule] = Field(default_factory=list)
-    run_gates: list[NodeRunGate] = Field(default_factory=list)
+    run_gates: list[RunGate] = Field(default_factory=list)
 
 
-class NodeScheduler(TrainerComponent):
+class Scheduler(TrainerComponent):
     """Trainer-level scheduler for both:
     1) updates to any hyperparameters and
     2) gating as to whether entire nodes should run or not given the current epoch or agent step.
@@ -202,7 +202,7 @@ class NodeScheduler(TrainerComponent):
         from metta.tools.train import TrainTool
         from metta.rl.training import TrainingEnvironmentConfig, EvaluatorConfig
         from metta.rl.training.scheduler import (
-            SchedulerConfig, ScheduleRule, NodeRunGate
+            SchedulerConfig, ScheduleRule, RunGate
         )
 
         def train(...):
@@ -215,9 +215,9 @@ class NodeScheduler(TrainerComponent):
                     # Gate when a node is allowed to run per phase
                     run_gates=[
                         # Start PPO training after epoch 5
-                        NodeRunGate(node_name="ppo_actor", phase="train", begin_at_epoch=5),
+                        RunGate(node_name="ppo_actor", phase="train", begin_at_epoch=5),
                         # Allow PPO rollout from the start (explicit for clarity)
-                        NodeRunGate(node_name="ppo_actor", phase="rollout", begin_at_epoch=0),
+                        RunGate(node_name="ppo_actor", phase="rollout", begin_at_epoch=0),
                     ],
 
                     # Hyperparameter updates (progress- or metric-driven)

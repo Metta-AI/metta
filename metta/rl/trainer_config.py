@@ -107,19 +107,7 @@ class TrainerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":
-        specs = node_specs_by_key()
-
-        for key, spec in specs.items():
-            if key not in self.nodes:
-                self.nodes[key] = spec.config_cls(enabled=spec.default_enabled)
-
-        for key, value in list(self.nodes.items()):
-            spec = specs.get(key)
-            if spec is None:
-                raise ValueError(f"Unknown node config '{key}'")
-            if isinstance(value, spec.config_cls):
-                continue
-            self.nodes[key] = spec.config_cls.model_validate(value)
+        self.nodes = _normalize_nodes(self.nodes)
 
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")
@@ -132,3 +120,22 @@ class TrainerConfig(Config):
                     "update_epochs must be within [min_update_epochs, max_update_epochs] when autotune is enabled"
                 )
         return self
+
+
+def _normalize_nodes(nodes: dict[str, Any]) -> dict[str, Any]:
+    specs = node_specs_by_key()
+    normalized = dict(nodes)
+
+    for key, spec in specs.items():
+        if key not in normalized:
+            normalized[key] = spec.config_cls(enabled=spec.default_enabled)
+
+    for key, value in list(normalized.items()):
+        spec = specs.get(key)
+        if spec is None:
+            raise ValueError(f"Unknown node config '{key}'")
+        if isinstance(value, spec.config_cls):
+            continue
+        normalized[key] = spec.config_cls.model_validate(value)
+
+    return normalized

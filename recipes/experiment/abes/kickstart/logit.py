@@ -17,7 +17,7 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -126,7 +126,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
-    scheduler_run_gates: list[NodeRunGate] = []
+    scheduler_run_gates: list[RunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,

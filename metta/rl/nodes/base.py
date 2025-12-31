@@ -119,14 +119,6 @@ class NodeBase:
         """Register the shared trainer context for this node instance."""
         self._context = context
 
-    def _require_context(self, context: ComponentContext | None = None) -> ComponentContext:
-        if context is not None:
-            self._context = context
-            return context
-        if self._context is None:
-            raise RuntimeError("Node has not been attached to a ComponentContext")
-        return self._context
-
     def get_experience_spec(self) -> Composite:
         """Optional extension of the experience replay buffer spec required by this node."""
         return Composite()
@@ -138,7 +130,7 @@ class NodeBase:
 
     def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
-        self._require_context(context)
+        self._ensure_context(context)
 
     def on_rollout_start(self, context: ComponentContext | None = None) -> None:
         """Called before starting a rollout phase."""

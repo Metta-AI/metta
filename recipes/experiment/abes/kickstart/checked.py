@@ -18,7 +18,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
-from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -129,15 +129,15 @@ def train(
     # Configure scheduler with run gates
     scheduler = SchedulerConfig(
         run_gates=[
-            NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=334),
-            NodeRunGate(
+            RunGate(node_name="ppo_critic", phase="rollout", begin_at_step=334),
+            RunGate(
                 node_name="sl_checkpointed_kickstarter",
                 phase="rollout",
                 # begin_at_step=50_000_000,
                 # end_at_step=1_000_000_000,
                 end_at_epoch=334,
             ),
-            NodeRunGate(
+            RunGate(
                 node_name="sl_checkpointed_kickstarter",
                 phase="train",
                 # begin_at_step=50_000_000,
