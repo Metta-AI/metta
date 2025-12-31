@@ -248,8 +248,8 @@ def _build_rollout_nodes(
         _rollout_td_prep_node(core),
     ]
 
-    has_nodes = False
-    prev_dep = "rollout.td_prep"
+    rollout_node_names: list[str] = []
+    base_dep = "rollout.td_prep"
     for spec in node_specs:
         if not spec.has_rollout:
             continue
@@ -257,8 +257,7 @@ def _build_rollout_nodes(
         if node is None:
             continue
         name = f"rollout.{spec.key}"
-        has_nodes = True
-        deps = _resolve_node_deps("rollout", prev_dep, spec.rollout_requires)
+        deps = _resolve_node_deps("rollout", base_dep, spec.rollout_requires)
         graph_nodes.append(
             Node(
                 name=name,
@@ -267,9 +266,9 @@ def _build_rollout_nodes(
                 enabled=_node_phase_enabled("rollout", node),
             )
         )
-        prev_dep = name
+        rollout_node_names.append(name)
 
-    deps = (prev_dep,) if has_nodes else ("rollout.td_prep",)
+    deps = tuple(rollout_node_names) if rollout_node_names else ("rollout.td_prep",)
     graph_nodes.extend(
         [
             Node(
@@ -347,8 +346,8 @@ def _build_train_nodes(
         ),
     ]
 
-    has_nodes = False
-    prev_dep = "train.advantages_pg"
+    train_node_names: list[str] = []
+    base_dep = "train.advantages_pg"
     for spec in node_specs:
         if not spec.has_train:
             continue
@@ -356,8 +355,7 @@ def _build_train_nodes(
         if node is None:
             continue
         name = f"train.{spec.key}"
-        has_nodes = True
-        deps = list(_resolve_node_deps("train", prev_dep, spec.train_requires))
+        deps = list(_resolve_node_deps("train", base_dep, spec.train_requires))
         if spec.has_rollout:
             deps.append(f"rollout.{spec.key}")
         graph_nodes.append(
@@ -368,9 +366,9 @@ def _build_train_nodes(
                 enabled=_node_phase_enabled("train", node),
             )
         )
-        prev_dep = name
+        train_node_names.append(name)
 
-    deps = (prev_dep,) if has_nodes else ("train.advantages_pg",)
+    deps = tuple(train_node_names) if train_node_names else ("train.advantages_pg",)
     graph_nodes.extend(
         [
             Node(

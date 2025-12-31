@@ -1,8 +1,10 @@
 """Arena recipe with CMPO (Conservative Model-Based Policy Optimization)."""
 
+from typing import Any
+
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.rl.nodes.cmpo import CMPOConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
@@ -11,16 +13,16 @@ from recipes.experiment.arena import train_shaped as base_train_shaped
 from recipes.prod.arena_basic_easy_shaped import train as arena_basic_easy_shaped_train
 
 
-def cmpo_graph() -> GraphConfig:
-    graph = GraphConfig()
-    graph.nodes["ppo_actor"].enabled = False
-    graph.nodes["ppo_critic"].enabled = False
-    graph.nodes["cmpo"] = CMPOConfig(enabled=True)
-    return graph
+def cmpo_nodes() -> dict[str, Any]:
+    nodes = default_nodes()
+    nodes["ppo_actor"].enabled = False
+    nodes["ppo_critic"].enabled = False
+    nodes["cmpo"] = CMPOConfig(enabled=True)
+    return nodes
 
 
 def _cmpo_trainer_config() -> TrainerConfig:
-    return TrainerConfig(graph=cmpo_graph())
+    return TrainerConfig(nodes=cmpo_nodes())
 
 
 def _with_cmpo(base_tool: TrainTool) -> TrainTool:

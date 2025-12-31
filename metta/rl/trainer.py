@@ -74,7 +74,7 @@ class Trainer:
         node_specs = discover_node_specs()
         nodes = {}
         for spec in node_specs:
-            cfg = self._cfg.graph.nodes.get(spec.key)
+            cfg = self._cfg.nodes.get(spec.key)
             if cfg is None or not getattr(cfg, "enabled", False):
                 continue
             nodes[spec.key] = cfg.create(self._policy, self._cfg, self._env, self._device, spec.key)

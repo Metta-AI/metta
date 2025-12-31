@@ -72,7 +72,7 @@ def apply_teacher_phase(
         return
 
     total_steps = teacher_cfg.steps or default_steps
-    nodes = trainer_cfg.graph.nodes
+    nodes = trainer_cfg.nodes
     loss_cfg = _select_teacher_node_cfg(nodes=nodes, mode=teacher_cfg.mode)
     if loss_cfg is not None:
         _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
@@ -91,7 +91,7 @@ def apply_teacher_phase(
             scheduler_run_gates.append(
                 NodeRunGate(node_name="ppo_critic", phase="rollout", begin_at_step=total_steps)
             )
-            if trainer_cfg.graph.nodes["quantile_ppo_critic"].enabled:
+            if trainer_cfg.nodes["quantile_ppo_critic"].enabled:
                 scheduler_run_gates.append(
                     NodeRunGate(node_name="quantile_ppo_critic", phase="rollout", begin_at_step=total_steps)
                 )
@@ -100,7 +100,7 @@ def apply_teacher_phase(
         if total_steps and start_value > 0.0:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path=f"graph.nodes.{loss_name}.{attr_path}",
+                    target_path=f"nodes.{loss_name}.{attr_path}",
                     mode="progress",
                     style="linear",
                     start_value=start_value,
@@ -195,7 +195,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.eer_kickstarter.action_loss_coef",
+                    target_path="nodes.eer_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.action_loss_coef,
@@ -206,7 +206,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.eer_kickstarter.value_loss_coef",
+                    target_path="nodes.eer_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.value_loss_coef,
@@ -217,7 +217,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.eer_kickstarter.r_lambda",
+                    target_path="nodes.eer_kickstarter.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_kick.r_lambda,
@@ -239,7 +239,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.kickstarter.action_loss_coef",
+                    target_path="nodes.kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.action_loss_coef,
@@ -250,7 +250,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.kickstarter.value_loss_coef",
+                    target_path="nodes.kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=ks.value_loss_coef,
@@ -273,7 +273,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.logit_kickstarter.action_loss_coef",
+                    target_path="nodes.logit_kickstarter.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.action_loss_coef,
@@ -284,7 +284,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.logit_kickstarter.value_loss_coef",
+                    target_path="nodes.logit_kickstarter.value_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=logit.value_loss_coef,
@@ -304,7 +304,7 @@ def apply_teacher_phase(
         if total_steps:
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.eer_cloner.action_loss_coef",
+                    target_path="nodes.eer_cloner.action_loss_coef",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.action_loss_coef,
@@ -315,7 +315,7 @@ def apply_teacher_phase(
             )
             scheduler_rules.append(
                 ScheduleRule(
-                    target_path="graph.nodes.eer_cloner.r_lambda",
+                    target_path="nodes.eer_cloner.r_lambda",
                     mode="progress",
                     style="linear",
                     start_value=eer_cl.r_lambda,

@@ -14,7 +14,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
@@ -107,8 +107,8 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    graph_config = GraphConfig()
-    trainer_cfg = TrainerConfig(graph=graph_config)
+    nodes = default_nodes()
+    trainer_cfg = TrainerConfig(nodes=nodes)
     teacher = teacher or TeacherConfig(
         policy_uri="s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt",
         mode="logit_kickstarter",
@@ -139,7 +139,7 @@ def train(
     scheduler_rules.extend(
         [
             ScheduleRule(
-                target_path="graph.nodes.logit_kickstarter.action_loss_coef",
+                target_path="nodes.logit_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -148,7 +148,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             ScheduleRule(
-                target_path="graph.nodes.logit_kickstarter.value_loss_coef",
+                target_path="nodes.logit_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,

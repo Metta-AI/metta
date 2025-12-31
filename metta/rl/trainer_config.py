@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes, node_specs_by_key
 from metta.rl.training import HeartbeatConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
@@ -75,7 +75,7 @@ class TorchProfilerConfig(Config):
 
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=10_000_000_000, gt=0)
-    graph: GraphConfig = Field(default_factory=GraphConfig)
+    nodes: dict[str, Any] = Field(default_factory=default_nodes)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
@@ -107,6 +107,20 @@ class TrainerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":
+        specs = node_specs_by_key()
+
+        for key, spec in specs.items():
+            if key not in self.nodes:
+                self.nodes[key] = spec.config_cls(enabled=spec.default_enabled)
+
+        for key, value in list(self.nodes.items()):
+            spec = specs.get(key)
+            if spec is None:
+                raise ValueError(f"Unknown node config '{key}'")
+            if isinstance(value, spec.config_cls):
+                continue
+            self.nodes[key] = spec.config_cls.model_validate(value)
+
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:

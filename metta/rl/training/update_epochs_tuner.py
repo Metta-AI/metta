@@ -66,8 +66,8 @@ class UpdateEpochAutoTuner(TrainerComponent):
         if not stats:
             return
 
-        approx_kl = float(stats.get("graph/ppo_actor/approx_kl", 0.0))
-        clipfrac = float(stats.get("graph/ppo_actor/clipfrac", 0.0))
+        approx_kl = float(stats.get("ppo_actor/approx_kl", 0.0))
+        clipfrac = float(stats.get("ppo_actor/clipfrac", 0.0))
         if approx_kl <= 0.0 and clipfrac <= 0.0:
             return
 

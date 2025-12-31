@@ -77,8 +77,8 @@ def test_node_stats_average_values() -> None:
 
     stats = node.stats()
 
-    assert stats["graph/dummy/policy_loss"] == 2.0
-    assert stats["graph/dummy/value_loss"] == 4.0
+    assert stats["dummy/policy_loss"] == 2.0
+    assert stats["dummy/value_loss"] == 4.0
 
 
 def test_zero_loss_tracker_clears_values() -> None:

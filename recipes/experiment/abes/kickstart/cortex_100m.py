@@ -14,7 +14,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import AdvantageConfig, OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
@@ -147,7 +147,7 @@ def train(
         )
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
 
-    graph_config = GraphConfig()
+    nodes = default_nodes()
     default_teacher_steps = 600_000_000
     teacher = teacher or TeacherConfig(
         policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt",
@@ -155,10 +155,10 @@ def train(
         steps=default_teacher_steps,
         teacher_led_proportion=0.2,
     )
-    graph_config.nodes["sliced_kickstarter"].action_loss_coef = 1.0
-    graph_config.nodes["sliced_kickstarter"].value_loss_coef = 0.0
+    nodes["sliced_kickstarter"].action_loss_coef = 1.0
+    nodes["sliced_kickstarter"].value_loss_coef = 0.0
 
-    trainer_cfg = TrainerConfig(graph=graph_config)
+    trainer_cfg = TrainerConfig(nodes=nodes)
     trainer_cfg = trainer_cfg.model_copy(update=trainer_updates)
 
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)

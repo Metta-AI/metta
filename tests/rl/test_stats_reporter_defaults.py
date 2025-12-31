@@ -24,7 +24,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
     reporter._context = SimpleNamespace(  # type: ignore[attr-defined, assignment]
         config=SimpleNamespace(
             optimizer=SimpleNamespace(learning_rate=0.0, type="adam"),
-            graph=SimpleNamespace(nodes={}),
+            nodes={},
         ),
         stopwatch=timer,
         experience=SimpleNamespace(stats=lambda: {}),

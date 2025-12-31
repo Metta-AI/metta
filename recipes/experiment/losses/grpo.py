@@ -2,7 +2,7 @@
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.nodes.grpo import GRPOConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
@@ -52,7 +52,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        graph=GraphConfig(nodes={"grpo": grpo_config}),
+        nodes={"grpo": grpo_config},
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -85,9 +85,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    graph_config = GraphConfig(
-        nodes={"grpo": grpo_config},
-    )
+    nodes = {"grpo": grpo_config}
 
     # Configure optimizer
     optimizer_config = OptimizerConfig(
@@ -101,7 +99,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        graph=graph_config,
+        nodes=nodes,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -134,9 +132,7 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    graph_config = GraphConfig(
-        nodes={"grpo": grpo_config},
-    )
+    nodes = {"grpo": grpo_config}
 
     # Configure optimizer
     optimizer_config = OptimizerConfig(
@@ -150,7 +146,7 @@ def basic_easy_shaped() -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        graph=graph_config,
+        nodes=nodes,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )

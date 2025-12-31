@@ -43,7 +43,7 @@ def train(
         maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
-    nodes_cfg = tt.trainer.graph.nodes
+    nodes_cfg = tt.trainer.nodes
     needs_full_log_probs = any(
         (nodes_cfg.get(name) and nodes_cfg[name].enabled)
         for name in (

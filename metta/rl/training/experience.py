@@ -119,7 +119,7 @@ class Experience:
         t_in_row_val = int(self.t_in_row_cpu[env_id.start].item())
         row_ids = self.row_slot_ids[env_id]
 
-        # Scheduler updates these keys based on the active losses for the epoch.
+        # Scheduler updates these keys based on the active nodes for the epoch.
         if self._store_keys:
             self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
         else:

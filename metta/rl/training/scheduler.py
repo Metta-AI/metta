@@ -212,7 +212,7 @@ class NodeScheduler(TrainerComponent):
 
                 # Configure the scheduler with run gates and rules
                 scheduler=SchedulerConfig(
-                    # Gate when a loss is allowed to run per phase
+                    # Gate when a node is allowed to run per phase
                     run_gates=[
                         # Start PPO training after epoch 5
                         NodeRunGate(node_name="ppo_actor", phase="train", begin_at_epoch=5),
@@ -224,7 +224,7 @@ class NodeScheduler(TrainerComponent):
                     rules=[
                         # Linearly anneal PPO actor entropy coefficient from 0.02 -> 0.0 over epochs 0..50
                         ScheduleRule(
-                            target_path="graph.nodes.ppo_actor.ent_coef",
+                            target_path="nodes.ppo_actor.ent_coef",
                             mode="progress",
                             style="linear",
                             start_value=0.02,
@@ -235,7 +235,7 @@ class NodeScheduler(TrainerComponent):
 
                         # Drive a hyperparameter from a rollout metric (with smoothing and clamping)
                         ScheduleRule(
-                            target_path="graph.nodes.ppo_critic.vf_coef",
+                            target_path="nodes.ppo_critic.vf_coef",
                             mode="metric",
                             metric_key="your_metric_key",  # key found in StatsReporter.state.rollout_stats
                             ema_beta=0.9,
@@ -247,7 +247,7 @@ class NodeScheduler(TrainerComponent):
             )
 
     Notes:
-    - "target_path" is relative to the TrainerConfig root (e.g., "graph.nodes.ppo_actor.ent_coef").
+    - "target_path" is relative to the TrainerConfig root (e.g., "nodes.ppo_actor.ent_coef").
     - For metric-driven rules, "metric_key" must exist in rollout stats accumulated by
       the StatsReporter (flattened keys from env infos).
     """
@@ -272,9 +272,9 @@ class NodeScheduler(TrainerComponent):
             gates = {}
             self.context.node_run_gates = gates
 
-        # OR-combine semantics across gates for the same loss/phase.
+        # OR-combine semantics across gates for the same node/phase.
         # Re-initialize per apply call to False iff there exists at least one gate
-        # for this (loss, phase) in the current pass; otherwise leave unset so
+        # for this (node, phase) in the current pass; otherwise leave unset so
         # downstream defaults (True) still apply when no gates exist for a phase.
         seen_loss_phase: set[tuple[str, str]] = set()
 
@@ -294,7 +294,7 @@ class NodeScheduler(TrainerComponent):
                 seen_loss_phase.add(key)
             entry[phase] = bool(entry[phase]) or bool(allowed)
 
-        # If a teacher/supervisor rollout loss is gated OFF, disable the supervisor to avoid extra forwards.
+        # If a teacher/supervisor rollout node is gated OFF, disable the supervisor to avoid extra forwards.
         if phase == "rollout":
             sup_off = False
             for node_name, entry in gates.items():
@@ -320,10 +320,11 @@ class NodeScheduler(TrainerComponent):
 
         # 3) If the train phase is gated to false, restrict which experience keys
         #    must be present based on which nodes are active for rollout.
-        #    Check if any loss has train phase disabled (gated to False)
+        #    Check if any node has train phase disabled (gated to False)
         train_disabled = False
+        node_specs = getattr(self.context, "node_specs", {}) or {}
         for node_name, node in self.context.nodes.items():
-            spec = self.context.node_specs.get(node_name)
+            spec = node_specs.get(node_name)
             if spec is None or not spec.has_train:
                 continue
             entry = gates.get(node_name)
@@ -346,13 +347,14 @@ class NodeScheduler(TrainerComponent):
     def _active_rollout_node_names(self) -> Iterable[str]:
         """Return node names that are active for rollout in the current epoch."""
         gates = getattr(self.context, "node_run_gates", None) or {}
+        node_specs = getattr(self.context, "node_specs", {}) or {}
         for node_name, node in self.context.nodes.items():
-            spec = self.context.node_specs.get(node_name)
+            spec = node_specs.get(node_name)
             if spec is None or not spec.has_rollout:
                 continue
             entry = gates.get(node_name)
             if not entry:
-                # No gates configured for this loss; default to active.
+                # No gates configured for this node; default to active.
                 yield node_name
                 continue
             if bool(entry.get("rollout", True)):

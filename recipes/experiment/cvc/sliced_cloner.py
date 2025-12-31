@@ -18,7 +18,7 @@ from metta.cogworks.curriculum.curriculum import (
     DiscreteRandomConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import NodeRunGate, SchedulerConfig, ScheduleRule
@@ -168,7 +168,7 @@ def train(
         variants=variants,
         algorithm_config=cur_alg,
     )
-    trainer_cfg = TrainerConfig(graph=GraphConfig())
+    trainer_cfg = TrainerConfig(nodes=default_nodes())
     scheduler = None
     scheduler_run_gates: list[NodeRunGate] = []
     scheduler_rules: list[ScheduleRule] = []

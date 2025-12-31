@@ -12,7 +12,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import GraphConfig
+from metta.rl.nodes import default_nodes
 from metta.rl.nodes.ppo_actor import PPOActorConfig
 from metta.rl.nodes.ppo_critic import PPOCriticConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -101,12 +101,10 @@ def train(
 
     eval_simulations = make_evals()
     trainer_cfg = TrainerConfig(
-        graph=GraphConfig(
-            nodes={
-                "ppo_actor": PPOActorConfig(),
-                "ppo_critic": PPOCriticConfig(),
-            }
-        ),
+        nodes={
+            "ppo_actor": PPOActorConfig(),
+            "ppo_critic": PPOCriticConfig(),
+        },
     )
     # policy_config = FastDynamicsConfig()
     # policy_config = FastLSTMResetConfig()

@@ -9,7 +9,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import GraphConfig
 from metta.rl.nodes.ppo_actor import PPOActorConfig
 from metta.rl.nodes.ppo_critic import PPOCriticConfig
 from metta.rl.nodes.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
@@ -107,23 +106,21 @@ def train(
 
     eval_simulations = simulations()
 
-    graph_config = GraphConfig(
-        nodes={
-            "ppo_actor": PPOActorConfig(enabled=True),
-            "ppo_critic": PPOCriticConfig(enabled=True),
-            "sl_checkpointed_kickstarter": SLCheckpointedKickstarterConfig(
-                enabled=True,
-                teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
-                checkpointed_interval=24,
-                epochs_per_checkpoint=1,
-                terminating_epoch=334,
-                final_checkpoint=8016,
-            ),
-        }
-    )
+    nodes = {
+        "ppo_actor": PPOActorConfig(enabled=True),
+        "ppo_critic": PPOCriticConfig(enabled=True),
+        "sl_checkpointed_kickstarter": SLCheckpointedKickstarterConfig(
+            enabled=True,
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
+            checkpointed_interval=24,
+            epochs_per_checkpoint=1,
+            terminating_epoch=334,
+            final_checkpoint=8016,
+        ),
+    }
 
     trainer_cfg = TrainerConfig(
-        graph=graph_config,
+        nodes=nodes,
     )
 
     if policy_architecture is None:
@@ -150,7 +147,7 @@ def train(
         ],
         rules=[
             ScheduleRule(
-                target_path="graph.nodes.sl_checkpointed_kickstarter.action_loss_coef",
+                target_path="nodes.sl_checkpointed_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -159,7 +156,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             ScheduleRule(
-                target_path="graph.nodes.sl_checkpointed_kickstarter.value_loss_coef",
+                target_path="nodes.sl_checkpointed_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,

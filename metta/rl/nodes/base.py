@@ -111,6 +111,10 @@ class NodeBase:
         self._zero_tensor = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         self.register_state_attr("loss_tracker")
 
+    @property
+    def instance_name(self) -> str:
+        return self.node_name
+
     def attach_context(self, context: ComponentContext) -> None:
         """Register the shared trainer context for this node instance."""
         self._context = context
@@ -191,7 +195,7 @@ class NodeBase:
 
     def stats(self) -> dict[str, float]:
         """Aggregate tracked statistics into mean values."""
-        prefix = f"graph/{self.node_name}/"
+        prefix = f"{self.node_name}/"
         return {f"{prefix}{k}": (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
 
     def zero_loss_tracker(self) -> None:

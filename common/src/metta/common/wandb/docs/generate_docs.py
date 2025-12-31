@@ -240,7 +240,7 @@ def get_section_description(section, descriptions=None):
         "env_timing_cumulative": "Cumulative environment timing statistics",
         "env_timing_per_epoch": "Per-epoch environment timing breakdown",
         "experience": "Training experience buffer statistics",
-        "losses": "Training loss components",
+        "graph": "Training graph node metrics",
         "metric": "Core training metrics (steps, epochs, time)",
         "monitor": "System resource monitoring",
         "overview": "High-level training progress",

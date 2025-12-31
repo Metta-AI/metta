@@ -1,4 +1,4 @@
-# metta/rl/loss/contrastive_config.py
+# metta/rl/nodes/contrastive_config.py
 from typing import Any
 
 import torch

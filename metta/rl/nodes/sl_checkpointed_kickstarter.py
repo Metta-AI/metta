@@ -87,16 +87,17 @@ class SLCheckpointedKickstarter(NodeBase):
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
 
+    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+        with torch.no_grad():
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
-NODE_SPECS = [
-    NodeSpec(
-        key="sl_checkpointed_kickstarter",
-        config_cls=SLCheckpointedKickstarterConfig,
-        default_enabled=False,
-        has_rollout=True,
-        has_train=True,
-    )
-]
+        env_slice = self._training_env_id(
+            context, error="ComponentContext.training_env_id is required for SLCheckpointedKickstarter rollout"
+        )
+        self.replay.store(data_td=td, env_id=env_slice)
 
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
@@ -185,3 +186,14 @@ NODE_SPECS = [
         # Detach gradient
         for param in self.teacher_policy.parameters():
             param.requires_grad = False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="sl_checkpointed_kickstarter",
+        config_cls=SLCheckpointedKickstarterConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]
