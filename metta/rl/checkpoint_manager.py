@@ -118,6 +118,8 @@ class CheckpointManager:
             result["curriculum_state"] = state["curriculum_state"]
         if "node_states" in state:
             result["node_states"] = state["node_states"]
+        elif "loss_states" in state:
+            result["node_states"] = state["loss_states"]
         return result
 
     def save_trainer_state(
