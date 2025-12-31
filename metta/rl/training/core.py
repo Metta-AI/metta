@@ -54,8 +54,8 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
-        self.rollout_graph = TrainingGraph(_rollout_nodes_from_losses(losses))
-        self.train_graph = TrainingGraph(_train_nodes_from_losses(losses))
+        self.rollout_graph = TrainingGraph(_build_rollout_nodes(self, losses))
+        self.train_graph = TrainingGraph(_build_train_nodes(self, losses))
         self.last_action = torch.zeros(
             experience.total_agents,
             1,
@@ -63,7 +63,7 @@ class CoreTrainingLoop:
             device=device,
         )
         # Cache environment indices to avoid reallocating per rollout batch
-        self._env_index_cache = experience._range_tensor.to(device=device)
+        self._env_index_cache = experience._range_tensor.to(device=device, dtype=torch.long)
         # Get policy spec for experience buffer
         self.policy_spec = policy.get_agent_experience_spec()
 
@@ -96,96 +96,15 @@ class CoreTrainingLoop:
         last_env_id: slice | None = None
 
         while not self.experience.ready_for_training:
-            # Get observation from environment
-            with context.stopwatch("_rollout.env_wait"):
-                o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
-            last_env_id = training_env_id
-            # Prepare data for policy
-            with context.stopwatch("_rollout.td_prep"):
-                td = buffer_step[training_env_id].clone()
-                target_device = td.device
-                td["env_obs"] = o.to(device=target_device, non_blocking=True)
-
-                rewards = r.to(device=target_device, non_blocking=True)
-                td["rewards"] = rewards
-                agent_ids = self._env_index_cache[training_env_id]
-                td["training_env_ids"] = agent_ids.unsqueeze(1)
-
-                avg_reward = context.state.avg_reward
-                baseline = avg_reward[agent_ids]
-                td["reward_baseline"] = baseline
-
-                # CRITICAL FIX for MPS: Convert dtype BEFORE moving to device, and use blocking transfer
-                # MPS has two bugs:
-                # 1. bool->float32 conversion during .to(device=mps, dtype=float32) produces NaN
-                # 2. non_blocking=True causes race conditions with uninitialized data
-                # Solution: Convert dtype on CPU first, then use blocking transfer to MPS
-                if target_device.type == "mps":
-                    td["dones"] = d.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                    td["truncateds"] = t.to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                else:
-                    # On CUDA/CPU, combined conversion is safe and faster
-                    td["dones"] = d.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                    td["truncateds"] = t.to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["teacher_actions"] = ta.to(device=target_device, dtype=torch.long, non_blocking=True)
-                # Row-aligned state: provide row slot id and position within row
-                row_ids = self.experience.row_slot_ids[training_env_id]
-                t_in_row = self.experience.t_in_row[training_env_id]
-                td["row_id"] = row_ids
-                td["t_in_row"] = t_in_row
-                self.add_last_action_to_td(td)
-
-                ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
-
-            # Allow losses to mutate td (policy inference, bookkeeping, etc.)
-            with context.stopwatch("_rollout.inference"):
-                context.training_env_id = training_env_id
-                self.rollout_graph.run("rollout", context, {"td": td})
-
-            avg_reward = context.state.avg_reward
-            beta = float(context.config.advantage.reward_centering.beta)
-            with torch.no_grad():
-                rewards_f32 = td["rewards"].to(dtype=torch.float32)
-                avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
-            context.state.avg_reward = avg_reward
-
-            assert "actions" in td, "No loss performed inference - at least one loss must generate actions"
-            raw_actions = td["actions"].detach()
-            if raw_actions.dim() != 1:
-                raise ValueError(
-                    "Policies must emit a single discrete action id per agent; "
-                    f"received tensor of shape {tuple(raw_actions.shape)}"
-                )
-
-            actions_column = raw_actions.view(-1, 1)
-
-            if self.last_action.device != actions_column.device:
-                self.last_action = self.last_action.to(device=actions_column.device)
-
-            if self.last_action.dtype != actions_column.dtype:
-                actions_column = actions_column.to(dtype=self.last_action.dtype)
-
-            target_buffer = self.last_action[training_env_id]
-            if target_buffer.shape != actions_column.shape:
-                msg = "last_action buffer shape mismatch: target=%s actions=%s raw=%s" % (
-                    target_buffer.shape,
-                    actions_column.shape,
-                    tuple(td["actions"].shape),
-                )
-                logger.error(msg, exc_info=True)
-                raise RuntimeError(msg)
-
-            target_buffer.copy_(actions_column)
-
-            # Ship actions to the environment
-            with context.stopwatch("_rollout.send"):
-                env.send_actions(td["actions"].cpu().numpy())
-
-            infos_list: list[dict[str, Any]] = list(info) if info else []
-            if infos_list:
-                raw_infos.extend(infos_list)
-
-            total_steps += num_steps
+            workspace = {
+                "env": env,
+                "buffer_step": buffer_step,
+                "raw_infos": raw_infos,
+                "total_steps": total_steps,
+            }
+            self.rollout_graph.run(context, workspace)
+            total_steps = workspace["total_steps"]
+            last_env_id = workspace.get("last_env_id", last_env_id)
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
@@ -254,121 +173,19 @@ class CoreTrainingLoop:
                 if mb_idx % self.accumulate_minibatches == 0:
                     self.optimizer.zero_grad(set_to_none=True)
 
-                total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-                stop_update_epoch_mb = False
-
-                shared_loss_mb_data = self.experience.sample(
-                    mb_idx=mb_idx,
-                    epoch=context.epoch,
-                    total_timesteps=context.config.total_timesteps,
-                    batch_size=context.config.batch_size,
-                    advantages=advantages_full,
-                )
-                if mb_idx == 0:
-                    shared_loss_mb_data["advantages_full"] = NonTensorData(advantages_full)
-
-                policy_td = shared_loss_mb_data["sampled_mb"]
-                policy_td = forward_policy_for_training(self.policy, policy_td, self.policy_spec)
-                shared_loss_mb_data["policy_td"] = policy_td
-
-                sampled_mb = shared_loss_mb_data["sampled_mb"]
-                if "act_log_prob" in sampled_mb.keys() and "act_log_prob" in policy_td.keys():
-                    old_logprob = sampled_mb["act_log_prob"]
-                    new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
-                    logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
-                    shared_loss_mb_data["importance_sampling_ratio"] = logratio.exp()
-
-                if advantage_method == "delta_lambda":
-                    if "values" not in sampled_mb.keys():
-                        raise RuntimeError("delta_lambda advantages require minibatch['values']")
-
-                    new_values = policy_td["values"]
-                    if new_values.dim() == 3 and new_values.shape[-1] == 1:
-                        new_values = new_values.squeeze(-1)
-                    new_values = new_values.reshape(sampled_mb["values"].shape)
-
-                    centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
-                    shared_loss_mb_data["advantages_pg"] = compute_delta_lambda(
-                        values=new_values,
-                        rewards=centered_rewards,
-                        dones=sampled_mb["dones"],
-                        gamma=float(advantage_cfg.gamma),
-                        gae_lambda=float(advantage_cfg.gae_lambda),
-                    )
-                else:
-                    values_for_adv = sampled_mb["values"] if "values" in sampled_mb.keys() else None
-                    if values_for_adv is not None:
-                        if values_for_adv.dim() > 2:
-                            values_for_adv = values_for_adv.mean(dim=-1)
-
-                        importance_sampling_ratio = shared_loss_mb_data.get("importance_sampling_ratio", None)
-                        if importance_sampling_ratio is None:
-                            importance_sampling_ratio = torch.ones_like(values_for_adv)
-
-                        with torch.no_grad():
-                            centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
-                            shared_loss_mb_data["advantages_pg"] = compute_advantage(
-                                values_for_adv,
-                                centered_rewards,
-                                sampled_mb["dones"],
-                                importance_sampling_ratio,
-                                shared_loss_mb_data["advantages"].clone(),
-                                advantage_cfg.gamma,
-                                advantage_cfg.gae_lambda,
-                                self.device,
-                                advantage_cfg.vtrace_rho_clip,
-                                advantage_cfg.vtrace_c_clip,
-                            )
-                    else:
-                        shared_loss_mb_data["advantages_pg"] = shared_loss_mb_data["advantages"]
-
-                used_keys: set[str] = set()
-                for _loss_name, loss_obj in self.losses.items():
-                    if loss_obj._loss_gate_allows("train", context):
-                        used_keys.update(loss_obj.policy_output_keys(policy_td))
-
                 workspace = {
-                    "shared_loss_data": shared_loss_mb_data,
                     "mb_idx": mb_idx,
-                    "loss_terms": [],
+                    "advantages_full": advantages_full,
                     "stop_update_epoch": False,
+                    "advantage_method": advantage_method,
+                    "max_grad_norm": max_grad_norm,
                 }
-                self.train_graph.run("train", context, workspace)
-                shared_loss_mb_data = workspace["shared_loss_data"]
-
-                for term in workspace["loss_terms"]:
-                    total_loss = total_loss + term
+                self.train_graph.run(context, workspace)
                 stop_update_epoch_mb = bool(workspace["stop_update_epoch"])
 
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
                     break
-
-                # Ensure all policy outputs participate in the graph even if some heads
-                # aren't used by the active losses (e.g., BC-only runs). This avoids
-                # DDP unused-parameter errors without relying on find_unused_parameters.
-                total_loss = add_dummy_loss_for_unused_params(total_loss, td=policy_td, used_keys=used_keys)
-
-                total_loss.backward()
-
-                # Optimizer step with gradient accumulation
-                if (mb_idx + 1) % self.accumulate_minibatches == 0:
-                    # Get max_grad_norm from first loss that has it
-                    actual_max_grad_norm = max_grad_norm
-                    for loss_obj in self.losses.values():
-                        if hasattr(loss_obj.cfg, "max_grad_norm"):
-                            actual_max_grad_norm = loss_obj.cfg.max_grad_norm
-                            break
-
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                    self.optimizer.step()
-
-                    if self.device.type == "cuda":
-                        torch.cuda.synchronize()
-
-                # Notify losses of minibatch end
-                for loss_obj in self.losses.values():
-                    loss_obj.on_mb_end(context, mb_idx)
 
             epochs_trained += 1
             if stop_update_epoch:
@@ -403,33 +220,366 @@ class CoreTrainingLoop:
         td["last_actions"] = self.last_action[env_ids].detach()
 
 
-def _rollout_nodes_from_losses(losses: dict[str, Loss]) -> list[Node]:
-    nodes: list[Node] = []
+def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
+    nodes: list[Node] = [
+        _rollout_env_wait_node(core),
+        _rollout_td_prep_node(core),
+    ]
+
+    loss_nodes: list[str] = []
     for loss in losses.values():
-        nodes.append(_loss_rollout_node(loss))
-    return nodes
+        name = f"rollout.loss.{loss.instance_name}"
+        loss_nodes.append(name)
+        nodes.append(
+            Node(
+                name=name,
+                deps=("rollout.td_prep",),
+                fn=_loss_rollout_fn(loss),
+            )
+        )
 
-
-def _train_nodes_from_losses(losses: dict[str, Loss]) -> list[Node]:
-    nodes: list[Node] = []
-    for loss in losses.values():
-        nodes.append(_loss_train_node(loss))
-    return nodes
-
-
-def _loss_rollout_node(loss: Loss) -> Node:
-    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
-        loss.rollout(workspace["td"], context)
-        return {}
-
-    return Node(
-        name=f"{loss.instance_name}.rollout",
-        phase="rollout",
-        fn=_fn,
+    deps = tuple(loss_nodes) if loss_nodes else ("rollout.td_prep",)
+    nodes.extend(
+        [
+            Node(name="rollout.reward_center", deps=deps, fn=_rollout_reward_center_fn(core)),
+            Node(name="rollout.actions_check", deps=deps, fn=_rollout_actions_check_fn(core)),
+            Node(name="rollout.send_actions", deps=("rollout.actions_check",), fn=_rollout_send_actions_fn(core)),
+            Node(name="rollout.collect_infos", deps=("rollout.send_actions",), fn=_rollout_collect_infos_fn()),
+            Node(name="rollout.step_count", deps=("rollout.env_wait",), fn=_rollout_step_count_fn()),
+        ]
     )
 
+    return nodes
 
-def _loss_train_node(loss: Loss) -> Node:
+
+def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
+    nodes: list[Node] = [
+        Node(name="train.sample_mb", fn=_train_sample_mb_fn(core)),
+        Node(name="train.policy_forward", deps=("train.sample_mb",), fn=_train_policy_forward_fn(core)),
+        Node(name="train.importance_ratio", deps=("train.policy_forward",), fn=_train_importance_ratio_fn()),
+        Node(name="train.advantages_pg", deps=("train.importance_ratio",), fn=_train_advantages_pg_fn(core)),
+        Node(name="train.used_keys", deps=("train.policy_forward",), fn=_train_used_keys_fn(core)),
+    ]
+
+    loss_nodes: list[str] = []
+    for loss in losses.values():
+        name = f"train.loss.{loss.instance_name}"
+        loss_nodes.append(name)
+        nodes.append(
+            Node(
+                name=name,
+                deps=("train.advantages_pg",),
+                fn=_loss_train_fn(loss),
+            )
+        )
+
+    deps = tuple(loss_nodes) if loss_nodes else ("train.advantages_pg",)
+    nodes.extend(
+        [
+            Node(
+                name="train.loss_sum",
+                deps=deps,
+                fn=_train_loss_sum_fn(core),
+                enabled=_train_continue_enabled,
+            ),
+            Node(
+                name="train.dummy_loss",
+                deps=("train.loss_sum", "train.used_keys"),
+                fn=_train_dummy_loss_fn(core),
+                enabled=_train_continue_enabled,
+            ),
+            Node(
+                name="train.backward",
+                deps=("train.dummy_loss",),
+                fn=_train_backward_fn(),
+                enabled=_train_continue_enabled,
+            ),
+            Node(
+                name="train.optimizer_step",
+                deps=("train.backward",),
+                fn=_train_optimizer_step_fn(core),
+                enabled=_train_continue_enabled,
+            ),
+            Node(
+                name="train.on_mb_end",
+                deps=("train.backward",),
+                fn=_train_on_mb_end_fn(core),
+                enabled=_train_continue_enabled,
+            ),
+        ]
+    )
+
+    return nodes
+
+
+def _rollout_env_wait_node(core: CoreTrainingLoop) -> Node:
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        env = workspace["env"]
+        with context.stopwatch("_rollout.env_wait"):
+            o, r, d, t, ta, info, training_env_id, _, num_steps = env.get_observations()
+        workspace["obs"] = o
+        workspace["rewards"] = r
+        workspace["dones"] = d
+        workspace["truncateds"] = t
+        workspace["teacher_actions"] = ta
+        workspace["info"] = info
+        workspace["training_env_id"] = training_env_id
+        workspace["num_steps"] = num_steps
+        workspace["last_env_id"] = training_env_id
+        return {}
+
+    return Node(name="rollout.env_wait", fn=_fn)
+
+
+def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        with context.stopwatch("_rollout.td_prep"):
+            training_env_id = workspace["training_env_id"]
+            buffer_step = workspace["buffer_step"]
+            td = buffer_step[training_env_id].clone()
+            target_device = td.device
+            td["env_obs"] = workspace["obs"].to(device=target_device, non_blocking=True)
+
+            rewards = workspace["rewards"].to(device=target_device, non_blocking=True)
+            td["rewards"] = rewards
+            agent_ids = core._env_index_cache[training_env_id]
+            td["training_env_ids"] = agent_ids.unsqueeze(1)
+
+            avg_reward = context.state.avg_reward
+            baseline = avg_reward[agent_ids]
+            td["reward_baseline"] = baseline
+
+            if target_device.type == "mps":
+                td["dones"] = workspace["dones"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                td["truncateds"] = (
+                    workspace["truncateds"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+                )
+            else:
+                td["dones"] = workspace["dones"].to(device=target_device, dtype=torch.float32, non_blocking=True)
+                td["truncateds"] = workspace["truncateds"].to(device=target_device, dtype=torch.float32, non_blocking=True)
+            td["teacher_actions"] = (
+                workspace["teacher_actions"].to(device=target_device, dtype=torch.long, non_blocking=True)
+            )
+
+            row_ids = core.experience.row_slot_ids[training_env_id]
+            t_in_row = core.experience.t_in_row[training_env_id]
+            td["row_id"] = row_ids
+            td["t_in_row"] = t_in_row
+            core.add_last_action_to_td(td)
+            ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
+
+            context.training_env_id = training_env_id
+            workspace["td"] = td
+            workspace["agent_ids"] = agent_ids
+            workspace["baseline"] = baseline
+        return {}
+
+    return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn)
+
+
+def _loss_rollout_fn(loss: Loss):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        with context.stopwatch("_rollout.inference"):
+            loss.rollout(workspace["td"], context)
+        return {}
+
+    return _fn
+
+
+def _rollout_reward_center_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        avg_reward = context.state.avg_reward
+        agent_ids = workspace["agent_ids"]
+        baseline = workspace["baseline"]
+        beta = float(context.config.advantage.reward_centering.beta)
+        with torch.no_grad():
+            rewards_f32 = workspace["td"]["rewards"].to(dtype=torch.float32)
+            avg_reward[agent_ids] = baseline + beta * (rewards_f32 - baseline)
+        context.state.avg_reward = avg_reward
+        return {}
+
+    return _fn
+
+
+def _rollout_actions_check_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        td = workspace["td"]
+        training_env_id = workspace["training_env_id"]
+        if "actions" not in td:
+            raise RuntimeError("No loss performed inference - at least one loss must generate actions")
+
+        raw_actions = td["actions"].detach()
+        if raw_actions.dim() != 1:
+            raise ValueError(
+                "Policies must emit a single discrete action id per agent; "
+                f"received tensor of shape {tuple(raw_actions.shape)}"
+            )
+
+        actions_column = raw_actions.view(-1, 1)
+        if core.last_action.device != actions_column.device:
+            core.last_action = core.last_action.to(device=actions_column.device)
+        if core.last_action.dtype != actions_column.dtype:
+            actions_column = actions_column.to(dtype=core.last_action.dtype)
+
+        target_buffer = core.last_action[training_env_id]
+        if target_buffer.shape != actions_column.shape:
+            msg = "last_action buffer shape mismatch: target=%s actions=%s raw=%s" % (
+                target_buffer.shape,
+                actions_column.shape,
+                tuple(td["actions"].shape),
+            )
+            logger.error(msg, exc_info=True)
+            raise RuntimeError(msg)
+
+        target_buffer.copy_(actions_column)
+        return {}
+
+    return _fn
+
+
+def _rollout_send_actions_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        env = workspace["env"]
+        td = workspace["td"]
+        with context.stopwatch("_rollout.send"):
+            env.send_actions(td["actions"].cpu().numpy())
+        return {}
+
+    return _fn
+
+
+def _rollout_collect_infos_fn():
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        info = workspace.get("info")
+        infos_list: list[dict[str, Any]] = list(info) if info else []
+        if infos_list:
+            workspace["raw_infos"].extend(infos_list)
+        return {}
+
+    return _fn
+
+
+def _rollout_step_count_fn():
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        workspace["total_steps"] += workspace["num_steps"]
+        return {}
+
+    return _fn
+
+
+def _train_sample_mb_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        shared_loss_mb_data = core.experience.sample(
+            mb_idx=workspace["mb_idx"],
+            epoch=context.epoch,
+            total_timesteps=context.config.total_timesteps,
+            batch_size=context.config.batch_size,
+            advantages=workspace["advantages_full"],
+        )
+        if workspace["mb_idx"] == 0:
+            shared_loss_mb_data["advantages_full"] = NonTensorData(workspace["advantages_full"])
+        workspace["shared_loss_data"] = shared_loss_mb_data
+        workspace["loss_terms"] = []
+        return {}
+
+    return _fn
+
+
+def _train_policy_forward_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        policy_td = workspace["shared_loss_data"]["sampled_mb"]
+        policy_td = forward_policy_for_training(core.policy, policy_td, core.policy_spec)
+        workspace["shared_loss_data"]["policy_td"] = policy_td
+        return {}
+
+    return _fn
+
+
+def _train_importance_ratio_fn():
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        shared = workspace["shared_loss_data"]
+        sampled_mb = shared["sampled_mb"]
+        policy_td = shared["policy_td"]
+        if "act_log_prob" in sampled_mb.keys() and "act_log_prob" in policy_td.keys():
+            old_logprob = sampled_mb["act_log_prob"]
+            new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+            shared["importance_sampling_ratio"] = logratio.exp()
+        return {}
+
+    return _fn
+
+
+def _train_advantages_pg_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        shared = workspace["shared_loss_data"]
+        sampled_mb = shared["sampled_mb"]
+        advantage_method = workspace["advantage_method"]
+        advantage_cfg = context.config.advantage
+
+        if advantage_method == "delta_lambda":
+            if "values" not in sampled_mb.keys():
+                raise RuntimeError("delta_lambda advantages require minibatch['values']")
+
+            new_values = shared["policy_td"]["values"]
+            if new_values.dim() == 3 and new_values.shape[-1] == 1:
+                new_values = new_values.squeeze(-1)
+            new_values = new_values.reshape(sampled_mb["values"].shape)
+
+            centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+            shared["advantages_pg"] = compute_delta_lambda(
+                values=new_values,
+                rewards=centered_rewards,
+                dones=sampled_mb["dones"],
+                gamma=float(advantage_cfg.gamma),
+                gae_lambda=float(advantage_cfg.gae_lambda),
+            )
+            return {}
+
+        values_for_adv = sampled_mb["values"] if "values" in sampled_mb.keys() else None
+        if values_for_adv is not None:
+            if values_for_adv.dim() > 2:
+                values_for_adv = values_for_adv.mean(dim=-1)
+
+            importance_sampling_ratio = shared.get("importance_sampling_ratio", None)
+            if importance_sampling_ratio is None:
+                importance_sampling_ratio = torch.ones_like(values_for_adv)
+
+            with torch.no_grad():
+                centered_rewards = sampled_mb["rewards"] - sampled_mb["reward_baseline"]
+                shared["advantages_pg"] = compute_advantage(
+                    values_for_adv,
+                    centered_rewards,
+                    sampled_mb["dones"],
+                    importance_sampling_ratio,
+                    shared["advantages"].clone(),
+                    advantage_cfg.gamma,
+                    advantage_cfg.gae_lambda,
+                    core.device,
+                    advantage_cfg.vtrace_rho_clip,
+                    advantage_cfg.vtrace_c_clip,
+                )
+        else:
+            shared["advantages_pg"] = shared["advantages"]
+        return {}
+
+    return _fn
+
+
+def _train_used_keys_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        used_keys: set[str] = set()
+        policy_td = workspace["shared_loss_data"]["policy_td"]
+        for loss in core.losses.values():
+            if loss._loss_gate_allows("train", context):
+                used_keys.update(loss.policy_output_keys(policy_td))
+        workspace["used_keys"] = used_keys
+        return {}
+
+    return _fn
+
+
+def _loss_train_fn(loss: Loss):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         loss_val, shared, stop = loss.train(workspace["shared_loss_data"], context, workspace["mb_idx"])
         workspace["shared_loss_data"] = shared
@@ -438,8 +588,71 @@ def _loss_train_node(loss: Loss) -> Node:
             workspace["stop_update_epoch"] = True
         return {}
 
-    return Node(
-        name=f"{loss.instance_name}.train",
-        phase="train",
-        fn=_fn,
-    )
+    return _fn
+
+
+def _train_loss_sum_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        total = torch.tensor(0.0, dtype=torch.float32, device=core.device)
+        for term in workspace["loss_terms"]:
+            total = total + term
+        workspace["total_loss"] = total
+        return {}
+
+    return _fn
+
+
+def _train_dummy_loss_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        shared = workspace["shared_loss_data"]
+        total_loss = workspace["total_loss"]
+        policy_td = shared["policy_td"]
+        workspace["total_loss"] = add_dummy_loss_for_unused_params(
+            total_loss, td=policy_td, used_keys=workspace["used_keys"]
+        )
+        return {}
+
+    return _fn
+
+
+def _train_backward_fn():
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        workspace["total_loss"].backward()
+        return {}
+
+    return _fn
+
+
+def _train_optimizer_step_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        mb_idx = workspace["mb_idx"]
+        if (mb_idx + 1) % core.accumulate_minibatches != 0:
+            return {}
+
+        actual_max_grad_norm = float(workspace.get("max_grad_norm", 0.5))
+        for loss_obj in core.losses.values():
+            if hasattr(loss_obj.cfg, "max_grad_norm"):
+                actual_max_grad_norm = loss_obj.cfg.max_grad_norm
+                break
+
+        torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)
+        core.optimizer.step()
+
+        if core.device.type == "cuda":
+            torch.cuda.synchronize()
+        return {}
+
+    return _fn
+
+
+def _train_on_mb_end_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        for loss_obj in core.losses.values():
+            loss_obj.on_mb_end(context, workspace["mb_idx"])
+        return {}
+
+    return _fn
+
+
+def _train_continue_enabled(context: ComponentContext, workspace: dict[str, Any]) -> bool:
+    return not bool(workspace.get("stop_update_epoch", False))
