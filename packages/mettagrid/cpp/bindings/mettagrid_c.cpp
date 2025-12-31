@@ -694,22 +694,25 @@ void MettaGrid::_step() {
       // Check commons membership filtering
       // First try Alignable interface (for agents), then check tags (for walls, etc.)
       bool same_commons = false;
+      bool source_has_commons = false;
 
       if (auto* source_alignable = dynamic_cast<Alignable*>(source.owner)) {
         // Source is Alignable (e.g., another agent)
+        source_has_commons = (source_alignable->getCommons() != nullptr);
         same_commons = (agent_commons != nullptr && source_alignable->getCommons() == agent_commons);
-      } else if (source.owner && !agent_commons_name.empty()) {
+      } else if (source.owner) {
         // Source is not Alignable (e.g., Wall), check tags for commons
         for (int tag_id : source.owner->tag_ids) {
           auto tag_it = _game_config.tag_id_map.find(tag_id);
           if (tag_it != _game_config.tag_id_map.end()) {
             const std::string& tag_name = tag_it->second;
             if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+              source_has_commons = true;
               std::string source_commons_name = tag_name.substr(commons_tag_prefix.length());
-              if (source_commons_name == agent_commons_name) {
+              if (!agent_commons_name.empty() && source_commons_name == agent_commons_name) {
                 same_commons = true;
-                break;
               }
+              break;
             }
           }
         }
@@ -719,8 +722,8 @@ void MettaGrid::_step() {
       if (config->members_only && !same_commons) {
         continue;  // Skip: effect only for members, but agent is not a member
       }
-      if (config->ignore_members && same_commons) {
-        continue;  // Skip: effect ignores members, and agent is a member
+      if (config->ignore_members && (!source_has_commons || same_commons)) {
+        continue;  // Skip: effect ignores members, and agent is a member (or source has no alignment)
       }
 
       // Aggregate the deltas from this source
