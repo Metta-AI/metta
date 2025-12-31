@@ -6,11 +6,7 @@ import functools
 import importlib
 import os
 import pkgutil
-from pathlib import Path
 from typing import Optional
-
-import torch
-from safetensors.torch import load_file as load_safetensors_file
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
@@ -32,28 +28,17 @@ def initialize_or_load_policy(
     """
 
     kwargs = policy_spec.init_kwargs or {}
-    if "architecture_spec" in kwargs:
-        architecture_spec = kwargs["architecture_spec"]
-        policy = (
-            load_symbol("metta.agent.policy.PolicyArchitecture", strict=True)
-            .from_spec(architecture_spec)
-            .make_policy(policy_env_info)
-        )
-        device = torch.device(device_override or kwargs.get("device", "cpu"))
-        policy = policy.to(device)
-        state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
-        policy.load_state_dict(dict(state_dict))
-        policy.initialize_to_environment(policy_env_info, device)
-    else:
-        policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
-        # We're planning to remove kwargs from the policy spec, maybe in January
-        # 2026. We may want to support passing arguments, but they shouldn't take
-        # the form of arbitrary kwargs where the policy author and our execution
-        # code need to share a namespace.
-        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
+    if device_override is not None and "device" in kwargs:
+        kwargs["device"] = device_override
+    policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    # We're planning to remove kwargs from the policy spec, maybe in January
+    # 2026. We may want to support passing arguments, but they shouldn't take
+    # the form of arbitrary kwargs where the policy author and our execution
+    # code need to share a namespace.
+    policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
 
-        if policy_spec.data_path:
-            policy.load_policy_data(policy_spec.data_path)
+    if policy_spec.data_path:
+        policy.load_policy_data(policy_spec.data_path)
 
     if not isinstance(policy, MultiAgentPolicy):
         if isinstance(policy, AgentPolicy):

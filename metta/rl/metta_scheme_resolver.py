@@ -14,14 +14,6 @@ from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
-_SCRIPTED_POLICY_ALIASES = {
-    "baseline": "cogames.policy.scripted_agent.baseline_agent.BaselinePolicy",
-    "ladybug": "cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
-    "thinky": "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
-    "race_car": "cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
-    "racecar": "cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
-    "starter": "cogames.policy.scripted_agent.starter_agent.StarterPolicy",
-}
 
 
 def _is_uuid(s: str) -> bool:
@@ -125,10 +117,6 @@ class MettaSchemeResolver(SchemeResolver):
         if not _is_uuid(path_parts[1]):
             name, version = _parse_policy_identifier(path_parts[1])
             if version is None:
-                if name in _SCRIPTED_POLICY_ALIASES:
-                    logger.info("Metta scheme resolver: %s resolved to scripted policy %s", uri, name)
-                    return f"mock://{_SCRIPTED_POLICY_ALIASES[name]}"
-
             checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / name / "checkpoints"
             if checkpoint_root.exists():
                 candidate = checkpoint_root if version is None else checkpoint_root / f"{name}:v{version}"
@@ -142,7 +130,7 @@ class MettaSchemeResolver(SchemeResolver):
             logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)
             return resolved
 
-        mpt_file_path = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
-        if mpt_file_path:
-            return resolve_uri(mpt_file_path).canonical
-        raise ValueError(f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission in S3.")
+        raise ValueError(
+            f"Policy version {policy_version.id} has no s3_path; "
+            "expected a policy spec submission in S3. Legacy .mpt files are not supported."
+        )

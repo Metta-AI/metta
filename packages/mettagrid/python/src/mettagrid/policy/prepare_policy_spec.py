@@ -15,12 +15,9 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-import boto3
-
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import read as s3_read
-from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +171,7 @@ def download_policy_spec_from_s3_as_zip(
 
     normalized_path = s3_path.rstrip("/")
     if not normalized_path.endswith(".zip"):
-        raise ValueError("Expected a .zip submission archive; use a checkpoint directory URI instead.")
+        raise ValueError("Expected a .zip submission archive.")
     digest = hashlib.sha256(normalized_path.encode()).hexdigest()
     tmp_local_path = cache_dir / f"tmp-{digest}-{secrets.token_hex(8)}.zip"
     local_path = cache_dir / f"{digest}.zip"
@@ -192,62 +189,6 @@ def download_policy_spec_from_s3_as_zip(
     os.rename(tmp_local_path, local_path)
 
     return local_path
-
-
-def download_policy_spec_from_s3_dir(
-    s3_path: str,
-    cache_dir: Optional[Path] = None,
-    remove_downloaded_copy_on_exit: bool = False,
-) -> Path:
-    cache_dir = cache_dir or DEFAULT_POLICY_CACHE_DIR
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    normalized_path = s3_path.rstrip("/")
-    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()
-    if (extraction_root / ".download_complete").exists():
-        return extraction_root
-
-    parsed = parse_uri(normalized_path, allow_none=False)
-    prefix = f"{parsed.key.rstrip('/')}/" if parsed.key else ""
-
-    extraction_root.mkdir(parents=True, exist_ok=True)
-    for page in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=parsed.bucket, Prefix=prefix):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            rel = key[len(prefix) :]
-            if not rel or rel.endswith("/"):
-                continue
-            dest = extraction_root / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(s3_read(f"s3://{parsed.bucket}/{key}"))
-
-    (extraction_root / ".download_complete").touch()
-
-    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-        _registered_cleanup_dirs.add(extraction_root)
-        atexit.register(_cleanup_cache_dir, extraction_root)
-
-    return extraction_root
-
-
-def convert_mpt_to_bundle(local_path: Path, *, cache_key: str) -> Path:
-    cache_dir = DEFAULT_POLICY_CACHE_DIR / "mpt"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    extraction_root = cache_dir / hashlib.sha256(cache_key.encode()).hexdigest()
-    extraction_root.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(local_path, "r") as archive:
-        (extraction_root / "weights.safetensors").write_bytes(archive.read("weights.safetensors"))
-        architecture_spec = archive.read("modelarchitecture.txt").decode("utf-8").strip()
-
-    class_path, *_ = architecture_spec.split("(", 1)
-    spec = SubmissionPolicySpec(
-        class_path=class_path.strip(),
-        data_path="weights.safetensors",
-        init_kwargs={"architecture_spec": architecture_spec},
-    )
-    (extraction_root / POLICY_SPEC_FILENAME).write_text(spec.model_dump_json())
-    return extraction_root
 
 
 def load_policy_spec_from_path(

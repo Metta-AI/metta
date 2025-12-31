@@ -44,11 +44,10 @@ def write_checkpoint_bundle(
         tmp_path = Path(tmp.name)
     save_safetensors_file(weights, str(tmp_path))
     tmp_path.replace(checkpoint_dir / "weights.safetensors")
-    class_path, *_ = architecture_spec.split("(", 1)
     spec = SubmissionPolicySpec(
-        class_path=class_path.strip(),
+        class_path="metta.agent.policy.CheckpointPolicy",
         data_path="weights.safetensors",
-        init_kwargs={"architecture_spec": architecture_spec},
+        init_kwargs={"architecture_spec": architecture_spec, "device": "cpu"},
     )
     with tempfile.NamedTemporaryFile(
         dir=checkpoint_dir,

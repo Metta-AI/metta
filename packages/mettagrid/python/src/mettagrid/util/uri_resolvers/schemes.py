@@ -307,38 +307,25 @@ def policy_spec_from_uri(
     from mettagrid.policy.loader import resolve_policy_class_path
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
-        convert_mpt_to_bundle,
         download_policy_spec_from_s3_as_zip,
-        download_policy_spec_from_s3_dir,
         load_policy_spec_from_path,
     )
-    from mettagrid.util.file import local_copy
 
     parsed = resolve_uri(uri)
 
     if parsed.canonical.endswith(".mpt"):
-        with local_copy(parsed.canonical) as local_path:
-            return load_policy_spec_from_path(
-                convert_mpt_to_bundle(local_path, cache_key=parsed.canonical),
-                device=device,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            )
+        raise ValueError("Legacy .mpt policies are no longer supported; use a checkpoint bundle instead.")
 
     if parsed.scheme == "mock":
         return PolicySpec(class_path=resolve_policy_class_path(parsed.path))
 
     if parsed.scheme == "s3":
+        if not parsed.canonical.endswith(".zip"):
+            raise ValueError("S3 policy specs must be .zip bundles; directory checkpoints are not supported.")
         parsed = resolve_uri(
-            (
-                download_policy_spec_from_s3_as_zip(
-                    parsed.canonical,
-                    remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-                )
-                if parsed.canonical.endswith(".zip")
-                else download_policy_spec_from_s3_dir(
-                    parsed.canonical,
-                    remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-                )
+            download_policy_spec_from_s3_as_zip(
+                parsed.canonical,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
             ).as_uri()
         )
 
