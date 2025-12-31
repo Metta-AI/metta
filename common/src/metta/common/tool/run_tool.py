@@ -24,7 +24,7 @@ from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
-from typing_extensions import TypeVar
+from typing_extensions import TypeVar, get_type_hints
 
 import metta.rl.torch_init  # noqa: F401
 from metta.common.tool import Tool
@@ -522,6 +522,10 @@ constructor/function vs configuration overrides based on introspection.
         else:
             # Tool maker function that returns a Tool instance
             sig = inspect.signature(tool_maker)
+            try:
+                resolved_hints = get_type_hints(tool_maker, include_extras=True)
+            except Exception:
+                resolved_hints = {}
             func_kwargs: dict[str, Any] = {}
             consumed_keys: set[str] = set()
 
@@ -530,6 +534,7 @@ constructor/function vs configuration overrides based on introspection.
                 output_info(f"\n{cyan(f'Creating {func_name}:')}")
 
             for name, p in sig.parameters.items():
+                ann = resolved_hints.get(name, p.annotation)
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
                 if name in nested_cli:
                     provided = nested_cli[name]
@@ -551,7 +556,6 @@ constructor/function vs configuration overrides based on introspection.
                     data = base if base is not None else provided
 
                     # If annotated as a Pydantic model class, validate against it.
-                    ann = p.annotation
                     try:
                         if inspect.isclass(ann) and issubclass(ann, BaseModel):
                             val = ann.model_validate(data)
@@ -579,7 +583,7 @@ constructor/function vs configuration overrides based on introspection.
 
                 # Check for direct parameter match in flat CLI args
                 if name in cli_args:
-                    val = type_parse(cli_args[name], p.annotation)
+                    val = type_parse(cli_args[name], ann)
                     func_kwargs[name] = val
                     consumed_keys.add(name)
                     if known_args.verbose:
