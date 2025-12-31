@@ -3,7 +3,7 @@ import
   vmath, windy, boxy,
   common, actions, utils, replays,
   pathfinding, tilemap, pixelator, shaderquad,
-  panels, objectinfo
+  panels, objectinfo, aoepanel
 
 proc foo() =
   echo window.size.x, "x", window.size.y
@@ -502,37 +502,30 @@ proc getAoeRange(typeName: string): int =
         maxRange = r
   return maxRange
 
-const AOE_ALL = 999  ## Special value meaning "show all AOE"
-
 proc shouldShowAOEForObject(obj: Entity): bool =
-  ## Check if AOE should be shown for this object based on current filter.
-  if settings.showAOE < 0:
+  ## Check if AOE should be shown for this object based on enabled commons.
+  if settings.aoeEnabledCommons.len == 0:
     return false
-  if settings.showAOE == AOE_ALL:
-    return true
-  # Filter by specific commons
-  return obj.commonsId == settings.showAOE
+  # Check if this object's commons is in the enabled set.
+  if obj.commonsId < 0:
+    return UnalignedId in settings.aoeEnabledCommons
+  return obj.commonsId in settings.aoeEnabledCommons
 
 proc drawAOEOverlay*() =
-  ## Draw green overlay on tiles affected by AOE effects.
-  ## Always shows for selected object, filters others by commons state.
-  ## Tracks drawn tiles to prevent overlapping (which would increase brightness).
+  ## Draw colored overlay on tiles affected by AOE effects.
+  ## Uses the pixelator to draw aoe_overlay sprites.
   if replay.isNil:
     return
-
-  # Track which tiles have been drawn to avoid overlapping
+  # Track which tiles to draw to avoid duplicates.
   var drawnTiles: HashSet[int64]
-
   proc drawTileIfNew(tileX, tileY: int32) =
     if tileX < 0 or tileY < 0 or tileX >= replay.mapSize[0] or tileY >= replay.mapSize[1]:
       return
-    # Use a single int64 key for the tile position
     let key = (tileX.int64 shl 32) or tileY.int64
     if key in drawnTiles:
       return
     drawnTiles.incl(key)
     px.drawSprite("objects/aoe_overlay", ivec2(tileX * TILE_SIZE, tileY * TILE_SIZE))
-
   proc drawAOEForObject(obj: Entity) =
     let aoeRange = getAoeRange(obj.typeName)
     if aoeRange <= 0:
@@ -541,17 +534,14 @@ proc drawAOEOverlay*() =
     for dx in -aoeRange .. aoeRange:
       for dy in -aoeRange .. aoeRange:
         drawTileIfNew(pos.x + dx.int32, pos.y + dy.int32)
-
-  # Always draw for selected object if it has AOE
-  if selection != nil:
+  # Always draw for selected object if it has AOE.
+  if selection != nil and getAoeRange(selection.typeName) > 0:
     drawAOEForObject(selection)
-  # Draw for objects based on filter state
-  if settings.showAOE >= 0:
+  # Draw for objects based on filter state.
+  if settings.aoeEnabledCommons.len > 0:
     for obj in replay.objects:
-      # Skip selected object (already drawn above)
       if selection != nil and obj.id == selection.id:
         continue
-      # Check if this object matches the current filter
       if shouldShowAOEForObject(obj):
         drawAOEForObject(obj)
 
