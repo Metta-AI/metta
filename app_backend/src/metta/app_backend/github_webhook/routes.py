@@ -21,8 +21,16 @@ def create_github_webhook_router() -> APIRouter:
     def verify_github_signature(payload_body: bytes, signature_header: Optional[str]) -> bool:
         """Verify that the webhook request came from GitHub."""
         if not settings.GITHUB_WEBHOOK_SECRET:
-            # If no secret is configured, skip verification (dev mode)
-            logger.warning("GITHUB_WEBHOOK_SECRET not set - skipping signature verification")
+            # In production (USE_AWS_SECRETS=true), the secret must be loaded
+            # In dev mode (USE_AWS_SECRETS=false), we allow skipping verification
+            if settings.USE_AWS_SECRETS:
+                logger.error(
+                    "GITHUB_WEBHOOK_SECRET not set but USE_AWS_SECRETS=true - "
+                    "this indicates a configuration error. Rejecting request."
+                )
+                return False
+            # Dev mode: allow skipping verification
+            logger.warning("GITHUB_WEBHOOK_SECRET not set - skipping signature verification (dev mode)")
             return True
 
         if not signature_header:

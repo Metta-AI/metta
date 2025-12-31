@@ -26,6 +26,20 @@ episodeRunnerImage:
 
 env:
   RUN_MIGRATIONS: "true"
+  # Webhook service configuration (set via Helm extra_args in CI/CD):
+  # USE_AWS_SECRETS: "true" (enables Secrets Manager access for webhook secrets)
+  # ASANA_WORKSPACE_GID: (from GitHub Variables: vars.ASANA_WORKSPACE_GID)
+  # ASANA_PROJECT_GID: (from GitHub Variables: vars.ASANA_PROJECT_GID)
+  #
+  # Required GitHub Variables (must be set in repository settings):
+  # - vars.ASANA_WORKSPACE_GID: Asana workspace GID (not a secret)
+  # - vars.ASANA_PROJECT_GID: Asana project GID for bugs (not a secret)
+  #
+  # Required AWS Secrets Manager secrets (accessed via IRSA):
+  # - github/webhook-secret: GitHub webhook secret for signature verification
+  # - asana/access-token or asana/api-key: Asana Personal Access Token
+  # - asana/atlas_app: Asana OAuth app credentials (JSON with client_id/client_secret)
+  # - github/token: GitHub token for PR description updates
 
 secrets:
   machineToken: "machine-token-secret"

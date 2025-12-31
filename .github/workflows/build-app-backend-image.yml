@@ -52,5 +52,4 @@ jobs:
           release: observatory-backend
           chart: ./devops/charts/observatory-backend
           image_tag: ${{ steps.build-image.outputs.tag }}
-          extra_args: --set env.ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }} --set env.ASANA_PROJECT_GID=${{ vars.ASANA_PROJECT_GID }}
-          extra_args: --set env.ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }} --set env.ASANA_PROJECT_GID=${{ vars.ASANA_PROJECT_GID }}
+          extra_args: --set env.USE_AWS_SECRETS=true --set env.ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }} --set env.ASANA_PROJECT_GID=${{ vars.ASANA_PROJECT_GID }}
