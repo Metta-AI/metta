@@ -343,25 +343,43 @@ void MettaGrid::init_action_handlers() {
     _action_handlers.push_back(action);
   }
 
-  // Align
-  auto align_config = std::static_pointer_cast<const AlignActionConfig>(_game_config.actions.at("align"));
-  auto align = std::make_unique<Align>(*align_config, &_game_config);
-  align->init(_grid.get(), &_rng);
-  if (align->priority > _max_action_priority) _max_action_priority = align->priority;
-  for (const auto& action : align->actions()) {
-    _action_handlers.push_back(action);
-  }
-
   // Register vibe-triggered action handlers with Move
   std::unordered_map<std::string, ActionHandler*> handlers;
   handlers["attack"] = attack.get();
   handlers["transfer"] = transfer.get();
-  handlers["align"] = align.get();
-  move_ptr->set_action_handlers(handlers);
 
   _action_handler_impl.push_back(std::move(attack));
   _action_handler_impl.push_back(std::move(transfer));
-  _action_handler_impl.push_back(std::move(align));
+
+  // Align (optional)
+  std::unique_ptr<Align> align;
+  if (_game_config.actions.count("align")) {
+    auto align_config = std::static_pointer_cast<const AlignActionConfig>(_game_config.actions.at("align"));
+    align = std::make_unique<Align>(*align_config, &_game_config);
+    align->init(_grid.get(), &_rng);
+    if (align->priority > _max_action_priority) _max_action_priority = align->priority;
+    for (const auto& action : align->actions()) {
+      _action_handlers.push_back(action);
+    }
+    handlers["align"] = align.get();
+    _action_handler_impl.push_back(std::move(align));
+  }
+
+  // Scramble (optional, uses Align class with set_to_none=true)
+  std::unique_ptr<Align> scramble;
+  if (_game_config.actions.count("scramble")) {
+    auto scramble_config = std::static_pointer_cast<const AlignActionConfig>(_game_config.actions.at("scramble"));
+    scramble = std::make_unique<Align>(*scramble_config, &_game_config, "scramble");
+    scramble->init(_grid.get(), &_rng);
+    if (scramble->priority > _max_action_priority) _max_action_priority = scramble->priority;
+    for (const auto& action : scramble->actions()) {
+      _action_handlers.push_back(action);
+    }
+    handlers["scramble"] = scramble.get();
+    _action_handler_impl.push_back(std::move(scramble));
+  }
+
+  move_ptr->set_action_handlers(handlers);
 
   // ChangeVibe
   auto change_vibe_config =
