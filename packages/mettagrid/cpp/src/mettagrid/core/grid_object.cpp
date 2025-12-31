@@ -195,8 +195,11 @@ bool AOEHelper::passes_all_filters(GridObject* obj, const std::unordered_map<int
   if (_config->members_only && !same_commons) {
     return false;  // Effect only for members, but target is not a member
   }
-  if (_config->ignore_members && same_commons) {
-    return false;  // Effect ignores members, and target is a member
+  if (_config->ignore_members) {
+    // If source has no commons, treat everyone as a member (skip all)
+    if (source_commons_name.empty() || same_commons) {
+      return false;  // Effect ignores members, and target is a member (or source has no alignment)
+    }
   }
 
   return true;
