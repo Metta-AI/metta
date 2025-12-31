@@ -386,6 +386,10 @@ def _loss_rollout_fn(loss: Loss):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         with context.stopwatch("_rollout.inference"):
             loss.rollout(workspace["td"], context)
+        td = workspace["td"]
+        if "actions" in td:
+            workspace["actions_candidate"] = td["actions"]
+            workspace["actions_source"] = loss.instance_name
         return {}
 
     return _fn
@@ -410,6 +414,8 @@ def _rollout_actions_check_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         td = workspace["td"]
         training_env_id = workspace["training_env_id"]
+        if "actions_candidate" in workspace:
+            td["actions"] = workspace["actions_candidate"]
         if "actions" not in td:
             raise RuntimeError("No loss performed inference - at least one loss must generate actions")
 
