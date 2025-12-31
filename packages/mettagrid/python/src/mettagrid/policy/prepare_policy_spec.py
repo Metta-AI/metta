@@ -15,9 +15,12 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+import boto3
+
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import read as s3_read
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 logger = logging.getLogger(__name__)
 
@@ -204,18 +207,29 @@ def download_policy_spec_from_s3_dir(
 
     normalized_path = s3_path.rstrip("/")
     extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()
-    policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
-    if policy_spec_path.exists():
+    marker_file = extraction_root / ".download_complete"
+    if marker_file.exists():
         return extraction_root
 
-    extraction_root.mkdir(parents=True, exist_ok=True)
-    policy_spec_path.write_bytes(s3_read(f"{normalized_path}/{POLICY_SPEC_FILENAME}"))
+    parsed = parse_uri(normalized_path, allow_none=False)
+    prefix = (parsed.key or "").rstrip("/")
+    prefix = f"{prefix}/" if prefix else ""
 
-    submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
-    if submission_spec.data_path:
-        data_path = extraction_root / submission_spec.data_path
-        data_path.parent.mkdir(parents=True, exist_ok=True)
-        data_path.write_bytes(s3_read(f"{normalized_path}/{submission_spec.data_path}"))
+    extraction_root.mkdir(parents=True, exist_ok=True)
+    paginator = boto3.client("s3").get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=parsed.bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.endswith("/"):
+                continue
+            rel = key[len(prefix) :]
+            if not rel:
+                continue
+            dest = extraction_root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(s3_read(f"s3://{parsed.bucket}/{key}"))
+
+    marker_file.touch()
 
     if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
         _registered_cleanup_dirs.add(extraction_root)

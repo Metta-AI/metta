@@ -140,12 +140,14 @@ class CheckpointManager:
             ) as tmp_file:
                 zip_path = Path(tmp_file.name)
 
-            with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in checkpoint_dir.rglob("*"):
-                    if file_path.is_file():
-                        zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
-            write_file(remote_zip, str(zip_path), content_type="application/zip")
-            zip_path.unlink()
+            try:
+                with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path in checkpoint_dir.rglob("*"):
+                        if file_path.is_file():
+                            zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
+                write_file(remote_zip, str(zip_path), content_type="application/zip")
+            finally:
+                zip_path.unlink(missing_ok=True)
             logger.debug("Policy checkpoint saved remotely to %s", remote_zip)
             return remote_zip
 
