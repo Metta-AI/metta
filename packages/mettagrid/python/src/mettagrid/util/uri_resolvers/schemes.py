@@ -309,8 +309,8 @@ def policy_spec_from_uri(
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
         convert_mpt_to_bundle,
-        download_policy_spec_from_s3_dir,
         download_policy_spec_from_s3_as_zip,
+        download_policy_spec_from_s3_dir,
         load_policy_spec_from_path,
     )
     from mettagrid.util.file import local_copy
