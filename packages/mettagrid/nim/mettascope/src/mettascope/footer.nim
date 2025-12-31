@@ -6,37 +6,6 @@ import
 const
   FooterColor = parseHtmlColor("#273646").rgbx
   Speeds = [1.0, 5.0, 10.0, 50.0, 100.0, 1000.0]
-  AOE_ALL* = 999  ## Special value meaning "show all AOE"
-
-proc getNumCommons(): int =
-  ## Get the number of commons from the replay config.
-  if replay.isNil or replay.mgConfig.isNil:
-    return 0
-  if "game" notin replay.mgConfig or "commons" notin replay.mgConfig["game"]:
-    return 0
-  let commonsArr = replay.mgConfig["game"]["commons"]
-  if commonsArr.kind == JArray:
-    return commonsArr.len
-  return 0
-
-proc cycleAOEState() =
-  ## Cycle through AOE states: off → commons-0 → commons-1 → ... → all → off
-  let numCommons = getNumCommons()
-  if settings.showAOE == -1:
-    # Off → first commons (or all if no commons)
-    if numCommons > 0:
-      settings.showAOE = 0
-    else:
-      settings.showAOE = AOE_ALL
-  elif settings.showAOE >= 0 and settings.showAOE < numCommons - 1:
-    # Next commons
-    settings.showAOE += 1
-  elif settings.showAOE == numCommons - 1 or settings.showAOE < AOE_ALL:
-    # Last commons → all
-    settings.showAOE = AOE_ALL
-  else:
-    # All → off
-    settings.showAOE = -1
 
 proc drawFooter*(pos, size: Vec2) =
   ribbon(pos, size, FooterColor):
@@ -83,7 +52,6 @@ proc drawFooter*(pos, size: Vec2) =
             playSpeed = speed
 
     sk.at = pos + vec2(size.x - 280, 16)
-    var aoeIconPos: Vec2
     group(vec2(0, 0), LeftToRight):
       clickableIcon("ui/tack", settings.lockFocus):
         settings.lockFocus = not settings.lockFocus
@@ -95,10 +63,3 @@ proc drawFooter*(pos, size: Vec2) =
         settings.showVisualRange = not settings.showVisualRange
       clickableIcon("ui/cloud", settings.showFogOfWar):
         settings.showFogOfWar = not settings.showFogOfWar
-      # AOE toggle: left click cycles states, right click turns off
-      aoeIconPos = sk.at
-      clickableIcon("ui/target", settings.showAOE >= 0):
-        cycleAOEState()
-    # Check for right-click on the AOE icon
-    if mouseInsideClip(bumpy.rect(aoeIconPos, vec2(32, 32))) and window.buttonReleased[MouseRight]:
-      settings.showAOE = -1
