@@ -93,21 +93,6 @@ class CoreTrainingLoop:
             if spec and spec.has_rollout:
                 node.on_rollout_start(context)
 
-        active_rollout_producers = [
-            name
-            for name, node in self.nodes.items()
-            if (spec := self.node_specs.get(name))
-            and spec.has_rollout
-            and spec.produces_experience
-            and node.cfg.enabled
-            and node.node_gate_allows("rollout", context)
-        ]
-        if len(active_rollout_producers) > 1:
-            logger.warning(
-                "Multiple rollout nodes are producing experience: %s. Ensure only one is active per rollout.",
-                ", ".join(active_rollout_producers),
-            )
-
         # Get buffer for storing experience
         buffer_step = self.experience.buffer[self.experience.row_slot_ids, self.experience.t_in_row - 1]
         buffer_step = buffer_step.select(*self.policy_spec.keys())
@@ -281,7 +266,7 @@ def _build_rollout_nodes(
             Node(
                 name=name,
                 deps=deps,
-                fn=_node_rollout_fn(node, spec),
+                fn=_node_rollout_fn(node),
                 enabled=_node_phase_enabled("rollout", node),
             )
         )
@@ -504,14 +489,13 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
     return Node(name="rollout.td_prep", deps=("rollout.env_wait",), fn=_fn, enabled=_phase_enabled("rollout"))
 
 
-def _node_rollout_fn(node: NodeBase, spec: NodeSpec):
+def _node_rollout_fn(node: NodeBase):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         with context.stopwatch("_rollout.inference"):
             node.rollout(workspace["td"], context)
         td = workspace["td"]
-        if spec.writes_actions and "actions" in td:
+        if "actions" in td:
             workspace["actions_candidate"] = td["actions"]
-            workspace.setdefault("actions_sources", []).append(node.node_name)
         return {}
 
     return _fn
@@ -538,9 +522,6 @@ def _rollout_actions_check_fn(core: CoreTrainingLoop):
         training_env_id = workspace["training_env_id"]
         if "actions_candidate" in workspace:
             td["actions"] = workspace["actions_candidate"]
-            sources = workspace.get("actions_sources")
-            if sources and len(sources) > 1:
-                logger.debug("Action candidates from rollout nodes: %s (using last).", ", ".join(sources))
         if "actions" not in td:
             raise RuntimeError("No node performed inference - at least one rollout node must generate actions")
 

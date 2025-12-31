@@ -291,7 +291,5 @@ NODE_SPECS = [
         default_enabled=False,
         has_rollout=True,
         has_train=True,
-        writes_actions=True,
-        produces_experience=True,
     )
 ]
