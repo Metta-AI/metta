@@ -235,7 +235,8 @@ class Loss:
 
     def stats(self) -> dict[str, float]:
         """Aggregate tracked statistics into mean values."""
-        return {k: (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
+        prefix = f"{self.instance_name}/"
+        return {f"{prefix}{k}": (sum(v) / len(v) if v else 0.0) for k, v in self.loss_tracker.items()}
 
     def zero_loss_tracker(self) -> None:
         """Zero all values in the loss tracker."""

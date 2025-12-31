@@ -9,6 +9,7 @@ from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
 from metta.rl.loss.loss import Loss
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
+from metta.rl.training.graph import Node, TrainingGraph
 from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
 
@@ -53,6 +54,8 @@ class CoreTrainingLoop:
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
+        self.rollout_graph = TrainingGraph(_rollout_nodes_from_losses(losses))
+        self.train_graph = TrainingGraph(_train_nodes_from_losses(losses))
         self.last_action = torch.zeros(
             experience.total_agents,
             1,
@@ -137,8 +140,7 @@ class CoreTrainingLoop:
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
                 context.training_env_id = training_env_id
-                for loss in self.losses.values():
-                    loss.rollout(td, context)
+                self.rollout_graph.run("rollout", context, {"td": td})
 
             avg_reward = context.state.avg_reward
             beta = float(context.config.advantage.reward_centering.beta)
@@ -324,11 +326,19 @@ class CoreTrainingLoop:
                 for _loss_name, loss_obj in self.losses.items():
                     if loss_obj._loss_gate_allows("train", context):
                         used_keys.update(loss_obj.policy_output_keys(policy_td))
-                    loss_val, shared_loss_mb_data, loss_requests_stop = loss_obj.train(
-                        shared_loss_mb_data, context, mb_idx
-                    )
-                    total_loss = total_loss + loss_val
-                    stop_update_epoch_mb = stop_update_epoch_mb or loss_requests_stop
+
+                workspace = {
+                    "shared_loss_data": shared_loss_mb_data,
+                    "mb_idx": mb_idx,
+                    "loss_terms": [],
+                    "stop_update_epoch": False,
+                }
+                self.train_graph.run("train", context, workspace)
+                shared_loss_mb_data = workspace["shared_loss_data"]
+
+                for term in workspace["loss_terms"]:
+                    total_loss = total_loss + term
+                stop_update_epoch_mb = bool(workspace["stop_update_epoch"])
 
                 if stop_update_epoch_mb:
                     stop_update_epoch = True
@@ -391,3 +401,45 @@ class CoreTrainingLoop:
             self.last_action = self.last_action.to(device=td.device)
 
         td["last_actions"] = self.last_action[env_ids].detach()
+
+
+def _rollout_nodes_from_losses(losses: dict[str, Loss]) -> list[Node]:
+    nodes: list[Node] = []
+    for loss in losses.values():
+        nodes.append(_loss_rollout_node(loss))
+    return nodes
+
+
+def _train_nodes_from_losses(losses: dict[str, Loss]) -> list[Node]:
+    nodes: list[Node] = []
+    for loss in losses.values():
+        nodes.append(_loss_train_node(loss))
+    return nodes
+
+
+def _loss_rollout_node(loss: Loss) -> Node:
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        loss.rollout(workspace["td"], context)
+        return {}
+
+    return Node(
+        name=f"{loss.instance_name}.rollout",
+        phase="rollout",
+        fn=_fn,
+    )
+
+
+def _loss_train_node(loss: Loss) -> Node:
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        loss_val, shared, stop = loss.train(workspace["shared_loss_data"], context, workspace["mb_idx"])
+        workspace["shared_loss_data"] = shared
+        workspace["loss_terms"].append(loss_val)
+        if stop:
+            workspace["stop_update_epoch"] = True
+        return {}
+
+    return Node(
+        name=f"{loss.instance_name}.train",
+        phase="train",
+        fn=_fn,
+    )
