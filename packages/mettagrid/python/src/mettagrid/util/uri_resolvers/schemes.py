@@ -336,7 +336,10 @@ def policy_spec_from_uri(
                 remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
             )
         else:
-            local_path = download_policy_spec_from_s3_dir(parsed.canonical)
+            local_path = download_policy_spec_from_s3_dir(
+                parsed.canonical,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
         parsed = resolve_uri(local_path.as_uri())
 
     if parsed.local_path:

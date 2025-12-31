@@ -193,7 +193,11 @@ def download_policy_spec_from_s3_as_zip(
     return local_path
 
 
-def download_policy_spec_from_s3_dir(s3_path: str, cache_dir: Optional[Path] = None) -> Path:
+def download_policy_spec_from_s3_dir(
+    s3_path: str,
+    cache_dir: Optional[Path] = None,
+    remove_downloaded_copy_on_exit: bool = False,
+) -> Path:
     if cache_dir is None:
         cache_dir = DEFAULT_POLICY_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -212,6 +216,10 @@ def download_policy_spec_from_s3_dir(s3_path: str, cache_dir: Optional[Path] = N
         data_path = extraction_root / submission_spec.data_path
         data_path.parent.mkdir(parents=True, exist_ok=True)
         data_path.write_bytes(s3_read(f"{normalized_path}/{submission_spec.data_path}"))
+
+    if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+        _registered_cleanup_dirs.add(extraction_root)
+        atexit.register(_cleanup_cache_dir, extraction_root)
 
     return extraction_root
 
