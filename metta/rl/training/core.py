@@ -209,7 +209,8 @@ class CoreTrainingLoop:
 
         def _expand(meta: torch.Tensor) -> torch.Tensor:
             meta = meta.to(device=device)
-            return meta.view(1, num_agents).expand(num_envs, num_agents)
+            expanded = meta.view(1, num_agents).expand(num_envs, num_agents)
+            return expanded.reshape(td.batch_size)
 
         td.set("slot_id", _expand(slot_ids))
 
