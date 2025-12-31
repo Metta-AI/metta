@@ -61,6 +61,9 @@ class CMPOConfig(LossConfig):
     # Default: match PPO minibatch size to keep memory in line with PPO runs.
     q_value_batch_size: Optional[int] = Field(default=None, gt=0)
 
+    # Fraction of minibatch segments to train CMPO on (reduces compute for large runs).
+    minibatch_fraction: float = Field(default=1.0, ge=0.0, le=1.0)
+
     world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
 
     def create(
@@ -282,6 +285,14 @@ class CMPO(Loss):
 
         policy_td = shared_loss_data["policy_td"]
         B, TT = minibatch.batch_size
+        if self.cfg.minibatch_fraction < 1.0:
+            keep = torch.rand(B, device=minibatch.device) < self.cfg.minibatch_fraction
+            if not keep.any():
+                keep[torch.randint(B, (1,), device=minibatch.device)] = True
+            minibatch = minibatch[keep]
+            policy_td = policy_td[keep]
+            B, TT = minibatch.batch_size
+
         log_pi = policy_td["full_log_probs"].reshape(B, TT, -1)
         if self._valid_action_mask is None:
             self._valid_action_mask = (log_pi > -1e8).any(dim=(0, 1))
