@@ -1,9 +1,16 @@
 import { FC, useContext, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
+import { A } from './components/A'
+import { Button } from './components/Button'
+import { Card } from './components/Card'
 import { CopyableUri } from './components/CopyableUri'
-import { ReplayViewer, normalizeReplayUrl } from './components/ReplayViewer'
+import { LinkButton } from './components/LinkButton'
+import { normalizeReplayUrl, ReplayViewer } from './components/ReplayViewer'
+import { Spinner } from './components/Spinner'
+import { StyledLink } from './components/StyledLink'
+import { Table, TD, TH, TR } from './components/Table'
 import { LEADERBOARD_SIM_NAME_EPISODE_KEY } from './constants'
 import { TasksTable } from './EvalTasks/TasksTable'
 import type { EpisodeWithTags, LeaderboardPolicyEntry, PolicyVersionWithName } from './repo'
@@ -190,16 +197,11 @@ export const PolicyVersionPage: FC = () => {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {pvInfo && (
-            <Link
-              to={`/policies/${pvInfo.policy_id}`}
-              className="inline-flex items-center px-3 py-2 rounded border border-gray-300 text-gray-700 no-underline hover:bg-gray-50 text-sm"
-            >
-              ← Back to policy
-            </Link>
-          )}
-        </div>
+        {pvInfo && (
+          <LinkButton to={`/policies/${pvInfo.policy_id}`} theme="tertiary">
+            ← Back to policy
+          </LinkButton>
+        )}
       </div>
 
       {pvInfo && <CopyableUri uri={`metta://policy/${pvInfo.name}:v${pvInfo.version}`} />}
@@ -210,111 +212,94 @@ export const PolicyVersionPage: FC = () => {
         </div>
       ) : null}
 
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Episodes</h2>
-          </div>
-        </div>
-        <div className="p-5">
-          {episodesState.loading ? (
-            <div className="text-gray-500 text-sm">Loading episodes...</div>
-          ) : episodesState.error ? (
-            <div className="text-red-600 text-sm">{episodesState.error}</div>
-          ) : episodesState.data.length === 0 ? (
-            <div className="text-gray-500 text-sm">No episodes found for this policy version.</div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                      <th className="px-3 py-2 border-b border-gray-200">ID</th>
-                      <th className="px-3 py-2 border-b border-gray-200">Leaderboard Tag</th>
-                      <th className="px-3 py-2 border-b border-gray-200">Replay</th>
-                      <th className="px-3 py-2 border-b border-gray-200">Created</th>
-                      <th className="px-3 py-2 border-b border-gray-200">Avg Reward (policy)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {episodesState.data.map((episode) => (
-                      <tr key={episode.id} className="border-b border-gray-100 align-top">
-                        <td className="px-3 py-2">
-                          <Link
-                            to={`/episodes/${episode.id}`}
-                            className="font-mono text-xs text-blue-600 no-underline hover:underline break-words max-w-xs"
-                          >
-                            {episode.id}
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2">
-                          {(() => {
-                            const { value, tooltip } = getLeaderboardTagDisplay(episode)
-                            return (
-                              <span
-                                className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
-                                title={tooltip}
-                              >
-                                {value}
-                              </span>
-                            )
-                          })()}
-                        </td>
-                        <td className="px-3 py-2">
-                          {(() => {
-                            const replayUrl = normalizeReplayUrl(episode.replay_url)
-                            if (!replayUrl) {
-                              return '—'
-                            }
-                            return (
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={replayUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 no-underline hover:underline"
-                                >
-                                  Replay
-                                </a>
-                                <button
-                                  type="button"
-                                  className="px-2 py-1 text-xs rounded border border-blue-200 text-blue-700 bg-white hover:bg-blue-50"
-                                  onClick={() => toggleEpisodeReplayPreview(episode)}
-                                >
-                                  Show below
-                                </button>
-                              </div>
-                            )
-                          })()}
-                        </td>
-                        <td className="px-3 py-2" title={formatDate(episode.created_at)}>
-                          {formatRelativeTime(episode.created_at)}
-                        </td>
-                        <td className="px-3 py-2 font-mono">{formatScore(getPolicyAvgReward(episode))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      <Card title="Episodes">
+        {episodesState.loading ? (
+          <Spinner />
+        ) : episodesState.error ? (
+          <div className="text-red-600 text-sm">{episodesState.error}</div>
+        ) : episodesState.data.length === 0 ? (
+          <div className="text-gray-500 text-sm">No episodes found for this policy version.</div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <Table.Header>
+                  <TR>
+                    <TH>ID</TH>
+                    <TH>Leaderboard Tag</TH>
+                    <TH>Replay</TH>
+                    <TH>Created</TH>
+                    <TH>Avg Reward (policy)</TH>
+                  </TR>
+                </Table.Header>
+                <Table.Body>
+                  {episodesState.data.map((episode) => (
+                    <TR key={episode.id}>
+                      <TD>
+                        <StyledLink to={`/episodes/${episode.id}`} className="font-mono text-xs">
+                          {episode.id}
+                        </StyledLink>
+                      </TD>
+                      <TD>
+                        {(() => {
+                          const { value, tooltip } = getLeaderboardTagDisplay(episode)
+                          return (
+                            <span
+                              className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
+                              title={tooltip}
+                            >
+                              {value}
+                            </span>
+                          )
+                        })()}
+                      </TD>
+                      <TD>
+                        {(() => {
+                          const replayUrl = normalizeReplayUrl(episode.replay_url)
+                          if (!replayUrl) {
+                            return '—'
+                          }
+                          return (
+                            <div className="flex items-center gap-2">
+                              <A href={replayUrl} target="_blank" rel="noopener noreferrer">
+                                Replay
+                              </A>
+                              <Button size="sm" onClick={() => toggleEpisodeReplayPreview(episode)}>
+                                Show below
+                              </Button>
+                            </div>
+                          )
+                        })()}
+                      </TD>
+                      <TD title={formatDate(episode.created_at)}>{formatRelativeTime(episode.created_at)}</TD>
+                      <TD className="px-3 py-2">
+                        <span className="font-mono">{formatScore(getPolicyAvgReward(episode))}</span>
+                      </TD>
+                    </TR>
+                  ))}
+                </Table.Body>
+              </Table>
+            </div>
+            {episodeReplayPreview ? (
+              <div className="mt-4">
+                <ReplayViewer
+                  replayUrl={episodeReplayPreview.url}
+                  label={`Replay preview (${episodeReplayPreview.label})`}
+                />
               </div>
-              {episodeReplayPreview ? (
-                <div className="mt-4">
-                  <ReplayViewer
-                    replayUrl={episodeReplayPreview.url}
-                    label={`Replay preview (${episodeReplayPreview.label})`}
-                  />
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
-      </div>
+            ) : null}
+          </>
+        )}
+      </Card>
 
       {taskError && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">{taskError}</div>
       )}
 
       {policyVersionId && (
-        <TasksTable repo={repo} setError={setTaskError} initialFilters={{ command: policyVersionId }} hideFilters />
+        <Card title="Tasks">
+          <TasksTable repo={repo} setError={setTaskError} initialFilters={{ command: policyVersionId }} hideFilters />
+        </Card>
       )}
     </div>
   )
