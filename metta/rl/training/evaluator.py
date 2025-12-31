@@ -144,6 +144,7 @@ class Evaluator(TrainerComponent):
         """Create a policy version in Observatory with a submission zip."""
 
         # Create policy version
+        parsed = resolve_uri(policy_uri)
         policy_version_id = stats_client.create_policy_version(
             policy_id=stats_client.create_policy(
                 name=self._run_name,
@@ -153,7 +154,7 @@ class Evaluator(TrainerComponent):
             git_hash=self._git_hash,
             policy_spec=policy_spec.model_dump(mode="json"),
             attributes={"epoch": epoch, "agent_step": agent_step},
-            s3_path=(parsed := resolve_uri(policy_uri)).canonical if parsed.scheme == "s3" else None,
+            s3_path=parsed.canonical if parsed.scheme == "s3" else None,
         )
 
         return policy_version_id.id
