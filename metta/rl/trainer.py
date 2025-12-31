@@ -396,23 +396,38 @@ class Trainer:
         return Composite(merged)
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
-        """Invoke all registered callbacks of the specified type."""
+        """Invoke all registered callbacks of the specified type.
+
+        Args:
+            callback_type: The type of callback to invoke
+            infos: Step information from environment (only used for STEP callback)
+        """
         current_step = self._context.agent_step
         previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
         current_epoch = self._context.epoch
 
         for component in self._components:
-            if callback_type == TrainerCallback.STEP:
-                if component.should_handle_step(current_step=current_step, previous_step=previous_step) and infos:
-                    component.on_step(infos)
-            elif callback_type == TrainerCallback.EPOCH_END and component.should_handle_epoch(current_epoch):
-                component.on_epoch_end(current_epoch)
-            elif callback_type == TrainerCallback.ROLLOUT_END:
-                component.on_rollout_end()
-            elif callback_type == TrainerCallback.TRAINING_COMPLETE:
-                component.on_training_complete()
-            elif callback_type == TrainerCallback.FAILURE:
-                component.on_failure()
+            try:
+                if callback_type == TrainerCallback.STEP:
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
+                        component.on_step(infos)
+                elif callback_type == TrainerCallback.EPOCH_END:
+                    if component.should_handle_epoch(current_epoch):
+                        component.on_epoch_end(current_epoch)
+                elif callback_type == TrainerCallback.ROLLOUT_END:
+                    component.on_rollout_end()
+                elif callback_type == TrainerCallback.TRAINING_COMPLETE:
+                    component.on_training_complete()
+                elif callback_type == TrainerCallback.FAILURE:
+                    component.on_failure()
+            except Exception as e:
+                logger.error(
+                    f"Component {component.__class__.__name__} {callback_type.value} callback failed: {e}",
+                    exc_info=True,
+                )
 
     def restore(self) -> None:
         """Restore trainer state from checkpoints.

@@ -75,7 +75,7 @@ class SlotControllerPolicy(Policy):
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
-            for key in ("actions", "act_log_prob", "entropy", "values", "full_log_probs", "logits"):
+            for key in ("actions", "act_log_prob", "entropy", "values", "h_values", "full_log_probs", "logits"):
                 if key not in out_td.keys():
                     continue
                 value = out_td.get(key)

@@ -3,13 +3,15 @@
 
 from pydantic import Field
 
-from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
+from metta.rl.slot_config import PolicySlotConfig
 from metta.sim.runner import SimulationRunConfig
 from mettagrid import MettaGridConfig
 from mettagrid.base_config import Config
 
 
 class SimulationConfig(Config):
+    """Configuration for a single simulation run."""
+
     suite: str = Field(description="Name of the simulation suite")
     name: str = Field(description="Name of the simulation")
     env: MettaGridConfig
@@ -23,9 +25,6 @@ class SimulationConfig(Config):
     agent_slot_map: list[str] | None = Field(
         default=None,
         description="Optional mapping (length=num_agents) assigning each agent index to a policy slot id.",
-    )
-    loss_profiles: dict[str, LossProfileConfig] = Field(
-        default_factory=dict, description="Optional loss profiles keyed by name."
     )
 
     @property
