@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
@@ -39,16 +39,8 @@ class ViTReconstructionLossConfig(LossConfig):
         env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "ViTReconstructionLoss":
-        return ViTReconstructionLoss(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name,
-            self,
-        )
+        return ViTReconstructionLoss(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class ViTReconstructionDecoder(nn.Module):
@@ -174,6 +166,9 @@ class ViTReconstructionLoss(Loss):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.cfg: ViTReconstructionLossConfig = cfg  # type: ignore
         self.decoder = None
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"obs_shim_tokens", "obs_latent_attn"}
 
     def _init_decoder(self, latent_dim: int, context: ComponentContext) -> None:
         # 1. Derive num_attribute_classes from environment

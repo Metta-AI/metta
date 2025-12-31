@@ -2,12 +2,10 @@ from typing import Any, Tuple
 
 import torch
 import torch.distributed as dist
-import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
 
 
-@torch.jit.script
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits during inference.
@@ -43,7 +41,6 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
     return actions, act_log_prob, entropy, full_log_probs
 
 
-@torch.jit.script
 def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Evaluate provided actions against logits during training.
@@ -76,6 +73,10 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
     return log_probs, entropy, action_log_probs
+
+
+sample_actions = torch.compile(sample_actions)
+evaluate_actions = torch.compile(evaluate_actions)
 
 
 def get_from_master(x: Any) -> Any:

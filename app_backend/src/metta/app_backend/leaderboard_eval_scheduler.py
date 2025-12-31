@@ -125,12 +125,12 @@ AND NOT EXISTS (
         command_parts = [
             "uv run tools/run.py recipes.experiment.v0_leaderboard.evaluate",
             f"policy_version_id={str(policy_version_id)}",
-            f"stats_server_uri={self._stats_client._backend_url}",
         ]
         eval_task = self._stats_client.create_eval_task(
             TaskCreateRequest(
                 command=" ".join(command_parts),
                 git_hash=self._eval_git_hash,
+                attributes={"parallelism": 10},
             )
         )
         logger.info("Successfully scheduled eval for policy: %s: %s", policy_version_id, eval_task.id)

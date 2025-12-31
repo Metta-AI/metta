@@ -266,37 +266,52 @@ class ScorecardWidget(anywidget.AnyWidget):
         if search_term:
             policies_data = await self.client.search_policies(search=search_term)
         else:
-            policies_data = await self.client.get_policies()
+            policies_data = await self.client.get_policy_versions()
 
-        # Find training run IDs that match our training run names
-        training_run_ids = []
-        run_free_policy_ids = []
-        for policy in policies_data.policies:
-            if policy.type == "training_run" and (
-                not restrict_to_policy_names
-                or any(
-                    filter_policy_name in policy.name
-                    for filter_policy_name in restrict_to_policy_names
-                )
+        def _get_attr(policy: Any, key: str) -> Any:
+            if isinstance(policy, dict):
+                return policy.get(key)
+            return getattr(policy, key, None)
+
+        policy_entries = (
+            getattr(policies_data, "entries", None)
+            or getattr(policies_data, "policies", [])
+            or []
+        )
+
+        # Collect policy IDs (policy-version responses do not reliably include type/tags)
+        policy_ids: list[str] = []
+        for policy in policy_entries:
+            policy_id = _get_attr(policy, "policy_id") or _get_attr(policy, "id")
+            policy_name = _get_attr(policy, "name") or ""
+            if not policy_id:
+                continue
+
+            if restrict_to_policy_names and not any(
+                filter_policy_name in policy_name
+                for filter_policy_name in restrict_to_policy_names
             ):
-                training_run_ids.append(policy.id)
-            elif policy.type == "policy" and include_run_free_policies:
-                run_free_policy_ids.append(policy.id)
+                continue
 
+            policy_ids.append(str(policy_id))
+
+        # Apply optional ID restriction
         if restrict_to_policy_ids:
-            training_run_ids = [
+            policy_ids = [
                 policy_id
-                for policy_id in restrict_to_policy_ids
-                if policy_id in training_run_ids
-            ]
-            run_free_policy_ids = [
-                policy_id
-                for policy_id in restrict_to_policy_ids
-                if policy_id in run_free_policy_ids
+                for policy_id in policy_ids
+                if policy_id in restrict_to_policy_ids
             ]
 
-        if not training_run_ids:
-            raise Exception("No training runs found")
+        # Deduplicate while preserving order
+        seen = set()
+        policy_ids = [pid for pid in policy_ids if not (pid in seen or seen.add(pid))]
+
+        if not policy_ids:
+            raise Exception("No policies found")
+
+        training_run_ids = policy_ids
+        run_free_policy_ids = policy_ids if include_run_free_policies else []
 
         if restrict_to_eval_names:
             # Use the specific eval names provided
@@ -340,13 +355,13 @@ class ScorecardWidget(anywidget.AnyWidget):
             policy_selector=policy_selector,
         )
 
-        all_policies = training_run_ids + run_free_policy_ids
+        all_policies = list(dict.fromkeys(training_run_ids + run_free_policy_ids))
         if len(all_policies) != len(scorecard_data.policyNames):
             warning(
                 (
                     "Number of policies in scorecard data "
                     f"({len(scorecard_data.policyNames)}) does not match number of policies in your query "
-                    f"({len(training_run_ids) + len(run_free_policy_ids)})"
+                    f"({len(all_policies)})"
                 )
             )
             raise Exception(

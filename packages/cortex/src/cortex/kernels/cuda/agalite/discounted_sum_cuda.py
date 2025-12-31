@@ -4,6 +4,7 @@ import os
 from typing import Tuple
 
 import torch
+from torch._dynamo import disable
 from torch.autograd import Function
 from torch.utils.cpp_extension import load
 
@@ -51,13 +52,23 @@ class _DiscountedSumCUDA(Function):
         x_contig = x.contiguous()
         discounts_contig = discounts.contiguous()
 
-        start_aligned, broadcast_shape = _prepare_start_state(start_state, x_contig)
-        start_flat = start_aligned.reshape(-1).contiguous()
+        orig_dtype = x_contig.dtype
+        if orig_dtype in (torch.float16, torch.bfloat16):
+            acc_dtype = torch.float32
+        else:
+            acc_dtype = orig_dtype
 
-        T = x_contig.shape[0]
+        x_acc = x_contig.to(acc_dtype)
+        discounts_acc = discounts_contig.to(acc_dtype)
+        start_state_acc = start_state.to(acc_dtype)
+
+        start_aligned_acc, broadcast_shape = _prepare_start_state(start_state_acc, x_acc)
+        start_flat = start_aligned_acc.reshape(-1).contiguous()
+
+        T = x_acc.shape[0]
         feature_size = start_flat.numel()
-        x_flat = x_contig.view(T, feature_size)
-        discounts_flat = discounts_contig.view(T, feature_size)
+        x_flat = x_acc.view(T, feature_size)
+        discounts_flat = discounts_acc.view(T, feature_size)
 
         output_flat = ext.discounted_sum_forward(start_flat, x_flat, discounts_flat)
 
@@ -65,8 +76,9 @@ class _DiscountedSumCUDA(Function):
         ctx.start_shape = start_state.shape
         ctx.broadcast_shape = broadcast_shape
         ctx.x_shape = x_contig.shape
+        ctx.orig_dtype = orig_dtype
 
-        return output_flat.view_as(x_contig)
+        return output_flat.view_as(x_acc).to(orig_dtype)
 
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
@@ -77,18 +89,30 @@ class _DiscountedSumCUDA(Function):
         start_flat, discounts_flat, output_flat = ctx.saved_tensors
         grad_flat = grad_output.contiguous().view(ctx.x_shape[0], -1)
 
+        orig_dtype = ctx.orig_dtype
+        if orig_dtype in (torch.float16, torch.bfloat16):
+            grad_flat_acc = grad_flat.to(torch.float32)
+        else:
+            grad_flat_acc = grad_flat
+
         grad_start_flat, grad_x_flat, grad_discounts_flat = ext.discounted_sum_backward(
-            grad_flat, discounts_flat, output_flat, start_flat
+            grad_flat_acc, discounts_flat, output_flat, start_flat
         )
 
         grad_start_broadcast = grad_start_flat.view(ctx.broadcast_shape)
-        grad_start = torch.ops.aten.sum_to_size(grad_start_broadcast, ctx.start_shape)
-        grad_x = grad_x_flat.view(ctx.x_shape)
-        grad_discounts = grad_discounts_flat.view(ctx.x_shape)
+        if orig_dtype in (torch.float16, torch.bfloat16):
+            grad_start = torch.ops.aten.sum_to_size(grad_start_broadcast.to(orig_dtype), ctx.start_shape)
+            grad_x = grad_x_flat.view(ctx.x_shape).to(orig_dtype)
+            grad_discounts = grad_discounts_flat.view(ctx.x_shape).to(orig_dtype)
+        else:
+            grad_start = torch.ops.aten.sum_to_size(grad_start_broadcast, ctx.start_shape)
+            grad_x = grad_x_flat.view(ctx.x_shape)
+            grad_discounts = grad_discounts_flat.view(ctx.x_shape)
 
         return grad_start, grad_x, grad_discounts
 
 
+@disable
 def discounted_sum_cuda(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """Apply CUDA fused discounted sum if extension loads."""
     return _DiscountedSumCUDA.apply(start_state, x, discounts)

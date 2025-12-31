@@ -18,7 +18,6 @@ from rich.console import Console
 from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
 from metta.common.util.log_config import init_mettagrid_system_environment
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
@@ -45,12 +44,11 @@ def _nim_bindings_available() -> bool:
 
 
 POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
-    PolicyUnderTest("nim_thinky", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("thinky", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("nim_random", requires_nim=True, supports_supervisor=True),
-    PolicyUnderTest("nim_race_car", requires_nim=True, supports_supervisor=True),
+    PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
-    PolicyUnderTest("scripted_unclipping"),
-    PolicyUnderTest("scripted_starter"),
+    PolicyUnderTest("ladybug"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
@@ -63,7 +61,7 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
 
 
-def _policy_param(policy: PolicyUnderTest) -> pytest.ParameterSet:
+def _policy_param(policy: PolicyUnderTest):  # -> pytest.ParameterSet
     marks = ()
     if policy.requires_nim and not _nim_bindings_available():
         marks = pytest.mark.skip("Nim bindings missing. Run `nim c nim_agents.nim` to build them.")
@@ -91,7 +89,7 @@ def env_config():
 def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulator: Simulator, env_config) -> None:
     """Supervisor policies must load and generate teacher actions for training."""
 
-    env = MettaGridPufferEnv(simulator, env_config, EnvSupervisorConfig(policy=policy.reference))
+    env = MettaGridPufferEnv(simulator, env_config, supervisor_policy_spec=PolicySpec(class_path=policy.reference))
     try:
         observations, _ = env.reset(seed=123)
         assert observations.shape[0] == env_config.game.num_agents
@@ -99,6 +97,7 @@ def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulato
         teacher_actions = env.teacher_actions
         assert teacher_actions.shape == (env_config.game.num_agents,)
 
+        assert env._sim is not None
         noop_idx = env._sim.action_names.index("noop")
         noop_actions = np.full(env_config.game.num_agents, noop_idx, dtype=np.int32)
 

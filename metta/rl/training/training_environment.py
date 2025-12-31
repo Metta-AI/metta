@@ -19,8 +19,8 @@ from metta.rl.training.batch import calculate_batch_sizes
 from metta.rl.vecenv import make_vecenv
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import make_arena
-from mettagrid.config.mettagrid_config import EnvSupervisorConfig
 from mettagrid.mettagrid_c import dtype_actions
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 
@@ -69,7 +69,7 @@ class TrainingEnvironmentConfig(Config):
         description="Base directory where training replays will be stored when writing is enabled.",
     )
 
-    supervisor: EnvSupervisorConfig = Field(default_factory=EnvSupervisorConfig)
+    supervisor_policy_uri: Optional[str] = Field(default=None)
 
     maps_cache_size: Optional[int] = Field(default=None, ge=1)
     """Number of maps to cache in shared memory. None for unlimited."""
@@ -121,7 +121,11 @@ class TrainingEnvironment(ABC):
 class VectorizedTrainingEnvironment(TrainingEnvironment):
     """Manages the vectorized training environment and experience generation."""
 
-    def __init__(self, cfg: TrainingEnvironmentConfig):
+    def __init__(
+        self,
+        cfg: TrainingEnvironmentConfig,
+        supervisor_policy_spec: PolicySpec | None = None,
+    ):
         """Initialize training environment."""
         super().__init__()
         self._id = uuid.uuid4().hex[:12]
@@ -175,7 +179,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
         self._vecenv = make_vecenv(
             self._curriculum,
             cfg.vectorization,
-            env_supervisor_cfg=cfg.supervisor,
+            supervisor_policy_spec=supervisor_policy_spec,
             num_envs=self._num_envs,
             batch_size=self._batch_size,
             num_workers=num_workers,

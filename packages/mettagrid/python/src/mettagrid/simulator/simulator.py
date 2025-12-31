@@ -73,10 +73,10 @@ class Simulation:
         # Create C++ config
         try:
             c_cfg = mettagrid_c_config.convert_to_cpp_game_config(game_config_dict)
-        except Exception as e:
-            logger.error(f"Error creating C++ config: {e}")
-            logger.error(f"Game config: {game_config_dict}")
-            raise e
+        except Exception:
+            logger.exception("Error creating C++ config")
+            logger.error("Game config: %s", game_config_dict)
+            raise
 
         # Create C++ environment
         with self._timer("sim.init.create_c_sim"):
@@ -281,16 +281,15 @@ class Simulator:
     def new_simulation(
         self, config: mettagrid_config.MettaGridConfig, seed: int = 0, buffers: Optional[Buffers] = None
     ) -> Simulation:
-        assert self._current_simulation is None, "A simulation is already running"
+        # Initialize invariants on first simulation
         if self._config_invariants is None:
             self._config_invariants = self._compute_config_invariants(config)
 
+        # Check if invariants have changed
         config_invariants = self._compute_config_invariants(config)
         if self._config_invariants != config_invariants:
-            logger.error("Config invariants have changed")
-            logger.error(f"Old invariants: {self._config_invariants}")
-            logger.error(f"New invariants: {config_invariants}")
-            raise ValueError("Config invariants have changed")
+            # Allow updates between episodes for curriculum training
+            self._config_invariants = config_invariants
 
         self._current_simulation = Simulation(
             config=config,
@@ -367,22 +366,65 @@ class SimulationAgent:
     def last_action_success(self) -> bool:
         return self._sim._c_sim.action_success()[self._agent_id]
 
+    def self_observation(self) -> list[ObservationToken]:
+        """Get observation tokens for the agent itself.
+
+        These are tokens at the agent's center position in the observation window,
+        including inventory, global observations, and other agent-specific features.
+        """
+        obs = self.observation
+
+        # Agent's own tokens are at the center of the observation window
+        c_sim = self._sim._c_sim
+        center = (c_sim.obs_height // 2, c_sim.obs_width // 2)
+
+        return [token for token in obs.tokens if token.location == center]
+
     @property
     def inventory(self) -> Dict[str, int]:
         """Get the agent's current inventory from observations.
 
         Inventory tokens appear at the agent's center position in the observation window.
         Returns a dictionary mapping resource names to their quantities.
-        """
-        inv = {}
-        obs = self.observation
 
-        for token in obs.tokens:
-            # Check if this is an inventory feature
+        Inventory values are encoded using multi-token encoding:
+        - inv:{resource} contains the base value (amount % token_value_base)
+        - inv:{resource}:p1 contains power 1 ((amount / token_value_base) % token_value_base)
+        - inv:{resource}:p2 contains power 2 ((amount / token_value_base^2) % token_value_base)
+        - etc.
+        The full value is reconstructed as: base + p1 * B + p2 * B^2 + ... where B = token_value_base
+        """
+        import re
+
+        token_value_base = self._sim._config.game.obs.token_value_base
+
+        # Collect tokens by resource name and power
+        inv_values: Dict[str, Dict[int, int]] = {}  # resource_name -> {power -> value}
+
+        for token in self.self_observation():
             if token.feature.name.startswith("inv:"):
-                # Extract resource name from "inv:resource_name" format
-                resource_name = token.feature.name[4:]  # Remove "inv:" prefix
-                inv[resource_name] = token.value
+                suffix = token.feature.name[4:]  # Remove "inv:" prefix
+
+                # Parse power suffix :pN where N is the power number
+                match = re.match(r"^(.+):p(\d+)$", suffix)
+                if match:
+                    resource_name = match.group(1)
+                    power = int(match.group(2))
+                else:
+                    resource_name = suffix
+                    power = 0
+
+                if resource_name not in inv_values:
+                    inv_values[resource_name] = {}
+                inv_values[resource_name][power] = token.value
+
+        # Reconstruct full values from base and power tokens
+        inv = {}
+        for resource_name, power_values in inv_values.items():
+            total = 0
+            for power, value in power_values.items():
+                total += value * (token_value_base**power)
+            inv[resource_name] = total
 
         return inv
 

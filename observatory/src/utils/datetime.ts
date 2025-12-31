@@ -16,7 +16,12 @@ export const formatDate = (value: string | null): string => {
   if (!date) {
     return '—'
   }
-  return date.toLocaleString()
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 export const formatRelativeTime = (value: string | null): string => {
@@ -41,4 +46,20 @@ export const formatRelativeTime = (value: string | null): string => {
   if (diffMonths < 12) return `${diffMonths}mo ago`
   const diffYears = Math.floor(diffDays / 365)
   return `${diffYears}y ago`
+}
+
+export const formatDurationBetween = (from: string | null, to: string | null): string | null => {
+  const fromDate = parseDatetime(from)
+  const toDate = parseDatetime(to)
+  if (!fromDate || !toDate) return null
+  const diffMs = toDate.getTime() - fromDate.getTime()
+  if (diffMs < 0) return null
+  const seconds = Math.floor(diffMs / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
 }

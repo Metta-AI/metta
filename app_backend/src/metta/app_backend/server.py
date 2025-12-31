@@ -19,6 +19,7 @@ from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     eval_task_routes,
+    job_routes,
     leaderboard_routes,
     sql_routes,
     stats_routes,
@@ -124,12 +125,14 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     stats_router = stats_routes.create_stats_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
+    jobs_router = job_routes.create_job_router()
 
     app.include_router(eval_task_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(sweep_router)
     app.include_router(leaderboard_router)
+    app.include_router(jobs_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
@@ -140,15 +143,15 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import settings
 
-    stats_repo = MettaRepo(stats_db_uri)
+    stats_repo = MettaRepo(settings.STATS_DB_URI)
     app = create_app(stats_repo)
 
     # Start the updater in an async context
     async def main():
         # Run uvicorn in a way that doesn't block
-        config = uvicorn.Config(app, host=host, port=port)
+        config = uvicorn.Config(app, host=settings.HOST, port=settings.PORT)
         server = uvicorn.Server(config)
         await server.serve()
 

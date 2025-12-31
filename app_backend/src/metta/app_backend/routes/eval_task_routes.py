@@ -79,14 +79,6 @@ class GitHashesResponse(BaseModel):
     git_hashes: dict[str, list[str]]
 
 
-class TaskCountResponse(BaseModel):
-    count: int
-
-
-class TaskAvgRuntimeResponse(BaseModel):
-    avg_runtime: float | None
-
-
 class TaskAttemptsResponse(BaseModel):
     attempts: list[TaskAttemptRow]
 
@@ -231,16 +223,6 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             task_id=task_id, status=request.status, status_details=request.status_details, log_path=request.log_path
         )
         return TaskIdResponse(task_id=task_id)
-
-    @router.get("/count")
-    @timed_http_handler
-    async def count_tasks(where_clause: str = Query(default="")) -> TaskCountResponse:
-        return TaskCountResponse(count=await stats_repo.count_tasks(where_clause=where_clause))
-
-    @router.get("/avg-runtime")
-    @timed_http_handler
-    async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
-        return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
 
     @router.get("/{task_id}")
     @timed_http_handler

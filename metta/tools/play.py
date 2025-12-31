@@ -2,7 +2,6 @@
 
 import logging
 import uuid
-from contextlib import ExitStack
 from typing import Optional
 
 import torch
@@ -11,7 +10,6 @@ from rich.console import Console
 
 from metta.agent.policy import Policy as MettaPolicy
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.s3_policy_spec_loader import policy_spec_from_s3_submission
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -58,7 +56,8 @@ class PlayTool(Tool):
         policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
         if hasattr(policy, "initialize_to_environment"):
             policy.initialize_to_environment(policy_env_info, device)
-        policy.eval()
+        if hasattr(policy, "eval"):
+            policy.eval()
         return policy
 
     @model_validator(mode="after")
@@ -93,29 +92,28 @@ class PlayTool(Tool):
             if not s3_path:
                 raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
-        with ExitStack() as stack:
-            agent_policies: list[MultiAgentPolicy] = []
-            if s3_path:
-                policy_spec = stack.enter_context(policy_spec_from_s3_submission(s3_path))
-                policy = initialize_or_load_policy(policy_env_info, policy_spec)
-                agent_policies.append(policy)
-                logger.info("Loaded policy from s3 path")
-            elif self.policy_uri:
-                agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
-                logger.info("Loaded policy from deprecated-format policy uri")
-            else:
-                # Fall back to random policies only when no policy was configured explicitly.
-                agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
+        agent_policies: list[MultiAgentPolicy] = []
+        if s3_path:
+            policy_spec = policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True)
+            policy = initialize_or_load_policy(policy_env_info, policy_spec)
+            agent_policies.append(policy)
+            logger.info("Loaded policy from s3 path")
+        elif self.policy_uri:
+            agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
+            logger.info("Loaded policy from deprecated-format policy uri")
+        else:
+            # Fall back to random policies only when no policy was configured explicitly.
+            agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
-            rollout_result = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=agent_policies,
-                episodes=1,
-                seed=self.seed,
-                render_mode=self.render,
-                max_action_time_ms=10000,
-            )
-            episode = rollout_result.episodes[0]
+        rollout_result = multi_episode_rollout(
+            env_cfg=env_cfg,
+            policies=agent_policies,
+            episodes=1,
+            seed=self.seed,
+            render_mode=self.render,
+            max_action_time_ms=10000,
+        )
+        episode = rollout_result.episodes[0]
 
         # Run the rollout
         logger.info("Starting interactive play session")

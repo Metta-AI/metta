@@ -100,6 +100,43 @@ class SolarFlareVariant(MissionVariant):
         mission.charger.efficiency = max(1, mission.charger.efficiency - 50)
 
 
+class TrainingVariant(MissionVariant):
+    name: str = "training"
+    description: str = "Training-friendly: max cargo, fast extractors, chest only deposits hearts."
+
+    @override
+    def modify_mission(self, mission):
+        mission.cargo_capacity = 255  # Maximum cargo for easier resource collection
+
+    @override
+    def modify_env(self, mission, env):
+        # Set all extractor cooldowns to 5ms (fast)
+        for extractor_name in ["carbon_extractor", "oxygen_extractor", "germanium_extractor", "silicon_extractor"]:
+            extractor = env.game.objects.get(extractor_name)
+            if isinstance(extractor, AssemblerConfig):
+                updated_protocols = []
+                for proto in extractor.protocols:
+                    updated_proto = proto.model_copy(deep=True)
+                    updated_proto.cooldown = 5
+                    updated_protocols.append(updated_proto)
+                extractor.protocols = updated_protocols
+
+        # Modify chest to only deposit hearts by default (not all resources)
+        chest = env.game.objects.get("chest")
+        if isinstance(chest, ChestConfig):
+            chest.vibe_transfers = {
+                "heart_b": {"heart": 1},
+                "carbon_a": {"carbon": -10},
+                "carbon_b": {"carbon": 10},
+                "oxygen_a": {"oxygen": -10},
+                "oxygen_b": {"oxygen": 10},
+                "germanium_a": {"germanium": -1},
+                "germanium_b": {"germanium": 1},
+                "silicon_a": {"silicon": -25},
+                "silicon_b": {"silicon": 25},
+            }
+
+
 class PackRatVariant(MissionVariant):
     name: str = "pack_rat"
     description: str = "Raise heart, cargo, energy, and gear caps to 255."
@@ -182,14 +219,13 @@ class HeartChorusVariant(MissionVariant):
 
     @override
     def modify_env(self, mission, env):
-        # Supplemental shaping: keep the base rewards (e.g., chest.heart.amount)
-        # and add heart-centric/collection bonuses on top.
+        # Supplemental shaping: focus rewards on the acting agent for heart progress.
         rewards = dict(env.game.agent.rewards.stats)
         rewards.update(
             {
-                "heart.gained": 1.0,
-                "chest.heart.deposited": 1.0,
-                "chest.heart.withdrawn": -2.0,
+                "assembler.heart.created": 1.0,
+                "chest.heart.deposited_by_agent": 1.0,
+                "chest.heart.withdrawn_by_agent": -1.0,
                 "inventory.diversity.ge.2": 0.17,
                 "inventory.diversity.ge.3": 0.18,
                 "inventory.diversity.ge.4": 0.60,
@@ -277,31 +313,6 @@ class Small50Variant(MissionVariant):
         env.game.map_builder = map_builder.model_copy(update={"width": 50, "height": 50})
 
 
-class CogToolsOnlyVariant(MissionVariant):
-    name: str = "cog_tools_only"
-    description: str = "Gear tools (decoder/modulator/scrambler/resonator) require only the 'gear/cog' vibe."
-
-    @override
-    def modify_env(self, mission, env) -> None:
-        assembler_cfg = env.game.objects["assembler"]
-        if not isinstance(assembler_cfg, AssemblerConfig):
-            raise TypeError("Expected 'assembler' to be AssemblerConfig")
-        gear_outputs = {"decoder", "modulator", "scrambler", "resonator"}
-
-        # Check if a protocol with ["gear"] vibe already exists
-        # If so, don't modify any protocols to avoid creating duplicates
-        has_gear_protocol = any(p.vibes == ["gear"] and p.min_agents == 0 for p in assembler_cfg.protocols)
-
-        if has_gear_protocol:
-            return
-
-        # Rewrite all gear recipes to use only the ["gear"] vibe, keep order intact.
-        assembler_cfg.protocols = [
-            p.model_copy(update={"vibes": ["gear"]}) if any(k in p.output_resources for k in gear_outputs) else p
-            for p in assembler_cfg.protocols
-        ]
-
-
 class InventoryHeartTuneVariant(MissionVariant):
     name: str = "inventory_heart_tune"
     description: str = "Tune starting agent inventory to N hearts worth of inputs; optional heart capacity."
@@ -325,24 +336,24 @@ class InventoryHeartTuneVariant(MissionVariant):
 
         if hearts > 0:
             agent_cfg = env.game.agent
-            agent_cfg.initial_inventory = dict(agent_cfg.initial_inventory)
+            agent_cfg.inventory.initial = dict(agent_cfg.inventory.initial)
 
             def _limit_for(resource: str) -> int:
-                return agent_cfg.get_limit_for_resource(resource)
+                return agent_cfg.inventory.get_limit(resource)
 
             for resource_name, per_heart_value in per_heart.items():
-                current = int(agent_cfg.initial_inventory.get(resource_name, 0))
+                current = int(agent_cfg.inventory.initial.get(resource_name, 0))
                 target = current + per_heart_value * hearts
                 cap = _limit_for(resource_name)
-                agent_cfg.initial_inventory[resource_name] = min(cap, target)
+                agent_cfg.inventory.initial[resource_name] = min(cap, target)
 
         if self.heart_capacity is not None:
             agent_cfg = env.game.agent
-            hearts_limit = agent_cfg.resource_limits.get("heart")
+            hearts_limit = agent_cfg.inventory.limits.get("heart")
             if hearts_limit is None:
                 hearts_limit = ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"])
             hearts_limit.limit = max(int(hearts_limit.limit), int(self.heart_capacity))
-            agent_cfg.resource_limits["heart"] = hearts_limit
+            agent_cfg.inventory.limits["heart"] = hearts_limit
 
 
 class ChestHeartTuneVariant(MissionVariant):
@@ -365,10 +376,10 @@ class ChestHeartTuneVariant(MissionVariant):
         chest_cfg = env.game.objects["chest"]
         if not isinstance(chest_cfg, ChestConfig):
             raise TypeError("Expected 'chest' to be ChestConfig")
-        start = dict(chest_cfg.initial_inventory)
+        start = dict(chest_cfg.inventory.initial)
         for k, v in per_heart.items():
             start[k] = start.get(k, 0) + v * hearts
-        chest_cfg.initial_inventory = start
+        chest_cfg.inventory.initial = start
 
 
 class ExtractorHeartTuneVariant(MissionVariant):
@@ -618,6 +629,35 @@ class EmptyBaseVariant(BaseHubVariant):
         node.corner_bundle = "custom"
 
 
+class AssemblerDrawsFromChestsVariant(BaseHubVariant):
+    name: str = "assembler_draws_from_chests"
+    description: str = "Assembler draws from chests."
+
+    # It would be better if this were configurable, but we use variants in places where that's hard.
+    # This needs to not overlap with the default (heart) chest.
+    chest_distance: int = 2
+
+    @override
+    def modify_node(self, node):
+        node.cross_objects = ["chest_carbon", "chest_oxygen", "chest_germanium", "chest_silicon"]
+        node.cross_bundle = "custom"
+        node.cross_distance = self.chest_distance
+
+    @override
+    def modify_env(self, mission, env):
+        super().modify_env(mission, env)
+        assembler = env.game.objects["assembler"]
+        assert isinstance(assembler, AssemblerConfig)
+        assembler.chest_search_distance = self.chest_distance
+        chest = env.game.objects["chest"]
+        assert isinstance(chest, ChestConfig)
+        chest.vibe_transfers = {
+            "default": {
+                "heart": 255,
+            }
+        }
+
+
 class BalancedCornersVariant(MachinaArenaVariant):
     """Enable corner balancing to ensure fair spawn distances."""
 
@@ -657,12 +697,12 @@ class TraderVariant(MissionVariant):
 
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
+    AssemblerDrawsFromChestsVariant(),
     CavesVariant(),
     ChestHeartTuneVariant(),
     CityVariant(),
     ClipHubStationsVariant(),
     ClipPeriodOnVariant(),
-    CogToolsOnlyVariant(),
     CompassVariant(),
     CyclicalUnclipVariant(),
     DarkSideVariant(),
@@ -686,6 +726,7 @@ VARIANTS: list[MissionVariant] = [
     SuperChargedVariant(),
     TraderVariant(),
     TinyHeartProtocolsVariant(),
+    TrainingVariant(),
     VibeCheckMin2Variant(),
     *DIFFICULTY_VARIANTS,
 ]

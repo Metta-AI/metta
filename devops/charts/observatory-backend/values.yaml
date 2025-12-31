@@ -17,7 +17,15 @@ secret_name: observatory-backend-env
 
 cert_manager_issuer: letsencrypt
 
-secrets:
-  anthropic: "anthropic-api-key"
-
 replicaCount: 2
+
+episodeRunnerImage:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-policy-evaluator
+  tag: latest
+
+env:
+  RUN_MIGRATIONS: "true"
+
+secrets:
+  machineToken: "machine-token-secret"

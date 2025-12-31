@@ -61,39 +61,61 @@ class SimTaskExecutor(AbstractTaskExecutor):
     def __init__(self, backend_url: str) -> None:
         self._backend_url = backend_url
         self._temp_dir = tempfile.mkdtemp()
-        self._versioned_path = f"{self._temp_dir}/workdir"
-        self.checkout_success_file = f"{self._temp_dir}/checkout_success"
+        self._workdir = f"{self._temp_dir}/workdir"
 
-    def _run_cmd_from_versioned_checkout(
+    def _run_cmd_workdir(
         self,
         cmd: list[str],
         capture_output: bool = True,
     ) -> subprocess.CompletedProcess:
-        """Run a command from the versioned checkout with a clean environment."""
+        """Run a command from the versioned checkout with a clean environment.
+
+        When capture_output=True, output is both streamed to stdout and captured for later use.
+        """
         env = os.environ.copy()
         for key in ["PYTHONPATH", "UV_PROJECT", "UV_PROJECT_ENVIRONMENT"]:
             env.pop(key, None)
         env["DISABLE_RICH_LOGGING"] = "1"
 
         if capture_output:
-            # Redirect stderr to stdout to get chronologically interspersed output (like 2>&1)
-            result = subprocess.run(
+            # Stream output to stdout while also capturing it
+            process = subprocess.Popen(
                 cmd,
-                cwd=self._versioned_path,
+                cwd=self._workdir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 env=env,
             )
+
+            output_lines: list[str] = []
+            if process.stdout is None:
+                process.wait()
+                return subprocess.CompletedProcess(args=cmd, returncode=process.returncode or 1, stdout="", stderr=None)
+            for line in process.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+                output_lines.append(line)
+
+            process.wait()
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=process.returncode,
+                stdout="".join(output_lines),
+                stderr=None,
+            )
         else:
-            result = subprocess.run(
+            return subprocess.run(
                 cmd,
-                cwd=self._versioned_path,
+                cwd=self._workdir,
                 text=True,
                 env=env,
             )
 
-        return result
+    def _run_setup_cmd(self, cmd: list[str]) -> None:
+        result = self._run_cmd_workdir(cmd, capture_output=False)
+        if result.returncode != 0:
+            raise RuntimeError(f"Command failed with return code {result.returncode}: {' '.join(cmd)}")
 
     def _log_path(self, job_id: str) -> str:
         return f"jobs/{job_id}/output.log"
@@ -120,69 +142,30 @@ class SimTaskExecutor(AbstractTaskExecutor):
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_ref: str) -> None:
         try:
-            logger.info(f"Setting up versioned checkout at {self._versioned_path}")
+            logger.info(f"Setting up versioned checkout at {self._workdir} for ref {git_ref}")
 
-            if not os.path.exists(self.checkout_success_file):
-                logger.info("Cloning repository for the first time")
-                if os.path.exists(self._versioned_path):
-                    shutil.rmtree(self._versioned_path)
+            if os.path.exists(self._workdir):
+                shutil.rmtree(self._workdir)
 
-                os.makedirs(os.path.dirname(self._versioned_path), exist_ok=True)
+            os.makedirs(self._workdir, exist_ok=True)
 
-                result = subprocess.run(
-                    ["git", "clone", REPO_URL, self._versioned_path],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode != 0:
-                    raise RuntimeError(f"Failed to clone repository: {result.stderr}")
+            # Initialize empty repo
+            self._run_setup_cmd(["git", "init"])
 
-                with open(self.checkout_success_file, "w") as f:
-                    f.write("Success")
+            # Add remote
+            self._run_setup_cmd(["git", "remote", "add", "origin", REPO_URL])
 
-            # Pull the latest changes
-            result = subprocess.run(
-                ["git", "fetch", "origin"],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to fetch repository: {result.stderr}")
+            # Shallow fetch the specific ref (works for both commits and branches)
+            self._run_setup_cmd(["git", "fetch", "--depth", "1", "origin", git_ref])
 
-            full_git_ref = git_ref if self._is_commit_sha(git_ref) else f"origin/{git_ref}"
-
-            # Checkout the specific commit
-            result = subprocess.run(
-                ["git", "reset", "--hard", full_git_ref],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to checkout git ref {full_git_ref}: {result.stderr}")
-
-            # Clean the repository
-            result = subprocess.run(
-                ["git", "clean", "-df"],
-                cwd=self._versioned_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to clean repository: {result.stderr}")
+            # Checkout the fetched ref
+            self._run_setup_cmd(["git", "checkout", "FETCH_HEAD"])
 
             # Install dependencies in the versioned checkout
             logger.info("Installing dependencies in versioned checkout...")
-            self._run_cmd_from_versioned_checkout(
-                ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-                capture_output=True,
-            )
-            self._run_cmd_from_versioned_checkout(
-                ["uv", "run", "metta", "install"],
-            )
+            self._run_setup_cmd(["uv", "run", "metta", "configure", "--profile=softmax-docker"])
 
-            logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
+            logger.info(f"Successfully set up versioned checkout at {self._workdir}")
         except Exception as e:
             logger.error(f"Failed to set up versioned checkout: {e}", exc_info=True)
             raise
@@ -212,7 +195,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
                     logger.info(f"Added task_data_path {os.path.abspath(local_path)} to command")
                     logger.info(f"Running command: {' '.join(cmd)}")
 
-                    result = self._run_cmd_from_versioned_checkout(cmd)
+                    result = self._run_cmd_workdir(cmd)
 
                     self._upload_logs_to_s3(str(task.id), result)
 
@@ -228,7 +211,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             # No data file to download, run command directly
             logger.info(f"Running command: {' '.join(cmd)}")
 
-            result = self._run_cmd_from_versioned_checkout(cmd)
+            result = self._run_cmd_workdir(cmd)
 
             self._upload_logs_to_s3(str(task.id), result)
 
@@ -310,6 +293,7 @@ class EvalTaskWorker:
     @trace("worker.attempt_task")
     async def attempt_task(self, task: EvalTaskRow) -> None:
         logger.info(f"Processing task {task.id}")
+        self._client.start_task(task.id)
         span = tracer.current_span()
         if span:
             span.set_tags(

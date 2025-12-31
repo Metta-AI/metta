@@ -2,7 +2,14 @@ from pydantic import Field
 
 from mettagrid.base_config import Config
 from mettagrid.config import vibes
-from mettagrid.config.mettagrid_config import AssemblerConfig, ChestConfig, GridObjectConfig, ProtocolConfig, WallConfig
+from mettagrid.config.mettagrid_config import (
+    AssemblerConfig,
+    ChestConfig,
+    GridObjectConfig,
+    InventoryConfig,
+    ProtocolConfig,
+    WallConfig,
+)
 
 resources = [
     "energy",
@@ -119,9 +126,9 @@ class OxygenExtractorConfig(ExtractorConfig):
         )
 
 
-# Rare, single-use. More cogs increase the amount extracted.
+# Rare regenerates slowly. More cogs increase the amount extracted.
 class GermaniumExtractorConfig(ExtractorConfig):
-    max_uses: int = Field(default=1)
+    max_uses: int = Field(default=5)
     synergy: int = 50
 
     def station_cfg(self) -> AssemblerConfig:
@@ -179,7 +186,7 @@ class CvCChestConfig(CvCStationConfig):
             render_symbol=vibes.VIBE_BY_NAME["chest"].symbol,
             vibe_transfers={
                 "default": {"heart": 255, "carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                "heart_a": {"heart": -1},
+                "heart_a": {"heart": 0},
                 "heart_b": {"heart": 1},
                 "carbon_a": {"carbon": -10},
                 "carbon_b": {"carbon": 10},
@@ -190,7 +197,7 @@ class CvCChestConfig(CvCStationConfig):
                 "silicon_a": {"silicon": -25},
                 "silicon_b": {"silicon": 25},
             },
-            initial_inventory=self.initial_inventory,
+            inventory=InventoryConfig(initial=self.initial_inventory),
         )
 
 

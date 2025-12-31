@@ -64,7 +64,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: str = "cpu", **kwargs: Any):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
@@ -122,8 +122,9 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         nim_policy_factory,
         agent_ids: Sequence[int] | None = None,
+        device: str = "cpu",
     ) -> None:
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, device=device)
         self._nim_policy = nim_policy_factory(policy_env_info.to_json())
         self._num_agents = policy_env_info.num_agents
         obs_shape = policy_env_info.observation_space.shape

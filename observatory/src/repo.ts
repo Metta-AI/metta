@@ -89,10 +89,6 @@ export type TaskAttempt = {
   output_log_path: string | null
 } & TaskStatusMixin
 
-export type EvalTasksResponse = {
-  tasks: EvalTask[]
-}
-
 export type PaginatedEvalTasksResponse = {
   tasks: EvalTask[]
   total_count: number
@@ -134,19 +130,6 @@ export type RunFreePolicyInfo = {
   name: string
   user_id: string | null
   created_at: string
-}
-
-export type UnifiedPolicyInfo = {
-  id: string
-  type: 'training_run' | 'policy'
-  name: string
-  user_id: string | null
-  created_at: string
-  tags: string[]
-}
-
-export type PoliciesResponse = {
-  policies: UnifiedPolicyInfo[]
 }
 
 export type EvalNamesRequest = {
@@ -205,12 +188,20 @@ export type LeaderboardPolicyEntry = {
   policy_version: PublicPolicyVersionRow
   scores: Record<string, number>
   avg_score: number | null
+  overall_vor: number | null
   replays: Record<string, EpisodeReplay[]>
   score_episode_ids: Record<string, string | null>
 }
 
 export type LeaderboardPoliciesResponse = {
   entries: LeaderboardPolicyEntry[]
+}
+
+export type ValueOverReplacementSummary = {
+  policy_version_id: string
+  overall_vor: number | null
+  overall_vor_std: number | null
+  total_candidate_agents: number
 }
 
 export type PolicyVersionWithName = {
@@ -266,6 +257,36 @@ export type AIQueryRequest = {
 
 export type AIQueryResponse = {
   query: string
+}
+
+export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed'
+
+export type JobRequest = {
+  id: string
+  job_type: string
+  job: Record<string, any>
+  status: JobStatus
+  user_id: string
+  worker: string | null
+  result: Record<string, any> | null
+  created_at: string
+  dispatched_at: string | null
+  running_at: string | null
+  completed_at: string | null
+}
+
+export type PolicyRow = {
+  id: string
+  name: string
+  created_at: string
+  user_id: string
+  attributes: Record<string, any>
+  version_count: number
+}
+
+export type PoliciesResponse = {
+  entries: PolicyRow[]
+  total_count: number
 }
 
 export type PolicyVersionsResponse = {
@@ -419,11 +440,6 @@ export class Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(): Promise<EvalTask[]> {
-    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
-    return response.tasks
-  }
-
   async getEvalTasksPaginated(
     page: number,
     pageSize: number,
@@ -470,6 +486,10 @@ export class Repo {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
   }
 
+  async getPublicLeaderboardWithVor(): Promise<LeaderboardPoliciesResponse> {
+    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/vor')
+  }
+
   async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
     return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
   }
@@ -478,8 +498,32 @@ export class Repo {
     return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
   }
 
+  async getValueOverReplacementDetail(policyVersionId: string): Promise<ValueOverReplacementSummary | null> {
+    try {
+      return await this.apiCall<ValueOverReplacementSummary>(`/leaderboard/v2/vor/${policyVersionId}`)
+    } catch {
+      return null
+    }
+  }
+
   async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
     return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
+  }
+
+  async getPolicyVersionsBatch(policyVersionIds: string[]): Promise<PublicPolicyVersionRow[]> {
+    const chunkSize = 10
+    const results: PublicPolicyVersionRow[] = []
+
+    for (let i = 0; i < policyVersionIds.length; i += chunkSize) {
+      const chunk = policyVersionIds.slice(i, i + chunkSize)
+      const params = chunk.map((id) => `policy_version_ids=${id}`).join('&')
+      const response = await this.apiCall<PolicyVersionsResponse>(
+        `/stats/policy-versions?${params}&limit=${chunk.length}`
+      )
+      results.push(...response.entries)
+    }
+
+    return results
   }
 
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
@@ -491,6 +535,21 @@ export class Repo {
     name_fuzzy?: string
     limit?: number
     offset?: number
+  }): Promise<PoliciesResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PoliciesResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+  }
+
+  async getPolicyVersions(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
   }): Promise<PolicyVersionsResponse> {
     const searchParams = new URLSearchParams()
     if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
@@ -498,7 +557,7 @@ export class Repo {
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policy-versions${query ? `?${query}` : ''}`)
   }
 
   async getVersionsForPolicy(
@@ -510,5 +569,24 @@ export class Repo {
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
     return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
+  }
+
+  async getJobs(params?: {
+    job_type?: string
+    statuses?: JobStatus[]
+    limit?: number
+    offset?: number
+  }): Promise<JobRequest[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.statuses) {
+      for (const status of params.statuses) {
+        searchParams.append('statuses', status)
+      }
+    }
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<JobRequest[]>(`/jobs${query ? `?${query}` : ''}`)
   }
 }

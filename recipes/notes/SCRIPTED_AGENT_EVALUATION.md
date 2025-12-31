@@ -310,7 +310,7 @@ agents.
 
 6. **Optimize hard_clipped variants**: Improve efficiency to handle harder constraints
 7. **Profile single_use missions**: Understand why success drops to 39%
-8. **Explore large map optimization**: ExtractorHub80/100 may timeout
+8. **Explore large map optimization**: Large hello_world maps may timeout
 
 ### 📎 Low Priority (P3)
 
@@ -329,7 +329,7 @@ agents.
 uv run cogames play --mission evals.collect_resources_classic -p scripted_baseline --cogs 1
 
 # 4 agents, optimal configuration (54.9% success!)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_baseline --cogs 4
+uv run cogames play --mission evals.oxygen_bottleneck -p scripted_baseline --cogs 4
 
 # Energy crisis test (59.6% success)
 uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
@@ -339,23 +339,23 @@ uv run cogames play --mission evals.energy_starved -p scripted_baseline --cogs 2
 
 ```bash
 # Silicon unclipping (57.7% success)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_silicon
+uv run cogames play --mission evals.energy_starved -p scripted_unclipping --cogs 1 --difficulty clipped_silicon
 
 # Oxygen unclipping (50% success)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 2 --difficulty clipped_oxygen
+uv run cogames play --mission evals.energy_starved -p scripted_unclipping --cogs 2 --difficulty clipped_oxygen
 
 # Multi-agent optimal (45% success, 4 agents)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 4
+uv run cogames play --mission evals.energy_starved -p scripted_unclipping --cogs 4
 ```
 
 ### Debug Carbon Unclipping Failure
 
 ```bash
 # Carbon unclipping (0% success - BROKEN!)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_carbon --steps 2000
+uv run cogames play --mission evals.energy_starved -p scripted_unclipping --cogs 1 --difficulty clipped_carbon --steps 2000
 
 # Germanium unclipping (2% success - BROKEN!)
-uv run cogames play --mission evals.extractor_hub_30 -p scripted_unclipping --cogs 1 --difficulty clipped_germanium --steps 2000
+uv run cogames play --mission evals.energy_starved -p scripted_unclipping --cogs 1 --difficulty clipped_germanium --steps 2000
 ```
 
 ---

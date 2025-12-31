@@ -26,7 +26,6 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 <p align="middle">
 <img src="docs/readme_showoff.gif" alt="Metta learning example video">
 <br>
-<a href="https://metta-ai.github.io/metta/mettascope/mettascope.html?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
@@ -135,6 +134,39 @@ cluster management, experiment tracking and visualization, and continuous integr
 
 This README provides only a brief overview of research explorations. Visit the
 [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
+
+## Folder Hierarchy
+
+The `metta/` package has a folder hierarchy where higher folders can import from lower folders, but not vice versa. To
+add or reorder folders, edit `.importlinter` then run `metta codebase generate-folder-diagram`. Run
+`uv run lint-imports` to check for violations.
+
+<!-- FOLDER_DIAGRAM_START -->
+
+```mermaid
+graph TD
+    tools[tools]
+    gridworks[gridworks]
+    setup[setup]
+    sim[sim]
+    rl[rl]
+    sweep[sweep]
+    cogworks[cogworks]
+    adaptive[adaptive]
+    map[map]
+    common[common]
+    tools --> gridworks
+    gridworks --> setup
+    setup --> sim
+    sim --> rl
+    rl --> sweep
+    sweep --> cogworks
+    cogworks --> adaptive
+    adaptive --> map
+    map --> common
+```
+
+<!-- FOLDER_DIAGRAM_END -->
 
 ## Installation
 

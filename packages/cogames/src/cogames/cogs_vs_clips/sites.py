@@ -2,7 +2,7 @@
 
 from cogames.cogs_vs_clips.mission import Site
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform
+from cogames.cogs_vs_clips.procedural import MachinaArena, RandomTransform, SequentialMachinaArena
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import BaseHub
 
@@ -41,25 +41,17 @@ HELLO_WORLD = Site(
 MACHINA_1 = Site(
     name="machina_1",
     description="Your first mission. Collect resources and assemble HEARTs.",
-    map_builder=MapGen.Config(width=200, height=200, instance=MachinaArena.Config(spawn_count=20)),
+    map_builder=MapGen.Config(width=88, height=88, instance=SequentialMachinaArena.Config(spawn_count=20)),
     min_cogs=1,
     max_cogs=20,
 )
 
-# Evals site used by evaluation missions
-# Note: Individual eval missions override this with their own specific maps
+# Evals site used by diagnostic evaluation missions
+# Note: Individual diagnostic missions override this with their own specific maps
 EVALS = Site(
     name="evals",
-    description="Evaluation missions for scripted agent testing",
-    map_builder=get_map("evals/eval_oxygen_bottleneck.map"),  # Default map (rarely used)
-    min_cogs=1,
-    max_cogs=8,
-)
-
-EASY_MODE = Site(
-    name="easy_mode",
-    description="Easy training configuration with simplified variants",
-    map_builder=get_map("evals/extractor_hub_30x30.map"),
+    description="Diagnostic evaluation arenas.",
+    map_builder=get_map("diagnostic_evals/diagnostic_radial.map"),  # Default map (rarely used)
     min_cogs=1,
     max_cogs=8,
 )
@@ -69,5 +61,4 @@ SITES = [
     HELLO_WORLD,
     MACHINA_1,
     EVALS,
-    EASY_MODE,
 ]

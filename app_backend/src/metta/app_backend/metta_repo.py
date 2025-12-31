@@ -13,8 +13,21 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
+from metta.app_backend.config import settings
+from metta.app_backend.leaderboard_constants import (
+    LEADERBOARD_CANDIDATE_COUNT_KEY,
+    LEADERBOARD_LADYBUG_COUNT_KEY,
+    LEADERBOARD_SCENARIO_KEY,
+    LEADERBOARD_THINKY_COUNT_KEY,
+    REPLACEMENT_BASELINE_MEAN,
+)
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
+from metta.app_backend.value_over_replacement import (
+    RunningStats,
+    compute_overall_vor_from_stats,
+)
+from metta.common.util.memoization import memoize
 
 TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
 FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
@@ -81,6 +94,15 @@ class SweepRow(BaseModel):
     user_id: str
     created_at: datetime
     updated_at: datetime
+
+
+class PolicyRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    user_id: str
+    attributes: dict[str, Any]
+    version_count: int
 
 
 class PolicyVersionRow(BaseModel):
@@ -157,6 +179,7 @@ class LeaderboardPolicyEntry(BaseModel):
     policy_version: PublicPolicyVersionRow
     scores: dict[str, float]
     avg_score: float | None = None
+    overall_vor: float | None = None  # Value Over Replacement (fetched separately)
     replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
     score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
@@ -169,8 +192,9 @@ class MettaRepo:
         self.db_uri = db_uri
         self._pool: AsyncConnectionPool | None = None
         # Run migrations synchronously during initialization
-        with Connection.connect(self.db_uri) as con:
-            run_migrations(con, MIGRATIONS)
+        if settings.RUN_MIGRATIONS:
+            with Connection.connect(self.db_uri) as con:
+                run_migrations(con, MIGRATIONS)
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
@@ -303,7 +327,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT * FROM eval_tasks_view
-                        WHERE assignee = %s AND status = 'unprocessed' AND is_finished = FALSE
+                        WHERE assignee = %s AND is_finished = FALSE
                         ORDER BY created_at ASC
                         """,
                         (assignee,),
@@ -312,7 +336,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT * FROM eval_tasks_view
-                        WHERE status = 'unprocessed' AND assignee IS NOT NULL AND is_finished = FALSE
+                        WHERE assignee IS NOT NULL AND is_finished = FALSE
                         ORDER BY created_at ASC
                         """
                     )
@@ -390,30 +414,6 @@ class MettaRepo:
                     """,
                     (task_id, task_id),
                 )
-
-    async def count_tasks(self, where_clause: str) -> int:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"SELECT COUNT(*) FROM eval_tasks_view WHERE {where_clause}",  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
-            return res[0]
-
-    async def get_avg_runtime(self, where_clause: str) -> float | None:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"""
-                SELECT EXTRACT(EPOCH FROM AVG(finished_at - assigned_at))
-                FROM eval_tasks_view
-                WHERE {where_clause}
-                """,  # type: ignore
-            )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
-            return res[0]
 
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
@@ -703,6 +703,31 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
+        """Get a single policy version with public fields by ID.
+
+        Returns None if the policy version does not exist.
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.id = %s
+                    """,
+                    (policy_version_id,),
+                )
+                return await cur.fetchone()
+
     async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
@@ -724,17 +749,74 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
+    async def get_policies(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PolicyRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            policy_query = f"""
+                    SELECT
+                        p.id,
+                        p.name,
+                        p.created_at,
+                        p.user_id,
+                        p.attributes,
+                        COALESCE(vc.version_count, 0) AS version_count
+                    FROM policies p
+                    LEFT JOIN (
+                        SELECT policy_id, COUNT(*) AS version_count
+                        FROM policy_versions
+                        GROUP BY policy_id
+                    ) vc ON p.id = vc.policy_id
+                    {where_clause}
+                    ORDER BY p.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(policy_query, params)  # type: ignore[arg-type]
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
     async def get_policy_versions(
         self,
         name_exact: str | None = None,
         name_fuzzy: str | None = None,
         version: int | None = None,
+        policy_version_ids: list[uuid.UUID] | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
         async with self.connect() as con:
             where_conditions: list[str] = []
             params: list[Any] = []
+
+            if policy_version_ids:
+                where_conditions.append("pv.id = ANY(%s)")
+                params.append(policy_version_ids)
 
             if name_exact:
                 where_conditions.append("p.name = %s")
@@ -756,16 +838,14 @@ class MettaRepo:
                 JOIN policies p ON pv.policy_id = p.id
                 {where_clause}
             """
-            count_result = await con.execute(count_query, params)
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
             result_row = await count_result.fetchone()
             total_count: int = result_row[0] if result_row else 0
 
             params.extend([limit, offset])
 
-            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
-                await cur.execute(
-                    f"""
-                    SELECT DISTINCT ON (pv.policy_id)
+            version_query = f"""
+                    SELECT
                         pv.id,
                         pv.policy_id,
                         pv.created_at,
@@ -777,11 +857,11 @@ class MettaRepo:
                     FROM policy_versions pv
                     JOIN policies p ON pv.policy_id = p.id
                     {where_clause}
-                    ORDER BY pv.policy_id, pv.version DESC
+                    ORDER BY pv.created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
+                    """
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(version_query, params)  # type: ignore[arg-type]
                 rows = await cur.fetchall()
 
             return rows, total_count
@@ -1061,6 +1141,82 @@ GROUP BY pv.id, et.key, et.value
                 -entry.policy_version.created_at.timestamp(),
             )
         )
+        return entries
+
+    @memoize(max_age=60.0)
+    async def _get_vor_stats(
+        self, policy_version_ids: tuple[uuid.UUID | str, ...]
+    ) -> defaultdict[uuid.UUID, defaultdict[int, RunningStats]]:
+        query = f"""
+        SELECT
+            ep.policy_version_id,
+            et_cand.value::int AS candidate_count,
+            et_thinky.value::int AS thinky_count,
+            et_lady.value::int AS ladybug_count,
+            epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
+        FROM episodes e
+        JOIN episode_tags et_scen
+            ON et_scen.episode_id = e.id AND et_scen.key = '{LEADERBOARD_SCENARIO_KEY}'
+        JOIN episode_tags et_cand
+            ON et_cand.episode_id = e.id AND et_cand.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}'
+        LEFT JOIN episode_tags et_thinky
+            ON et_thinky.episode_id = e.id AND et_thinky.key = '{LEADERBOARD_THINKY_COUNT_KEY}'
+        LEFT JOIN episode_tags et_lady
+            ON et_lady.episode_id = e.id AND et_lady.key = '{LEADERBOARD_LADYBUG_COUNT_KEY}'
+        JOIN episode_policies ep ON ep.episode_id = e.id
+        JOIN policy_versions pv ON pv.id = ep.policy_version_id
+        JOIN episode_policy_metrics epm
+            ON epm.episode_internal_id = e.internal_id AND epm.pv_internal_id = pv.internal_id
+        WHERE e.primary_pv_id = ANY(%s)
+            AND epm.metric_name = 'reward'
+            AND ep.num_agents > 0
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query, (list(policy_version_ids),))
+                rows = await cur.fetchall()
+        stats_by_policy: defaultdict[uuid.UUID, defaultdict[int, RunningStats]] = defaultdict(
+            lambda: defaultdict(RunningStats)
+        )
+        for row in rows:
+            candidate_count = row.get("candidate_count")
+            avg_reward = row.get("avg_reward")
+            if candidate_count is None or avg_reward is None:
+                continue
+            candidate_count = int(candidate_count)
+            reward = float(avg_reward)
+
+            if candidate_count == 0:
+                # Replacement: weight = thinky + ladybug
+                thinky_count = int(row.get("thinky_count") or 0)
+                ladybug_count = int(row.get("ladybug_count") or 0)
+                weight = thinky_count + ladybug_count
+            else:
+                weight = candidate_count
+
+            stats_by_policy[row["policy_version_id"]][candidate_count].update(reward, weight=weight)
+        return stats_by_policy
+
+    async def get_leaderboard_policies_with_vor(
+        self,
+        policy_version_tags: dict[str, str],
+        score_group_episode_tag: str,
+    ) -> list[LeaderboardPolicyEntry]:
+        """Return leaderboard entries with overall_vor computed for each policy."""
+        entries = await self.get_leaderboard_policies(
+            policy_version_tags=policy_version_tags,
+            score_group_episode_tag=score_group_episode_tag,
+            user_id=None,
+            policy_version_id=None,
+        )
+        candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
+
+        for entry in entries:
+            pv_id = entry.policy_version.id
+            candidate_stats = candidate_vor_stats.get(pv_id, {})
+            if candidate_stats:
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, REPLACEMENT_BASELINE_MEAN)
+
         return entries
 
     async def get_episodes(

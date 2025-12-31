@@ -94,6 +94,8 @@ class SimControlComponent(MiniscopeComponent):
 
     def update(self) -> None:
         """Update the simulation control header display."""
+        panel = self._panel
+        assert panel is not None
         # Calculate total reward
         total_reward = 0.0
         if self.state.total_rewards is not None:
@@ -133,4 +135,4 @@ class SimControlComponent(MiniscopeComponent):
         )
 
         # Set panel content
-        self._panel.set_content(text)
+        panel.set_content(text)

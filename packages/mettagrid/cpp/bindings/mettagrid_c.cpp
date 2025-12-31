@@ -68,7 +68,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -85,6 +85,14 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   init_action_handlers(game_config);
 
   _init_grid(game_config, map);
+
+  // Pre-compute goal_obs tokens for each agent
+  if (_global_obs_config.goal_obs) {
+    _agent_goal_obs_tokens.resize(_agents.size());
+    for (size_t i = 0; i < _agents.size(); i++) {
+      _compute_agent_goal_obs_tokens(i);
+    }
+  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -285,6 +293,44 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
+  if (_global_obs_config.goal_obs) {
+    _agent_goal_obs_tokens.resize(_agents.size());
+    _compute_agent_goal_obs_tokens(_agents.size() - 1);
+  }
+}
+
+void MettaGrid::_compute_agent_goal_obs_tokens(size_t agent_idx) {
+  auto& agent = _agents[agent_idx];
+  std::vector<PartialObservationToken> goal_tokens;
+
+  // Track which resources we've already added goal tokens for
+  std::unordered_set<std::string> added_resources;
+
+  // Iterate through stat_rewards to find rewarding resources
+  for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
+    // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
+    size_t dot_pos = stat_name.find('.');
+    if (dot_pos != std::string::npos) {
+      std::string resource_name = stat_name.substr(0, dot_pos);
+      // Only add one goal token per resource
+      if (added_resources.find(resource_name) == added_resources.end()) {
+        // Find the resource index in resource_names
+        for (size_t i = 0; i < resource_names.size(); i++) {
+          if (resource_names[i] == resource_name) {
+            // Get the inventory feature ID for this resource
+            ObservationType inventory_feature_id =
+                _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
+            // Add a goal token with the resource's inventory feature ID as the value
+            goal_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
+            added_resources.insert(resource_name);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  _agent_goal_obs_tokens[agent_idx] = std::move(goal_tokens);
 }
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
@@ -348,33 +394,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
   }
 
-  // Add goal tokens for rewarding resources when enabled
+  // Add pre-computed goal tokens for rewarding resources when enabled
   if (_global_obs_config.goal_obs) {
-    auto& agent = _agents[agent_idx];
-    // Track which resources we've already added goal tokens for
-    std::unordered_set<std::string> added_resources;
-    // Iterate through stat_rewards to find rewarding resources
-    for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
-      // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
-      size_t dot_pos = stat_name.find('.');
-      if (dot_pos != std::string::npos) {
-        std::string resource_name = stat_name.substr(0, dot_pos);
-        // Only add one goal token per resource
-        if (added_resources.find(resource_name) == added_resources.end()) {
-          // Find the resource index in resource_names
-          for (size_t i = 0; i < resource_names.size(); i++) {
-            if (resource_names[i] == resource_name) {
-              // Get the inventory feature ID for this resource
-              ObservationType inventory_feature_id = _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
-              // Add a goal token with the resource's inventory feature ID as the value
-              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
-              added_resources.insert(resource_name);
-              break;
-            }
-          }
-        }
-      }
-    }
+    global_tokens.insert(
+        global_tokens.end(), _agent_goal_obs_tokens[agent_idx].begin(), _agent_goal_obs_tokens[agent_idx].end());
   }
 
   // Global tokens are always at the center of the observation.
@@ -537,15 +560,27 @@ void MettaGrid::_step() {
     }
   }
 
-  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
+  // Handle per-agent inventory regeneration (global interval check, vibe-dependent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
       if (!agent->inventory_regen_amounts.empty()) {
-        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
-          agent->update_inventory(item, amount);
+        // Look up regen amounts for agent's current vibe, fall back to "default" (vibe ID 0)
+        auto vibe_it = agent->inventory_regen_amounts.find(agent->vibe);
+        if (vibe_it == agent->inventory_regen_amounts.end()) {
+          vibe_it = agent->inventory_regen_amounts.find(0);  // "default" is vibe ID 0
+        }
+        if (vibe_it != agent->inventory_regen_amounts.end()) {
+          for (const auto& [item, amount] : vibe_it->second) {
+            agent->inventory.update(item, amount);
+          }
         }
       }
     }
+  }
+
+  // Check and apply damage for all agents
+  for (auto* agent : _agents) {
+    agent->check_and_apply_damage(_rng);
   }
 
   // Apply global systems

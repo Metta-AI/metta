@@ -1,11 +1,23 @@
-import { FC, PropsWithChildren, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { FC, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
-import { PaginatedEvalTasksResponse, Repo, TaskFilters } from '../repo'
+import { Spinner } from '../components/Spinner'
+import { Table, TH, TR } from '../components/Table'
+import { PaginatedEvalTasksResponse, PublicPolicyVersionRow, Repo, TaskFilters } from '../repo'
 import { TaskRow } from './TaskRow'
 
 const pageSize = 50
+
+const UUID_REGEX = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/
+
+export function parsePolicyVersionId(command: string): string | null {
+  const match = command.match(/policy_version_id=([0-9a-fA-F-]{36})/)
+  if (match && UUID_REGEX.test(match[1])) {
+    return match[1]
+  }
+  return null
+}
 
 export type TasksTableHandle = {
   loadTasks: (page: number) => void
@@ -37,34 +49,19 @@ const StatusDropdown: FC<{ value: string; onChange: (value: string) => void }> =
   )
 }
 
-const TH: FC<
-  PropsWithChildren<{
-    width?: string | number
-  }>
-> = ({ children, width }) => {
-  return (
-    <th
-      className="px-3 pt-2 pb-0.5 text-left text-xs text-gray-800 font-semibold tracking-wide uppercase"
-      style={{ width }}
-    >
-      {children}
-    </th>
-  )
-}
-
-const THFilter: FC<PropsWithChildren> = ({ children }) => {
-  return <th className="px-1 pb-2">{children}</th>
-}
-
 export const TasksTable: FC<{
   repo: Repo
   setError: (error: string) => void
   ref?: Ref<TasksTableHandle>
-}> = ({ repo, setError, ref }) => {
+  initialFilters?: TaskFilters
+  hideFilters?: boolean
+}> = ({ repo, setError, ref, initialFilters, hideFilters }) => {
   const [tasksResponse, setTasksResponse] = useState<PaginatedEvalTasksResponse | undefined>()
   const currentPage = tasksResponse?.page || 1
-  const [filters, setFilters] = useState<TaskFilters>({})
+  const [filters, setFilters] = useState<TaskFilters>(initialFilters || {})
   const isInitialMount = useRef(true)
+  const [policyInfoMap, setPolicyInfoMap] = useState<Record<string, PublicPolicyVersionRow>>({})
+  const attemptedPolicyIds = useRef<Set<string>>(new Set())
 
   // Load tasks
   const loadTasks = useCallback(
@@ -72,6 +69,35 @@ export const TasksTable: FC<{
       try {
         const response = await repo.getEvalTasksPaginated(page, pageSize, filters)
         setTasksResponse(response)
+
+        // Extract unique policy_version_ids from commands that we haven't attempted yet
+        const policyVersionIds: string[] = []
+        for (const task of response.tasks) {
+          const pvId = parsePolicyVersionId(task.command)
+          if (pvId && !attemptedPolicyIds.current.has(pvId)) {
+            policyVersionIds.push(pvId)
+          }
+        }
+
+        // Batch fetch policy info for new IDs
+        if (policyVersionIds.length > 0) {
+          try {
+            const policyVersions = await repo.getPolicyVersionsBatch(policyVersionIds)
+            // Mark as attempted only after successful fetch
+            for (const pvId of policyVersionIds) {
+              attemptedPolicyIds.current.add(pvId)
+            }
+            const newPolicyInfo: Record<string, PublicPolicyVersionRow> = {}
+            for (const pv of policyVersions) {
+              newPolicyInfo[pv.id] = pv
+            }
+            if (Object.keys(newPolicyInfo).length > 0) {
+              setPolicyInfoMap((prev) => ({ ...prev, ...newPolicyInfo }))
+            }
+          } catch (err) {
+            console.error('Failed to fetch policy versions:', err)
+          }
+        }
       } catch (err: any) {
         console.error('Failed to load tasks:', err)
         setError(`Failed to load tasks: ${err.message}`)
@@ -107,67 +133,55 @@ export const TasksTable: FC<{
   }, [loadTasks, currentPage])
 
   if (!tasksResponse) {
-    return <div>Loading tasks...</div>
+    return <Spinner size="lg" />
   }
 
   return (
     <div>
-      <h2 className="mb-5">All Tasks ({tasksResponse.total_count})</h2>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse table-fixed">
-          <thead className="border-b border-b-gray-300 bg-gray-100">
-            <tr>
-              <TH>ID</TH>
-              <TH width="30%">Command</TH>
-              <TH>Status</TH>
-              <TH>User</TH>
-              <TH>Assignee</TH>
-              <TH>Attempts</TH>
+        <Table>
+          <Table.Header>
+            <TR>
+              <TH>Policy</TH>
+              <TH>
+                <div className="flex flex-col gap-1">
+                  Recipe
+                  {!hideFilters && (
+                    <FilterInput
+                      value={filters.command || ''}
+                      onChange={(value) => setFilters({ ...filters, command: value })}
+                    />
+                  )}
+                </div>
+              </TH>
+              <TH>
+                <div className="flex flex-col gap-1">
+                  Status
+                  {!hideFilters && (
+                    <StatusDropdown
+                      value={filters.status || ''}
+                      onChange={(value) => setFilters({ ...filters, status: value })}
+                    />
+                  )}
+                </div>
+              </TH>
               <TH>Created</TH>
+              <TH>Duration</TH>
               <TH>Logs</TH>
-            </tr>
-            <tr>
-              <THFilter />
-              <THFilter>
-                <FilterInput
-                  value={filters.command || ''}
-                  onChange={(value) => setFilters({ ...filters, command: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <StatusDropdown
-                  value={filters.status || ''}
-                  onChange={(value) => setFilters({ ...filters, status: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <FilterInput
-                  value={filters.user_id || ''}
-                  onChange={(value) => setFilters({ ...filters, user_id: value })}
-                />
-              </THFilter>
-              <THFilter>
-                <FilterInput
-                  value={filters.assignee || ''}
-                  onChange={(value) => setFilters({ ...filters, assignee: value })}
-                />
-              </THFilter>
-              <THFilter />
-              <THFilter>
-                <FilterInput
-                  value={filters.created_at || ''}
-                  onChange={(value) => setFilters({ ...filters, created_at: value })}
-                />
-              </THFilter>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+            </TR>
+          </Table.Header>
+          <Table.Body>
             {tasksResponse.tasks.map((task) => (
-              <TaskRow key={task.id} task={task} repo={repo} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                repo={repo}
+                policyInfoMap={policyInfoMap}
+                attemptedPolicyIds={attemptedPolicyIds.current}
+              />
             ))}
-          </tbody>
-        </table>
+          </Table.Body>
+        </Table>
         {tasksResponse.tasks.length === 0 && <div className="p-5 text-center text-gray-500">No tasks found</div>}
       </div>
 

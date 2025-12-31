@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from pydantic import Field
@@ -24,17 +24,9 @@ class EMAConfig(LossConfig):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "EMA":
         """Create EMA loss instance."""
-        return EMA(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return EMA(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class EMA(Loss):
@@ -47,9 +39,9 @@ class EMA(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "EMAConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
@@ -62,6 +54,9 @@ class EMA(Loss):
                 self.target_model.parameters(), self.policy.parameters(), strict=False
             ):
                 target_param.data = self.cfg.decay * target_param.data + (1 - self.cfg.decay) * online_param.data
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"EMA_pred_output_2"}
 
     def run_train(
         self,
@@ -83,9 +78,6 @@ class EMA(Loss):
         with torch.no_grad():
             self.target_model(target_td)
             target_pred_flat: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
-
-        shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
-        shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
 
         loss = F.mse_loss(pred_flat, target_pred_flat) * self.cfg.loss_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))

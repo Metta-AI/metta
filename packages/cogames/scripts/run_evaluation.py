@@ -32,6 +32,8 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,7 +47,6 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.rollout import Rollout
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -65,8 +66,99 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
                 break
     if uses_gear:
         change_vibe = env_cfg.game.actions.change_vibe
-        if getattr(change_vibe, "number_of_vibes", 0) < 8:
-            change_vibe.number_of_vibes = 8
+        has_gear = any(v.name == "gear" for v in change_vibe.vibes)
+        if not has_gear:
+            from mettagrid.config.vibes import VIBE_BY_NAME
+
+            change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
+
+
+# Cache for policy action space sizes to avoid reloading checkpoints
+_policy_action_space_cache: Dict[str, int] = {}
+
+
+def _get_policy_action_space(policy_path: str) -> Optional[int]:
+    """Detect the action space size from a policy checkpoint.
+
+    Returns the number of actions the policy was trained with, or None if detection fails.
+    """
+    if policy_path in _policy_action_space_cache:
+        return _policy_action_space_cache[policy_path]
+
+    if not is_s3_uri(policy_path):
+        return None
+
+    try:
+        from mettagrid.policy.mpt_artifact import load_mpt
+
+        artifact = load_mpt(policy_path)
+
+        # Look for actor head weight to determine action space
+        for key, tensor in artifact.state_dict.items():
+            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                action_space = tensor.shape[0]
+                _policy_action_space_cache[policy_path] = action_space
+                logger.info(f"Detected policy action space: {action_space} actions")
+                return action_space
+
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to detect policy action space: {e}")
+        return None
+
+
+def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
+    """Configure environment vibes to match a specific action space.
+
+    Action space = 1 noop + 4 move + N vibes
+    So num_vibes = num_actions - 5
+    """
+    from mettagrid.config import vibes as vibes_module
+
+    # Calculate number of vibes needed
+    # Action space = noop (1) + move (4) + change_vibe (N)
+    num_vibes = num_actions - 5
+
+    if num_vibes <= 0:
+        logger.warning(f"Invalid action space {num_actions}, skipping vibe configuration")
+        return
+
+    # Select the appropriate vibe set
+    if num_vibes == 16:
+        # First 16 vibes (standard training set)
+        vibe_names = [v.name for v in vibes_module.VIBES[:16]]
+    elif num_vibes == 13:
+        # First 13 vibes (cvc_random_maps style)
+        vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+    elif num_vibes <= len(vibes_module.VIBES):
+        # Use first N vibes from VIBES list
+        vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
+    else:
+        # Policy has more vibes than we have defined - use all available
+        vibe_names = [v.name for v in vibes_module.VIBES]
+
+    env_cfg.game.vibe_names = vibe_names
+
+    if env_cfg.game.actions:
+        # Configure vibe action count
+        if env_cfg.game.actions.change_vibe:
+            env_cfg.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
+            # Filter initial vibe if out of range
+            if env_cfg.game.agent.initial_vibe >= len(vibe_names):
+                env_cfg.game.agent.initial_vibe = 0
+
+        # Disable attack action (usually not part of training action space)
+        if env_cfg.game.actions.attack:
+            env_cfg.game.actions.attack.enabled = False
+
+    # Prune vibe transfers to only allowed vibes
+    allowed_vibes = set(vibe_names)
+    chest = env_cfg.game.objects.get("chest")
+    if chest:
+        vibe_transfers = getattr(chest, "vibe_transfers", None)
+        if isinstance(vibe_transfers, dict):
+            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+            chest.vibe_transfers = new_transfers
 
 
 @dataclass
@@ -133,6 +225,16 @@ AGENT_CONFIGS: Dict[str, AgentConfig] = {
         label="Ladybug",
         policy_path="cogames.policy.scripted_agent.unclipping_agent.UnclippingPolicy",
     ),
+    "thinky": AgentConfig(
+        key="thinky",
+        label="Thinky",
+        policy_path="cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
+    ),
+    "racecar": AgentConfig(
+        key="racecar",
+        label="RaceCar",
+        policy_path="cogames.policy.nim_agents.agents.RaceCarAgentsMultiPolicy",
+    ),
     "starter": AgentConfig(
         key="starter",
         label="Starter",
@@ -174,6 +276,13 @@ def _run_case(
         mission = base_mission.with_variants(mission_variants)
         env_config = mission.make_env()
         _ensure_vibe_supports_gear(env_config)
+
+        # Auto-detect policy action space and configure environment to match
+        if is_s3_uri(agent_config.policy_path):
+            policy_action_space = _get_policy_action_space(agent_config.policy_path)
+            if policy_action_space is not None:
+                _configure_env_for_action_space(env_config, policy_action_space)
+
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
 
@@ -351,6 +460,12 @@ def run_evaluation(
                 mission_0 = base_mission_0.with_variants(mission_variants_0)
                 env_config_0 = mission_0.make_env()
                 _ensure_vibe_supports_gear(env_config_0)
+
+                # Auto-detect policy action space and configure environment to match
+                policy_action_space = _get_policy_action_space(agent_config.policy_path)
+                if policy_action_space is not None:
+                    _configure_env_for_action_space(env_config_0, policy_action_space)
+
                 policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
                 logger.info(f"Pre-loading policy from {agent_config.policy_path}...")
                 cached_policy = load_policy(policy_env_info_0, agent_config.policy_path, agent_config.data_path)
@@ -434,7 +549,7 @@ def _bar_plot(
     output_path: Path,
     width: float = 0.35,
     rotation: int = 45,
-    figsize: tuple[int, int] = (12, 7),
+    figsize: tuple[float, float] = (12, 7),
     annotate: bool = True,
 ):
     # Filter out labels that have no data for any series
@@ -1092,26 +1207,43 @@ def main():
     for config in configs:
         variants = args.variants if args.variants else []
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
-        all_results.extend(
-            run_evaluation(
-                agent_config=config,
-                experiments=experiments,
-                variants=variants,
-                cogs_list=cogs_list,
-                experiment_map=experiment_map,
-                max_steps=args.steps,
-                seed=args.seed,
-                repeats=args.repeats,
-                jobs=args.jobs,
-            )
+
+        # Clear policy cache between policies
+        global _cached_policy, _cached_policy_key, _policy_action_space_cache
+        _cached_policy = None
+        _cached_policy_key = None
+
+        policy_results = run_evaluation(
+            agent_config=config,
+            experiments=experiments,
+            variants=variants,
+            cogs_list=cogs_list,
+            experiment_map=experiment_map,
+            max_steps=args.steps,
+            seed=args.seed,
+            repeats=args.repeats,
+            jobs=args.jobs,
         )
+        all_results.extend(policy_results)
+
+        # Save incremental results after each policy
+        if args.output and policy_results:
+            with open(args.output, "w") as f:
+                json.dump([asdict(r) for r in all_results], f, indent=2)
+            logger.info(f"\n[INCREMENTAL] Results saved to: {args.output} ({len(all_results)} total tests)")
+
+        # Generate per-policy plots
+        if not args.no_plots and policy_results:
+            policy_plot_dir = f"{args.plot_dir}_{config.label}" if args.plot_dir else f"eval_plots_{config.label}"
+            logger.info(f"[INCREMENTAL] Generating plots for {config.label} in {policy_plot_dir}")
+            create_plots(policy_results, output_dir=policy_plot_dir)
 
     print_summary(all_results)
 
     if args.output:
         with open(args.output, "w") as f:
             json.dump([asdict(r) for r in all_results], f, indent=2)
-        logger.info(f"\nResults saved to: {args.output}")
+        logger.info(f"\nFinal results saved to: {args.output}")
 
     if not args.no_plots and all_results:
         create_plots(all_results, output_dir=args.plot_dir)

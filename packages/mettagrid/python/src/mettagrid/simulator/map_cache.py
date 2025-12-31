@@ -7,6 +7,8 @@ import logging
 import os
 import random
 import tempfile
+
+os.environ.setdefault("MP_NO_RESOURCE_TRACKER", "1")
 from multiprocessing import shared_memory
 from pathlib import Path
 from typing import Any, Optional

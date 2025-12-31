@@ -5,8 +5,8 @@ from mettagrid.mapgen.scenes.dither import dither_edges
 
 
 class BiomeCavesConfig(SceneConfig):
-    fill_prob: float = 0.45  # initial rock density
-    steps: int = 4  # cellular automata smoothing steps
+    fill_prob: float = 0.4  # initial rock density
+    steps: int = 3  # cellular automata smoothing steps
     birth_limit: int = 5
     death_limit: int = 3
     dither_edges: bool = True  # Add organic edge noise

@@ -173,6 +173,10 @@ def display_task_summary(
     cmd = f"{task.envs['METTA_MODULE_PATH']} (args: {task.envs['METTA_ARGS']})"
     print(f"\n{bold('Command:')} {yellow(cmd)}")
 
+    run_id = task.envs.get("METTA_RUN_ID", task.name)
+    dd_url = f"https://app.datadoghq.com/logs?query=metta_run_id:{run_id}"
+    print(f"\n{bold('Datadog Logs:')} {yellow(dd_url)}")
+
     print(f"\n{divider}")
 
 
@@ -221,5 +225,13 @@ def launch_task(task: sky.Task) -> str:
     print(f"- Check logs with: {yellow(f'sky api logs {short_request_id}')}")
     dashboard_url = get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
+
+    from devops.skypilot.utils.job_helpers import get_job_id_from_request_id
+
+    job_id = get_job_id_from_request_id(request_id, wait_seconds=5.0)
+    if job_id:
+        print(f"Job ID: {job_id}")
+    else:
+        print("Job ID: pending")
 
     return request_id

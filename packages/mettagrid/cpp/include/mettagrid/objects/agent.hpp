@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -27,8 +28,6 @@ public:
   std::unordered_map<std::string, RewardType> stat_rewards;
   std::unordered_map<std::string, RewardType> stat_reward_max;
   std::string group_name;
-  // We expect only a small number (single-digit) of soul-bound resources.
-  std::vector<InventoryItem> soul_bound_resources;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
@@ -37,8 +36,11 @@ public:
   RewardType* reward;
   GridLocation prev_location;
   unsigned int steps_without_motion;
-  // Inventory regeneration amounts (per-agent)
-  std::unordered_map<InventoryItem, InventoryQuantity> inventory_regen_amounts;
+  // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount
+  // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>> inventory_regen_amounts;
+  // Damage configuration
+  DamageConfig damage_config;
 
   Agent(GridCoord r,
         GridCoord c,
@@ -52,9 +54,13 @@ public:
 
   void set_inventory(const std::unordered_map<InventoryItem, InventoryQuantity>& inventory);
 
-  InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta);
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
+
+  // Check and apply damage if all threshold stats are reached
+  // Returns true if damage was applied
+  bool check_and_apply_damage(std::mt19937& rng);
 
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;
@@ -69,11 +75,11 @@ public:
 private:
   const ObservationEncoder* obs_encoder = nullptr;
   const std::vector<std::string>* resource_names = nullptr;
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask;
   std::vector<char> tracked_resource_presence;
   std::size_t tracked_resource_diversity{0};
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

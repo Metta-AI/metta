@@ -98,8 +98,8 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
     # Mock the login service validation to return a valid user_id
     mock_validate = AsyncMock(return_value="machine_user@example.com")
 
-    # Disable debug_user_email to test token-based auth
-    with patch("metta.app_backend.config.debug_user_email", None):
+    # Disable DEBUG_USER_EMAIL to test token-based auth
+    with patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", None):
         with patch("metta.app_backend.auth.validate_token_via_login_service", mock_validate):
             response = test_client.post(
                 "/sweeps/test_sweep/create_sweep",

@@ -9,10 +9,10 @@ from mettagrid.mapgen.scenes.dither import dither_edges
 class BiomeCityConfig(SceneConfig):
     # Grid of city blocks; roads form the gaps between blocks
     pitch: int = 10  # distance between block starts
-    road_width: int = 2  # empty corridors
+    road_width: int = 3  # empty corridors
     place_prob: float = 0.9  # probability to place a block in a cell
-    min_block_frac: float = 0.6  # fraction of pitch used for block (before jitter)
-    jitter: int = 2  # random size jitter applied to block width/height
+    min_block_frac: float = 0.5  # fraction of pitch used for block (before jitter)
+    jitter: int = 1  # random size jitter applied to block width/height
     dither_edges: bool = True  # Add organic edge noise
     dither_prob: float = 0.15  # Probability to flip edge cells
     dither_depth: int = 5  # How many cells deep to consider as edge zone

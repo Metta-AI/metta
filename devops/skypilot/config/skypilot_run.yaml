@@ -4,36 +4,43 @@ resources:
     - region: us-east-1
       use_spot: true
       accelerators: "L4:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       use_spot: true
       accelerators: "A10G:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       accelerators: "L4:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-east-1
       accelerators: "A10G:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-east-1, 2025-12-16)
+      image_id: ami-0aa72c01534d8a449
     - region: us-west-2
       use_spot: true
       accelerators: "L4:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       use_spot: true
       accelerators: "A10G:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       accelerators: "L4:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
     - region: us-west-2
       accelerators: "A10G:1"
+      # Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04, us-west-2, 2025-12-16)
+      image_id: ami-0d967f418617783c4
   cpus: 8+
-  image_id: docker:metta:latest
   job_recovery:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 3
-
-config:
-  docker:
-    run_options:
-      - --cap-add=IPC_LOCK
-      - --ulimit memlock=-1:-1
-      - --ipc=host
-      - --userns=host
 
 file_mounts:
   /mnt/s3/softmax-public:
@@ -60,10 +67,6 @@ envs:
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir
-  SKYPILOT_DOCKER_USERNAME: ""
-  SKYPILOT_DOCKER_PASSWORD: ""
-  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-
 secrets:
   # configured by launch script based on local credentials
   WANDB_PASSWORD: ""

@@ -9,7 +9,9 @@ from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -17,7 +19,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
 
@@ -46,6 +48,7 @@ def make_arena(
                 "armor": 1,
             },
         ),
+        change_vibe=ChangeVibeActionConfig(enabled=False),
     )
 
     if not combat:
@@ -78,10 +81,12 @@ def make_arena(
             actions=actions,
             objects=objects,
             agent=AgentConfig(
-                default_resource_limit=50,
-                resource_limits={
-                    "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
-                },
+                inventory=InventoryConfig(
+                    default_limit=50,
+                    limits={
+                        "heart": ResourceLimitsConfig(limit=255, resources=["heart"]),
+                    },
+                ),
                 rewards=AgentRewards(
                     inventory={
                         "heart": 1,
@@ -167,8 +172,10 @@ def make_assembly_lines(
                         "heart": 1,
                     },
                 ),
-                default_resource_limit=1,
-                resource_limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
+                inventory=InventoryConfig(
+                    default_limit=1,
+                    limits={"heart": ResourceLimitsConfig(limit=15, resources=["heart"])},
+                ),
             ),
         ),
     )

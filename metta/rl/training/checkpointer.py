@@ -58,7 +58,7 @@ class Checkpointer(TrainerComponent):
         if self._distributed.is_distributed:
             normalized_uri = None
             if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_uri(candidate_uri)
+                normalized_uri = resolve_uri(candidate_uri).canonical
             normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
 
             if normalized_uri:
@@ -92,8 +92,8 @@ class Checkpointer(TrainerComponent):
 
         if candidate_uri:
             artifact = load_mpt(candidate_uri)
-            policy = artifact.instantiate(policy_env_info, load_device)
-            self._latest_policy_uri = resolve_uri(candidate_uri)
+            policy = artifact.instantiate(policy_env_info, self._distributed.config.device)
+            self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
 
@@ -135,3 +135,16 @@ class Checkpointer(TrainerComponent):
             self.context.latest_saved_policy_epoch = epoch
         except AttributeError:
             logger.debug("Component context missing latest_saved_policy_epoch attribute")
+
+        # Log latest checkpoint URI to wandb if available
+        stats_reporter = getattr(self.context, "stats_reporter", None)
+        wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter is not None else None
+        if wandb_run is not None:
+            wandb_run.log(
+                {
+                    "checkpoint/latest_uri": uri,
+                    "checkpoint/latest_epoch": float(epoch),
+                },
+                step=self.context.agent_step,
+            )
+            logger.info(f"Logged checkpoint URI to wandb: {uri}")

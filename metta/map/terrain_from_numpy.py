@@ -8,12 +8,12 @@ import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder import MapGrid
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
-from mettagrid.util.file import ParsedURI
+from mettagrid.util.file import parse_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -33,8 +33,11 @@ def pick_random_file(path, rng):
 
 
 def download_from_s3(s3_path: str, save_path: str):
-    parsed = ParsedURI.parse(s3_path)
-    bucket, key = parsed.require_s3()
+    parsed = parse_uri(s3_path, allow_none=False)
+
+    if parsed.scheme != "s3":
+        raise ValueError(f"Expected S3 URI, got: {parsed.scheme}")
+    bucket, key = parsed.bucket, parsed.key
 
     try:
         # Create directory if it doesn't exist
@@ -51,20 +54,23 @@ def download_from_s3(s3_path: str, save_path: str):
 
 
 class TerrainFromNumpyConfig(MapBuilderConfig["TerrainFromNumpy"], WithMaxRetriesConfig):
-    # Allow non-pydantic types like random.Random
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     objects: dict[str, int] = Field(default_factory=dict)
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str
     file: Optional[str] = None
     remove_assemblers: bool = False
-    rng: random.Random = Field(default_factory=random.Random, exclude=True)
+    seed: Optional[int] = None  # Use seed instead of Random object for picklability
 
 
 class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
     """This class is used to load a terrain environment from numpy arrays on s3.
 
     It's not a MapGen scene, because we don't know the grid size until we load the file."""
+
+    def __init__(self, config: TerrainFromNumpyConfig):
+        super().__init__(config)
+        # Create Random instance from seed for use in build methods
+        self.rng = random.Random(self.config.seed)
 
     def setup(self):
         root = self.config.dir.split("/")[0]
@@ -98,6 +104,11 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
             )
             valid_mask = empty_mask & has_empty_neighbor
         else:
+            # For non-assemblers, any empty cell is valid?
+            # But we should also check for connectivity or at least valid placement rules.
+            # For now, assuming same rules or simpler.
+            # Actually, let's use the same logic for safety:
+
             has_empty_neighbor = (
                 np.roll(empty_mask, 1, axis=0)  # Check up
                 | np.roll(empty_mask, -1, axis=0)  # Check down
@@ -129,22 +140,116 @@ class TerrainFromNumpy(MapBuilder[TerrainFromNumpyConfig], ABC):
             agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
 
         valid_positions = self.get_valid_positions(grid, assemblers)
-        self.config.rng.shuffle(valid_positions)
+        self.rng.shuffle(valid_positions)
         return grid, valid_positions, agent_labels
 
     @abstractmethod
     def build(self) -> GameMap: ...
 
 
-class NavigationFromNumpy(TerrainFromNumpy):
+class NavigationFromNumpyConfig(MapBuilderConfig["NavigationFromNumpy"], WithMaxRetriesConfig):
+    """Config for NavigationFromNumpy - explicit module-level class to avoid dynamic CloneConfig.
+
+    This is needed because TerrainFromNumpyConfig is already bound to TerrainFromNumpy.
+    When NavigationFromNumpy tries to reuse it, MapBuilder.__init_subclass__ would create
+    a local CloneConfig class which can't be pickled for multiprocessing.
+    """
+
+    objects: dict[str, int] = Field(default_factory=dict)
+    agents: int | dict[str, int] = Field(default=0, ge=0)
+    dir: str
+    file: Optional[str] = None
+    remove_assemblers: bool = False
+    seed: Optional[int] = None  # Use seed instead of Random object for picklability
+
+
+class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
+    def __init__(self, config: NavigationFromNumpyConfig):
+        super().__init__(config)
+        # Create Random instance from seed for use in build methods
+        self.rng = random.Random(self.config.seed)
+
+    def setup(self):
+        """Setup map directory - copied from TerrainFromNumpy."""
+        root = self.config.dir.split("/")[0]
+
+        map_dir = f"train_dir/{self.config.dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"{MAPS_ROOT}/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
+        # Only one process can hold this lock at a time:
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        return map_dir
+
+    def get_valid_positions(self, level: MapGrid, assemblers=False):
+        """Get valid positions - copied from TerrainFromNumpy."""
+        # Create a boolean mask for empty cells
+        empty_mask = level == "empty"
+
+        if assemblers:
+            has_empty_neighbor = (
+                np.roll(empty_mask, 1, axis=0)  # Check up
+                & np.roll(empty_mask, -1, axis=0)  # Check down
+                & np.roll(empty_mask, 1, axis=1)  # Check left
+                & np.roll(empty_mask, -1, axis=1)  # Check right
+            )
+            valid_mask = empty_mask & has_empty_neighbor
+        else:
+            has_empty_neighbor = (
+                np.roll(empty_mask, 1, axis=0)  # Check up
+                | np.roll(empty_mask, -1, axis=0)  # Check down
+                | np.roll(empty_mask, 1, axis=1)  # Check left
+                | np.roll(empty_mask, -1, axis=1)  # Check right
+            )
+
+            # Valid positions are empty cells with at least one empty neighbor
+            # Exclude border cells (indices 0 and -1)
+            valid_mask = empty_mask & has_empty_neighbor
+            valid_mask[0, :] = False
+            valid_mask[-1, :] = False
+            valid_mask[:, 0] = False
+            valid_mask[:, -1] = False
+
+        # Get coordinates of valid positions
+        valid_positions = list(zip(*np.where(valid_mask), strict=False))
+        return valid_positions
+
+    def clean_grid(self, grid: MapGrid, assemblers=True):
+        """Clean grid - copied from TerrainFromNumpy."""
+        grid[grid == "agent.agent"] = "empty"
+        if self.config.remove_assemblers:
+            grid[grid == "assembler"] = "empty"
+
+        # Prepare agent labels
+        if isinstance(self.config.agents, int):
+            agent_labels = ["agent.agent"] * self.config.agents
+        else:
+            agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
+
+        valid_positions = self.get_valid_positions(grid, assemblers)
+        self.rng.shuffle(valid_positions)
+        return grid, valid_positions, agent_labels
+
     def build(self):
         map_dir = self.setup()
         if self.config.file is None:
-            uri = pick_random_file(map_dir, self.config.rng)
+            uri = pick_random_file(map_dir, self.rng)
         else:
             uri = self.config.file
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
+
+        # Replace 'altar' with 'assembler' for CVC compatibility
+        # The terrain numpy files contain 'altar' but C++ only knows 'assembler'
+        grid[grid == "altar"] = "assembler"
 
         grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=False)
         num_agents = len(agent_labels)
@@ -161,7 +266,7 @@ class NavigationFromNumpy(TerrainFromNumpy):
             if count < 0:
                 continue
             # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
+            positions = self.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
@@ -169,110 +274,3 @@ class NavigationFromNumpy(TerrainFromNumpy):
         grid[grid == "altar"] = "assembler"
 
         return GameMap(grid=grid)
-
-
-class CogsVClippiesFromNumpy(TerrainFromNumpy):
-    def carve_out_patches(self, grid: MapGrid, valid_positions_set: set[tuple[int, int]]):
-        # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
-        grid_shape = grid.shape
-        empty_centers = []
-        num_patches = sum(self.config.objects.values()) - len(valid_positions_set)
-        patch_size = 9
-        half_patch = patch_size // 2
-
-        # Build a set of all valid positions for quick exclusion
-        valid_positions_set_lookup = set(valid_positions_set)
-
-        attempts = 0
-        max_attempts = num_patches * 20  # avoid infinite loop
-
-        while len(empty_centers) < num_patches and attempts < max_attempts:
-            # Randomly pick a center not in valid_positions_set and not too close to the edge
-            x = self.config.rng.randint(half_patch, grid_shape[0] - half_patch - 1)
-            y = self.config.rng.randint(half_patch, grid_shape[1] - half_patch - 1)
-            center = (x, y)
-            if center in valid_positions_set_lookup or center in empty_centers:
-                attempts += 1
-                continue
-
-            # Check if the patch overlaps any valid position
-            patch_indices = [
-                (i, j)
-                for i in range(x - half_patch, x + half_patch + 1)
-                for j in range(y - half_patch, y + half_patch + 1)
-            ]
-            if any(idx in valid_positions_set_lookup for idx in patch_indices):
-                attempts += 1
-                continue
-
-            # Carve out the patch
-            for i, j in patch_indices:
-                grid[i, j] = "empty"
-            empty_centers.append(center)
-            attempts += 1
-        return grid, empty_centers
-
-    def build(self):
-        map_dir = self.setup()
-        if self.config.file is None:
-            uri = pick_random_file(map_dir, self.config.rng)
-        else:
-            uri = self.config.file
-
-        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
-        num_agents = len(agent_labels)
-        # Place agents in first slice
-        agent_positions = valid_positions[:num_agents]
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
-            grid[pos] = label
-
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
-
-        if len(valid_positions_set) < sum(self.config.objects.values()):
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions_set)
-            valid_positions_set.update(empty_centers)
-
-        for obj_name, count in self.config.objects.items():
-            # Sample from remaining valid positions
-            positions = self.config.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
-            for pos in positions:
-                grid[pos] = obj_name
-                valid_positions_set.remove(pos)
-
-        return GameMap(grid=grid)
-
-
-# class InContextLearningFromNumpy(TerrainFromNumpy):
-#     def __init__(self, config: TerrainFromNumpy.Config):
-#         super().__init__(config)
-
-#     def build(self):
-#         map_dir = self.setup()
-
-#         if self.config.file is None:
-#             uri = pick_random_file(map_dir, self.config.rng)
-#         else:
-#             uri = self.config.file
-
-#         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-#         grid, valid_positions, agent_labels = self.clean_grid(grid)
-#         num_agents = len(agent_labels)
-#         agent_positions = valid_positions[:num_agents]
-#         for pos, label in zip(agent_positions, agent_labels, strict=False):
-#             grid[pos] = label
-#         # placeholder indices for objects
-#         mask = ~np.isin(grid, ("agent.agent", "wall", "empty"))
-#         converter_indices = np.argwhere(mask)
-#         grid[mask] = "empty"
-
-#         object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
-#         self.config.rng.shuffle(object_names)
-
-#         for idx, object in zip(converter_indices, object_names, strict=False):
-#             grid[tuple(idx)] = object
-
-#         return GameMap(grid=grid)

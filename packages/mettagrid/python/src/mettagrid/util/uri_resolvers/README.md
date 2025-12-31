@@ -19,7 +19,8 @@ if info:
     run_name, epoch = info
 
 # Resolve a URI (normalizes and finds latest checkpoint if applicable)
-resolved = resolve_uri("file:///path/to/checkpoints")
+parsed = resolve_uri("file:///path/to/checkpoints")
+print(parsed.canonical)  # "file:///path/to/checkpoints/run:v5.mpt"
 
 # Get full checkpoint metadata (resolves URI first)
 metadata = get_checkpoint_metadata("s3://bucket/checkpoints/my-run:v5.mpt")

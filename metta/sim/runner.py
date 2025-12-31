@@ -1,5 +1,7 @@
-import logging
-from typing import Callable, Sequence
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any, Callable, Sequence
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,7 +15,87 @@ from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
 
-logger = logging.getLogger(__name__)
+
+def _run_single_simulation(
+    simulation: Any,
+    policy_data: Sequence[Any] | None,
+    replay_dir: str | None,
+    seed: int,
+    device_override: str | None = None,
+) -> "SimulationRunResult":
+    sim_cfg = SimulationRunConfig.model_validate(simulation)
+    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data] if policy_data else []
+
+    env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
+    multi_agent_policies: list[MultiAgentPolicy] = []
+    agent_map: Sequence[str] | None = None
+
+    if sim_cfg.policy_slots:
+        registry = SlotRegistry()
+        slots_cfg = list(sim_cfg.policy_slots)
+        slot_lookup = {slot.id: idx for idx, slot in enumerate(slots_cfg)}
+        controller_device = torch.device(device_override or "cpu")
+
+        num_agents = env_interface.num_agents
+        agent_map = sim_cfg.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
+        if len(agent_map) != num_agents:
+            raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
+        slot_ids = [slot_lookup[slot_id] for slot_id in agent_map]
+        agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long, device=controller_device)
+
+        slot_policies = {
+            idx: registry.get(slot, env_interface, device=controller_device) for idx, slot in enumerate(slots_cfg)
+        }
+        controller = SlotControllerPolicy(
+            slot_lookup=slot_lookup,
+            slots=slots_cfg,
+            slot_policies=slot_policies,
+            policy_env_info=env_interface,
+            agent_slot_map=agent_slot_tensor,
+        ).to(controller_device)
+        multi_agent_policies.append(controller)
+    else:
+        if not policy_specs:
+            raise ValueError("At least one policy spec is required when policy_slots are not provided")
+        multi_agent_policies = [initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs]
+
+    if replay_dir:
+        os.makedirs(replay_dir, exist_ok=True)
+
+    rollout_result = multi_episode_rollout(
+        env_cfg=sim_cfg.env,
+        policies=multi_agent_policies,
+        episodes=sim_cfg.num_episodes,
+        seed=seed,
+        proportions=sim_cfg.proportions,
+        save_replay=replay_dir,
+        max_action_time_ms=sim_cfg.max_action_time_ms,
+    )
+
+    per_slot_returns = None
+    per_slot_winrate = None
+    if sim_cfg.policy_slots and rollout_result.episode_returns:
+        effective_agent_map = sim_cfg.agent_slot_map or agent_map
+        if effective_agent_map:
+            per_slot_returns = {}
+            per_slot_winrate = {}
+            returns_tensor = torch.tensor(rollout_result.episode_returns)
+            wins_tensor = None
+            if rollout_result.episode_wins is not None:
+                wins_tensor = torch.tensor(rollout_result.episode_wins)
+            for slot_id in set(effective_agent_map):
+                idxs = [j for j, slot_name in enumerate(effective_agent_map) if slot_name == slot_id]
+                if idxs:
+                    per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
+                    if wins_tensor is not None:
+                        per_slot_winrate[slot_id] = float(wins_tensor[:, idxs].float().mean().item())
+
+    return SimulationRunResult(
+        run=sim_cfg,
+        results=rollout_result,
+        per_slot_returns=per_slot_returns,
+        per_slot_winrate=per_slot_winrate,
+    )
 
 
 class SimulationRunConfig(BaseModel):
@@ -44,92 +126,52 @@ def run_simulations(
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
+    max_workers: int | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
+    device_override: str | None = None,
 ) -> list[SimulationRunResult]:
     if not policy_specs and not any(sim.policy_slots for sim in simulations):
         raise ValueError("At least one policy spec or simulation-level policy slot is required")
 
-    simulation_rollouts: list[SimulationRunResult] = []
-
-    for i, simulation in enumerate(simulations):
-        proportions = simulation.proportions
-
-        env_interface = PolicyEnvInterface.from_mg_cfg(simulation.env)
-        multi_agent_policies: list[MultiAgentPolicy] = []
-
-        # Prefer simulation-specific bindings if provided; otherwise use policy_specs
-        if simulation.policy_slots:
-            registry = SlotRegistry()
-            slots_cfg = simulation.policy_slots
-            slot_lookup = {b.id: idx for idx, b in enumerate(slots_cfg)}
-            controller_device = torch.device("cpu")
-            # Build agent slot map tensor
-            num_agents = env_interface.num_agents
-            agent_map = simulation.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
-            if len(agent_map) != num_agents:
-                raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
-            slot_ids = [slot_lookup[a] for a in agent_map]
-            agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long)
-
-            slot_policies = {
-                idx: registry.get(
-                    b,
-                    env_interface,
-                    device=controller_device,  # sim runs default to CPU; extend later if needed
-                )
-                for idx, b in enumerate(slots_cfg)
-            }
-            controller = SlotControllerPolicy(
-                slot_lookup=slot_lookup,
-                slots=slots_cfg,
-                slot_policies=slot_policies,
-                policy_env_info=env_interface,
-                agent_slot_map=agent_slot_tensor,
-            ).to(controller_device)
-            multi_agent_policies.append(controller)
-        else:
-            assert policy_specs is not None
-            multi_agent_policies = [initialize_or_load_policy(env_interface, spec) for spec in policy_specs]
-
-        on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-        rollout_result = multi_episode_rollout(
-            env_cfg=simulation.env,
-            policies=multi_agent_policies,
-            episodes=simulation.num_episodes,
-            seed=seed,
-            proportions=proportions,
-            save_replay=replay_dir,
-            max_action_time_ms=simulation.max_action_time_ms,
-        )
-        on_progress(f"Finished rollout for simulation {i}")
-
-        per_slot_returns = None
-        per_slot_winrate = None
-        if simulation.policy_slots and rollout_result.episode_returns:
-            # Compute average return per slot by agent index mapping
-            effective_agent_map = simulation.agent_slot_map or agent_map
-            if effective_agent_map:
-                per_slot_returns = {}
-                per_slot_winrate = {}
-                # episode_returns shape: [num_episodes, num_agents]
-                returns_tensor = torch.tensor(rollout_result.episode_returns)
-                wins_tensor = None
-                if rollout_result.episode_wins is not None:
-                    wins_tensor = torch.tensor(rollout_result.episode_wins)
-                for slot_id in set(effective_agent_map):
-                    idxs = [j for j, b in enumerate(effective_agent_map) if b == slot_id]
-                    if idxs:
-                        per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
-                        if wins_tensor is not None:
-                            per_slot_winrate[slot_id] = float(wins_tensor[:, idxs].float().mean().item())
-
-        simulation_rollouts.append(
-            SimulationRunResult(
-                run=simulation,
-                results=rollout_result,
-                per_slot_returns=per_slot_returns,
-                per_slot_winrate=per_slot_winrate,
+    # Sequential path for max_workers unset or 1
+    if not max_workers or max_workers <= 1 or len(simulations) <= 1:
+        sequential_rollouts: list[SimulationRunResult] = []
+        for i, simulation in enumerate(simulations):
+            on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
+            sequential_rollouts.append(
+                _run_single_simulation(simulation, policy_specs, replay_dir, seed, device_override)
             )
-        )
+            on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
+
+        return sequential_rollouts
+
+    # Parallel path
+    simulation_rollouts: list[SimulationRunResult] = [None] * len(simulations)  # type: ignore[assignment]
+
+    # Serialize configs to avoid pickling issues
+    simulation_payloads = [sim.model_dump(mode="json") for sim in simulations]
+    policy_payloads = [spec.model_dump(mode="json") for spec in policy_specs] if policy_specs else []
+
+    on_progress(f"Launching {len(simulations)} eval rollouts with up to {max_workers} workers")
+
+    # Use spawn in parallel mode; it's safer for CUDA and avoids subtle fork issues.
+    mp_context = multiprocessing.get_context("spawn")
+
+    with ProcessPoolExecutor(max_workers=max_workers, mp_context=mp_context) as executor:
+        future_to_idx = {
+            executor.submit(
+                _run_single_simulation,
+                payload,
+                policy_payloads,
+                os.path.join(replay_dir, f"sim_{idx}") if replay_dir else None,
+                seed,
+                device_override,
+            ): idx
+            for idx, payload in enumerate(simulation_payloads)
+        }
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            simulation_rollouts[idx] = future.result()
+            on_progress(f"Finished rollout for simulation {idx + 1} of {len(simulations)}")
 
     return simulation_rollouts

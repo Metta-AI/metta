@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import importlib
+import inspect
 import os
 import pkgutil
 import re
@@ -19,6 +20,7 @@ from mettagrid.util.module import load_symbol
 def initialize_or_load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_spec: PolicySpec,
+    device_override: str | None = None,
 ) -> MultiAgentPolicy:
     """Initialize a policy from its class path and optionally load weights.
 
@@ -29,13 +31,28 @@ def initialize_or_load_policy(
     """
 
     policy_class = load_symbol(resolve_policy_class_path(policy_spec.class_path))
+    # We're planning to remove kwargs from the policy spec, maybe in January
+    # 2026. We may want to support passing arguments, but they shouldn't take
+    # the form of arbitrary kwargs where the policy author and our execution
+    # code need to share a namespace.
+    kwargs = policy_spec.init_kwargs or {}
+
+    kwarg_overrides = {}
+    if device_override is not None:
+        kwarg_overrides["device"] = device_override
+
+    if len(kwarg_overrides) > 0:
+        kwargs = kwargs.copy()
+        class_params = inspect.signature(policy_class.__init__).parameters
+        allows_all = any((p.kind == inspect.Parameter.VAR_KEYWORD for p in class_params.values()))
+        for name in kwarg_overrides:
+            if allows_all or (name in class_params):
+                kwargs[name] = kwarg_overrides[name]
 
     try:
-        policy = policy_class(policy_env_info, **(policy_spec.init_kwargs or {}))  # type: ignore[call-arg]
+        policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
     except TypeError as e:
-        raise TypeError(
-            f"Failed initializing policy {policy_spec.class_path} with kwargs {policy_spec.init_kwargs}: {e}"
-        ) from e
+        raise TypeError(f"Failed initializing policy {policy_spec.class_path} with kwargs {kwargs}: {e}") from e
 
     if policy_spec.data_path:
         policy.load_policy_data(policy_spec.data_path)

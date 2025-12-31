@@ -19,7 +19,7 @@ AGENT_PATH = "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy"
 
 # Defaults (keep simple)
 NUM_COGS = 4
-MAX_STEPS = 1000
+MAX_STEPS = 10000
 SEED = 42
 
 # Add/modify your evals here over time
@@ -31,11 +31,6 @@ EVALS: List[Tuple[str, str, int]] = [
         NUM_COGS,
     ),  # E is very hard, max E is 256, but agents think its 100.
     ("oxygen_bottleneck", "", NUM_COGS),
-    ("extractor_hub_30", "", NUM_COGS),
-    ("extractor_hub_50", "", NUM_COGS),
-    ("extractor_hub_70", "", NUM_COGS),
-    ("extractor_hub_80", "", NUM_COGS),
-    ("extractor_hub_100", "", NUM_COGS),
     ("collect_resources_classic", "", NUM_COGS),
     ("collect_resources_spread", "", NUM_COGS),
     ("collect_far", "", NUM_COGS),
@@ -64,7 +59,6 @@ EVALS: List[Tuple[str, str, int]] = [
     ("distant_resources", "buggy", NUM_COGS),  # Not enough time for such distances.
     ("quadrant_buildings", "buggy", NUM_COGS),  # Not enough charger for such distances.
     ("vibe_check", "", NUM_COGS),
-    ("easy_hearts", "flakey", NUM_COGS),
     ("oxygen_bottleneck_easy", "", NUM_COGS),
     ("oxygen_bottleneck_standard", "", NUM_COGS),
     ("oxygen_bottleneck_hard", "buggy", NUM_COGS),  # Not enough charger for such distances.
@@ -90,12 +84,9 @@ EVALS: List[Tuple[str, str, int]] = [
     ("easy_large_hearts", "slow", NUM_COGS),
     ("easy_medium_hearts", "", NUM_COGS),
     ("easy_small_hearts", "flakey", NUM_COGS),
-    ("easy_hearts_training", "buggy", NUM_COGS),  # No/invalid recipes available.
     # Missions from missions.py
     ("harvest", "", NUM_COGS),
     ("repair", "", 2),  # repair uses 2 cogs
-    ("easy_hearts_training_facility", "", NUM_COGS),
-    ("easy_hearts_hello_world", "", NUM_COGS),
     ("hello_world_unclip", "", NUM_COGS),
 ]
 
@@ -149,8 +140,11 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
                     break
         if uses_gear:
             change_vibe = env_cfg.game.actions.change_vibe
-            if getattr(change_vibe, "number_of_vibes", 0) < 8:
-                change_vibe.number_of_vibes = 8
+            has_gear = any(v.name == "gear" for v in change_vibe.vibes)
+            if not has_gear:
+                from mettagrid.config.vibes import VIBE_BY_NAME
+
+                change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
     except Exception:
         pass
 

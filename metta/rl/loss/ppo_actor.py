@@ -1,28 +1,22 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
+from metta.rl.advantage import normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Config
-
-
-class VTraceConfig(Config):
-    rho_clip: float = Field(default=1.0, gt=0)
-    c_clip: float = Field(default=1.0, gt=0)
 
 
 class PPOActorConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.264407, gt=0, le=1.0)
+    clip_coef: float = Field(default=0.22017136216163635, gt=0, le=1.0)
     # Entropy term weight from sweep
     ent_coef: float = Field(default=0.010000, ge=0)
 
@@ -32,7 +26,6 @@ class PPOActorConfig(LossConfig):
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
 
-    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
     profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
 
     def create(
@@ -42,16 +35,8 @@ class PPOActorConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "PPOActor":
-        return PPOActor(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return PPOActor(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class PPOActor(Loss):
@@ -66,15 +51,17 @@ class PPOActor(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "PPOActorConfig",
     ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.trainable_only = True
-        # PPO actor runs only for profiles that include ppo_actor (set in trainer init)
         self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -97,53 +84,24 @@ class PPOActor(Loss):
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
 
-        logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
-        importance_sampling_ratio = logratio.exp()
+        importance_sampling_ratio = shared_loss_data.get("importance_sampling_ratio", None)
+        if importance_sampling_ratio is None:
+            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+            importance_sampling_ratio = logratio.exp()
 
-        indices = shared_loss_data.get("indices", None)
-        if isinstance(indices, NonTensorData):
-            indices = indices.data
-
-        if indices is not None:
-            update_td = TensorDict(
-                {
-                    "ratio": importance_sampling_ratio.detach(),
-                },
-                batch_size=minibatch.batch_size,
-            )
-            self.replay.update(indices, update_td)
-
-        # Re-compute advantages with new ratios (V-trace)
-        # Use gamma/lambda from critic to ensure consistency
-        gamma = shared_loss_data.get("gamma", None)
-        if gamma is not None:
-            gamma = gamma.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gamma in shared_loss_data")
-
-        gae_lambda = shared_loss_data.get("gae_lambda", None)
-        if gae_lambda is not None:
-            gae_lambda = gae_lambda.flatten()[0].item()
-        else:
-            raise ValueError("ppo_actor could not find gae_lambda in shared_loss_data")
-
-        values = minibatch["values"]
-        if hasattr(self.policy, "critic_quantiles"):
-            # If we are using a quantile critic in our policy
-            values = values.mean(dim=-1)
-
-        adv = compute_advantage(
-            values,
-            minibatch["rewards"],
-            minibatch["dones"],
-            importance_sampling_ratio,
-            shared_loss_data["advantages"],
-            gamma,
-            gae_lambda,
-            cfg.vtrace.rho_clip,
-            cfg.vtrace.c_clip,
-            self.device,
+        update_td = TensorDict(
+            {
+                "ratio": importance_sampling_ratio.detach(),
+            },
+            batch_size=minibatch.batch_size,
         )
+        indices = shared_loss_data["indices"][:, 0]
+        self.replay.update(indices, update_td)
+
+        adv = shared_loss_data.get("advantages_pg", None)
+        if adv is None:
+            adv = shared_loss_data["advantages"]
+        adv = adv.detach()
 
         # Normalize advantages with distributed support, then apply prioritized weights
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)

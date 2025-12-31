@@ -27,16 +27,16 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
     implementation, returning itself from agent_policy().
     """
 
-    short_names = ["pufferlib", "pufferlib_cogs"]
+    short_names = ["pufferlib_cogs"]
 
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
         *,
         hidden_size: int = 256,
-        device: Optional[Union[str, torch.device]] = None,
+        device: str = "cpu",
     ):
-        MultiAgentPolicy.__init__(self, policy_env_info)
+        MultiAgentPolicy.__init__(self, policy_env_info, device=device)
         AgentPolicy.__init__(self, policy_env_info)
         shim_env = SimpleNamespace(
             single_observation_space=policy_env_info.observation_space,
@@ -47,8 +47,7 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
         )
         shim_env.env = shim_env
         self._net = pufferlib.models.Default(shim_env, hidden_size=hidden_size)  # type: ignore[arg-type]
-        if device is not None:
-            self._net = self._net.to(torch.device(device))
+        self._net = self._net.to(torch.device(device))
         self._action_names = policy_env_info.action_names
         self._num_tokens, self._token_dim = policy_env_info.observation_space.shape
         self._device = next(self._net.parameters()).device

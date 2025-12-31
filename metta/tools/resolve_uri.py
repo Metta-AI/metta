@@ -8,5 +8,5 @@ class ResolveUriTool(Tool):
     uri: str = Field(description="The URI to resolve")
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        print(resolve_uri(self.uri))
+        print(resolve_uri(self.uri).canonical)
         return 0

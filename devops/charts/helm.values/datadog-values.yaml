@@ -1,5 +1,5 @@
-# Datadog Agent configuration for Metta infrastructure
-# Environment tag for all metrics and traces
+# Datadog Agent configuration for Metta k8s infrastructure
+# Shared defaults are in devops/datadog/defaults.yaml
 env: "production"
 
 datadog:
@@ -9,23 +9,24 @@ datadog:
   # Cluster name for identification
   clusterName: "main"
 
-  # Datadog site (US instance)
+  # Datadog site (US instance) - also in defaults.yaml
   site: datadoghq.com
 
-  # APM configuration for distributed tracing
+  # APM configuration - also in defaults.yaml
   apm:
     portEnabled: true
     port: 8126
 
-  # Log collection configuration
+  # Log collection - also in defaults.yaml
   logs:
     enabled: true
     containerCollectAll: true
 
-  # Process monitoring
+  # Process monitoring - also in defaults.yaml
+  # Disabled to reduce billing
   processAgent:
-    enabled: true
-    processCollection: true
+    processCollection:
+      enabled: false
 
   # Kubernetes orchestrator explorer
   orchestratorExplorer:
@@ -34,6 +35,11 @@ datadog:
   # Global tags applied to all metrics
   tags:
     - "env:production"
+
+  # Exclude ephemeral eval workers from infrastructure metrics to reduce billing
+  # Logs and APM traces are still collected for all containers
+  # https://docs.datadoghq.com/containers/guide/container-discovery-management/
+  containerExcludeMetrics: "kube_namespace:orchestrator kube_namespace:monitoring kube_namespace:jobs"
 
 # DaemonSet agent configuration
 clusterAgent:

@@ -65,7 +65,7 @@ def log_rich_progress(
     progress_pct = (agent_step / total_timesteps) * 100 if total_timesteps > 0 else 0.0
     sps_display = f"{steps_per_sec:,.0f} SPS"
     epoch_time_display = _format_epoch_time(epoch_time)
-    heart_display = f"heart.g {heart_value:.3f}"
+    heart_display = f"heart.c {heart_value:.3f}"
     if heart_rate is not None:
         heart_display += f" ({heart_rate:.3f}/s)"
 
@@ -109,8 +109,10 @@ def log_training_progress(
     else:
         steps_per_sec = train_pct = rollout_pct = stats_pct = 0.0
 
-    heart_value = metrics.get("env_agent/heart.gained.avg", metrics.get("env_agent/heart.gained", 0.0))
-    heart_rate = metrics.get("env_agent/heart.gained.rate")
+    heart_value = metrics.get(
+        "env_game/assembler.heart.created.avg", metrics.get("env_game/assembler.heart.created", 0.0)
+    )
+    heart_rate = metrics.get("env_game/assembler.heart.created.rate")
 
     if should_use_rich_console():
         log_rich_progress(
@@ -140,7 +142,7 @@ def log_training_progress(
             f"train {train_pct:.0f}% _ rollout {rollout_pct:.0f}% _ stats {stats_pct:.0f}% _ "
             f"{epoch_time_str}"
         )
-        segment = f"heart.gained {heart_value:.3f}"
+        segment = f"heart.created {heart_value:.3f}"
         if heart_rate is not None:
             segment += f" ({heart_rate:.3f}/s)"
         message = f"{message} _ {segment}"
@@ -190,8 +192,5 @@ class ProgressLogger(TrainerComponent):
         stats_reporter = getattr(self.context, "stats_reporter", None)
         if stats_reporter is None:
             return {}
-        latest = getattr(stats_reporter, "get_latest_payload", None)
-        if not latest:
-            return {}
-        payload = latest()
+        payload = stats_reporter.get_latest_payload()
         return payload if payload else {}

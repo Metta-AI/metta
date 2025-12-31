@@ -32,14 +32,6 @@ class ContrastiveConfig(LossConfig):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "ContrastiveLoss":
         """Create the contrastive loss instance."""
-        return ContrastiveLoss(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return ContrastiveLoss(policy, trainer_cfg, env, device, instance_name, self)

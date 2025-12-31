@@ -24,7 +24,7 @@ check_cmd() {
 }
 
 if ! check_cmd uv; then
-    echo "uv not found. Consider running ./devops/tools/install-system.sh"
+    echo "uv not found. Consider running ./install.sh or 'uv run python -m metta.setup.components.system_packages.bootstrap'"
     exit 1
 fi
 

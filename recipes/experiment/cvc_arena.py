@@ -4,7 +4,7 @@ This is meant as a basic testbed for CvC buildings / mechanics.
 This recipe is automatically validated in CI and release processes.
 """
 
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -148,11 +148,11 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),
-        policy_uris=policy_uris or [],
+        policy_uris=policy_uris,
     )
 
 

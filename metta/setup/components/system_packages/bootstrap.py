@@ -21,7 +21,7 @@ REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.13"
 MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
-BAZELISK_VERSION = "v1.19.0"
+BAZELISKVERSION_FILE = Path(__file__).parent.parent.parent.parent.parent / ".bazeliskversion"
 
 
 TARGET_INSTALL_DIRS = [
@@ -30,13 +30,6 @@ TARGET_INSTALL_DIRS = [
     "/opt/bin",
     str(Path.home() / ".local" / "bin"),
     str(Path.home() / "bin"),
-]
-# Common install directories in order of preference
-CHECK_FOR_BINARIES_DIRS = [
-    *TARGET_INSTALL_DIRS,
-    str(Path.home() / ".cargo" / "bin"),
-    str(Path.home() / ".nimby" / "nim" / "bin"),
-    "/opt/homebrew/bin",
 ]
 
 
@@ -58,6 +51,16 @@ def error(message: str) -> None:
     _log("ERROR", message)
 
 
+def _safe_unlink(path: Path) -> None:
+    """Safely remove a file/symlink, logging warnings on failure."""
+    try:
+        path.unlink(missing_ok=True)
+    except PermissionError:
+        warning(f"Unable to remove {path}: permission denied")
+    except Exception as exc:
+        warning(f"Unable to remove {path}: {exc}")
+
+
 def get_install_dir() -> Path | None:
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
     for dir_str in TARGET_INSTALL_DIRS:
@@ -66,20 +69,6 @@ def get_install_dir() -> Path | None:
             if dir_path.exists() and (os.access(dir_path, os.W_OK) or (hasattr(os, "geteuid") and os.geteuid() == 0)):
                 return dir_path
     return None
-
-
-def ensure_paths() -> None:
-    """Add target install directories to PATH if not already present."""
-    path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-    for dir_str in CHECK_FOR_BINARIES_DIRS:
-        dir_path = Path(dir_str)
-        if dir_path.exists() and dir_str not in path_dirs:
-            os.environ["PATH"] = f"{dir_str}:{os.environ.get('PATH', '')}"
-
-    # Add cargo bin if it exists
-    cargo_bin = Path.home() / ".cargo" / "bin"
-    if cargo_bin.exists() and str(cargo_bin) not in path_dirs:
-        os.environ["PATH"] = f"{cargo_bin}:{os.environ.get('PATH', '')}"
 
 
 def ensure_bazel_version_file(version: str) -> None:
@@ -130,9 +119,7 @@ def version_ge(current: str | None, required: str) -> bool:
 
 
 def check_bootstrap_deps() -> bool:
-    """Check if bootstrap deps (bazel, nimby, nim, git, g++) are installed."""
-    ensure_paths()
-
+    """Check bootstrap deps using the current PATH (no temporary additions)."""
     # Check git
     if not shutil.which("git"):
         return False
@@ -258,7 +245,8 @@ def get_bazelisk_url() -> str:
     system = platform.system().lower()
     machine = platform.machine().lower()
 
-    base = f"https://github.com/bazelbuild/bazelisk/releases/download/{BAZELISK_VERSION}/"
+    version = BAZELISKVERSION_FILE.read_text().strip()
+    base = f"https://github.com/bazelbuild/bazelisk/releases/download/v{version}/"
 
     if system == "linux":
         if machine in ("aarch64", "arm64"):
@@ -278,7 +266,6 @@ def get_bazelisk_url() -> str:
 
 def install_bazel(run_command=None, non_interactive: bool = False) -> None:
     """Install bazel via bazelisk."""
-    ensure_paths()
     ensure_bazel_version_file(DEFAULT_BAZEL_VERSION)
 
     if shutil.which("bazel"):
@@ -323,8 +310,6 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         error(f"Failed to download bazelisk: {e}")
         raise
 
-    ensure_paths()
-
     if not shutil.which("bazel"):
         error("Failed to install bazelisk. Please install it manually from https://github.com/bazelbuild/bazelisk")
         raise RuntimeError("Bazel installation failed")
@@ -350,45 +335,11 @@ def install_bazel(run_command=None, non_interactive: bool = False) -> None:
         raise
 
 
-def remove_legacy_nim_installations() -> None:
-    """Remove legacy Nim installations."""
-    if shutil.which("brew"):
-        try:
-            result = subprocess.run(["brew", "list", "--versions", "nim"], check=False, capture_output=True, text=True)
-            if result.returncode == 0:
-                info("Removing legacy Homebrew Nim installation...")
-                subprocess.run(["brew", "uninstall", "--force", "nim"], check=False, capture_output=True)
-        except Exception:
-            pass
-
-    # Remove legacy nimble bin directory
-    nimble_bin = Path.home() / ".nimble" / "bin"
-    if nimble_bin.exists():
-        shutil.rmtree(nimble_bin, ignore_errors=True)
-
-    # Remove legacy choosenim directory
-    choosenim_dir = Path.home() / ".choosenim"
-    if choosenim_dir.exists():
-        shutil.rmtree(choosenim_dir, ignore_errors=True)
-
-    # Remove legacy symlinks
-    local_bin = Path.home() / ".local" / "bin"
-    for tool in ["nim", "nimble"]:
-        symlink = local_bin / tool
-        if symlink.is_symlink():
-            try:
-                target = symlink.readlink()
-                if ".nimble" in str(target):
-                    symlink.unlink()
-            except Exception:
-                pass
-
-
-def _get_nim_version(cwd: Path | None = None) -> str | None:
-    """Get the current Nim version."""
+def _get_nim_version() -> str | None:
+    """Get the current Nim version from the system PATH."""
     if shutil.which("nim"):
         try:
-            result = subprocess.run(["nim", "--version"], check=True, capture_output=True, text=True, cwd=cwd)
+            result = subprocess.run(["nim", "--version"], check=True, capture_output=True, text=True)
             version_line = result.stdout.split("\n")[0]
             return version_line.split()[3] if len(version_line.split()) > 3 else ""
         except (subprocess.CalledProcessError, IndexError):
@@ -396,11 +347,11 @@ def _get_nim_version(cwd: Path | None = None) -> str | None:
     return None
 
 
-def _get_nimby_version(cwd: Path | None = None) -> str | None:
-    """Get the current Nimby version."""
+def _get_nimby_version() -> str | None:
+    """Get the current Nimby version from the system PATH."""
     if shutil.which("nimby"):
         try:
-            result = subprocess.run(["nimby", "--version"], check=True, capture_output=True, text=True, cwd=cwd)
+            result = subprocess.run(["nimby", "--version"], check=True, capture_output=True, text=True)
             return result.stdout.strip().split()[-1].replace("v", "")
         except (subprocess.CalledProcessError, IndexError):
             return None
@@ -408,17 +359,15 @@ def _get_nimby_version(cwd: Path | None = None) -> str | None:
 
 
 def install_nim_via_nimby(run_command=None, non_interactive: bool = False) -> None:
-    """Install nim via nimby."""
-    remove_legacy_nim_installations()
-    ensure_paths()
-
-    # 1. Check current versions
+    """Install nim via nimby, checking versions before touching PATH."""
+    # Check versions using current PATH (before we modify it)
+    # This ensures we check what the user actually has, not what we've added to PATH
     current_nim_version = _get_nim_version()
     nim_up_to_date = version_ge(current_nim_version, REQUIRED_NIM_VERSION)
     current_nimby_version = _get_nimby_version()
     nimby_up_to_date = version_ge(current_nimby_version, REQUIRED_NIMBY_VERSION)
 
-    # 2. If up to date, exit
+    # If both are up to date, exit early
     if nimby_up_to_date and nim_up_to_date:
         return
 
@@ -502,8 +451,6 @@ def _install_nimby(target_nimby_path: Path) -> None:
 
 def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> None:
     """Install all bootstrap dependencies: bazel, nimby, nim, git, g++."""
-    ensure_paths()
-
     # Install git and g++ via package manager
     install_system_packages(run_command, non_interactive=non_interactive)
 
@@ -512,8 +459,6 @@ def install_bootstrap_deps(run_command=None, non_interactive: bool = False) -> N
 
     # Install nimby and nim
     install_nim_via_nimby(run_command, non_interactive=non_interactive)
-
-    ensure_paths()
 
 
 def main() -> None:

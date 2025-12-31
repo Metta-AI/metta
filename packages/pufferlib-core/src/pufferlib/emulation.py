@@ -181,10 +181,12 @@ class GymnasiumPufferEnv(gymnasium.Env):
     def seed(self, seed):
         self.env.seed(seed)
 
-    def reset(self, seed=None):
+    def reset(self, seed=None, options=None):
         self.initialized = True
         self.done = False
 
+        # Gymnasium vector envs pass `options`; we accept it to avoid signature errors
+        # but ignore it because Puffer envs don't use options.
         ob, info = _seed_and_reset(self.env, seed)
         if not self.is_observation_checked:
             self.is_observation_checked = check_space(ob, self.env.observation_space)
@@ -221,6 +223,15 @@ class GymnasiumPufferEnv(gymnasium.Env):
             self.is_action_checked = check_space(action, self.env.action_space)
 
         ob, reward, done, truncated, info = self.env.step(action)
+
+        # Allow multi-agent environments by collapsing rewards/terminations
+        reward_arr = np.asarray(reward)
+        reward = float(reward_arr.sum()) if reward_arr.shape else float(reward)
+
+        done_arr = np.asarray(done)
+        truncated_arr = np.asarray(truncated)
+        done = bool(done_arr.any()) if done_arr.shape else bool(done)
+        truncated = bool(truncated_arr.any()) if truncated_arr.shape else bool(truncated)
 
         if self.is_obs_emulated:
             emulate(self.obs_struct, ob)
