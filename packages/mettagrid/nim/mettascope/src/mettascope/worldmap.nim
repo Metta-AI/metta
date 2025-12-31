@@ -673,6 +673,7 @@ proc drawWorldMini*() =
   const agentTypeName = "agent"
 
   drawTerrain()
+  drawAOEOverlay()
 
   # Overlays
   if settings.showVisualRange:
