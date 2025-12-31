@@ -133,7 +133,7 @@ def _walk_and_import_package(package_name: str) -> None:
                 item_path = os.path.join(path, item)
                 if os.path.isdir(item_path) and not item.startswith("__") and not item.startswith("."):
                     namespace_name = f"{package_name}.{item}"
-                    if _should_skip(namespace_name):
+                    if ".bindings" in namespace_name:
                         continue
                     # Try to import as a namespace package
                     try:

@@ -21,7 +21,6 @@ from metta.sim.simulate_and_record import (
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -127,8 +126,7 @@ class EvaluateTool(Tool):
                     num_workers = math.ceil(len(self.simulations) / full_rounds)
             logger.info("Using %d workers for evaluation", num_workers)
             sim_run_configs = [
-                sim.to_simulation_run_config() if isinstance(sim, SimulationConfig) else sim
-                for sim in self.simulations
+                sim.to_simulation_run_config() if isinstance(sim, SimulationConfig) else sim for sim in self.simulations
             ]
             rollout_results = simulate_and_record(
                 policy_specs=policy_specs,
