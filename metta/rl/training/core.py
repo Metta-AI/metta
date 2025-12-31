@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
@@ -226,19 +226,21 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
         _rollout_td_prep_node(core),
     ]
 
-    loss_nodes: list[str] = []
+    has_losses = False
+    prev_dep = "rollout.td_prep"
     for loss in losses.values():
         name = f"rollout.loss.{loss.instance_name}"
-        loss_nodes.append(name)
+        has_losses = True
         nodes.append(
             Node(
                 name=name,
-                deps=("rollout.td_prep",),
+                deps=(prev_dep,),
                 fn=_loss_rollout_fn(loss),
             )
         )
+        prev_dep = name
 
-    deps = tuple(loss_nodes) if loss_nodes else ("rollout.td_prep",)
+    deps = (prev_dep,) if has_losses else ("rollout.td_prep",)
     nodes.extend(
         [
             Node(name="rollout.reward_center", deps=deps, fn=_rollout_reward_center_fn(core)),
@@ -255,25 +257,28 @@ def _build_rollout_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> lis
 def _build_train_nodes(core: CoreTrainingLoop, losses: dict[str, Loss]) -> list[Node]:
     nodes: list[Node] = [
         Node(name="train.sample_mb", fn=_train_sample_mb_fn(core)),
-        Node(name="train.policy_forward", deps=("train.sample_mb",), fn=_train_policy_forward_fn(core)),
+        Node(name="train.returns", deps=("train.sample_mb",), fn=_train_returns_fn()),
+        Node(name="train.policy_forward", deps=("train.returns",), fn=_train_policy_forward_fn(core)),
         Node(name="train.importance_ratio", deps=("train.policy_forward",), fn=_train_importance_ratio_fn()),
         Node(name="train.advantages_pg", deps=("train.importance_ratio",), fn=_train_advantages_pg_fn(core)),
         Node(name="train.used_keys", deps=("train.policy_forward",), fn=_train_used_keys_fn(core)),
     ]
 
-    loss_nodes: list[str] = []
+    has_losses = False
+    prev_dep = "train.advantages_pg"
     for loss in losses.values():
         name = f"train.loss.{loss.instance_name}"
-        loss_nodes.append(name)
+        has_losses = True
         nodes.append(
             Node(
                 name=name,
-                deps=("train.advantages_pg",),
+                deps=(prev_dep,),
                 fn=_loss_train_fn(loss),
             )
         )
+        prev_dep = name
 
-    deps = tuple(loss_nodes) if loss_nodes else ("train.advantages_pg",)
+    deps = (prev_dep,) if has_losses else ("train.advantages_pg",)
     nodes.extend(
         [
             Node(
@@ -476,8 +481,7 @@ def _train_sample_mb_fn(core: CoreTrainingLoop):
             batch_size=context.config.batch_size,
             advantages=workspace["advantages_full"],
         )
-        if workspace["mb_idx"] == 0:
-            shared_loss_mb_data["advantages_full"] = NonTensorData(workspace["advantages_full"])
+        shared_loss_mb_data["advantages_full"] = workspace["advantages_full"]
         workspace["shared_loss_data"] = shared_loss_mb_data
         workspace["loss_values"] = {}
         return {}
@@ -505,6 +509,18 @@ def _train_importance_ratio_fn():
             new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
             logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
             shared["importance_sampling_ratio"] = logratio.exp()
+        return {}
+
+    return _fn
+
+
+def _train_returns_fn():
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        shared = workspace["shared_loss_data"]
+        sampled_mb = shared["sampled_mb"]
+        if "values" not in sampled_mb.keys():
+            return {}
+        shared["sampled_mb"]["returns"] = shared["advantages"] + sampled_mb["values"]
         return {}
 
     return _fn
