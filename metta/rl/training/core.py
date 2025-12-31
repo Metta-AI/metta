@@ -62,7 +62,7 @@ class CoreTrainingLoop:
         # Cache environment indices to avoid reallocating per rollout batch
         self._env_index_cache = experience._range_tensor.to(device=device)
         # Get policy spec for experience buffer
-        self.policy_spec = policy.get_agent_experience_spec()
+        self.policy_spec = experience.policy_experience_spec
 
     def rollout_phase(
         self,

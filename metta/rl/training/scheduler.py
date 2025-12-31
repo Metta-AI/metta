@@ -360,7 +360,7 @@ class LossScheduler(TrainerComponent):
             return
 
         # Always include policy experience spec keys.
-        policy_spec = context.policy.get_agent_experience_spec()
+        policy_spec = getattr(experience, "policy_experience_spec", None) or context.policy.get_agent_experience_spec()
         active_keys: set[Any] = set(policy_spec.keys(include_nested=True, leaves_only=True))
 
         # Include spec keys from losses that are active for rollout this epoch.

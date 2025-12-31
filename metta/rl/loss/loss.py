@@ -267,8 +267,7 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
-        # Align with replay layout so slot metadata survives policy TD prep
-        self.policy_experience_spec = experience.buffer.spec  # type: ignore[attr-defined]
+        self.policy_experience_spec = experience.policy_experience_spec
 
     def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
         """Filter minibatch rows by slot profile/trainable flags."""
