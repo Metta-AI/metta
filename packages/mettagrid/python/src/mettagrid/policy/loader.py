@@ -49,10 +49,6 @@ def initialize_or_load_policy(
         # 2026. We may want to support passing arguments, but they shouldn't take
         # the form of arbitrary kwargs where the policy author and our execution
         # code need to share a namespace.
-        if device_override is not None:
-            kwargs = kwargs.copy()
-            kwargs["device"] = device_override
-
         policy = policy_class(policy_env_info, **kwargs)  # type: ignore[call-arg]
 
         if policy_spec.data_path:

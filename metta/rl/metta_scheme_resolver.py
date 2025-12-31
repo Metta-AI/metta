@@ -149,4 +149,7 @@ class MettaSchemeResolver(SchemeResolver):
             logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)
             return resolved
 
+        mpt_file_path = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
+        if mpt_file_path:
+            return resolve_uri(mpt_file_path).canonical
         raise ValueError(f"Policy version {policy_version.id} has no s3_path; expected a policy spec submission in S3.")

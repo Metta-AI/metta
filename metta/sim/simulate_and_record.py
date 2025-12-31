@@ -51,7 +51,6 @@ def simulate_and_record(
     observatory_writer: ObservatoryWriter | None = None,
     wandb_writer: WandbWriter | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
-    device_override: str | None = None,
 ) -> list[SimulationRunResult]:
     rollout_results = run_simulations(
         policy_specs=policy_specs,
@@ -60,7 +59,6 @@ def simulate_and_record(
         seed=seed,
         max_workers=max_workers,
         on_progress=on_progress,
-        device_override=device_override,
     )
 
     if observatory_writer is not None:

@@ -193,6 +193,29 @@ def download_policy_spec_from_s3_as_zip(
     return local_path
 
 
+def download_policy_spec_from_s3_dir(s3_path: str, cache_dir: Optional[Path] = None) -> Path:
+    if cache_dir is None:
+        cache_dir = DEFAULT_POLICY_CACHE_DIR
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    normalized_path = s3_path.rstrip("/")
+    extraction_root = cache_dir / hashlib.sha256(normalized_path.encode()).hexdigest()
+    policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
+    if policy_spec_path.exists():
+        return extraction_root
+
+    extraction_root.mkdir(parents=True, exist_ok=True)
+    policy_spec_path.write_bytes(s3_read(f"{normalized_path}/{POLICY_SPEC_FILENAME}"))
+
+    submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
+    if submission_spec.data_path:
+        data_path = extraction_root / submission_spec.data_path
+        data_path.parent.mkdir(parents=True, exist_ok=True)
+        data_path.write_bytes(s3_read(f"{normalized_path}/{submission_spec.data_path}"))
+
+    return extraction_root
+
+
 def convert_mpt_to_bundle(local_path: Path, *, cache_key: str) -> Path:
     cache_dir = DEFAULT_POLICY_CACHE_DIR / "mpt"
     cache_dir.mkdir(parents=True, exist_ok=True)
