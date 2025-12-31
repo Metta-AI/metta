@@ -27,10 +27,10 @@ function App() {
 
   return (
     <AppProvider>
-      <div>
+      <div className="min-h-screen font-sans flex flex-col">
         <TopMenu />
 
-        <div>
+        <div className="bg-gray-50 flex-1">
           <Routes>
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/" element={<PoliciesPage />} />
