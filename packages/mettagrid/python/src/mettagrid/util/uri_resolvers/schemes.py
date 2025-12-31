@@ -222,7 +222,6 @@ _SCHEME_RESOLVERS: list[str] = [
     "mettagrid.util.uri_resolvers.schemes.FileSchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.S3SchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
-    "mettagrid.util.uri_resolvers.schemes.HttpSchemeResolver",
     "mettagrid.util.uri_resolvers.schemes.MockSchemeResolver",
     "metta.rl.metta_scheme_resolver.MettaSchemeResolver",
 ]
@@ -319,28 +318,29 @@ def policy_spec_from_uri(
 
     if parsed.canonical.endswith(".mpt"):
         with local_copy(parsed.canonical) as local_path:
-            bundle_dir = convert_mpt_to_bundle(local_path, cache_key=parsed.canonical)
-        return load_policy_spec_from_path(
-            bundle_dir,
-            device=device,
-            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-        )
+            return load_policy_spec_from_path(
+                convert_mpt_to_bundle(local_path, cache_key=parsed.canonical),
+                device=device,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
 
     if parsed.scheme == "mock":
         return PolicySpec(class_path=resolve_policy_class_path(parsed.path))
 
     if parsed.scheme == "s3":
-        if parsed.canonical.endswith(".zip"):
-            local_path = download_policy_spec_from_s3_as_zip(
-                parsed.canonical,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            )
-        else:
-            local_path = download_policy_spec_from_s3_dir(
-                parsed.canonical,
-                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
-            )
-        parsed = resolve_uri(local_path.as_uri())
+        parsed = resolve_uri(
+            (
+                download_policy_spec_from_s3_as_zip(
+                    parsed.canonical,
+                    remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+                )
+                if parsed.canonical.endswith(".zip")
+                else download_policy_spec_from_s3_dir(
+                    parsed.canonical,
+                    remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+                )
+            ).as_uri()
+        )
 
     if parsed.local_path:
         return load_policy_spec_from_path(

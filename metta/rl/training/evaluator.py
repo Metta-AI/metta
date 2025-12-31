@@ -130,9 +130,7 @@ class Evaluator(TrainerComponent):
                 raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
 
     def should_evaluate(self, epoch: int) -> bool:
-        if self._config.epoch_interval <= 0:
-            return False
-        return epoch % self._config.epoch_interval == 0
+        return self._config.epoch_interval > 0 and epoch % self._config.epoch_interval == 0
 
     def _create_policy_version(
         self,
@@ -145,10 +143,6 @@ class Evaluator(TrainerComponent):
     ) -> uuid.UUID:
         """Create a policy version in Observatory with a submission zip."""
 
-        # Create or get policy
-        parsed = resolve_uri(policy_uri)
-        s3_path = parsed.canonical if parsed.scheme == "s3" else None
-
         # Create policy version
         policy_version_id = stats_client.create_policy_version(
             policy_id=stats_client.create_policy(
@@ -159,7 +153,7 @@ class Evaluator(TrainerComponent):
             git_hash=self._git_hash,
             policy_spec=policy_spec.model_dump(mode="json"),
             attributes={"epoch": epoch, "agent_step": agent_step},
-            s3_path=s3_path,
+            s3_path=(parsed := resolve_uri(policy_uri)).canonical if parsed.scheme == "s3" else None,
         )
 
         return policy_version_id.id

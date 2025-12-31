@@ -59,10 +59,9 @@ class Checkpointer(TrainerComponent):
         load_device = torch.device(self._distributed.config.device)
 
         if self._distributed.is_distributed:
-            normalized_uri = None
-            if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_uri(candidate_uri).canonical
-            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
+            normalized_uri = self._distributed.broadcast_from_master(
+                resolve_uri(candidate_uri).canonical if self._distributed.is_master() and candidate_uri else None
+            )
 
             if normalized_uri:
                 payload: tuple[str, dict[str, torch.Tensor]] | None = None
@@ -76,10 +75,12 @@ class Checkpointer(TrainerComponent):
                 payload = self._distributed.broadcast_from_master(payload)
                 architecture_spec, state_dict = payload
 
-                policy_architecture = load_symbol(architecture_spec.split("(", 1)[0].strip()).from_spec(
-                    architecture_spec
+                policy = (
+                    load_symbol(architecture_spec.split("(", 1)[0].strip())
+                    .from_spec(architecture_spec)
+                    .make_policy(policy_env_info)
+                    .to(load_device)
                 )
-                policy = policy_architecture.make_policy(policy_env_info).to(load_device)
                 policy.load_state_dict(state_dict, strict=True)
                 policy.initialize_to_environment(policy_env_info, load_device)
 

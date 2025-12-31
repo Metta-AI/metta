@@ -103,9 +103,7 @@ class CheckpointManager:
 
     @property
     def output_uri(self) -> str:
-        if self._remote_prefix:
-            return self._remote_prefix
-        return f"file://{self.checkpoint_dir}"
+        return self._remote_prefix or f"file://{self.checkpoint_dir}"
 
     def get_latest_checkpoint(self) -> str | None:
         def resolve_candidate(uri: str) -> tuple[str, int] | None:
@@ -118,9 +116,7 @@ class CheckpointManager:
         local = resolve_candidate(f"file://{self.checkpoint_dir}")
         remote = resolve_candidate(self.output_uri) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
-        if not candidates:
-            return None
-        return max(candidates, key=lambda x: x[1])[0]
+        return max(candidates, key=lambda x: x[1])[0] if candidates else None
 
     def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
         checkpoint_dir = (self.checkpoint_dir / f"{self.run_name}:v{epoch}").expanduser().resolve()
@@ -170,8 +166,6 @@ class CheckpointManager:
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
     ):
-        trainer_file = self.checkpoint_dir / "trainer_state.pt"
-
         is_schedulefree = is_schedulefree_optimizer(optimizer)
         if is_schedulefree:
             optimizer.eval()
@@ -194,7 +188,7 @@ class CheckpointManager:
         ) as tmp_file:
             tmp_path = Path(tmp_file.name)
             torch.save(state, tmp_path)
-            tmp_path.replace(trainer_file)
+            tmp_path.replace(self.checkpoint_dir / "trainer_state.pt")
 
         if is_schedulefree:
             optimizer.train()

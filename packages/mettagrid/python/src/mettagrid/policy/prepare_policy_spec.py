@@ -169,8 +169,7 @@ def download_policy_spec_from_s3_as_zip(
     Returns:
         Local path to the downloaded zip file.
     """
-    if cache_dir is None:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
+    cache_dir = cache_dir or DEFAULT_POLICY_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
@@ -189,8 +188,7 @@ def download_policy_spec_from_s3_as_zip(
 
     # download at a temporary path and use atomic rename so we don't see partial results
     with open(tmp_local_path, mode="wb") as f:
-        data = s3_read(normalized_path)
-        f.write(data)
+        f.write(s3_read(normalized_path))
     os.rename(tmp_local_path, local_path)
 
     return local_path
@@ -201,8 +199,7 @@ def download_policy_spec_from_s3_dir(
     cache_dir: Optional[Path] = None,
     remove_downloaded_copy_on_exit: bool = False,
 ) -> Path:
-    if cache_dir is None:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
+    cache_dir = cache_dir or DEFAULT_POLICY_CACHE_DIR
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     normalized_path = s3_path.rstrip("/")
@@ -263,9 +260,8 @@ def load_policy_spec_from_path(
     if local_path.is_dir():
         extraction_root = local_path
     else:
-        cache_dir = DEFAULT_POLICY_CACHE_DIR
         extraction_root = force_dest or (
-            cache_dir / hashlib.sha256(local_path.as_uri().encode()).hexdigest()
+            DEFAULT_POLICY_CACHE_DIR / hashlib.sha256(local_path.as_uri().encode()).hexdigest()
         ).with_suffix(".d")
         if not (extraction_root / ".extraction_complete").exists():
             extraction_root.mkdir(parents=True, exist_ok=True)

@@ -72,9 +72,8 @@ class ContextCheckpointer(TrainerComponent):
         total_agents = int(context.experience.total_agents)
         device = context.experience.device
         default_avg_reward = context.config.advantage.reward_centering.initial_reward_mean
-        avg_reward = payload.get("avg_reward", default_avg_reward)
-        if avg_reward is None:
-            avg_reward = default_avg_reward
+        avg_reward = payload.get("avg_reward")
+        avg_reward = default_avg_reward if avg_reward is None else avg_reward
         avg_reward = torch.as_tensor(avg_reward).to(device=device, dtype=torch.float32)
         context.state.avg_reward = torch.broadcast_to(avg_reward, (total_agents,)).clone()
 
@@ -136,8 +135,6 @@ class ContextCheckpointer(TrainerComponent):
     # ------------------------------------------------------------------
     def _save_state(self) -> None:
         context = self.context
-        current_epoch = context.epoch
-        agent_step = context.agent_step
 
         context.state.stopwatch_state = context.stopwatch.save_state()
 
@@ -156,8 +153,8 @@ class ContextCheckpointer(TrainerComponent):
 
         self._checkpoint_manager.save_trainer_state(
             context.optimizer,
-            current_epoch,
-            agent_step,
+            context.epoch,
+            context.agent_step,
             avg_reward=context.state.avg_reward,
             stopwatch_state=context.state.stopwatch_state,
             curriculum_state=context.state.curriculum_state,
