@@ -35,7 +35,13 @@ include = ["cogames", "cogames.*"]
 include-package-data = true
 
 [tool.setuptools.package-data]
-cogames = ["py.typed", "maps/*.map", "maps/**/*.map", "assets/**/*"]
+cogames = [
+  "py.typed",
+  "maps/*.map",
+  "maps/**/*.map",
+  "assets/**/*",
+  "policy/nim_agents/bindings/generated/*",
+]
 
 [tool.setuptools_scm]
 tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
