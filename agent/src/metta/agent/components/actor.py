@@ -108,7 +108,6 @@ class ActionProbsConfig(ComponentConfig):
 
     in_key: str
     name: str = "action_probs"
-    emit_full_log_probs: bool = True
 
     def make_component(self, env=None):
         return ActionProbs(config=self)
@@ -123,7 +122,6 @@ class ActionProbs(nn.Module):
         super().__init__()
         self.config = config
         self.num_actions = 0
-        self._emit_full_log_probs = config.emit_full_log_probs
 
     def _ensure_initialized(self) -> None:
         if self.num_actions <= 0:
@@ -163,8 +161,7 @@ class ActionProbs(nn.Module):
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
         td["act_log_prob"] = selected_log_probs
-        if self._emit_full_log_probs:
-            td["full_log_probs"] = full_log_probs
+        td["full_log_probs"] = full_log_probs
 
         return td
 
@@ -194,8 +191,7 @@ class ActionProbs(nn.Module):
         # Store in flattened TD (will be reshaped by caller if needed)
         td["act_log_prob"] = selected_log_probs
         td["entropy"] = entropy
-        if self._emit_full_log_probs:
-            td["full_log_probs"] = action_log_probs
+        td["full_log_probs"] = action_log_probs
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
