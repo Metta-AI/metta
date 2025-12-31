@@ -256,6 +256,8 @@ class CheckpointPolicy(Policy):
             if name == "_policy":
                 raise
             policy = self.__dict__.get("_policy")
+            if policy is None and "_modules" in self.__dict__:
+                policy = self.__dict__["_modules"].get("_policy")
             if policy is None:
                 raise
             return getattr(policy, name)

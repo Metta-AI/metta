@@ -15,7 +15,6 @@ from mettagrid.util.uri_resolvers.schemes import resolve_uri
 logger = logging.getLogger(__name__)
 
 
-
 def _is_uuid(s: str) -> bool:
     """Check if string is a valid UUID.
 
@@ -116,7 +115,6 @@ class MettaSchemeResolver(SchemeResolver):
             )
         if not _is_uuid(path_parts[1]):
             name, version = _parse_policy_identifier(path_parts[1])
-            if version is None:
             checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / name / "checkpoints"
             if checkpoint_root.exists():
                 candidate = checkpoint_root if version is None else checkpoint_root / f"{name}:v{version}"
