@@ -18,7 +18,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
 
 
@@ -386,8 +386,7 @@ class CMPO(Loss):
             },
             batch_size=(batch,),
         )
-        td.set("batch", torch.ones(batch, device=obs.device, dtype=torch.long))
-        td.set("bptt", torch.ones(batch, device=obs.device, dtype=torch.long))
+        ensure_sequence_metadata(td, batch_size=batch, time_steps=1)
         dummy_actions = torch.zeros(batch, device=obs.device, dtype=torch.long)
         model.reset_memory()
         with torch.no_grad():
