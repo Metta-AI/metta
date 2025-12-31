@@ -38,6 +38,7 @@ DEFAULT_NODE_ORDER: tuple[str, ...] = (
     "logit_kickstarter",
 )
 
+
 @lru_cache(maxsize=1)
 def _discover_node_specs_cached() -> tuple[NodeSpec, ...]:
     specs: list[NodeSpec] = []

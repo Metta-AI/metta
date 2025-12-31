@@ -41,19 +41,6 @@ class PPOActorConfig(NodeConfig):
 class PPOActor(NodeBase):
     """PPO actor loss."""
 
-    __slots__ = ()
-
-    def __init__(
-        self,
-        policy: Policy,
-        trainer_cfg: Any,
-        env: TrainingEnvironment,
-        device: torch.device,
-        instance_name: str,
-        cfg: "PPOActorConfig",
-    ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
-
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
 

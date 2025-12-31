@@ -107,7 +107,7 @@ class TrainerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":
-        self.nodes = _normalize_nodes(self.nodes)
+        object.__setattr__(self, "nodes", _normalize_nodes(self.nodes))
 
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")

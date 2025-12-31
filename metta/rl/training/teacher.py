@@ -66,18 +66,18 @@ def apply_teacher_phase(
     teacher_cfg: TeacherConfig,
     default_steps: int = DEFAULT_TEACHER_STEPS,
 ) -> None:
-    """Enable and schedule the requested teacher loss."""
+    """Enable and schedule the requested teacher node."""
 
     if not teacher_cfg.enabled:
         return
 
     total_steps = teacher_cfg.steps or default_steps
     nodes = trainer_cfg.nodes
-    loss_cfg = _select_teacher_node_cfg(nodes=nodes, mode=teacher_cfg.mode)
-    if loss_cfg is not None:
-        _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
+    node_cfg = _select_teacher_node_cfg(nodes=nodes, mode=teacher_cfg.mode)
+    if node_cfg is not None:
+        _apply_teacher_kwargs(node_cfg=node_cfg, teacher_cfg=teacher_cfg)
 
-    def _gate_loss(name: str, end_at_step: int = total_steps) -> None:
+    def _gate_node(name: str, end_at_step: int = total_steps) -> None:
         if end_at_step:
             scheduler_run_gates.extend(
                 [
@@ -118,7 +118,7 @@ def apply_teacher_phase(
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
-        _gate_loss("sliced_scripted_cloner")
+        _gate_node("sliced_scripted_cloner")
         _gate_critic_after_teacher()
         _anneal(
             "sliced_scripted_cloner", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion
@@ -137,7 +137,7 @@ def apply_teacher_phase(
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
 
-        _gate_loss("sliced_scripted_cloner")
+        _gate_node("sliced_scripted_cloner")
         _gate_critic_after_teacher()
         nodes["ppo_critic"].vf_coef = 0.0
         nodes["ppo_actor"].enabled = False
@@ -171,7 +171,7 @@ def apply_teacher_phase(
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
 
-        _gate_loss("sliced_kickstarter")
+        _gate_node("sliced_kickstarter")
         _gate_critic_after_teacher()
         _anneal(
             "sliced_kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion
@@ -188,7 +188,7 @@ def apply_teacher_phase(
         eer_kick.enabled = True
         eer_kick.teacher_uri = teacher_cfg.policy_uri
 
-        _gate_loss("eer_kickstarter")
+        _gate_node("eer_kickstarter")
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
@@ -231,7 +231,7 @@ def apply_teacher_phase(
         ks.teacher_uri = teacher_cfg.policy_uri
         ks.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
-        _gate_loss("kickstarter")
+        _gate_node("kickstarter")
         _gate_critic_after_teacher()
         _anneal("kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
@@ -265,7 +265,7 @@ def apply_teacher_phase(
         logit.teacher_uri = teacher_cfg.policy_uri
         logit.teacher_led_proportion = teacher_cfg.teacher_led_proportion
 
-        _gate_loss("logit_kickstarter")
+        _gate_node("logit_kickstarter")
         _gate_critic_after_teacher()
         _anneal("logit_kickstarter", attr_path="teacher_led_proportion", start_value=teacher_cfg.teacher_led_proportion)
         if total_steps:
@@ -297,7 +297,7 @@ def apply_teacher_phase(
         eer_cl = nodes["eer_cloner"]
         eer_cl.enabled = True
 
-        _gate_loss("eer_cloner")
+        _gate_node("eer_cloner")
         _gate_critic_after_teacher()
         if total_steps:
             scheduler_rules.append(
@@ -331,8 +331,8 @@ def _require_policy_uri(cfg: TeacherConfig) -> None:
         raise ValueError(f"TeacherConfig.mode='{cfg.mode}' requires policy_uri to be set.")
 
 
-def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> None:
-    """Apply teacher.kwargs overrides onto a concrete loss config.
+def _apply_teacher_kwargs(*, node_cfg: Config, teacher_cfg: TeacherConfig) -> None:
+    """Apply teacher.kwargs overrides onto a concrete node config.
 
     This is intentionally applied during apply_teacher_phase() so any scheduled
     ScheduleRules use the overridden start values.
@@ -342,7 +342,7 @@ def _apply_teacher_kwargs(*, loss_cfg: Config, teacher_cfg: TeacherConfig) -> No
         return
     for key, value in teacher_cfg.kwargs.items():
         try:
-            loss_cfg.override(key, value)
+            node_cfg.override(key, value)
         except Exception as e:  # noqa: BLE001 - surface as a user-facing config error
             raise ValueError(f"Invalid teacher.kwargs override for mode='{teacher_cfg.mode}': {key}={value!r}") from e
 
