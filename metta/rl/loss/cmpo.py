@@ -57,6 +57,10 @@ class CMPOConfig(LossConfig):
     # Prior policy via EMA (None disables)
     prior_ema_decay: Optional[float] = Field(default=None, ge=0, le=1.0)
 
+    # Cap for (state, action) pairs processed at once in CMPO Q-value computation.
+    # Default: match PPO minibatch size to keep memory in line with PPO runs.
+    q_value_batch_size: Optional[int] = Field(default=None, gt=0)
+
     world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
 
     def create(
@@ -94,17 +98,22 @@ class WorldModelEnsemble(nn.Module):
         )
 
     def _predict(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
-        preds_state: list[Tensor] = []
-        preds_reward: list[Tensor] = []
+        mean_state: Optional[Tensor] = None
+        mean_reward: Optional[Tensor] = None
         for member in self.members:
             next_state, reward = member(state, action)
-            preds_state.append(next_state)
-            preds_reward.append(reward)
-        return torch.stack(preds_state, dim=0), torch.stack(preds_reward, dim=0)
+            if mean_state is None:
+                mean_state = next_state
+                mean_reward = reward
+            else:
+                mean_state = mean_state + next_state
+                mean_reward = mean_reward + reward
+        assert mean_state is not None and mean_reward is not None
+        scale = 1.0 / len(self.members)
+        return mean_state * scale, mean_reward * scale
 
     def forward(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
-        next_state_stack, reward_stack = self._predict(state, action)
-        return next_state_stack.mean(dim=0), reward_stack.mean(dim=0)
+        return self._predict(state, action)
 
 
 class TransitionBuffer:
@@ -339,21 +348,32 @@ class CMPO(Loss):
         state_flat = self._flatten_obs(obs_flat)
         num_states = state_flat.shape[0]
 
-        actions = torch.eye(self.action_dim, device=obs.device)
-        actions = actions.unsqueeze(0).expand(num_states, -1, -1)
-        states = state_flat.unsqueeze(1).expand(num_states, self.action_dim, self.obs_dim)
-        states_flat = states.reshape(num_states * self.action_dim, self.obs_dim)
-        actions_flat = actions.reshape(num_states * self.action_dim, self.action_dim)
+        # Match PPO default memory footprint by limiting (state, action) pairs per chunk.
+        max_pairs = self.cfg.q_value_batch_size or self.trainer_cfg.minibatch_size
+        states_per_chunk = max(1, max_pairs // self.action_dim)
 
-        with torch.no_grad():
-            # Eq. (14): one-step model lookahead q̂(s,a)=r̂+γ v̂(s').
-            next_state, reward = self.world_model(states_flat, actions_flat)
-            next_obs = self._unflatten_obs(next_state)
-            next_values = self._value_from_obs(value_model, next_obs)
+        q_values = torch.empty((num_states, self.action_dim), device=obs.device, dtype=torch.float32)
+        action_eye = torch.eye(self.action_dim, device=obs.device, dtype=torch.float32)
 
-        q_values = reward.view(num_states, self.action_dim) + (
-            self.trainer_cfg.advantage.gamma * next_values.view(num_states, self.action_dim)
-        )
+        for start in range(0, num_states, states_per_chunk):
+            end = min(start + states_per_chunk, num_states)
+            state_chunk = state_flat[start:end]
+
+            actions = action_eye.unsqueeze(0).expand(end - start, -1, -1)
+            states = state_chunk.unsqueeze(1).expand(end - start, self.action_dim, self.obs_dim)
+            states_flat = states.reshape((end - start) * self.action_dim, self.obs_dim)
+            actions_flat = actions.reshape((end - start) * self.action_dim, self.action_dim)
+
+            with torch.no_grad():
+                # Eq. (14): one-step model lookahead q̂(s,a)=r̂+γ v̂(s').
+                next_state, reward = self.world_model(states_flat, actions_flat)
+                next_obs = self._unflatten_obs(next_state)
+                next_values = self._value_from_obs(value_model, next_obs)
+
+            q_values[start:end] = reward.view(end - start, self.action_dim) + (
+                self.trainer_cfg.advantage.gamma * next_values.view(end - start, self.action_dim)
+            )
+
         return q_values.view(B, TT, self.action_dim)
 
     def _value_from_obs(self, model: Policy, obs: Tensor) -> Tensor:
