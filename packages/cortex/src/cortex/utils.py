@@ -88,13 +88,6 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-def set_tf32_precision(mode: str) -> None:
-    """Set TF32 precision for matmul and cuDNN convolutions."""
-    if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = mode
-        torch.backends.cudnn.conv.fp32_precision = mode
-
-
 def configure_tf32_precision() -> None:
     """Ensure TF32 fast paths are enabled."""
     try:

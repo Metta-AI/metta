@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from typing_extensions import Literal
@@ -106,8 +106,6 @@ class PPOCritic(Loss):
         indices = shared_loss_data["indices"]
         if isinstance(indices, NonTensorData):
             indices = indices.data
-        prio_weights = shared_loss_data["prio_weights"]
-
         old_values = minibatch["values"]
         if self.cfg.critic_update == "gtd_lambda":
             policy_td = shared_loss_data["policy_td"]

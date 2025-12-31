@@ -41,7 +41,6 @@ def _run_single_simulation(
     policy_data: Sequence[Any],
     replay_dir: str | None,
     seed: int,
-) -> SimulationRunResult:
     device_override: str | None = None,
 ) -> SimulationRunResult:
     sim_cfg = SimulationRunConfig.model_validate(simulation)

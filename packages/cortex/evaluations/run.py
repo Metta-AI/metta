@@ -10,7 +10,6 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
-from cortex.utils import set_tf32_precision
 from model import SequenceClassifier  # type: ignore[import-not-found]
 from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
 from synthetic_datasets import (  # type: ignore[import-not-found]

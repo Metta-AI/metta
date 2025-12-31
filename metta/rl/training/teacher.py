@@ -104,10 +104,10 @@ def apply_teacher_phase(
     def _wire_slot_ids(loss_cfg: object) -> None:
         configured = False
         if hasattr(loss_cfg, "teacher_slot_id"):
-            setattr(loss_cfg, "teacher_slot_id", teacher_cfg.teacher_slot_id)
+            loss_cfg.teacher_slot_id = teacher_cfg.teacher_slot_id
             configured = True
         if hasattr(loss_cfg, "student_slot_id"):
-            setattr(loss_cfg, "student_slot_id", teacher_cfg.student_slot_id)
+            loss_cfg.student_slot_id = teacher_cfg.student_slot_id
             configured = True
         if configured:
             _ensure_teacher_slot()

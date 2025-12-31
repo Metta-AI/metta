@@ -20,12 +20,8 @@ class SlicedScriptedClonerConfig(LossConfig):
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
-    teacher_slot_id: str | None = Field(
-        default=None, description="Slot id that should act during teacher-led slices."
-    )
-    student_slot_id: str | None = Field(
-        default=None, description="Slot id that should act during student/PPO slices."
-    )
+    teacher_slot_id: str | None = Field(default=None, description="Slot id that should act during teacher-led slices.")
+    student_slot_id: str | None = Field(default=None, description="Slot id that should act during student/PPO slices.")
 
     def create(
         self,

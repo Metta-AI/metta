@@ -27,12 +27,8 @@ class SlicedKickstarterConfig(LossConfig):
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
     # Optional slot wiring to route teacher/student via SlotControllerPolicy
-    teacher_slot_id: str | None = Field(
-        default=None, description="Slot id that should act during teacher-led slices."
-    )
-    student_slot_id: str | None = Field(
-        default=None, description="Slot id that should act during student/PPO slices."
-    )
+    teacher_slot_id: str | None = Field(default=None, description="Slot id that should act during teacher-led slices.")
+    student_slot_id: str | None = Field(default=None, description="Slot id that should act during student/PPO slices.")
     profiles: list[str] | None = Field(default=None)
 
     def create(

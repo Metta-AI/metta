@@ -220,6 +220,7 @@ class CoreTrainingLoop:
         trainable_mask = ctx.trainable_agent_mask
         if trainable_mask is not None:
             td.set("is_trainable_agent", _expand(trainable_mask))
+
     def training_phase(
         self,
         context: ComponentContext,
