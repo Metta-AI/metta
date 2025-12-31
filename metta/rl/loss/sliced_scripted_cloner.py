@@ -89,9 +89,9 @@ class SlicedScriptedCloner(Loss):
             if self.teacher_mask.any():
                 # Align stored actions/logprobs with the teacher-led portion so PPO can learn from it.
                 teacher_actions = td["teacher_actions"].to(dtype=torch.long)
-                teacher_log_probs = td["full_log_probs"].gather(dim=-1, index=teacher_actions.unsqueeze(-1)).squeeze(-1)
                 td["actions"][self.teacher_mask] = teacher_actions.to(td["actions"].dtype)[self.teacher_mask]
-                td["act_log_prob"][self.teacher_mask] = teacher_log_probs[self.teacher_mask]
+                # Teacher actions are produced by a scripted (deterministic) policy: treat behaviour prob as 1.0.
+                td["act_log_prob"][self.teacher_mask] = 0.0
 
         td["stud_mask"] = self.stud_mask
         td["teacher_mask"] = self.teacher_mask
@@ -124,10 +124,16 @@ class SlicedScriptedCloner(Loss):
         if self.cfg.restrict_ppo_to_ppo_mask:
             shared_loss_data_for_downstream = shared_loss_data[train_ppo_mask]
 
-        minibatch = minibatch[train_teacher_mask | train_stud_mask]
-        student_td = student_td[train_teacher_mask | train_stud_mask]
+        train_slice_mask = train_teacher_mask | train_stud_mask
+        slice_teacher_mask = train_teacher_mask[train_slice_mask]
+        slice_student_mask = train_stud_mask[train_slice_mask]
+
+        minibatch = minibatch[train_slice_mask]
+        student_td = student_td[train_slice_mask]
 
         sliced_b, sliced_tt = minibatch.batch_size
+        teacher_step_mask = slice_teacher_mask.unsqueeze(1).expand(sliced_b, sliced_tt).reshape(sliced_b * sliced_tt)
+        student_step_mask = slice_student_mask.unsqueeze(1).expand(sliced_b, sliced_tt).reshape(sliced_b * sliced_tt)
         minibatch = minibatch.reshape(sliced_b * sliced_tt)
         student_td = student_td.reshape(sliced_b * sliced_tt)
 
@@ -143,6 +149,12 @@ class SlicedScriptedCloner(Loss):
         student_log_probs = student_log_probs.reshape(minibatch.shape[0])
 
         loss = -student_log_probs.mean() * self.cfg.action_loss_coef
+        if bool(teacher_step_mask.any()):
+            teacher_loss = -student_log_probs[teacher_step_mask].mean() * self.cfg.action_loss_coef
+            self.loss_tracker["supervised_action_loss_teacher_led"].append(float(teacher_loss.item()))
+        if bool(student_step_mask.any()):
+            student_loss = -student_log_probs[student_step_mask].mean() * self.cfg.action_loss_coef
+            self.loss_tracker["supervised_action_loss_student_led"].append(float(student_loss.item()))
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))

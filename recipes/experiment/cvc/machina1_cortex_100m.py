@@ -29,6 +29,7 @@ def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
         # "minibatch_size": 8192,
         # "bptt_horizon": 256,
         # "optimizer": OptimizerConfig(learning_rate=1e-4),
+        "update_epochs": 4,
         "advantage": AdvantageConfig(gae_lambda=0.997),
     }
 
@@ -58,8 +59,9 @@ def train(
     teacher = teacher or TeacherConfig(
         policy_uri="metta://policy/dinky:v15",
         mode="sliced_cloner",
-        steps=2_500_000_000,
-        teacher_led_proportion=0.3,
+        steps=4_000_000_000,
+        teacher_led_proportion=0.15,
+        student_led_proportion=0.20,
         kwargs={"restrict_ppo_to_ppo_mask": False},
     )
 

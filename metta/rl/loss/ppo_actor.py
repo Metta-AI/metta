@@ -72,12 +72,6 @@ class PPOActor(Loss):
 
         minibatch = shared_loss_data["sampled_mb"]
         local_shared_loss_data = shared_loss_data
-        if "teacher_mask" in minibatch.keys():
-            student_mask = ~minibatch["teacher_mask"][:, 0]
-            if not bool(student_mask.any()):
-                return self._zero_tensor, shared_loss_data, stop_update_epoch
-            local_shared_loss_data = shared_loss_data[student_mask]
-            minibatch = local_shared_loss_data["sampled_mb"]
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
