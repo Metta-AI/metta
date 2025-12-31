@@ -2,7 +2,7 @@ import
   std/[strutils, strformat, os, parseopt],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap, header, replayloader]
+  footer, timeline, minimap, header, replayloader, aoepanel]
 
 when isMainModule:
   # Build the atlas.
@@ -150,6 +150,7 @@ proc initPanels() =
   rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
 
   rootArea.areas[1].areas[1].addPanel("Vibes", drawVibes)
+  rootArea.areas[1].areas[1].addPanel("AOE", drawAoePanel)
 
 
 proc onFrame() =
