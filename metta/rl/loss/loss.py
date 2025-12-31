@@ -314,12 +314,12 @@ class Loss:
             data = value.data
             if hasattr(data, "shape") and getattr(data, "shape", None):
                 if data.shape[0] != rows:
-                    raise ValueError(f"Row-aligned NonTensorData expected leading dim {rows}, got {data.shape[0]}")
+                    return value
                 mask = row_mask.to(device=getattr(data, "device", row_mask.device))
                 return NonTensorData(data[mask])
             bool_mask = row_mask.cpu().tolist()
             if len(data) != rows:
-                raise ValueError(f"Row-aligned sequence expected length {rows}, got {len(data)}")
+                return value
             return NonTensorData([entry for entry, keep in zip(data, bool_mask, strict=False) if keep])
 
         if isinstance(value, torch.Tensor):
