@@ -551,11 +551,12 @@ constructor/function vs configuration overrides based on introspection.
                     data = base if base is not None else provided
 
                     # If annotated as a Pydantic model class, validate against it.
+                    ann = p.annotation
                     try:
-                        if inspect.isclass(p.annotation) and issubclass(p.annotation, BaseModel):
-                            val = p.annotation.model_validate(data)
+                        if inspect.isclass(ann) and issubclass(ann, BaseModel):
+                            val = ann.model_validate(data)
                         else:
-                            val = type_parse(data, p.annotation)
+                            val = type_parse(data, ann)
                     except Exception:
                         # Fall back to raw data; better to surface error downstream than to crash here.
                         val = data
