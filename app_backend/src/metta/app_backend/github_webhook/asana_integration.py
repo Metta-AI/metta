@@ -153,36 +153,82 @@ def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
     return mapping
 
 
-def _resolve_assignee(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
+def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
     """
-    Map GitHub login to Asana user email using roster project.
+    Map GitHub login to Asana user GID using roster project and workspace users.
+
+    This resolves to user GID instead of email to avoid stale email issues.
+    Falls back to unassigned if mapping fails.
 
     Args:
         github_login: GitHub username to map
         all_logins: All GitHub logins involved (for efficient batch lookup)
 
     Returns:
-        Asana email address or None if mapping fails
+        Asana user GID or None if mapping fails
     """
     if not github_login:
-        logger.warning("Empty github_login provided to _resolve_assignee")
+        logger.warning("Empty github_login provided to _resolve_assignee_to_gid")
         return None
 
-    # Get mapping from roster project
+    # Get email mapping from roster project
     logins_to_lookup = all_logins if all_logins else {github_login}
-    mapping = _get_github_to_asana_mapping(logins_to_lookup)
+    email_mapping = _get_github_to_asana_mapping(logins_to_lookup)
+    asana_email = email_mapping.get(github_login)
 
-    asana_email = mapping.get(github_login)
-
-    if asana_email:
-        logger.info(f"Mapped GitHub login '{github_login}' to Asana email '{asana_email}' via roster")
-        return asana_email
-    else:
+    if not asana_email:
         logger.warning(
             f"Could not map GitHub login '{github_login}' to Asana email - "
             f"task will be created unassigned"
         )
         return None
+
+    # Resolve email to user GID by looking up workspace users
+    try:
+        api_client = _get_asana_client()
+        users_api = asana.UsersApi(api_client)
+
+        # Get all users in the workspace
+        workspace_gid = settings.ASANA_WORKSPACE_GID
+        if not workspace_gid:
+            logger.warning("ASANA_WORKSPACE_GID not set - cannot resolve user GID")
+            return None
+
+        users_response = users_api.get_users_for_workspace(workspace_gid, {"opt_fields": "email,gid"})
+        users = users_response.get("data", [])
+
+        # Find user by email (case-insensitive)
+        asana_email_lower = asana_email.lower()
+        for user in users:
+            user_email = user.get("email", "").lower()
+            if user_email == asana_email_lower:
+                user_gid = user.get("gid")
+                if user_gid:
+                    logger.info(
+                        f"Mapped GitHub login '{github_login}' to Asana user GID '{user_gid}' "
+                        f"(email: {asana_email})"
+                    )
+                    return user_gid
+
+        logger.warning(
+            f"Could not find Asana user GID for email '{asana_email}' in workspace - "
+            f"task will be created unassigned"
+        )
+        return None
+
+    except Exception as e:
+        logger.error(f"Failed to resolve Asana user GID for email '{asana_email}': {e}", exc_info=True)
+        return None
+
+
+# Keep old function name for backward compatibility during migration
+def _resolve_assignee(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
+    """
+    Deprecated: Use _resolve_assignee_to_gid instead.
+    
+    This function now returns user GID instead of email to avoid stale email issues.
+    """
+    return _resolve_assignee_to_gid(github_login, all_logins)
 
 
 async def create_task_from_pr(
@@ -225,13 +271,13 @@ async def create_task_from_pr(
     # Use assignee if present, otherwise fallback to author
     assigned_login = assignee_login if assignee_login else author_login
 
-    # Resolve GitHub login to Asana email (pass all logins for efficient batch lookup)
+    # Resolve GitHub login to Asana user GID (pass all logins for efficient batch lookup)
     all_logins = {author_login}
     if assignee_login:
         all_logins.add(assignee_login)
 
-    assignee_email = _resolve_assignee(assigned_login, all_logins)
-    if not assignee_email:
+    assignee_gid = _resolve_assignee_to_gid(assigned_login, all_logins)
+    if not assignee_gid:
         metrics.increment_counter("github_asana.mapping_failures", {"github_login": assigned_login})
         logger.warning(
             f"Could not resolve assignee for GitHub login '{assigned_login}' - "
@@ -263,10 +309,10 @@ Author: {author_login}"""
         task_data["projects"] = [settings.ASANA_PROJECT_GID]
 
     # Try to add assignee if resolved, but create task unassigned if it fails
-    try_with_assignee = assignee_email is not None
+    try_with_assignee = assignee_gid is not None
 
     if try_with_assignee:
-        task_data["assignee"] = assignee_email
+        task_data["assignee"] = assignee_gid
 
     # Add external_id as a custom field if configured
     # Note: external_id is typically a custom field in Asana for deduplication
@@ -286,7 +332,7 @@ Author: {author_login}"""
                 except Exception as assignee_error:
                     if try_with_assignee and "assignee" in str(assignee_error):
                         logger.warning(
-                            f"Failed to assign task to {assignee_email}, retrying without assignee: {assignee_error}"
+                            f"Failed to assign task to user GID {assignee_gid}, retrying without assignee: {assignee_error}"
                         )
                         task_data.pop("assignee", None)
                         return tasks_api.create_task({"data": task_data}, {})
@@ -401,13 +447,13 @@ async def find_task_by_github_url(pr_url: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> bool:
+async def update_task_assignee(task_gid: str, assignee_gid: Optional[str]) -> bool:
     """
-    Update Asana task assignee.
+    Update Asana task assignee using user GID.
 
     Args:
         task_gid: Asana task GID
-        assignee_email: Asana user email (None to unassign)
+        assignee_gid: Asana user GID (None to unassign)
 
     Returns:
         True if update succeeded, False otherwise
@@ -422,8 +468,8 @@ async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> 
             tasks_api = asana.TasksApi(api_client)
 
             task_data = {}
-            if assignee_email:
-                task_data["assignee"] = assignee_email
+            if assignee_gid:
+                task_data["assignee"] = assignee_gid
             else:
                 task_data["assignee"] = None
 
@@ -438,7 +484,7 @@ async def update_task_assignee(task_gid: str, assignee_email: Optional[str]) -> 
                     max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"update_assignee_{task_gid}",
                 )
-                logger.info(f"Updated task {task_gid} assignee to: {assignee_email or 'unassigned'}")
+                logger.info(f"Updated task {task_gid} assignee to user GID: {assignee_gid or 'unassigned'}")
                 return True
 
             except RetryExhausted as e:

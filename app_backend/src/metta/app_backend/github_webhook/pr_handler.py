@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from metta.app_backend.github_webhook.asana_integration import (
-    _resolve_assignee,
+    _resolve_assignee_to_gid,
     create_task_from_pr,
     find_task_by_github_url,
     update_task_assignee,
@@ -118,22 +118,22 @@ async def handle_pull_request_event(
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
 
-        assignee_email = _resolve_assignee(assignee_login, {assignee_login})
-        if not assignee_email:
+        assignee_gid = _resolve_assignee_to_gid(assignee_login, {assignee_login})
+        if not assignee_gid:
             plan = {
                 "kind": "noop",
                 "reason": f"No Asana mapping for GitHub login: {assignee_login}",
             }
             metrics.increment_counter("github_asana.mapping_failures", {"github_login": assignee_login})
             metrics.increment_counter("github_asana.noops", {"reason": "mapping_failure"})
-            logger.warning(f"Could not map GitHub login to Asana email: {log_context | {'assignee': assignee_login}}")
+            logger.warning(f"Could not map GitHub login to Asana user GID: {log_context | {'assignee': assignee_login}}")
             return plan
 
         task_gid = asana_task.get("gid")
         if not task_gid:
             plan = {"kind": "noop", "reason": "task GID not found"}
             return plan
-        success = await update_task_assignee(task_gid, assignee_email)
+        success = await update_task_assignee(task_gid, assignee_gid)
 
         plan = {
             "kind": "assign",
@@ -156,22 +156,22 @@ async def handle_pull_request_event(
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
 
-        assignee_email = _resolve_assignee(author_login, {author_login})
-        if not assignee_email:
+        assignee_gid = _resolve_assignee_to_gid(author_login, {author_login})
+        if not assignee_gid:
             plan = {
                 "kind": "noop",
                 "reason": f"No Asana mapping for GitHub login: {author_login}",
             }
             metrics.increment_counter("github_asana.mapping_failures", {"github_login": author_login})
             metrics.increment_counter("github_asana.noops", {"reason": "mapping_failure"})
-            logger.warning(f"Could not map GitHub login to Asana email: {log_context | {'assignee': author_login}}")
+            logger.warning(f"Could not map GitHub login to Asana user GID: {log_context | {'assignee': author_login}}")
             return plan
 
         task_gid = asana_task.get("gid")
         if not task_gid:
             plan = {"kind": "noop", "reason": "task GID not found"}
             return plan
-        success = await update_task_assignee(task_gid, assignee_email)
+        success = await update_task_assignee(task_gid, assignee_gid)
 
         plan = {
             "kind": "assign",
@@ -197,22 +197,22 @@ async def handle_pull_request_event(
         current_assignee_login = pr.get("assignee", {}).get("login") if pr.get("assignee") else None
         assignee_to_use = current_assignee_login if current_assignee_login else author_login
 
-        assignee_email = _resolve_assignee(assignee_to_use, {assignee_to_use})
-        if not assignee_email:
+        assignee_gid = _resolve_assignee_to_gid(assignee_to_use, {assignee_to_use})
+        if not assignee_gid:
             plan = {
                 "kind": "noop",
                 "reason": f"No Asana mapping for GitHub login: {assignee_to_use}",
             }
             metrics.increment_counter("github_asana.mapping_failures", {"github_login": assignee_to_use})
             metrics.increment_counter("github_asana.noops", {"reason": "mapping_failure"})
-            logger.warning(f"Could not map GitHub login to Asana email: {log_context | {'assignee': assignee_to_use}}")
+            logger.warning(f"Could not map GitHub login to Asana user GID: {log_context | {'assignee': assignee_to_use}}")
             return plan
 
         task_gid = asana_task.get("gid")
         if not task_gid:
             plan = {"kind": "noop", "reason": "task GID not found"}
             return plan
-        success = await update_task_assignee(task_gid, assignee_email)
+        success = await update_task_assignee(task_gid, assignee_gid)
 
         plan = {
             "kind": "assign",
