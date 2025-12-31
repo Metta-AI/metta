@@ -215,9 +215,7 @@ def download_policy_spec_from_s3_dir(
     prefix = f"{parsed.key.rstrip('/')}/" if parsed.key else ""
 
     extraction_root.mkdir(parents=True, exist_ok=True)
-    for page in boto3.client("s3").get_paginator("list_objects_v2").paginate(
-        Bucket=parsed.bucket, Prefix=prefix
-    ):
+    for page in boto3.client("s3").get_paginator("list_objects_v2").paginate(Bucket=parsed.bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             rel = key[len(prefix) :]
