@@ -327,7 +327,7 @@ class AlignActionConfig(ActionConfig):
     """Python align action configuration.
 
     Align is triggered by move when the agent's vibe matches the configured vibe.
-    It aligns the target's commons to the actor's commons.
+    It aligns the target's commons to the actor's commons, or sets it to none if set_to_none=True.
     """
 
     action_handler: str = Field(default="align")
@@ -342,6 +342,10 @@ class AlignActionConfig(ActionConfig):
     commons_cost: dict[str, int] = Field(
         default_factory=dict,
         description="Cost deducted from the actor's commons (resource name -> amount)",
+    )
+    set_to_none: bool = Field(
+        default=False,
+        description="If true, sets target's commons to none instead of actor's commons (scramble mode)",
     )
 
     def _actions(self) -> list[Action]:
@@ -360,11 +364,16 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
-    align: AlignActionConfig = Field(default_factory=lambda: AlignActionConfig(enabled=False))
+    align: AlignActionConfig | None = Field(default=None)
+    scramble: AlignActionConfig | None = Field(default=None)
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
-        action_configs = [self.noop, self.move, self.attack, self.transfer, self.align, self.change_vibe]
+        action_configs = [self.noop, self.move, self.attack, self.transfer, self.change_vibe]
+        if self.align:
+            action_configs.append(self.align)
+        if self.scramble:
+            action_configs.append(self.scramble)
         return sum([action.actions() for action in action_configs], [])
 
 

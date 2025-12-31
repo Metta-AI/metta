@@ -47,8 +47,6 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
-    TransferActionConfig,
-    VibeTransfer,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -174,17 +172,13 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
-            transfer=TransferActionConfig(
-                enabled=True,
-                vibe_transfers=[
-                    VibeTransfer(vibe="heart", target={}, actor={"heart": -1}),
-                ],
-            ),
             align=AlignActionConfig(
-                enabled=True,
                 vibe="heart",
                 cost={"heart": 1},
-                commons_cost={},
+            ),
+            scramble=AlignActionConfig(
+                vibe="weapon",
+                set_to_none=True,
             ),
         ),
         agent=AgentConfig(
