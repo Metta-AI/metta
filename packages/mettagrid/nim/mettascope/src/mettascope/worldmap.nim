@@ -484,8 +484,6 @@ proc drawGrid*() =
   sq.draw(mvp, mapSize, tileSize, gridColor, 1.0f)
   bxy.exitRawOpenGLMode()
 
-<<<<<<< HEAD
-=======
 proc getAoeRange(typeName: string): int =
   ## Get max AOE range for an object type from config. Returns 0 if no AOE.
   if typeName == "agent":
@@ -568,7 +566,6 @@ proc drawAOEOverlay*() =
       if shouldShowAOEForObject(obj):
         drawAOEForObject(obj)
 
->>>>>>> b76cfeb85f (cp)
 proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
