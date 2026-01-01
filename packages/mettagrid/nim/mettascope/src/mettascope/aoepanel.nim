@@ -34,21 +34,12 @@ proc getCommonsName*(commonsId: int): string =
   return ""
 
 proc getAoeColor*(commonsId: int): Color =
-  ## Get a distinct color for each commons ID. Uses a palette that blends well.
-  if commonsId == UnalignedId:
-    return color(0.5, 0.5, 0.5, 0.4)  # Gray for unaligned
-  # Use a set of distinct, saturated colors that blend well.
-  let colors = [
-    color(0.2, 0.6, 1.0, 0.4),   # Blue
-    color(1.0, 0.3, 0.3, 0.4),   # Red
-    color(0.3, 0.9, 0.3, 0.4),   # Green
-    color(1.0, 0.8, 0.2, 0.4),   # Yellow
-    color(0.8, 0.3, 1.0, 0.4),   # Purple
-    color(1.0, 0.5, 0.2, 0.4),   # Orange
-    color(0.2, 0.9, 0.9, 0.4),   # Cyan
-    color(1.0, 0.4, 0.7, 0.4),   # Pink
-  ]
-  return colors[commonsId mod colors.len]
+  ## Get color for each commons ID: Cogs (0) = green, Clips (1) = red, Neutral = grey.
+  case commonsId
+  of UnalignedId: color(0.5, 0.5, 0.5, 0.4)  # Neutral = grey
+  of 0: color(0.2, 0.8, 0.2, 0.4)            # Cogs = green
+  of 1: color(0.9, 0.2, 0.2, 0.4)            # Clips = red
+  else: color(0.5, 0.5, 0.5, 0.4)            # Others = grey
 
 proc drawAoeToggle(label: string, enabled: bool, tintColor: Color): bool =
   ## Draw a toggle button with a color indicator. Returns true if clicked.
@@ -94,6 +85,7 @@ proc drawAoePanel*(panel: Panel, frameId: string, contentPos: Vec2, contentSize:
         settings.aoeEnabledCommons.excl(UnalignedId)
       else:
         settings.aoeEnabledCommons.incl(UnalignedId)
+      viewStateChanged = true
     # Draw toggle for each team.
     for i in 0 ..< numCommons:
       let commonsName = getCommonsName(i)
@@ -105,6 +97,7 @@ proc drawAoePanel*(panel: Panel, frameId: string, contentPos: Vec2, contentSize:
           settings.aoeEnabledCommons.excl(i)
         else:
           settings.aoeEnabledCommons.incl(i)
+        viewStateChanged = true
     # Add toggle all/none buttons.
     sk.advance(vec2(0, 12))
     group(vec2(0, 0), LeftToRight):
@@ -112,6 +105,8 @@ proc drawAoePanel*(panel: Panel, frameId: string, contentPos: Vec2, contentSize:
         settings.aoeEnabledCommons.incl(UnalignedId)
         for i in 0 ..< numCommons:
           settings.aoeEnabledCommons.incl(i)
+        viewStateChanged = true
       button("None"):
         settings.aoeEnabledCommons.clear()
+        viewStateChanged = true
 

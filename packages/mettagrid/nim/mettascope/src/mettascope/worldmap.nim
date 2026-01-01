@@ -14,6 +14,12 @@ const
 
 proc centerAt*(zoomInfo: ZoomInfo, entity: Entity)
 
+type
+  SavedViewState* = object
+    zoom*: float32
+    centerX*: float32
+    centerY*: float32
+
 var
   terrainMap*: TileMap
   visibilityMapStep*: int = -1
@@ -24,6 +30,16 @@ var
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
   needsInitialFit*: bool = true
+  pendingViewState*: SavedViewState
+  hasPendingViewState*: bool = false
+
+proc setSavedViewState*(zoom, centerX, centerY: float32) =
+  ## Set a saved view state to restore on first draw.
+  echo "Setting saved view state: zoom=", zoom, " center=(", centerX, ", ", centerY, ")"
+  pendingViewState.zoom = zoom
+  pendingViewState.centerX = centerX
+  pendingViewState.centerY = centerY
+  hasPendingViewState = true
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -472,11 +488,8 @@ proc drawGrid*() =
 =======
 proc getAoeRange(typeName: string): int =
   ## Get max AOE range for an object type from config. Returns 0 if no AOE.
-<<<<<<< HEAD
   if typeName == "agent":
     return 0  # Agents are stored under game.agent, not game.objects, and don't emit AOE.
-=======
->>>>>>> 99c5b8dd5a (cp)
   if replay.isNil or replay.mgConfig.isNil:
     return 0
   if "game" notin replay.mgConfig:
@@ -511,21 +524,31 @@ proc shouldShowAOEForObject(obj: Entity): bool =
     return UnalignedId in settings.aoeEnabledCommons
   return obj.commonsId in settings.aoeEnabledCommons
 
+proc getAoeSpriteName(commonsId: int): string =
+  ## Get the AOE overlay sprite name based on commonsId.
+  ## Cogs (0) = green, Clips (1) = red, Neutral (-1) = grey.
+  case commonsId
+  of 0: "objects/aoe_overlay"       # Green for cogs
+  of 1: "objects/aoe_overlay_red"   # Red for clips
+  else: "objects/aoe_overlay_grey"  # Grey for neutral
+
 proc drawAOEOverlay*() =
   ## Draw colored overlay on tiles affected by AOE effects.
   ## Uses the pixelator to draw aoe_overlay sprites.
+  ## Colors: Cogs = green, Clips = red, Neutral = grey.
   if replay.isNil:
     return
-  # Track which tiles to draw to avoid duplicates.
+  # Track which tiles to draw to avoid duplicates per commons.
   var drawnTiles: HashSet[int64]
-  proc drawTileIfNew(tileX, tileY: int32) =
+  proc drawTileIfNew(tileX, tileY: int32, commonsId: int) =
     if tileX < 0 or tileY < 0 or tileX >= replay.mapSize[0] or tileY >= replay.mapSize[1]:
       return
     let key = (tileX.int64 shl 32) or tileY.int64
     if key in drawnTiles:
       return
     drawnTiles.incl(key)
-    px.drawSprite("objects/aoe_overlay", ivec2(tileX * TILE_SIZE, tileY * TILE_SIZE))
+    let spriteName = getAoeSpriteName(commonsId)
+    px.drawSprite(spriteName, ivec2(tileX * TILE_SIZE, tileY * TILE_SIZE))
   proc drawAOEForObject(obj: Entity) =
     let aoeRange = getAoeRange(obj.typeName)
     if aoeRange <= 0:
@@ -533,7 +556,7 @@ proc drawAOEOverlay*() =
     let pos = obj.location.at(step).xy
     for dx in -aoeRange .. aoeRange:
       for dy in -aoeRange .. aoeRange:
-        drawTileIfNew(pos.x + dx.int32, pos.y + dy.int32)
+        drawTileIfNew(pos.x + dx.int32, pos.y + dy.int32, obj.commonsId)
   # Always draw for selected object if it has AOE.
   if selection != nil and getAoeRange(selection.typeName) > 0:
     drawAOEForObject(selection)
@@ -831,14 +854,31 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
     return
 
   if needsInitialFit:
-    fitFullMap(zoomInfo)
-    var baseEntity: Entity = nil
-    for obj in replay.objects:
-      if obj.typeName == "assembler":
-        baseEntity = obj
-        break
-    if baseEntity != nil:
-      centerAt(zoomInfo, baseEntity)
+    let
+      rectW = zoomInfo.rect.w.float32
+      rectH = zoomInfo.rect.h.float32
+    echo "Initial fit: hasPendingViewState=", hasPendingViewState, " pendingZoom=", pendingViewState.zoom
+    echo "Panel rect: ", rectW, " x ", rectH
+    if hasPendingViewState and pendingViewState.zoom > 0:
+      # Apply saved zoom/pan state
+      echo "Applying saved view state: center=(", pendingViewState.centerX, ", ", pendingViewState.centerY, ")"
+      zoomInfo.zoom = pendingViewState.zoom
+      if pendingViewState.centerX >= 0 and pendingViewState.centerY >= 0:
+        let z = pendingViewState.zoom * pendingViewState.zoom
+        zoomInfo.pos.x = rectW / 2.0f - pendingViewState.centerX * z
+        zoomInfo.pos.y = rectH / 2.0f - pendingViewState.centerY * z
+        echo "Applied pos: (", zoomInfo.pos.x, ", ", zoomInfo.pos.y, ")"
+      hasPendingViewState = false
+    else:
+      # Default: fit full map and center on assembler or map center
+      fitFullMap(zoomInfo)
+      var baseEntity: Entity = nil
+      for obj in replay.objects:
+        if obj.typeName == "assembler":
+          baseEntity = obj
+          break
+      if baseEntity != nil:
+        centerAt(zoomInfo, baseEntity)
     needsInitialFit = false
 
   ## Draw the world map.
