@@ -181,7 +181,8 @@ class TestAlignAction:
         # Chest should still be unaligned
         objs = self._get_objects_by_type(sim)
         assert objs["chests"][0].get("commons_id") is None, (
-            f"Chest should remain unaligned when align not configured, got commons_id={objs['chests'][0].get('commons_id')}"
+            "Chest should remain unaligned when align not configured, got "
+            + f"commons_id={objs['chests'][0].get('commons_id')}"
         )
 
 
@@ -322,7 +323,8 @@ class TestScrambleAction:
         # Chest should still be aligned
         objs = self._get_objects_by_type(sim)
         assert objs["chests"][0].get("commons_id") == 0, (
-            f"Chest should remain aligned when scramble not configured, got commons_id={objs['chests'][0].get('commons_id')}"
+            "Chest should remain aligned when scramble not configured, got "
+            + f"commons_id={objs['chests'][0].get('commons_id')}"
         )
 
     def test_no_scramble_on_unaligned_chest(self):
@@ -394,4 +396,3 @@ class TestScrambleAction:
         assert objs["chests"][0].get("commons_id") is None, (
             f"Chest should remain unaligned, got commons_id={objs['chests'][0].get('commons_id')}"
         )
-

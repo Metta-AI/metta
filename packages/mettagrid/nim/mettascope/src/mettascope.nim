@@ -131,8 +131,17 @@ proc drawMinimap(panel: Panel, frameId: string, contentPos: Vec2, contentSize: V
 
   glDisable(GL_SCISSOR_TEST)
 
-proc initPanels() =
+proc registerPanels() =
+  ## Register all panels so they can be restored from saved state.
+  registerPanel("Object", drawObjectInfo)
+  registerPanel("Environment", drawEnvironmentInfo)
+  registerPanel("Map", drawWorldMap)
+  registerPanel("Minimap", drawMinimap)
+  registerPanel("Vibes", drawVibes)
+  registerPanel("AOE", drawAoePanel)
 
+proc initPanels() =
+  ## Initialize default panel layout.
   rootArea = Area()
   rootArea.split(Vertical)
   rootArea.split = 0.22
@@ -163,15 +172,27 @@ proc onFrame() =
   glClear(GL_COLOR_BUFFER_BIT)
 
   # Header
-  drawHeader()
+  try:
+    drawHeader()
+  except:
+    echo "Error in drawHeader: ", getCurrentExceptionMsg()
 
   # Scrubber
-  drawTimeline(vec2(0, sk.size.y - 64 - 22), vec2(sk.size.x, 32))
+  try:
+    drawTimeline(vec2(0, sk.size.y - 64 - 22), vec2(sk.size.x, 32))
+  except:
+    echo "Error in drawTimeline: ", getCurrentExceptionMsg()
 
   # Footer
-  drawFooter(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64))
+  try:
+    drawFooter(vec2(0, sk.size.y - 64), vec2(sk.size.x, 64))
+  except:
+    echo "Error in drawFooter: ", getCurrentExceptionMsg()
 
-  drawPanels()
+  try:
+    drawPanels()
+  except:
+    echo "Error in drawPanels: ", getCurrentExceptionMsg()
 
   when defined(profile):
     let ms = sk.avgFrameTime * 1000
@@ -184,7 +205,7 @@ proc onFrame() =
   if window.cursor.kind != sk.cursor.kind:
     window.cursor = sk.cursor
 
-proc initMettascope*() =
+proc initMettascope*(useDefaultPanels: bool = true) =
 
   window.onFrame = onFrame
 
@@ -200,7 +221,11 @@ proc initMettascope*() =
     else:
       echo "Ignoring dropped file (not .json.z): ", fileName
 
-  initPanels()
+  # Always register panels so they can be restored from saved state
+  registerPanels()
+
+  if useDefaultPanels:
+    initPanels()
 
   sk = newSilky(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
   bxy = newBoxy()
