@@ -1,9 +1,7 @@
 import
-  std/[os, json, algorithm, tables, sets, strutils, strformat],
+  std/[json, algorithm, tables, sets, strutils, strformat],
   vmath, silky, windy,
   common, panels, replays
-
-const InventoryScale = 0.5f
 
 type
   ResourceLimitGroup* = object
@@ -54,14 +52,77 @@ proc getItemName(itemAmount: ItemAmount): string =
   else:
     "item#" & $itemAmount.itemId
 
-proc formatItem(itemAmount: ItemAmount): string =
-  ## Render a compact "name x count" string.
+proc formatItemWithLimit(itemAmount: ItemAmount, limit: int): string =
+  ## Render "name: count / limit" string if limit is set, otherwise "name: count".
   let name = getItemName(itemAmount)
-  name & " x" & $itemAmount.count
+  if limit > 0:
+    name & ": " & $itemAmount.count & " / " & $limit
+  else:
+    name & ": " & $itemAmount.count
 
-proc showItem(itemAmount: ItemAmount) =
-  icon("resources/" & replay.config.game.resourceNames[itemAmount.itemId])
-  text("x" & $itemAmount.count)
+proc getInventoryLimitFromConfig(configNode: JsonNode, resourceName: string): int =
+  ## Get inventory limit for a resource from an inventory config node. Returns 0 if not set.
+  if configNode.isNil or configNode.kind != JObject:
+    return 0
+  # Check specific limits first
+  if "limits" in configNode and configNode["limits"].kind == JObject:
+    let limits = configNode["limits"]
+    # Check for direct resource limit
+    if resourceName in limits:
+      let limitConfig = limits[resourceName]
+      if "limit" in limitConfig:
+        if limitConfig["limit"].kind == JInt:
+          return limitConfig["limit"].getInt
+        elif limitConfig["limit"].kind == JFloat:
+          return limitConfig["limit"].getFloat.int
+    # Check for resource group limits
+    for groupName, groupConfig in limits.pairs:
+      if "resources" in groupConfig and groupConfig["resources"].kind == JArray:
+        for r in groupConfig["resources"]:
+          if r.getStr == resourceName:
+            if "limit" in groupConfig:
+              if groupConfig["limit"].kind == JInt:
+                return groupConfig["limit"].getInt
+              elif groupConfig["limit"].kind == JFloat:
+                return groupConfig["limit"].getFloat.int
+  # Check default_limit
+  if "default_limit" in configNode:
+    if configNode["default_limit"].kind == JInt:
+      return configNode["default_limit"].getInt
+    elif configNode["default_limit"].kind == JFloat:
+      return configNode["default_limit"].getFloat.int
+  return 0
+
+proc getObjectInventoryLimit(typeName: string, resourceName: string): int =
+  ## Get the inventory limit for a resource on an object type. Returns 0 if not set.
+  if replay.isNil or replay.mgConfig.isNil:
+    return 0
+  if "game" notin replay.mgConfig:
+    return 0
+  let game = replay.mgConfig["game"]
+  if "objects" notin game:
+    return 0
+  let objects = game["objects"]
+  if typeName notin objects:
+    return 0
+  let objConfig = objects[typeName]
+  if "inventory" notin objConfig:
+    return 0
+  return getInventoryLimitFromConfig(objConfig["inventory"], resourceName)
+
+proc getAgentInventoryLimit(resourceName: string): int =
+  ## Get the inventory limit for a resource on an agent. Returns 0 if not set.
+  if replay.isNil or replay.mgConfig.isNil:
+    return 0
+  if "game" notin replay.mgConfig:
+    return 0
+  let game = replay.mgConfig["game"]
+  if "agent" notin game:
+    return 0
+  let agentConfig = game["agent"]
+  if "inventory" notin agentConfig:
+    return 0
+  return getInventoryLimitFromConfig(agentConfig["inventory"], resourceName)
 
 proc getHeartCount(outputs: seq[ItemAmount]): int =
   ## Returns total hearts produced by this protocol.
@@ -285,10 +346,11 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
 
           if groupItems.len > 0:
             let effectiveLimit = computeEffectiveLimit(group, currentInventory, replay.itemNames)
-            text(&"  {group.name}: {usedAmount}/{effectiveLimit}")
+            text(&"  {group.name}: {usedAmount} / {effectiveLimit}")
             for itemAmount in groupItems:
               if itemAmount.itemId != replay.itemNames.find("energy"):
-                text("    " & formatItem(itemAmount))
+                let itemName = getItemName(itemAmount)
+                text(&"    {itemName}: {itemAmount.count}")
 
         var ungroupedItems: seq[ItemAmount] = @[]
         for itemAmount in currentInventory:
@@ -300,10 +362,14 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
         if ungroupedItems.len > 0:
           text("  Other:")
           for itemAmount in ungroupedItems:
-            text("    " & formatItem(itemAmount))
+            let resourceName = getItemName(itemAmount)
+            let limit = getAgentInventoryLimit(resourceName)
+            text("    " & formatItemWithLimit(itemAmount, limit))
       else:
         for itemAmount in currentInventory:
-          text("  " & formatItem(itemAmount))
+          let resourceName = getItemName(itemAmount)
+          let limit = getObjectInventoryLimit(cur.typeName, resourceName)
+          text("  " & formatItemWithLimit(itemAmount, limit))
 
     sk.advance(vec2(0, theme.spacing.float32))
 
