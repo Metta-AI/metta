@@ -5,7 +5,9 @@ be set once globally before any models are created or compiled.
 """
 
 import os
+import random
 
+import numpy as np
 import torch
 
 
@@ -63,15 +65,35 @@ def configure_torch_globally() -> None:
     _configured = True
 
 
+# Despite these efforts, we still don't get deterministic behavior. But presumably this is better than nothing.
+#  https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+
+
+def seed_everything(base_seed: int, /) -> None:
+    # Add rank offset to base seed for distributed training to ensure different
+    # processes generate uncorrelated random sequences
+    rank = int(os.environ.get("RANK", 0))
+    rank_specific_seed = base_seed + rank
+
+    random.seed(rank_specific_seed)
+    np.random.seed(rank_specific_seed)
+    torch.manual_seed(rank_specific_seed)
+    torch.cuda.manual_seed_all(rank_specific_seed)
+
+
 def enable_determinism() -> None:
     """Enable deterministic behavior (overrides performance settings).
 
     This disables TF32 and sets other deterministic flags.
     Should be called when reproducibility is more important than performance.
     """
+    # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
+    # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.use_deterministic_algorithms(True)
+
     _set_tf32_precision(False)
+
+    torch.use_deterministic_algorithms(True)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
