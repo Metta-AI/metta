@@ -112,8 +112,9 @@ public:
         return false;
       }
     } else {
-      // For align: actor must have commons, and target must not already be aligned to it
-      if (actor_commons == nullptr || actor_commons == target_commons) {
+      // For align: actor must have commons, and target must be unaligned (no commons)
+      // To align an enemy-aligned target, must first scramble it to neutral
+      if (actor_commons == nullptr || target_commons != nullptr) {
         return false;
       }
     }
