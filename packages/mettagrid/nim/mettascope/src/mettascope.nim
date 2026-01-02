@@ -2,7 +2,7 @@ import
   std/[strutils, strformat, os, parseopt],
   opengl, windy, bumpy, vmath, chroma, silky, boxy, webby,
   mettascope/[replays, common, worldmap, panels, objectinfo, envconfig, vibes,
-  footer, timeline, minimap, header, replayloader, aoepanel]
+  footer, timeline, minimap, header, replayloader, aoepanel, commonspanel]
 
 when isMainModule:
   # Build the atlas.
@@ -135,6 +135,7 @@ proc registerPanels() =
   ## Register all panels so they can be restored from saved state.
   registerPanel("Object", drawObjectInfo)
   registerPanel("Environment", drawEnvironmentInfo)
+  registerPanel("Commons", drawCommonsPanel)
   registerPanel("Map", drawWorldMap)
   registerPanel("Minimap", drawMinimap)
   registerPanel("Vibes", drawVibes)
@@ -154,6 +155,7 @@ proc initPanels() =
 
   rootArea.areas[0].areas[0].addPanel("Object", drawObjectInfo)
   rootArea.areas[0].areas[0].addPanel("Environment", drawEnvironmentInfo)
+  rootArea.areas[0].areas[0].addPanel("Commons", drawCommonsPanel)
 
   rootArea.areas[1].areas[0].addPanel("Map", drawWorldMap)
   rootArea.areas[0].areas[1].addPanel("Minimap", drawMinimap)
