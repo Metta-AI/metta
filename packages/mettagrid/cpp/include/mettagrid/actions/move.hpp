@@ -22,8 +22,8 @@ struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const MoveActionConfig& cfg, [[maybe_unused]] const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _allowed_directions(cfg.allowed_directions) {
+  explicit Move(const MoveActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _allowed_directions(cfg.allowed_directions), _game_config(game_config) {
     // Build direction name to orientation mapping
     _direction_map["north"] = Orientation::North;
     _direction_map["south"] = Orientation::South;
@@ -98,7 +98,7 @@ protected:
     // Get target object (may be nullptr if empty)
     GridObject* target_object = _grid->object_at(target_location);
 
-    // Try vibe-specific action handlers
+    // Try vibe-specific action handlers (legacy system - will be migrated to activation handlers)
     // Attack has highest priority (blocks other actions if successful)
     if (_attack_handler && _attack_handler->has_vibe(actor.vibe)) {
       if (_attack_handler->try_attack(actor, target_object)) {
@@ -125,6 +125,11 @@ protected:
       }
     }
 
+    // Try new activation handler system on target object
+    if (target_object && target_object->activate(actor, _grid, _game_config)) {
+      return true;
+    }
+
     // If location is empty, move
     if (_grid->is_empty(target_location.r, target_location.c)) {
       return _grid->move_object(actor, target_location);
@@ -140,7 +145,7 @@ protected:
       return swapped;
     }
 
-    // Try to use the object at target location
+    // Try to use the object at target location (legacy Usable interface)
     if (target_object) {
       Usable* usable_object = dynamic_cast<Usable*>(target_object);
       if (usable_object) {
@@ -160,8 +165,9 @@ private:
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
   std::unordered_map<std::string, ActionHandler*> _handlers;
+  const GameConfig* _game_config;
 
-  // Typed handler pointers for vibe-triggered actions
+  // Typed handler pointers for vibe-triggered actions (legacy - will be migrated)
   Attack* _attack_handler = nullptr;
   Transfer* _transfer_handler = nullptr;
   Align* _align_handler = nullptr;

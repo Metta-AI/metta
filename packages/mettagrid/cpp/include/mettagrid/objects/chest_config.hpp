@@ -42,7 +42,8 @@ inline void bind_chest_config(py::module& m) {
       .def_readwrite("vibe_transfers", &ChestConfig::vibe_transfers)
       .def_readwrite("initial_inventory", &ChestConfig::initial_inventory)
       .def_readwrite("inventory_config", &ChestConfig::inventory_config)
-      .def_readwrite("initial_vibe", &ChestConfig::initial_vibe);
+      .def_readwrite("initial_vibe", &ChestConfig::initial_vibe)
+      .def_readwrite("activation_handlers", &ChestConfig::activation_handlers);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_CHEST_CONFIG_HPP_
