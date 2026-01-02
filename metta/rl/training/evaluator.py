@@ -20,12 +20,12 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.rl.utils import should_run
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
-from metta.rl.utils import should_run
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
