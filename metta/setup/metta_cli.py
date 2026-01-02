@@ -749,10 +749,10 @@ app.add_typer(code_formatters_app, name="lint")
 app.command(name="publish", help="Create and push a release tag for a package")(cmd_publish)
 
 
-def main() -> None:
+def cli_entry() -> None:
+    init_logging()
     app()
 
 
 if __name__ == "__main__":
-    init_logging()
-    main()
+    cli_entry()
