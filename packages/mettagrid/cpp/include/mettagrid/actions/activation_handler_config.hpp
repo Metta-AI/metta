@@ -29,7 +29,7 @@ struct ResourceFilterConfig {
 
 struct AlignmentFilterConfig {
   std::string target = "target";
-  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons"
+  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons", "not_same_commons"
 };
 
 struct ResourceDeltaMutationConfig {

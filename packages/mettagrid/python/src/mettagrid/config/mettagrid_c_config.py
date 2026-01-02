@@ -372,7 +372,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         )
         cpp_agent_config.tag_ids = tag_ids
         cpp_agent_config.activation_handlers = _convert_activation_handlers(
-            first_agent.activation_handlers, resource_name_to_id, vibe_name_to_id
+            first_agent.handlers, resource_name_to_id, vibe_name_to_id
         )
 
         objects_cpp_params["agent." + group_name] = cpp_agent_config
@@ -399,7 +399,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_wall_config.tag_ids = tag_ids
             cpp_wall_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
             cpp_wall_config.activation_handlers = _convert_activation_handlers(
-                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+                object_config.handlers, resource_name_to_id, vibe_name_to_id
             )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
@@ -455,7 +455,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             cpp_assembler_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
             cpp_assembler_config.activation_handlers = _convert_activation_handlers(
-                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+                object_config.handlers, resource_name_to_id, vibe_name_to_id
             )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
@@ -515,7 +515,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.tag_ids = tag_ids
             cpp_chest_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
             cpp_chest_config.activation_handlers = _convert_activation_handlers(
-                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+                object_config.handlers, resource_name_to_id, vibe_name_to_id
             )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
