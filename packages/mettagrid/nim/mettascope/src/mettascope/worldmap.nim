@@ -839,6 +839,7 @@ proc adjustPanelForResize*(zoomInfo: ZoomInfo) =
   let newZ = zoomInfo.zoom * zoomInfo.zoom
   zoomInfo.pos.x = rectW / 2.0f - centerX * newZ
   zoomInfo.pos.y = rectH / 2.0f - centerY * newZ
+  viewStateChanged = true
 
   # Update previous size
   previousPanelSize = currentSize
