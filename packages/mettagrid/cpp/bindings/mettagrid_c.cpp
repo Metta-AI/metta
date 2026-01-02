@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/activation_handler.hpp"
+#include "actions/activation_handler_config.hpp"
 #include "actions/align.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
@@ -198,10 +200,24 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       // TODO: replace the dynamic casts with virtual dispatch
 
+      // Helper to convert activation handler configs to handler instances
+      auto convert_activation_handlers =
+          [](const std::vector<ActivationHandlerConfig>& configs) -> std::vector<std::shared_ptr<ActivationHandler>> {
+        std::vector<std::shared_ptr<ActivationHandler>> handlers;
+        for (const auto& cfg : configs) {
+          auto handler = create_activation_handler(cfg);
+          if (handler) {
+            handlers.push_back(handler);
+          }
+        }
+        return handlers;
+      };
+
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
         _grid->add_object(wall);
+        wall->set_activation_handlers(convert_activation_handlers(wall_config->activation_handlers));
         _stats->incr("objects." + cell);
         continue;
       }
@@ -215,6 +231,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->set_obs_encoder(_obs_encoder.get());
+        agent->set_activation_handlers(convert_activation_handlers(agent_config->activation_handlers));
         add_agent(agent);
         continue;
       }
@@ -227,6 +244,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
+        assembler->set_activation_handlers(convert_activation_handlers(assembler_config->activation_handlers));
         continue;
       }
 
@@ -238,6 +256,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         commons_chest->set_grid(_grid.get());
         commons_chest->set_obs_encoder(_obs_encoder.get());
+        commons_chest->set_activation_handlers(convert_activation_handlers(commons_chest_config->activation_handlers));
         continue;
       }
 
@@ -248,6 +267,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
         chest->set_obs_encoder(_obs_encoder.get());
+        chest->set_activation_handlers(convert_activation_handlers(chest_config->activation_handlers));
         continue;
       }
 
@@ -1231,7 +1251,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
-      .def_readwrite("aoes", &GridObjectConfig::aoes);
+      .def_readwrite("aoes", &GridObjectConfig::aoes)
+      .def_readwrite("activation_handlers", &GridObjectConfig::activation_handlers);
 
   bind_wall_config(m);
 
@@ -1259,6 +1280,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_move_action_config(m);
   bind_global_obs_config(m);
   bind_clipper_config(m);
+  bind_activation_handler_configs(m);
   bind_game_config(m);
 
   // Export data types from types.hpp

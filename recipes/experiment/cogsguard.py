@@ -28,9 +28,10 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
+    ActivationHandler,
     AgentConfig,
     AgentRewards,
-    AlignActionConfig,
+    AlignmentMutation,
     AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
@@ -46,7 +47,10 @@ from mettagrid.config.mettagrid_config import (
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
+    ResourceDeltaMutation,
+    ResourceFilter,
     ResourceLimitsConfig,
+    ResourceTransferMutation,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -111,8 +115,30 @@ def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool
         map_name=map_name,
         render_symbol="📦",
         commons=team,
-        # vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
         aoes=aoes if has_aoe else [],
+        activation_handlers=[
+            # Align handler: align this depot to actor's commons
+            ActivationHandler(
+                name="align",
+                filters=[
+                    ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
+                ],
+                mutations=[
+                    ResourceDeltaMutation(target="actor", deltas={"heart": -1}),
+                    AlignmentMutation(target="target", align_to="actor_commons"),
+                ],
+            ),
+            # Scramble handler: remove this depot's commons alignment
+            ActivationHandler(
+                name="scramble",
+                filters=[
+                    ResourceFilter(target="actor", resources={"scrambler": 1}),
+                ],
+                mutations=[
+                    AlignmentMutation(target="target", align_to="none"),
+                ],
+            ),
+        ],
     )
 
 
@@ -138,6 +164,29 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
             ),
         ],
         aoes=[influence_aoe()],
+        activation_handlers=[
+            # Align handler: align this assembler to actor's commons
+            ActivationHandler(
+                name="align",
+                filters=[
+                    ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
+                ],
+                mutations=[
+                    ResourceDeltaMutation(target="actor", deltas={"heart": -1}),
+                    AlignmentMutation(target="target", align_to="actor_commons"),
+                ],
+            ),
+            # Scramble handler: remove this assembler's commons alignment
+            ActivationHandler(
+                name="scramble",
+                filters=[
+                    ResourceFilter(target="actor", resources={"scrambler": 1}),
+                ],
+                mutations=[
+                    AlignmentMutation(target="target", align_to="none"),
+                ],
+            ),
+        ],
     )
 
 
@@ -151,7 +200,19 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
             limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
             initial={resource: amount},
         ),
-        vibe_transfers={"default": {resource: 10}},
+        activation_handlers=[
+            ActivationHandler(
+                name="withdraw",
+                filters=[],
+                mutations=[
+                    ResourceTransferMutation(
+                        from_target="target",
+                        to_target="actor",
+                        resources={resource: 10},
+                    ),
+                ],
+            ),
+        ],
     )
 
 
@@ -202,16 +263,6 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
-            align=AlignActionConfig(
-                vibe="default",
-                cost={"heart": 1},
-                required_resources={"aligner": 1, "influence": 1},
-            ),
-            scramble=AlignActionConfig(
-                vibe="default",
-                set_to_none=True,
-                required_resources={"scrambler": 1},
-            ),
         ),
         agent=AgentConfig(
             commons="cogs",

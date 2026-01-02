@@ -50,7 +50,8 @@ inline void bind_wall_config(py::module& m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("tag_ids", &WallConfig::tag_ids)
-      .def_readwrite("initial_vibe", &WallConfig::initial_vibe);
+      .def_readwrite("initial_vibe", &WallConfig::initial_vibe)
+      .def_readwrite("activation_handlers", &WallConfig::activation_handlers);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_WALL_HPP_

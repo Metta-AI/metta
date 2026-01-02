@@ -150,6 +150,10 @@ class AgentConfig(Config):
         default=None,
         description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
     )
+    activation_handlers: list["ActivationHandler"] = Field(
+        default_factory=list,
+        description="Handlers triggered when another agent moves onto this agent",
+    )
 
     @model_validator(mode="after")
     def _add_commons_tag(self) -> "AgentConfig":
@@ -353,6 +357,167 @@ class AlignActionConfig(ActionConfig):
         return []
 
 
+# ===== Activation Handler System =====
+# Data-driven system for configuring what happens when an agent activates a target object
+
+
+ActivationTarget = Literal["actor", "target", "actor_commons", "target_commons"]
+
+
+class ActivationFilter(Config):
+    """Base class for activation filters. All filters in a handler must pass."""
+
+    target: Literal["actor", "target"] = Field(
+        default="actor",
+        description="Entity to check the filter against",
+    )
+
+
+class VibeFilter(ActivationFilter):
+    """Filter that checks if the target entity has a specific vibe."""
+
+    filter_type: Literal["vibe"] = "vibe"
+    vibe: str = Field(description="Vibe name that must match")
+
+
+class ResourceFilter(ActivationFilter):
+    """Filter that checks if the target entity has required resources."""
+
+    filter_type: Literal["resource"] = "resource"
+    resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Minimum resource amounts required",
+    )
+
+
+AnyActivationFilter = Annotated[
+    Union[
+        Annotated[VibeFilter, Tag("vibe")],
+        Annotated[ResourceFilter, Tag("resource")],
+    ],
+    Discriminator("filter_type"),
+]
+
+
+class ActivationMutation(Config):
+    """Base class for activation mutations."""
+
+    pass
+
+
+class ResourceDeltaMutation(ActivationMutation):
+    """Apply resource deltas to a target entity."""
+
+    mutation_type: Literal["resource_delta"] = "resource_delta"
+    target: ActivationTarget = Field(description="Entity to apply deltas to")
+    deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resource changes (positive = gain, negative = lose)",
+    )
+
+
+class ResourceTransferMutation(ActivationMutation):
+    """Transfer resources from one entity to another."""
+
+    mutation_type: Literal["resource_transfer"] = "resource_transfer"
+    from_target: ActivationTarget = Field(description="Entity to take resources from")
+    to_target: ActivationTarget = Field(description="Entity to give resources to")
+    resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources to transfer (amount, -1 = all available)",
+    )
+
+
+class AlignmentMutation(ActivationMutation):
+    """Update the commons alignment of a target."""
+
+    mutation_type: Literal["alignment"] = "alignment"
+    target: Literal["target"] = Field(
+        default="target",
+        description="Entity to align (only 'target' supported)",
+    )
+    align_to: Literal["actor_commons", "none"] = Field(
+        description="What to align the target to",
+    )
+
+
+class FreezeMutation(ActivationMutation):
+    """Freeze an entity for a duration."""
+
+    mutation_type: Literal["freeze"] = "freeze"
+    target: Literal["actor", "target"] = Field(description="Entity to freeze")
+    duration: int = Field(description="Freeze duration in ticks")
+
+
+class AttackMutation(ActivationMutation):
+    """Combat mutation with weapon/armor/defense mechanics.
+
+    Defense calculation:
+    - weapon_power = sum(attacker_inventory[item] * weapon_weight)
+    - armor_power = sum(target_inventory[item] * armor_weight) + vibe_bonus if vibing
+    - damage_bonus = max(weapon_power - armor_power, 0)
+    - cost_to_defend = defense_resources + damage_bonus
+
+    If target can defend, defense resources are consumed and attack is blocked.
+    Otherwise, on_success mutations are applied.
+    """
+
+    mutation_type: Literal["attack"] = "attack"
+    defense_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources target needs to block the attack",
+    )
+    armor_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Target resources that reduce damage (resource -> weight)",
+    )
+    weapon_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Attacker resources that increase damage (resource -> weight)",
+    )
+    vibe_bonus: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-vibe armor bonus when vibing a matching resource",
+    )
+    on_success: list["AnyActivationMutation"] = Field(
+        default_factory=list,
+        description="Mutations to apply when attack succeeds",
+    )
+
+
+AnyActivationMutation = Annotated[
+    Union[
+        Annotated[ResourceDeltaMutation, Tag("resource_delta")],
+        Annotated[ResourceTransferMutation, Tag("resource_transfer")],
+        Annotated[AlignmentMutation, Tag("alignment")],
+        Annotated[FreezeMutation, Tag("freeze")],
+        Annotated[AttackMutation, Tag("attack")],
+    ],
+    Discriminator("mutation_type"),
+]
+
+# Update forward reference for AttackMutation.on_success
+AttackMutation.model_rebuild()
+
+
+class ActivationHandler(Config):
+    """Configuration for a target activation handler.
+
+    When an agent moves onto a target, handlers are checked in registration order.
+    The first handler where all filters pass has its mutations applied.
+    """
+
+    name: str = Field(description="Handler name for debugging/stats")
+    filters: list[AnyActivationFilter] = Field(
+        default_factory=list,
+        description="All filters must pass for handler to trigger",
+    )
+    mutations: list[AnyActivationMutation] = Field(
+        default_factory=list,
+        description="Mutations applied when handler triggers",
+    )
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -451,6 +616,10 @@ class GridObjectConfig(Config):
     aoes: list[AOEEffectConfig] = Field(
         default_factory=list,
         description="List of AOE effects this object emits to agents within range each tick",
+    )
+    activation_handlers: list[ActivationHandler] = Field(
+        default_factory=list,
+        description="Handlers triggered when an agent moves onto this object",
     )
 
     @model_validator(mode="after")
