@@ -106,25 +106,23 @@ protected:
       }
     }
 
-    // Transfer, Align, and Scramble can all trigger on the same vibe
-    bool transfer_success = false;
-    bool align_success = false;
-    bool scramble_success = false;
-
+    // Only one vibe-triggered action can be delegated per tick
     if (_transfer_handler && _transfer_handler->has_transfer_for_vibe(actor.vibe)) {
-      transfer_success = _transfer_handler->try_transfer(actor, target_object);
+      if (_transfer_handler->try_transfer(actor, target_object)) {
+        return true;
+      }
     }
 
     if (_align_handler && _align_handler->get_vibe() == actor.vibe) {
-      align_success = _align_handler->try_align(actor, target_object);
+      if (_align_handler->try_align(actor, target_object)) {
+        return true;
+      }
     }
 
     if (_scramble_handler && _scramble_handler->get_vibe() == actor.vibe) {
-      scramble_success = _scramble_handler->try_align(actor, target_object);
-    }
-
-    if (transfer_success || align_success || scramble_success) {
-      return true;
+      if (_scramble_handler->try_align(actor, target_object)) {
+        return true;
+      }
     }
 
     // If location is empty, move
