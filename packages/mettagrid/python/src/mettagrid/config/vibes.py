@@ -48,6 +48,11 @@ VIBES = [
     Vibe("💟", "heart_b", category="resource"),
     # Gear
     Vibe("⚙️", "gear", category="gear"),
+    Vibe("🔗", "aligner", category="gear"),
+    Vibe("🌀", "scrambler", category="gear"),
+    Vibe("🔓", "decoder", category="gear"),
+    Vibe("📡", "modulator", category="gear"),
+    Vibe("🔊", "resonator", category="gear"),
     # Stations
     Vibe("⭐", "assembler", category="station"),
     Vibe("📦", "chest", category="station"),
