@@ -58,6 +58,9 @@ struct GameConfig {
 
   // Observation encoding settings
   unsigned int token_value_base = 256;  // Base for multi-token inventory encoding (value per token: 0 to base-1)
+
+  // Inventory limit name -> resource IDs mapping (for ClearInventoryMutation)
+  std::unordered_map<std::string, std::vector<InventoryItem>> inventory_limit_resources;
 };
 
 namespace py = pybind11;
@@ -171,7 +174,10 @@ inline void bind_game_config(py::module& m) {
       .def_readwrite("clipper", &GameConfig::clipper)
 
       // Observation encoding
-      .def_readwrite("token_value_base", &GameConfig::token_value_base);
+      .def_readwrite("token_value_base", &GameConfig::token_value_base)
+
+      // Inventory limit resources mapping
+      .def_readwrite("inventory_limit_resources", &GameConfig::inventory_limit_resources);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CONFIG_METTAGRID_CONFIG_HPP_

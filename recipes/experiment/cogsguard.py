@@ -31,11 +31,13 @@ from mettagrid.config.mettagrid_config import (
     ActivationHandler,
     AgentConfig,
     AgentRewards,
+    AlignmentFilter,
     AlignmentMutation,
     AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
     ChestConfig,
+    ClearInventoryMutation,
     CommonsChestConfig,
     CommonsConfig,
     DamageConfig,
@@ -54,6 +56,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
 
 gear = ["aligner", "scrambler", "miner", "scout"]
 elements = ["oxygen", "carbon", "germanium", "silicon"]
@@ -117,10 +120,11 @@ def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool
         commons=team,
         aoes=aoes if has_aoe else [],
         activation_handlers=[
-            # Align handler: align this depot to actor's commons
+            # Align handler: align this depot to actor's commons (only if unaligned)
             ActivationHandler(
                 name="align",
                 filters=[
+                    AlignmentFilter(target="target", alignment="unaligned"),
                     ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
                 ],
                 mutations=[
@@ -128,10 +132,11 @@ def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool
                     AlignmentMutation(target="target", align_to="actor_commons"),
                 ],
             ),
-            # Scramble handler: remove this depot's commons alignment
+            # Scramble handler: remove this depot's commons alignment (only if aligned)
             ActivationHandler(
                 name="scramble",
                 filters=[
+                    AlignmentFilter(target="target", alignment="aligned"),
                     ResourceFilter(target="actor", resources={"scrambler": 1}),
                 ],
                 mutations=[
@@ -165,10 +170,11 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
         ],
         aoes=[influence_aoe()],
         activation_handlers=[
-            # Align handler: align this assembler to actor's commons
+            # Align handler: align this assembler to actor's commons (only if unaligned)
             ActivationHandler(
                 name="align",
                 filters=[
+                    AlignmentFilter(target="target", alignment="unaligned"),
                     ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
                 ],
                 mutations=[
@@ -176,10 +182,11 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
                     AlignmentMutation(target="target", align_to="actor_commons"),
                 ],
             ),
-            # Scramble handler: remove this assembler's commons alignment
+            # Scramble handler: remove this assembler's commons alignment (only if aligned)
             ActivationHandler(
                 name="scramble",
                 filters=[
+                    AlignmentFilter(target="target", alignment="aligned"),
                     ResourceFilter(target="actor", resources={"scrambler": 1}),
                 ],
                 mutations=[
@@ -240,13 +247,61 @@ class CogAssemblerConfig(CvCStationConfig):
         )
 
 
+# Gear station symbols
+GEAR_SYMBOLS = {
+    "aligner": "🔗",
+    "scrambler": "🌀",
+    "miner": "⛏️",
+    "scout": "🔭",
+}
+
+
+def gear_station_config(gear_type: str) -> AssemblerConfig:
+    """Create a gear station that clears all gear and adds the specified gear type."""
+    return AssemblerConfig(
+        name=f"{gear_type}_station",
+        map_name=f"{gear_type}_station",
+        render_symbol=GEAR_SYMBOLS.get(gear_type, "⚙️"),
+        protocols=[
+            ProtocolConfig(
+                output_resources={gear_type: 1},
+            )
+        ],
+        activation_handlers=[
+            ActivationHandler(
+                name="clear_gear",
+                mutations=[
+                    ClearInventoryMutation(
+                        target="actor",
+                        limit_name="gear",
+                    ),
+                    ResourceDeltaMutation(target="actor", deltas={gear_type: 1}),
+                ],
+            )
+        ],
+    )
+
+
 def make_env(num_agents: int = 10) -> MettaGridConfig:
+    # Configure hub with gear stations
+    hub_config = BaseHubConfig(
+        corner_bundle="extractors",
+        cross_bundle="none",
+        cross_distance=7,
+        stations=[
+            "aligner_station",
+            "scrambler_station",
+            "miner_station",
+            "scout_station",
+        ],
+    )
     map_builder = MapGen.Config(
         width=50,
         height=50,
         instance=MachinaArena.Config(
             spawn_count=num_agents,
             building_coverage=0.1,
+            hub=hub_config,
         ),
     )
     vibe_names = [vibe.name for vibe in vibes]
@@ -320,6 +375,11 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             "oxygen_extractor": resource_chest_config("oxygen_extractor", "oxygen"),
             "germanium_extractor": resource_chest_config("germanium_extractor", "germanium"),
             "silicon_extractor": resource_chest_config("silicon_extractor", "silicon"),
+            # Gear stations - each clears all gear and grants its gear type
+            "aligner_station": gear_station_config("aligner"),
+            "scrambler_station": gear_station_config("scrambler"),
+            "miner_station": gear_station_config("miner"),
+            "scout_station": gear_station_config("scout"),
         },
         commons=[
             CommonsConfig(

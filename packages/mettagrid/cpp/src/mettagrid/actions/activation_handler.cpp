@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "config/mettagrid_config.hpp"
 #include "core/grid.hpp"
 #include "objects/agent.hpp"
 #include "objects/alignable.hpp"
@@ -80,6 +81,26 @@ bool ResourceFilter::check(const ActivationContext& ctx) const {
   return true;
 }
 
+bool AlignmentFilter::check(const ActivationContext& ctx) const {
+  // Resolve the alignable target
+  Alignable* alignable = ctx.resolve_alignable(target == Target::Actor ? "actor" : "target");
+  if (!alignable) return false;
+
+  Commons* target_commons = alignable->getCommons();
+  Commons* actor_commons = ctx.actor.getCommons();
+
+  if (alignment == "aligned") {
+    return target_commons != nullptr;
+  } else if (alignment == "unaligned") {
+    return target_commons == nullptr;
+  } else if (alignment == "same_commons") {
+    return target_commons != nullptr && target_commons == actor_commons;
+  } else if (alignment == "different_commons") {
+    return target_commons != nullptr && target_commons != actor_commons;
+  }
+  return false;
+}
+
 // ===== Mutation implementations =====
 
 bool ResourceDeltaMutation::apply(ActivationContext& ctx) const {
@@ -137,6 +158,23 @@ bool FreezeMutation::apply(ActivationContext& ctx) const {
   Agent* agent = ctx.resolve_agent(target);
   if (!agent) return false;
   agent->frozen = duration;
+  return true;
+}
+
+bool ClearInventoryMutation::apply(ActivationContext& ctx) const {
+  Inventory* inv = ctx.resolve_inventory(target);
+  if (!inv || !ctx.game_config) return false;
+
+  // Look up resources for this limit name
+  auto it = ctx.game_config->inventory_limit_resources.find(limit_name);
+  if (it == ctx.game_config->inventory_limit_resources.end()) return false;
+
+  for (const auto& item : it->second) {
+    InventoryQuantity current = inv->amount(item);
+    if (current > 0) {
+      inv->update(item, -static_cast<InventoryDelta>(current));
+    }
+  }
   return true;
 }
 
@@ -224,7 +262,8 @@ void AttackMutation::consume_defense(Agent& target, int damage_bonus) const {
 FilterPtr create_filter(const ActivationFilterConfig& config) {
   if (config.type == "vibe") {
     auto filter = std::make_unique<VibeFilter>();
-    filter->target = config.vibe.target == "target" ? ActivationFilter::Target::Target : ActivationFilter::Target::Actor;
+    filter->target =
+        config.vibe.target == "target" ? ActivationFilter::Target::Target : ActivationFilter::Target::Actor;
     filter->vibe = config.vibe.vibe;
     return filter;
   } else if (config.type == "resource") {
@@ -232,6 +271,12 @@ FilterPtr create_filter(const ActivationFilterConfig& config) {
     filter->target =
         config.resource.target == "target" ? ActivationFilter::Target::Target : ActivationFilter::Target::Actor;
     filter->resources = config.resource.resources;
+    return filter;
+  } else if (config.type == "alignment") {
+    auto filter = std::make_unique<AlignmentFilter>();
+    filter->target =
+        config.alignment.target == "target" ? ActivationFilter::Target::Target : ActivationFilter::Target::Actor;
+    filter->alignment = config.alignment.alignment;
     return filter;
   }
   return nullptr;
@@ -257,6 +302,11 @@ MutationPtr create_mutation(const ActivationMutationConfig& config) {
     auto mutation = std::make_unique<FreezeMutation>();
     mutation->target = config.freeze.target;
     mutation->duration = config.freeze.duration;
+    return mutation;
+  } else if (config.type == "clear_inventory") {
+    auto mutation = std::make_unique<ClearInventoryMutation>();
+    mutation->target = config.clear_inventory.target;
+    mutation->limit_name = config.clear_inventory.limit_name;
     return mutation;
   } else if (config.type == "attack") {
     auto mutation = std::make_unique<AttackMutation>();
@@ -290,4 +340,3 @@ std::shared_ptr<ActivationHandler> create_activation_handler(const ActivationHan
   }
   return handler;
 }
-

@@ -390,10 +390,30 @@ class ResourceFilter(ActivationFilter):
     )
 
 
+class AlignmentFilter(ActivationFilter):
+    """Filter that checks the alignment status of a target.
+
+    Can check if target is aligned/unaligned, or if it's aligned to
+    the same/different commons as the actor.
+    """
+
+    filter_type: Literal["alignment"] = "alignment"
+    alignment: Literal["aligned", "unaligned", "same_commons", "different_commons"] = Field(
+        description=(
+            "Alignment condition to check: "
+            "'aligned' = target has any commons, "
+            "'unaligned' = target has no commons, "
+            "'same_commons' = target has same commons as actor, "
+            "'different_commons' = target has different commons than actor (but is aligned)"
+        ),
+    )
+
+
 AnyActivationFilter = Annotated[
     Union[
         Annotated[VibeFilter, Tag("vibe")],
         Annotated[ResourceFilter, Tag("resource")],
+        Annotated[AlignmentFilter, Tag("alignment")],
     ],
     Discriminator("filter_type"),
 ]
@@ -449,6 +469,14 @@ class FreezeMutation(ActivationMutation):
     duration: int = Field(description="Freeze duration in ticks")
 
 
+class ClearInventoryMutation(ActivationMutation):
+    """Clear all resources in a limit group from inventory (set to 0)."""
+
+    mutation_type: Literal["clear_inventory"] = "clear_inventory"
+    target: ActivationTarget = Field(description="Entity to clear inventory from")
+    limit_name: str = Field(description="Name of the resource limit group to clear (e.g., 'gear')")
+
+
 class AttackMutation(ActivationMutation):
     """Combat mutation with weapon/armor/defense mechanics.
 
@@ -491,6 +519,7 @@ AnyActivationMutation = Annotated[
         Annotated[ResourceTransferMutation, Tag("resource_transfer")],
         Annotated[AlignmentMutation, Tag("alignment")],
         Annotated[FreezeMutation, Tag("freeze")],
+        Annotated[ClearInventoryMutation, Tag("clear_inventory")],
         Annotated[AttackMutation, Tag("attack")],
     ],
     Discriminator("mutation_type"),
