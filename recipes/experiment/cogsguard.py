@@ -205,7 +205,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             align=AlignActionConfig(
                 vibe="default",
                 cost={"heart": 1},
-                required_resources={"aligner": 1},
+                required_resources={"aligner": 1, "influence": 1},
             ),
             scramble=AlignActionConfig(
                 vibe="default",
