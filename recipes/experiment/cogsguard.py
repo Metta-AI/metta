@@ -43,7 +43,6 @@ from mettagrid.config.mettagrid_config import (
     DamageConfig,
     GameConfig,
     GlobalObsConfig,
-    GridObjectConfig,
     InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -74,22 +73,6 @@ vibes = [
     Vibe("😐", "default"),
     Vibe("❤️", "heart"),
 ]
-
-
-class PylonConfig(GridObjectConfig):
-    radius: int
-
-
-class RoleStationConfig(GridObjectConfig):
-    role: str
-
-
-class ExtractorConfig(GridObjectConfig):
-    pass
-
-
-class ColonyConfig(GridObjectConfig):
-    pass
 
 
 def influence_aoe(range: int = 10) -> AOEEffectConfig:
@@ -198,7 +181,11 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
 
 
 def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> ChestConfig:
-    """Chest containing a resource that can be withdrawn via default vibe."""
+    """Chest (mine) containing a resource with alignment-based extraction.
+
+    - If aligned to actor's commons: add 10 resource to commons + cooldown
+    - If not aligned: add to agent's inventory
+    """
     return ChestConfig(
         name=f"{resource}_chest",
         map_name=map_name,
@@ -208,9 +195,10 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
             initial={resource: amount},
         ),
         activation_handlers=[
+            # Unaligned handler: mine not aligned to actor -> add to agent's inventory
             ActivationHandler(
-                name="withdraw",
-                filters=[],
+                name="extract",
+                filters=[ResourceFilter(target="actor", resources={"miner": 1})],
                 mutations=[
                     ResourceTransferMutation(
                         from_target="target",
@@ -326,20 +314,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "gear": ResourceLimitsConfig(limit=5, resources=gear),
                     "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
                     "energy": ResourceLimitsConfig(limit=100, resources=["energy"], modifiers={"scout": 100}),
-                    "cargo": ResourceLimitsConfig(limit=10, resources=elements, modifiers={"miner": 100}),
+                    "cargo": ResourceLimitsConfig(limit=0, resources=elements, modifiers={"miner": 30}),
                     "influence": ResourceLimitsConfig(limit=0, resources=["influence"], modifiers={"aligner": 20}),
                 },
                 initial={
                     "energy": 100,
-                    "silicon": 50,
-                    "oxygen": 50,
-                    "carbon": 50,
-                    "germanium": 50,
                     "heart": 5,
-                    "aligner": 1,
-                    "scrambler": 1,
-                    "miner": 1,
-                    "scout": 1,
                 },
                 regen_amounts={
                     "default": {
