@@ -54,6 +54,9 @@ def train(
     teacher: TeacherConfig | None = None,
     bc_steps: int = 2_500_000_000,
     anneal_steps: int = 3_000_000_000,
+    cortex_d_hidden: int = 256,
+    cortex_num_layers: int = 8,
+    cortex_pattern: Optional[Sequence[str]] = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if eval_variants is None:
@@ -152,16 +155,30 @@ def train(
     tt.training_env = tt.training_env.model_copy(update=env_updates)
 
     if policy_architecture is None:
+        default_pattern = [
+            "Ag,A",
+            "Ag,A",
+            "Ag,A",
+            "Ag,A,S",
+        ]
+        if cortex_pattern is None:
+            if cortex_num_layers % len(default_pattern) != 0:
+                raise ValueError(
+                    f"cortex_num_layers ({cortex_num_layers}) must be a multiple of {len(default_pattern)} "
+                    "when cortex_pattern is not provided"
+                )
+            cortex_pattern = list(default_pattern) * (cortex_num_layers // len(default_pattern))
+        else:
+            cortex_pattern = list(cortex_pattern)
+            if len(cortex_pattern) != cortex_num_layers:
+                raise ValueError(
+                    f"len(cortex_pattern) ({len(cortex_pattern)}) must equal cortex_num_layers ({cortex_num_layers})"
+                )
+
         stack_cfg = build_cortex_auto_config(
-            d_hidden=256,
-            num_layers=8,
-            pattern=[
-                "Ag,A",
-                "Ag,A",
-                "Ag,A",
-                "Ag,A,S",
-            ]
-            * 2,
+            d_hidden=cortex_d_hidden,
+            num_layers=cortex_num_layers,
+            pattern=cortex_pattern,
             post_norm=True,
             compile_blocks=True,
         )
