@@ -136,7 +136,7 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
             limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
             initial={resource: amount},
         ),
-        vibe_transfers={"default": {resource: -255}},  # negative = withdraw
+        vibe_transfers={"default": {resource: 10}},
     )
 
 
