@@ -1,6 +1,6 @@
 """Training utilities for Metta RL."""
 
-from typing import Collection
+from typing import Collection, Optional
 
 import torch
 from tensordict import TensorDict
@@ -101,16 +101,18 @@ def should_run(
     epoch: int,
     interval: int,
     *,
+    previous: Optional[int] = None,
     force: bool = False,
 ) -> bool:
-    """Check if a periodic task should run based on interval. It is assumed this is only called on master."""
-    if not interval:
+    """Check if a periodic task should run based on interval."""
+    if interval <= 0:
         return False
 
     if force:
         return True
 
-    return epoch % interval == 0
+    prev_epoch = epoch - 1 if previous is None else int(previous)
+    return epoch // interval > prev_epoch // interval
 
 
 def add_dummy_loss_for_unused_params(
