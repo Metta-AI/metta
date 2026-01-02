@@ -25,6 +25,7 @@ from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
+from metta.rl.utils import should_run
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
@@ -102,6 +103,7 @@ class Evaluator(TrainerComponent):
         self._run_name = run_name
         self._stats_client = stats_client
         self._wandb_run = wandb_run
+        self._prev_epoch_for_evaluation: Optional[int] = None
 
         self._replay_dir = config.replay_dir or auto_replay_dir()
         self._evaluate_remote = config.evaluate_remote and stats_client is not None
@@ -137,7 +139,9 @@ class Evaluator(TrainerComponent):
         interval = self._config.epoch_interval
         if interval <= 0:
             return False
-        return epoch % interval == 0
+        should_evaluate = should_run(epoch, interval, previous=self._prev_epoch_for_evaluation)
+        self._prev_epoch_for_evaluation = epoch
+        return should_evaluate
 
     def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
         """Create a submission zip containing policy_spec.json."""
