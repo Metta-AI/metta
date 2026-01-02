@@ -137,7 +137,10 @@ proc isAgentAffectedByAoe(agentCommonsId: int, sourceCommonsId: int, membersOnly
     # Only affect agents with matching commons
     return agentCommonsId >= 0 and agentCommonsId == sourceCommonsId
   if ignoreMembers:
-    # Ignore agents with matching commons
+    # If source has no commons, skip all (everyone is treated as a "member" to ignore)
+    if sourceCommonsId < 0:
+      return false
+    # Ignore agents with matching commons (but affect unaligned agents and agents from other commons)
     return agentCommonsId < 0 or agentCommonsId != sourceCommonsId
   # No filter, affect all agents
   return true
