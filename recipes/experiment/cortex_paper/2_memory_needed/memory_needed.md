@@ -15,10 +15,10 @@ XL with no memory:
 ```bash
 ./devops/skypilot/launch.py \
     recipes.experiment.cortex_paper.2_memory_needed.cvc_random_maps_train.train \
-    --gpus=8 \
-    pattern=X mem_len=0 \
-    run=yatharth.2025-12-31.memory-needed.cvc_random_maps_xl_memlen0_2b \
-    trainer.total_timesteps=2000000000
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-12-31.memory-needed.cvc_random_maps_xl_memlen0_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=X mem_len=0
 ```
 
 - Finished 2b steps in 1.43 hours (390k sps)
@@ -34,10 +34,10 @@ Direct comparison - same architecture but with cross-step memory.
 ```bash
 ./devops/skypilot/launch.py \
     recipes.experiment.cortex_paper.2_memory_needed.cvc_random_maps_train.train \
-    --gpus=8 \
-    pattern=X mem_len=128 \
-    run=yatharth.2025-12-31.memory-needed.cvc_random_maps_xl_memlen128_2b \
-    trainer.total_timesteps=2000000000
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-12-31.memory-needed.cvc_random_maps_xl_memlen128_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=X mem_len=128
 ```
 
 ---
@@ -49,10 +49,10 @@ Pure recurrent architecture with structured LSTM.
 ```bash
 ./devops/skypilot/launch.py \
     recipes.experiment.cortex_paper.2_memory_needed.cvc_random_maps_train.train \
-    --gpus=8 \
-    pattern=S \
-    run=yatharth.2025-12-31.memory-needed.cvc_random_maps_sLSTM_2b \
-    trainer.total_timesteps=2000000000
+    --gpus 8 --skip-git-check \
+    --run=yatharth.2025-12-31.memory-needed.cvc_random_maps_sLSTM_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=S
 ```
 
 ---
@@ -64,8 +64,58 @@ AGaLiTe + sLSTM + Axon - known to work well on CVC.
 ```bash
 ./devops/skypilot/launch.py \
     recipes.experiment.cortex_paper.2_memory_needed.cvc_random_maps_train.train \
-    --gpus=8 \
-    pattern=AgSA \
-    runyatharth.2025-12-31.memory-needed.cvc_random_maps_AgSA_2b \
-    trainer.total_timesteps=2000000000
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-12-31.memory-needed.cvc_random_maps_AgSA_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=AgSA
+```
+
+---
+
+# Assembly Lines
+
+Same memory architecture comparison on the assembly_lines environment.
+
+### 🚀 To Run: XL with No Memory (Baseline)
+
+```bash
+./devops/skypilot/launch.py \
+    recipes.experiment.cortex_paper.2_memory_needed.assembly_lines_train.train \
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-01-01.memory-needed.assembly_lines_xl_memlen0_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=X mem_len=0
+```
+
+### 🚀 To Run: XL with Memory (mem_len=128)
+
+```bash
+./devops/skypilot/launch.py \
+    recipes.experiment.cortex_paper.2_memory_needed.assembly_lines_train.train \
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-01-01.memory-needed.assembly_lines_xl_memlen128_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=X mem_len=128
+```
+
+### 🚀 To Run: sLSTM (Recurrent Memory)
+
+```bash
+./devops/skypilot/launch.py \
+    recipes.experiment.cortex_paper.2_memory_needed.assembly_lines_train.train \
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-01-01.memory-needed.assembly_lines_sLSTM_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=S
+```
+
+### 🚀 To Run: AgSA (Proven Combo)
+
+```bash
+./devops/skypilot/launch.py \
+    recipes.experiment.cortex_paper.2_memory_needed.assembly_lines_train.train \
+    --gpus=8 --skip-git-check \
+    --run=yatharth.2025-01-01.memory-needed.assembly_lines_AgSA_2b \
+    trainer.total_timesteps=2000000000 \
+    pattern=AgSA
 ```
