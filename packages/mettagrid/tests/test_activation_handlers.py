@@ -1,7 +1,7 @@
 """Tests for the new activation handler system.
 
 This tests the data-driven target activation handler mechanism where:
-- Objects can have activation_handlers configured via mettagrid_config
+- Objects can have handlers configured via mettagrid_config
 - Each handler has filters (VibeFilter, ResourceFilter) that must all pass
 - Each handler has mutations (ResourceDelta, ResourceTransfer, Alignment, Freeze, Attack)
 - Handlers are checked in registration order when an agent moves onto the target
@@ -109,7 +109,7 @@ class TestVibeFilterActivation:
                 "wall": WallConfig(),
                 "chest": ChestConfig(
                     name="chest",
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="charger_grant",
                             filters=[
@@ -184,7 +184,7 @@ class TestResourceFilterActivation:
                 "wall": WallConfig(),
                 "chest": ChestConfig(
                     name="chest",
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="heart_consumer",
                             filters=[
@@ -243,7 +243,7 @@ class TestResourceTransferMutation:
                 "wall": WallConfig(),
                 "chest": ChestConfig(
                     name="chest",
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="deposit",
                             filters=[
@@ -316,7 +316,7 @@ class TestAlignmentMutation:
                 "chest": CommonsChestConfig(
                     name="chest",
                     # No commons initially - the chest is unaligned
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="align",
                             filters=[
@@ -394,7 +394,7 @@ class TestFreezeMutation:
                 AgentConfig(
                     team_id=0,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="freeze_on_charger",
                             filters=[
@@ -409,7 +409,7 @@ class TestFreezeMutation:
                 AgentConfig(
                     team_id=1,
                     inventory=InventoryConfig(initial={"energy": 10, "heart": 5}),
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="freeze_on_charger",
                             filters=[
@@ -474,7 +474,7 @@ class TestHandlerOrder:
                 "wall": WallConfig(),
                 "chest": ChestConfig(
                     name="chest",
-                    activation_handlers=[
+                    handlers=[
                         # First handler - gives 10 energy (should win)
                         ActivationHandler(
                             name="first_handler",
@@ -545,7 +545,7 @@ class TestCombinedFilters:
                 "wall": WallConfig(),
                 "chest": ChestConfig(
                     name="chest",
-                    activation_handlers=[
+                    handlers=[
                         ActivationHandler(
                             name="vibe_and_resource",
                             filters=[

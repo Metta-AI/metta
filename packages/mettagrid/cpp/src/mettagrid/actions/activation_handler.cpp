@@ -73,7 +73,7 @@ bool VibeFilter::check(const ActivationContext& ctx) const {
 }
 
 bool ResourceFilter::check(const ActivationContext& ctx) const {
-  Inventory* inv = ctx.resolve_inventory(target == Target::Actor ? "actor" : "target");
+  Inventory* inv = ctx.resolve_inventory(target_str);
   if (!inv) return false;
   for (const auto& [item, amount] : resources) {
     if (inv->amount(item) < amount) return false;
@@ -97,6 +97,9 @@ bool AlignmentFilter::check(const ActivationContext& ctx) const {
     return target_commons != nullptr && target_commons == actor_commons;
   } else if (alignment == "different_commons") {
     return target_commons != nullptr && target_commons != actor_commons;
+  } else if (alignment == "not_same_commons") {
+    // NOT aligned to actor: either unaligned or aligned to different commons
+    return target_commons == nullptr || target_commons != actor_commons;
   }
   return false;
 }
@@ -270,6 +273,7 @@ FilterPtr create_filter(const ActivationFilterConfig& config) {
     auto filter = std::make_unique<ResourceFilter>();
     filter->target =
         config.resource.target == "target" ? ActivationFilter::Target::Target : ActivationFilter::Target::Actor;
+    filter->target_str = config.resource.target;  // Store full target string for commons support
     filter->resources = config.resource.resources;
     return filter;
   } else if (config.type == "alignment") {

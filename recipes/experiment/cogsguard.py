@@ -29,10 +29,10 @@ from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     ActivationHandler,
+    ActorHas,
     AgentConfig,
     AgentRewards,
-    AlignmentFilter,
-    AlignmentMutation,
+    Align,
     AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
@@ -47,11 +47,13 @@ from mettagrid.config.mettagrid_config import (
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
+    Pickup,
     ProtocolConfig,
-    ResourceDeltaMutation,
-    ResourceFilter,
+    RemoveAlignment,
     ResourceLimitsConfig,
-    ResourceTransferMutation,
+    UpdateActor,
+    hasCommons,
+    isNeutral,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -102,29 +104,18 @@ def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool
         render_symbol="📦",
         commons=team,
         aoes=aoes if has_aoe else [],
-        activation_handlers=[
+        handlers=[
             # Align handler: align this depot to actor's commons (only if unaligned)
             ActivationHandler(
                 name="align",
-                filters=[
-                    AlignmentFilter(target="target", alignment="unaligned"),
-                    ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
-                ],
-                mutations=[
-                    ResourceDeltaMutation(target="actor", deltas={"heart": -1}),
-                    AlignmentMutation(target="target", align_to="actor_commons"),
-                ],
+                filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1})],
+                mutations=[UpdateActor({"heart": -1}), Align()],
             ),
             # Scramble handler: remove this depot's commons alignment (only if aligned)
             ActivationHandler(
                 name="scramble",
-                filters=[
-                    AlignmentFilter(target="target", alignment="aligned"),
-                    ResourceFilter(target="actor", resources={"scrambler": 1}),
-                ],
-                mutations=[
-                    AlignmentMutation(target="target", align_to="none"),
-                ],
+                filters=[hasCommons(), ActorHas({"scrambler": 1})],
+                mutations=[RemoveAlignment()],
             ),
         ],
     )
@@ -152,29 +143,18 @@ def main_nexus_config(map_name: str) -> AssemblerConfig:
             ),
         ],
         aoes=[influence_aoe()],
-        activation_handlers=[
+        handlers=[
             # Align handler: align this assembler to actor's commons (only if unaligned)
             ActivationHandler(
                 name="align",
-                filters=[
-                    AlignmentFilter(target="target", alignment="unaligned"),
-                    ResourceFilter(target="actor", resources={"aligner": 1, "influence": 1}),
-                ],
-                mutations=[
-                    ResourceDeltaMutation(target="actor", deltas={"heart": -1}),
-                    AlignmentMutation(target="target", align_to="actor_commons"),
-                ],
+                filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1})],
+                mutations=[UpdateActor({"heart": -1}), Align()],
             ),
             # Scramble handler: remove this assembler's commons alignment (only if aligned)
             ActivationHandler(
                 name="scramble",
-                filters=[
-                    AlignmentFilter(target="target", alignment="aligned"),
-                    ResourceFilter(target="actor", resources={"scrambler": 1}),
-                ],
-                mutations=[
-                    AlignmentMutation(target="target", align_to="none"),
-                ],
+                filters=[hasCommons(), ActorHas({"scrambler": 1})],
+                mutations=[RemoveAlignment()],
             ),
         ],
     )
@@ -194,18 +174,12 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
             limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
             initial={resource: amount},
         ),
-        activation_handlers=[
-            # Unaligned handler: mine not aligned to actor -> add to agent's inventory
+        handlers=[
+            # Extract handler: transfer resource from mine to agent
             ActivationHandler(
                 name="extract",
-                filters=[ResourceFilter(target="actor", resources={"miner": 1})],
-                mutations=[
-                    ResourceTransferMutation(
-                        from_target="target",
-                        to_target="actor",
-                        resources={resource: 10},
-                    ),
-                ],
+                filters=[ActorHas({"miner": 1})],
+                mutations=[Pickup({resource: 10})],
             ),
         ],
     )
@@ -255,15 +229,12 @@ def gear_station_config(gear_type: str) -> AssemblerConfig:
                 output_resources={gear_type: 1},
             )
         ],
-        activation_handlers=[
+        handlers=[
             ActivationHandler(
                 name="clear_gear",
                 mutations=[
-                    ClearInventoryMutation(
-                        target="actor",
-                        limit_name="gear",
-                    ),
-                    ResourceDeltaMutation(target="actor", deltas={gear_type: 1}),
+                    ClearInventoryMutation(target="actor", limit_name="gear"),
+                    UpdateActor({gear_type: 1}),
                 ],
             )
         ],

@@ -68,13 +68,14 @@ struct VibeFilter : ActivationFilter {
 
 // Check if entity has required resources
 struct ResourceFilter : ActivationFilter {
+  std::string target_str;  // "actor", "target", "actor_commons", "target_commons"
   std::unordered_map<InventoryItem, InventoryQuantity> resources;
   bool check(const ActivationContext& ctx) const override;
 };
 
 // Check alignment status of target
 struct AlignmentFilter : ActivationFilter {
-  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons"
+  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons", "not_same_commons"
   bool check(const ActivationContext& ctx) const override;
 };
 
