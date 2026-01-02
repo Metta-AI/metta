@@ -79,7 +79,7 @@ metta-common = { workspace = true }
 source = ["mettagrid"]
 
 [project.scripts]
-demo = "mettagrid.demo:main"
+mettagrid-demo = "mettagrid.demo:main"
 
 [tool.setuptools_scm]
 tag_regex = "^mettagrid-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
