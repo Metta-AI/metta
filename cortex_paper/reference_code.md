@@ -99,17 +99,24 @@ Environments we think exercise memory:
 
 # Current plan
 
+
+
 Things I gotta do
-- Understand the knobs & configuration
-- Check WandB runs to estimate training time
-- Understand what the different parameters mean
-- Understand what convergence means and if any existing runs exhibit it
-- Kick off my own runs and try to achieve convergence
-- Go from there
 
-I want to know how hard it is to train on `cvc_random_maps` vs `assembly_lines`. This is because if, say, `assembly_lines`, took a lot longer to train on, I would focus my efforts on `cvc_random_maps` first, then repeat everything for `assembly_lines`.
 
-One way I could find out is by trying to look at existing WandB runs my colleagues did, infer if any of them are about either of those two environments, and look at the loss curves to understand how long they trained for in total and after how long the training seemed to more or less converge.
+- Kick WandB runs in both environments to estimate training time & whether we learn on default knons
 
-Another way I could find out is just by kicking off my own runs on those environments. I'm not sure if there's any knows for “difficulty” or any other “configuration” in those environments. There are probably are a lot of knobs, and I wouldn't know what values to use for them.
+- Understand what the different WandB metrics mean
+- In context of a colleague's runs on cvc_random_maps
+- And assembly_lines, is it different?
+- And the baseline we ran that didn't learn anything
+- Did our baseline even show any movement? Did it even finish?
+- Understand what convergence means and if these runs exhibit it
+
+- Understand the cvc_random_maps knobs & configuration
+- Understand the assembly_lines knobs & configuration
+- Adjust knobs for environments
+- Iterate until we see learning
+- Iterate until we see convergence
+- Estimate training time
 
