@@ -3,12 +3,14 @@
 
 #include <climits>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "actions/activation_handler_config.hpp"
 #include "core/types.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
@@ -75,24 +77,29 @@ struct AOEEffectConfig {
         ignore_members(ignore_members) {}
 };
 
+// Forward declaration for activation handler config
+struct ActivationHandlerConfig;
+
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
   std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
+  std::vector<ActivationHandlerConfig> activation_handlers;  // Handlers for when agent activates this object
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
+      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}), activation_handlers({}) {}
 
   virtual ~GridObjectConfig() = default;
 };
 
-// Forward declaration for Alignable (to check commons membership)
+// Forward declarations
 class Alignable;
-
-// Forward declaration for HasInventory
 class HasInventory;
+class Agent;
+class ActivationHandler;
+struct GameConfig;
 
 // Helper class for managing AOE effects on grid objects
 class AOEHelper {
@@ -181,6 +188,7 @@ private:
 class GridObject : public HasVibe {
 private:
   std::vector<AOEEffectConfig> _aoe_configs;
+  std::vector<std::shared_ptr<ActivationHandler>> _activation_handlers;
 
 public:
   GridObjectId id{};
@@ -225,6 +233,19 @@ public:
     (void)observer_agent_id;  // Unused in base class
     return {};                // Default: no observable features
   }
+
+  // Set activation handlers from config (defined in grid_object.cpp)
+  void set_activation_handlers(std::vector<std::shared_ptr<ActivationHandler>> handlers);
+
+  // Get activation handlers (for external access)
+  const std::vector<std::shared_ptr<ActivationHandler>>& activation_handlers() const {
+    return _activation_handlers;
+  }
+
+  // Try to activate this object with an actor
+  // Returns true if any handler triggered (even if mutations failed)
+  // This is defined in grid_object.cpp to avoid circular dependencies
+  bool activate(Agent& actor, Grid* grid, const GameConfig* game_config);
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_

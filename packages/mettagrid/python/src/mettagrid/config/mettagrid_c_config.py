@@ -1,14 +1,25 @@
 from mettagrid.config.mettagrid_config import (
+    ActivationHandler,
     AgentConfig,
+    AlignmentMutation,
     AOEEffectConfig,
     AssemblerConfig,
+    AttackMutation,
     ChestConfig,
     ClipperConfig,
     CommonsChestConfig,
+    FreezeMutation,
     GameConfig,
+    ResourceDeltaMutation,
+    ResourceFilter,
+    ResourceTransferMutation,
+    VibeFilter,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
+from mettagrid.mettagrid_c import ActivationFilterConfig as CppActivationFilterConfig
+from mettagrid.mettagrid_c import ActivationHandlerConfig as CppActivationHandlerConfig
+from mettagrid.mettagrid_c import ActivationMutationConfig as CppActivationMutationConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AlignActionConfig as CppAlignActionConfig
 from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
@@ -49,6 +60,90 @@ def _convert_aoe_configs(
         result.append(
             CppAOEEffectConfig(aoe.range, resource_deltas, target_tag_ids, aoe.members_only, aoe.ignore_members)
         )
+    return result
+
+
+def _convert_activation_mutation(
+    mutation, resource_name_to_id: dict[str, int], vibe_name_to_id: dict[str, int]
+) -> CppActivationMutationConfig:
+    """Convert a Python activation mutation to C++ config."""
+    cpp_config = CppActivationMutationConfig()
+
+    if isinstance(mutation, ResourceDeltaMutation):
+        cpp_config.type = "resource_delta"
+        cpp_config.resource_delta.target = mutation.target
+        cpp_config.resource_delta.deltas = {resource_name_to_id[k]: int(v) for k, v in mutation.deltas.items()}
+    elif isinstance(mutation, ResourceTransferMutation):
+        cpp_config.type = "resource_transfer"
+        cpp_config.resource_transfer.from_target = mutation.from_target
+        cpp_config.resource_transfer.to_target = mutation.to_target
+        cpp_config.resource_transfer.resources = {resource_name_to_id[k]: int(v) for k, v in mutation.resources.items()}
+    elif isinstance(mutation, AlignmentMutation):
+        cpp_config.type = "alignment"
+        cpp_config.alignment.align_to = mutation.align_to
+    elif isinstance(mutation, FreezeMutation):
+        cpp_config.type = "freeze"
+        cpp_config.freeze.target = mutation.target
+        cpp_config.freeze.duration = mutation.duration
+    elif isinstance(mutation, AttackMutation):
+        cpp_config.type = "attack"
+        cpp_config.attack.defense_resources = {
+            resource_name_to_id[k]: int(v) for k, v in mutation.defense_resources.items()
+        }
+        cpp_config.attack.armor_resources = {
+            resource_name_to_id[k]: int(v) for k, v in mutation.armor_resources.items()
+        }
+        cpp_config.attack.weapon_resources = {
+            resource_name_to_id[k]: int(v) for k, v in mutation.weapon_resources.items()
+        }
+        cpp_config.attack.vibe_bonus = {vibe_name_to_id[k]: int(v) for k, v in mutation.vibe_bonus.items()}
+        cpp_config.attack.on_success = [
+            _convert_activation_mutation(m, resource_name_to_id, vibe_name_to_id) for m in mutation.on_success
+        ]
+    else:
+        raise ValueError(f"Unknown mutation type: {type(mutation)}")
+
+    return cpp_config
+
+
+def _convert_activation_handlers(
+    handlers: list[ActivationHandler], resource_name_to_id: dict[str, int], vibe_name_to_id: dict[str, int]
+) -> list[CppActivationHandlerConfig]:
+    """Convert list of Python ActivationHandler to list of C++ ActivationHandlerConfig."""
+    result = []
+    for handler in handlers:
+        cpp_handler = CppActivationHandlerConfig()
+        cpp_handler.name = handler.name
+
+        # Convert filters - build list then assign (pybind11 vectors don't support append)
+        cpp_filters = []
+        for filter_obj in handler.filters:
+            cpp_filter = CppActivationFilterConfig()
+            if isinstance(filter_obj, VibeFilter):
+                cpp_filter.type = "vibe"
+                cpp_filter.vibe.target = filter_obj.target
+                if filter_obj.vibe not in vibe_name_to_id:
+                    raise ValueError(f"Unknown vibe name '{filter_obj.vibe}' in activation filter")
+                cpp_filter.vibe.vibe = vibe_name_to_id[filter_obj.vibe]
+            elif isinstance(filter_obj, ResourceFilter):
+                cpp_filter.type = "resource"
+                cpp_filter.resource.target = filter_obj.target
+                cpp_filter.resource.resources = {
+                    resource_name_to_id[k]: int(v) for k, v in filter_obj.resources.items()
+                }
+            else:
+                raise ValueError(f"Unknown filter type: {type(filter_obj)}")
+            cpp_filters.append(cpp_filter)
+        cpp_handler.filters = cpp_filters
+
+        # Convert mutations - build list then assign
+        cpp_mutations = []
+        for mutation in handler.mutations:
+            cpp_mutation = _convert_activation_mutation(mutation, resource_name_to_id, vibe_name_to_id)
+            cpp_mutations.append(cpp_mutation)
+        cpp_handler.mutations = cpp_mutations
+
+        result.append(cpp_handler)
     return result
 
 
@@ -266,6 +361,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             damage_config=cpp_damage_config,
         )
         cpp_agent_config.tag_ids = tag_ids
+        cpp_agent_config.activation_handlers = _convert_activation_handlers(
+            first_agent.activation_handlers, resource_name_to_id, vibe_name_to_id
+        )
 
         objects_cpp_params["agent." + group_name] = cpp_agent_config
 
@@ -290,6 +388,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             )
             cpp_wall_config.tag_ids = tag_ids
             cpp_wall_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
+            cpp_wall_config.activation_handlers = _convert_activation_handlers(
+                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+            )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
@@ -343,6 +444,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.start_clipped = object_config.start_clipped
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             cpp_assembler_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
+            cpp_assembler_config.activation_handlers = _convert_activation_handlers(
+                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+            )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
         elif isinstance(object_config, (ChestConfig, CommonsChestConfig)):
@@ -400,6 +504,9 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_chest_config.inventory_config = inventory_config
             cpp_chest_config.tag_ids = tag_ids
             cpp_chest_config.aoes = _convert_aoe_configs(object_config.aoes, resource_name_to_id, tag_name_to_id)
+            cpp_chest_config.activation_handlers = _convert_activation_handlers(
+                object_config.activation_handlers, resource_name_to_id, vibe_name_to_id
+            )
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
         else:
