@@ -269,7 +269,7 @@ def make_gear_station(
     ]
 
     # Activation handler to clear all gear when agent steps on station
-    activation_handlers = [
+    handlers = [
         ActivationHandler(
             name="clear_gear",
             mutations=[
@@ -287,5 +287,5 @@ def make_gear_station(
         clip_immune=clip_immune,
         start_clipped=start_clipped,
         protocols=protocols,
-        activation_handlers=activation_handlers,
+        handlers=handlers,
     )
