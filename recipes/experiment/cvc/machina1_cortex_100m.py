@@ -7,6 +7,7 @@ from cortex.stacks import build_cortex_auto_config
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import AdvantageConfig, OptimizerConfig
+from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
@@ -51,19 +52,31 @@ def train(
     dtype: str = "float32",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
+    bc_steps: int = 2_500_000_000,
+    anneal_steps: int = 3_000_000_000,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if eval_variants is None:
         eval_variants = variants
 
+    if bc_steps <= 0:
+        raise ValueError("bc_steps must be > 0")
+    if anneal_steps <= 0:
+        raise ValueError("anneal_steps must be > 0")
+
+    teacher_total_steps = bc_steps + anneal_steps
     teacher = teacher or TeacherConfig(
         policy_uri="metta://policy/dinky:v15",
         mode="sliced_cloner",
-        steps=4_000_000_000,
-        teacher_led_proportion=0.15,
-        student_led_proportion=0.20,
+        steps=teacher_total_steps,
+        teacher_led_proportion=0.35,
+        student_led_proportion=0.65,
+        # When PPO is enabled, let it train on all slices (teacher/student/ppo).
         kwargs={"restrict_ppo_to_ppo_mask": False},
     )
+
+    if teacher.steps != teacher_total_steps:
+        raise ValueError(f"Expected teacher.steps={teacher_total_steps} (bc_steps+anneal_steps), got {teacher.steps}")
 
     tt = train_single_mission(
         mission="machina_1.open_world",
@@ -73,6 +86,65 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
         maps_cache_size=None,
+    )
+
+    if tt.scheduler is None:
+        raise RuntimeError("Expected TrainTool.scheduler to be set by train_single_mission")
+
+    # --------------------- BC -> PPO schedule (sliced_cloner) ---------------------
+    #
+    # Goal:
+    # 1) [0 .. bc_steps)        : "pure BC" (PPO gated off). Teacher/student slices drive behavior; PPO does not train.
+    # 2) [bc_steps .. end)      : enable PPO; anneal teacher/student slice proportions -> 0 linearly.
+    # 3) [end .. inf)           : pure PPO (cloner gated off by teacher.steps).
+    #
+    # Mechanism:
+    # - We use TeacherConfig(mode="sliced_cloner") to enable the sliced cloner loss and supervisor actions.
+    # - We use scheduler run gates to disable PPO actor/critic until bc_steps.
+    # - We override teacher.py's default anneal (0..end) so annealing begins at bc_steps instead.
+    teacher_proportion_path = "losses.sliced_scripted_cloner.teacher_led_proportion"
+    student_proportion_path = "losses.sliced_scripted_cloner.student_led_proportion"
+
+    # teacher.py delays PPO critic rollout until teacher.steps; we want PPO to start at bc_steps.
+    # (Leaving this gate in place would still work due to OR semantics, but it's misleading in configs.)
+    tt.scheduler.run_gates = [
+        gate
+        for gate in tt.scheduler.run_gates
+        if not (gate.loss_instance_name == "ppo_critic" and gate.phase == "rollout" and gate.begin_at_step is not None)
+    ]
+
+    # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
+    tt.scheduler.rules = [
+        rule for rule in tt.scheduler.rules if rule.target_path not in {teacher_proportion_path, student_proportion_path}
+    ]
+
+    # Phase 1: PPO off. Phase 2+: PPO on (trains on all slices).
+    for loss_name in ("ppo_actor", "ppo_critic"):
+        for phase in ("rollout", "train"):
+            tt.scheduler.run_gates.append(LossRunGate(loss_instance_name=loss_name, phase=phase, begin_at_step=bc_steps))
+
+    # Phase 2: linearly anneal BC slice proportions down to 0, growing the PPO slice over time.
+    tt.scheduler.rules.append(
+        ScheduleRule(
+            target_path=teacher_proportion_path,
+            mode="progress",
+            style="linear",
+            start_value=float(teacher.teacher_led_proportion),
+            end_value=0.0,
+            start_agent_step=bc_steps,
+            end_agent_step=teacher_total_steps,
+        )
+    )
+    tt.scheduler.rules.append(
+        ScheduleRule(
+            target_path=student_proportion_path,
+            mode="progress",
+            style="linear",
+            start_value=float(teacher.student_led_proportion),
+            end_value=0.0,
+            start_agent_step=bc_steps,
+            end_agent_step=teacher_total_steps,
+        )
     )
 
     trainer_updates, env_updates = _trainer_and_env_overrides()
