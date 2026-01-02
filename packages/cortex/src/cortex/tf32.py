@@ -9,20 +9,15 @@ def set_tf32_precision(mode: bool | str) -> None:
 
     enabled = mode if isinstance(mode, bool) else mode.lower() == "tf32"
 
-    # For now, always use the legacy allow_tf32 API as torch._inductor appears to have an issue with the newer tf32 API
-    #  and we get a "mix of legacy and new APIs" with certain Cortex cells.
-    # We can try uncommenting the code below later if the issue is fixed.
+    # For now, we ALWAYS use the legacy allow_tf32 API as torch._inductor appears to have an issue with the newer
+    #  fp32 tf32 API: https://github.com/pytorch/pytorch/issues/166387
+    # Trying to only use the new API led to a "mix of legacy and new APIs" RuntimeError() on compilation of
+    #  certain Cortex cells.
+    # When PyTorch removes support for legacy API, we can move to the new API, and hopefully, the bug is fixed by then.
     if hasattr(torch.backends.cuda.matmul, "allow_tf32"):
         torch.backends.cuda.matmul.allow_tf32 = enabled
     if hasattr(torch.backends.cudnn, "allow_tf32"):
         torch.backends.cudnn.allow_tf32 = enabled
-
-    # Also set new API if available - keeps both in sync, avoids "mixing" errors
-    # when PyTorch eventually updates inductor to use the new API
-    if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
-        torch.backends.cuda.matmul.fp32_precision = "tf32" if enabled else "ieee"
-    if hasattr(torch.backends.cudnn, "conv") and hasattr(torch.backends.cudnn.conv, "fp32_precision"):
-        torch.backends.cudnn.conv.fp32_precision = "tf32" if enabled else "ieee"
 
     # enabled = mode if isinstance(mode, bool) else mode.lower() == "tf32"
     # matmul_has_fp32 = hasattr(torch.backends.cuda.matmul, "fp32_precision")
