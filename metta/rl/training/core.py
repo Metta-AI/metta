@@ -131,8 +131,8 @@ class CoreTrainingLoop:
                 td["row_id"] = row_ids
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
-
                 ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
+                self._inject_slot_metadata(td)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
@@ -187,6 +187,40 @@ class CoreTrainingLoop:
 
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
+
+    def _inject_slot_metadata(self, td: TensorDict, _training_env_id: slice | None = None) -> None:
+        ctx = self.context
+        slot_ids = ctx.slot_id_per_agent
+        if slot_ids is None:
+            return
+
+        num_agents = ctx.env.policy_env_info.num_agents
+        if slot_ids.numel() != num_agents:
+            raise RuntimeError(f"slot_id_per_agent expected {num_agents} entries, got {slot_ids.numel()}")
+
+        batch_elems = td.batch_size.numel()
+        if batch_elems % num_agents:
+            raise RuntimeError(
+                f"Batch elements ({batch_elems}) must be divisible by num_agents ({num_agents}) for slot metadata"
+            )
+
+        num_envs = batch_elems // num_agents
+        device = td.device
+
+        def _expand(meta: torch.Tensor) -> torch.Tensor:
+            meta = meta.to(device=device)
+            expanded = meta.view(1, num_agents).expand(num_envs, num_agents)
+            return expanded.reshape(td.batch_size)
+
+        td.set("slot_id", _expand(slot_ids))
+
+        loss_profile_ids = ctx.loss_profile_id_per_agent
+        if loss_profile_ids is not None:
+            td.set("loss_profile_id", _expand(loss_profile_ids))
+
+        trainable_mask = ctx.trainable_agent_mask
+        if trainable_mask is not None:
+            td.set("is_trainable_agent", _expand(trainable_mask))
 
     def training_phase(
         self,

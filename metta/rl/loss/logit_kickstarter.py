@@ -21,6 +21,10 @@ class LogitKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=1.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
+    student_forward: bool = Field(default=False)  # use this if you need to forward student during train (eg if no PPO)
+    logit_noise_prob: float = Field(default=0.0, ge=0.0, le=1.0)
+    logit_noise_std: float = Field(default=1.0, ge=0.0)
+    logit_dropout_prob: float = Field(default=0.0, ge=0.0, le=1.0)
     teacher_led_proportion: float = Field(default=1.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
     def create(
@@ -38,12 +42,7 @@ class LogitKickstarterConfig(LossConfig):
 class LogitKickstarter(Loss):
     """This also injects the teacher's logits into the student's observations."""
 
-    __slots__ = (
-        "teacher_policy",
-        "extended_policy_env_info",
-        "logit_feature_ids",
-        "num_actions",
-    )
+    __slots__ = ("teacher_policy", "num_actions")
 
     def __init__(
         self,

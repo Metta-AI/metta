@@ -26,6 +26,11 @@ class SlicedKickstarterConfig(LossConfig):
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
 
+    # Optional slot wiring to route teacher/student via SlotControllerPolicy
+    teacher_slot_id: str | None = Field(default=None, description="Slot id that should act during teacher-led slices.")
+    student_slot_id: str | None = Field(default=None, description="Slot id that should act during student/PPO slices.")
+    profiles: list[str] | None = Field(default=None)
+
     def create(
         self,
         policy: Policy,
@@ -39,9 +44,7 @@ class SlicedKickstarterConfig(LossConfig):
 
 
 class SlicedKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
-    """
+    """Forward a teacher policy and distil its logits/values into the student."""
 
     __slots__ = ("teacher_policy", "rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
@@ -56,6 +59,7 @@ class SlicedKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+        self.loss_profiles = None  # inherit default filtering (all)
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -86,6 +90,25 @@ class SlicedKickstarter(Loss):
 
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
+
+            # If slot routing is configured, swap slot ids per slice so the slot controller
+            # forwards the appropriate policy for each portion of the batch.
+            if "slot_id" in td.keys() and context.slot_id_lookup:
+                teacher_slot_name = self.cfg.teacher_slot_id
+                student_slot_name = self.cfg.student_slot_id
+                if teacher_slot_name and student_slot_name:
+                    teacher_slot_idx = context.slot_id_lookup.get(teacher_slot_name)
+                    student_slot_idx = context.slot_id_lookup.get(student_slot_name)
+                    if teacher_slot_idx is None or student_slot_idx is None:
+                        raise RuntimeError(
+                            f"SlicedKickstarter slot wiring requires slot ids '{student_slot_name}' "
+                            f"and '{teacher_slot_name}' to exist in trainer.policy_slots."
+                        )
+                    slot_ids = td.get("slot_id").to(device=td.device).clone()
+                    flat_slots = slot_ids.reshape(-1)
+                    flat_slots[self.teacher_mask] = teacher_slot_idx
+                    flat_slots[self.stud_mask | self.ppo_mask] = student_slot_idx
+                    td["slot_id"] = flat_slots.reshape(slot_ids.shape)
 
             self.policy.forward(td)
 
@@ -154,8 +177,8 @@ class SlicedKickstarter(Loss):
         self.loss_tracker["ks_val_loss"].append(float(ks_value_loss.item()))
         self.loss_tracker["ks_act_loss_coef"].append(float(self.cfg.action_loss_coef))
         self.loss_tracker["ks_val_loss_coef"].append(float(self.cfg.value_loss_coef))
-        self.loss_tracker["ks_teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["ks_student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.loss_tracker["ks_led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["ks_student_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 

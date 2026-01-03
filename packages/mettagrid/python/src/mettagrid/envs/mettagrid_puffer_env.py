@@ -138,6 +138,8 @@ class MettaGridPufferEnv(PufferEnv):
                 self._supervisor_policy_spec,
             )
             self._compute_supervisor_actions()
+        else:
+            self._env_supervisor = None
         return sim
 
     def _new_sim(self) -> None:

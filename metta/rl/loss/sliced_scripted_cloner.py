@@ -20,6 +20,8 @@ class SlicedScriptedClonerConfig(LossConfig):
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_slot_id: str | None = Field(default=None, description="Slot id that should act during teacher-led slices.")
+    student_slot_id: str | None = Field(default=None, description="Slot id that should act during student/PPO slices.")
 
     def create(
         self,
@@ -76,6 +78,23 @@ class SlicedScriptedCloner(Loss):
         with torch.no_grad():
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
+
+            if "slot_id" in td.keys() and context.slot_id_lookup:
+                teacher_slot_name = self.cfg.teacher_slot_id
+                student_slot_name = self.cfg.student_slot_id
+                if teacher_slot_name and student_slot_name:
+                    teacher_slot_idx = context.slot_id_lookup.get(teacher_slot_name)
+                    student_slot_idx = context.slot_id_lookup.get(student_slot_name)
+                    if teacher_slot_idx is None or student_slot_idx is None:
+                        raise RuntimeError(
+                            f"SlicedScriptedCloner slot wiring requires slot ids '{student_slot_name}' "
+                            f"and '{teacher_slot_name}' to exist in trainer.policy_slots."
+                        )
+                    slot_ids = td.get("slot_id").to(device=td.device).clone()
+                    flat_slots = slot_ids.reshape(-1)
+                    flat_slots[self.teacher_mask] = teacher_slot_idx
+                    flat_slots[self.stud_mask | self.ppo_mask] = student_slot_idx
+                    td["slot_id"] = flat_slots.reshape(slot_ids.shape)
 
             self.policy.forward(td)
 
@@ -139,8 +158,8 @@ class SlicedScriptedCloner(Loss):
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.loss_tracker["led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["student_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data, False
 
