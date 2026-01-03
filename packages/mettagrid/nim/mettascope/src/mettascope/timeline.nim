@@ -21,6 +21,11 @@ proc playControls*() =
   let now = epochTime()
   let deltaTime = now - lastFrameTime
 
+  # Command+Q to quit (macOS standard).
+  let superDown = window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
+  if superDown and window.buttonPressed[KeyQ]:
+    window.close()
+
   if window.buttonPressed[KeySpace]:
     play = not play
     stepFloat = step.float32

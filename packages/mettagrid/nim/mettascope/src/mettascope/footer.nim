@@ -1,7 +1,7 @@
 import
-  std/strutils,
-  silky, chroma, vmath,
-  common
+  std/[strutils, json],
+  silky, chroma, vmath, windy, bumpy,
+  common, replays
 
 const
   FooterColor = parseHtmlColor("#273646").rgbx
@@ -51,7 +51,7 @@ proc drawFooter*(pos, size: Vec2) =
           clickableIcon("ui/speed", playSpeed >= speed):
             playSpeed = speed
 
-    sk.at = pos + vec2(size.x - 240, 16)
+    sk.at = pos + vec2(size.x - 280, 16)
     group(vec2(0, 0), LeftToRight):
       clickableIcon("ui/tack", settings.lockFocus):
         settings.lockFocus = not settings.lockFocus
