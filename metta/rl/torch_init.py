@@ -56,8 +56,11 @@ def configure_torch_globally_for_performance() -> None:
     if _configured:
         return
 
-    # Configure TF32 precision for CUDA (performance mode)
+    # Configure TF32 precision for CUDA performance.
     set_tf32_precision(True)
+
+    # Enable CuDNN benchmark mode for performance.
+    torch.backends.cudnn.benchmark = True
 
     _configured = True
 
