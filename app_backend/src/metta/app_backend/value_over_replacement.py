@@ -152,11 +152,11 @@ def compute_overall_vor_from_stats(
     candidate_count_stats: Mapping[int, RunningStats],
     replacement_baseline: float,
 ) -> float | None:
-    """Compute VOR using a fixed replacement baseline.
+    """Compute VOR using a replacement baseline.
 
     Args:
         candidate_count_stats: Stats per candidate_count level
-        replacement_baseline: Hardcoded replacement mean (from REPLACEMENT_BASELINE_MEAN)
+        replacement_baseline: Mean reward of baseline policies (thinky/ladybug) from c0 episodes
 
     Returns:
         VOR = candidate_avg - replacement_baseline

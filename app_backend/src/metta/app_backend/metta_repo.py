@@ -15,11 +15,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.config import settings
 from metta.app_backend.leaderboard_constants import (
+    LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
     LEADERBOARD_SCENARIO_KEY,
     LEADERBOARD_THINKY_COUNT_KEY,
-    REPLACEMENT_BASELINE_MEAN,
+    THINKY_UUID,
 )
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
@@ -1197,6 +1198,54 @@ GROUP BY pv.id, et.key, et.value
             stats_by_policy[row["policy_version_id"]][candidate_count].update(reward, weight=weight)
         return stats_by_policy
 
+    @memoize(max_age=300.0)  # Cache for 5 minutes since baseline changes rarely
+    async def _get_replacement_baseline(self) -> tuple[float | None, int]:
+        """Query the replacement baseline from c0 (candidate_count=0) episodes.
+
+        Returns:
+            Tuple of (mean_reward, total_episodes) for thinky/ladybug in c0 scenarios.
+            Returns (None, 0) if no c0 episodes exist.
+        """
+        # Query c0 episodes where only thinky and ladybug are present
+        # These episodes have candidate_count=0 and contain baseline policy performance
+        query = f"""
+        SELECT
+            epm.value / NULLIF(ep.num_agents, 0) AS avg_reward,
+            ep.num_agents
+        FROM episodes e
+        JOIN episode_tags et_cand
+            ON et_cand.episode_id = e.id AND et_cand.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}'
+        JOIN episode_policies ep ON ep.episode_id = e.id
+        JOIN policy_versions pv ON pv.id = ep.policy_version_id
+        JOIN episode_policy_metrics epm
+            ON epm.episode_internal_id = e.internal_id AND epm.pv_internal_id = pv.internal_id
+        WHERE et_cand.value = '0'
+            AND epm.metric_name = 'reward'
+            AND ep.num_agents > 0
+            AND pv.id IN ('{THINKY_UUID}', '{LADYBUG_UUID}')
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=dict_row) as cur:
+                await cur.execute(query)
+                rows = await cur.fetchall()
+
+        if not rows:
+            return None, 0
+
+        # Accumulate weighted stats from c0 episodes
+        # Weight by the number of agents for this specific policy in the episode
+        stats = RunningStats()
+        for row in rows:
+            avg_reward = row.get("avg_reward")
+            if avg_reward is None:
+                continue
+            # Use ep.num_agents - the agent count for this specific policy in this episode
+            weight = int(row.get("num_agents") or 0)
+            if weight > 0:
+                stats.update(float(avg_reward), weight=weight)
+
+        return stats.mean, stats.count
+
     async def get_leaderboard_policies_with_vor(
         self,
         policy_version_tags: dict[str, str],
@@ -1211,11 +1260,24 @@ GROUP BY pv.id, et.key, et.value
         )
         candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
 
+        # Get dynamic replacement baseline from c0 episodes
+        replacement_baseline, baseline_episodes = await self._get_replacement_baseline()
+        if replacement_baseline is None:
+            raise RuntimeError(
+                "No c0 baseline episodes found in observatory. "
+                "Run baseline evaluations via: ./tools/run.py recipes.experiment.v0_leaderboard.evaluate_baseline"
+            )
+        logger.debug(
+            "Using replacement baseline %.4f from %d c0 episodes",
+            replacement_baseline,
+            baseline_episodes,
+        )
+
         for entry in entries:
             pv_id = entry.policy_version.id
             candidate_stats = candidate_vor_stats.get(pv_id, {})
             if candidate_stats:
-                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, REPLACEMENT_BASELINE_MEAN)
+                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, replacement_baseline)
 
         return entries
 

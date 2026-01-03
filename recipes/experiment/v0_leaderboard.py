@@ -168,6 +168,50 @@ def play(policy_version_id: str | None = None, s3_path: str | None = None) -> Pl
     )
 
 
+def baseline_simulations(num_episodes: int = 1, map_seed: int | None = None) -> Sequence[SimulationRunConfig]:
+    """Generate simulation configs for baseline (c0) evaluation only.
+
+    These scenarios have candidate_count=0 and are used to establish the replacement baseline.
+    """
+    env_config = _make_env(map_seed)
+    scenarios = _generate_scenarios(NUM_COGS, include_candidate=False, include_replacement=True)
+    return [
+        SimulationRunConfig(
+            env=env_config,
+            num_episodes=num_episodes,
+            proportions=scenario.proportions,
+            episode_tags=scenario.episode_tags(),
+        )
+        for scenario in scenarios
+    ]
+
+
+# ./tools/run.py recipes.experiment.v0_leaderboard.evaluate_baseline seed=50
+def evaluate_baseline(
+    seed: int = 50,
+    num_episodes: int = 3,
+    result_file_path: str | None = None,
+) -> EvalWithResultTool:
+    """Evaluate the baseline policies (thinky + ladybug) in c0 scenarios.
+
+    This establishes the replacement baseline for VOR calculations.
+    Should be run periodically or when no c0 baseline data exists.
+    """
+    policy_uris = [
+        f"metta://policy/{THINKY_UUID}",
+        f"metta://policy/{LADYBUG_UUID}",
+    ]
+
+    tool = EvalWithResultTool(
+        simulations=baseline_simulations(num_episodes=num_episodes, map_seed=seed),
+        policy_uris=policy_uris,
+        verbose=True,
+        result_file_path=result_file_path or f"baseline_eval_{seed}.json",
+    )
+    tool.system.seed = seed
+    return tool
+
+
 # This is similar to what evaluate_remote() ultimately calls within remote_eval_worker
 # ./tools/run.py recipes.experiment.v0_leaderboard.test_remote_eval
 #   policy_version_id=99810f21-d73d-4e72-8082-70516f2b6b2a
