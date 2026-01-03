@@ -9,8 +9,12 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .curriculum import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
-from .task_tracker import TaskTracker
+from metta.cogworks.curriculum.task_tracker import TaskTracker
+from metta.cogworks.curriculum.types import (
+    CurriculumAlgorithm,
+    CurriculumAlgorithmConfig,
+    CurriculumTask,
+)
 
 # Constants for bidirectional learning progress
 DEFAULT_SUCCESS_RATE = 0.0
