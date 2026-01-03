@@ -11,11 +11,9 @@ import numpy as np
 import torch
 
 
-def _set_tf32_precision(mode: bool | str) -> None:
+def set_tf32_precision(enabled: bool, /) -> None:
     if not torch.cuda.is_available():
         return
-
-    enabled = mode if isinstance(mode, bool) else mode.lower() == "tf32"
 
     # For now, we ALWAYS use the legacy allow_tf32 API as torch._inductor appears to have an issue with the newer
     #  fp32 tf32 API: https://github.com/pytorch/pytorch/issues/166387
@@ -47,7 +45,7 @@ def _set_tf32_precision(mode: bool | str) -> None:
 _configured = False
 
 
-def configure_torch_globally() -> None:
+def configure_torch_globally_for_performance() -> None:
     """Configure PyTorch settings globally (TF32, etc.) for performance.
 
     This should be called early in the application lifecycle, before any
@@ -55,18 +53,13 @@ def configure_torch_globally() -> None:
     multiple times (idempotent).
     """
     global _configured
-
     if _configured:
         return
 
     # Configure TF32 precision for CUDA (performance mode)
-    _set_tf32_precision(True)
+    set_tf32_precision(True)
 
     _configured = True
-
-
-# Despite these efforts, we still don't get deterministic behavior. But presumably this is better than nothing.
-#  https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
 
 
 def seed_everything(base_seed: int, /) -> None:
@@ -91,12 +84,13 @@ def enable_determinism() -> None:
     # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
-    _set_tf32_precision(False)
+    set_tf32_precision(False)
 
     torch.use_deterministic_algorithms(True)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
 
-# Auto-configure on import (runs once when module is first imported)
-configure_torch_globally()
+# Despite above efforts, we still don't get deterministic behavior.
+#  But presumably this is better than nothing.
+#  https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
