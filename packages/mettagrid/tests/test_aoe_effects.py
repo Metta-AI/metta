@@ -2,7 +2,7 @@
 
 This tests the AOE system functionality where:
 - Objects can emit AOE effects that modify agent inventories within range
-- Effects can be filtered by commons membership (members_only, ignore_members)
+- Effects can be filtered using AlignmentFilter (same_commons, not_same_commons, etc.)
 - Effects are properly registered/unregistered when objects are added/removed
 - Multiple overlapping effects accumulate correctly
 """
@@ -11,6 +11,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AlignActionConfig,
+    AlignmentFilter,
     AOEEffectConfig,
     ChangeVibeActionConfig,
     CommonsChestConfig,
@@ -34,12 +35,12 @@ class TestAOEEffectsBasic:
         self,
         aoe_range: int = 1,
         resource_deltas: dict[str, int] | None = None,
-        members_only: bool = False,
-        ignore_members: bool = False,
+        filters: list | None = None,
         initial_inventory: dict[str, int] | None = None,
     ) -> Simulation:
         """Create a simulation with an AOE-emitting wall and an agent."""
         resource_deltas = resource_deltas or {"energy": 5}
+        filters = filters or []
 
         game_map = [
             ["wall", "wall", "wall", "wall", "wall"],
@@ -70,8 +71,7 @@ class TestAOEEffectsBasic:
                         AOEEffectConfig(
                             range=aoe_range,
                             resource_deltas=resource_deltas,
-                            members_only=members_only,
-                            ignore_members=ignore_members,
+                            filters=filters,
                         )
                     ],
                 ),
@@ -181,8 +181,7 @@ class TestAOEMultipleOverlapping:
                     AOEEffectConfig(
                         range=source.get("range", 3),
                         resource_deltas=source.get("resource_deltas", {"energy": 5}),
-                        members_only=source.get("members_only", False),
-                        ignore_members=source.get("ignore_members", False),
+                        filters=source.get("filters", []),
                     )
                 ],
             )
@@ -324,16 +323,17 @@ class TestAOEMultipleOverlapping:
 
 
 class TestAOECommonsFiltering:
-    """Test AOE effects with commons membership filtering."""
+    """Test AOE effects with commons membership filtering using AlignmentFilter."""
 
     def _create_sim_with_commons_aoe(
         self,
         agent_commons: str | None = None,
         source_commons: str | None = None,
-        members_only: bool = False,
-        ignore_members: bool = False,
+        filters: list | None = None,
     ) -> Simulation:
         """Create a simulation with AOE source and agent potentially in different commons."""
+        filters = filters or []
+
         game_map = [
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", "aoe_source", ".", ".", "wall"],
@@ -372,8 +372,7 @@ class TestAOECommonsFiltering:
                         AOEEffectConfig(
                             range=2,
                             resource_deltas={"energy": 10},
-                            members_only=members_only,
-                            ignore_members=ignore_members,
+                            filters=filters,
                         )
                     ],
                 ),
@@ -393,13 +392,12 @@ class TestAOECommonsFiltering:
         resource_idx = sim.resource_names.index(resource)
         return agents[0]["inventory"][resource_idx]
 
-    def test_members_only_same_commons(self):
-        """Test that members_only effect applies when agent and source share commons."""
+    def test_same_commons_filter_same_commons(self):
+        """Test that same_commons filter applies when agent and source share commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons="team_red",
             source_commons="team_red",
-            members_only=True,
-            ignore_members=False,
+            filters=[AlignmentFilter(target="target", alignment="same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -412,13 +410,12 @@ class TestAOECommonsFiltering:
             f"Agent should receive effect (same commons). Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_members_only_different_commons(self):
-        """Test that members_only effect does NOT apply when agent and source have different commons."""
+    def test_same_commons_filter_different_commons(self):
+        """Test that same_commons filter does NOT apply when agent and source have different commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons="team_red",
             source_commons="team_blue",
-            members_only=True,
-            ignore_members=False,
+            filters=[AlignmentFilter(target="target", alignment="same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -431,13 +428,12 @@ class TestAOECommonsFiltering:
             f"Agent should NOT receive effect (different commons). Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_members_only_no_agent_commons(self):
-        """Test that members_only effect does NOT apply when agent has no commons."""
+    def test_same_commons_filter_no_agent_commons(self):
+        """Test that same_commons filter does NOT apply when agent has no commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons=None,
             source_commons="team_red",
-            members_only=True,
-            ignore_members=False,
+            filters=[AlignmentFilter(target="target", alignment="same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -450,13 +446,12 @@ class TestAOECommonsFiltering:
             f"Agent should NOT receive effect (no commons). Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_ignore_members_same_commons(self):
-        """Test that ignore_members effect does NOT apply when agent and source share commons."""
+    def test_not_same_commons_filter_same_commons(self):
+        """Test that not_same_commons filter does NOT apply when agent and source share commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons="team_red",
             source_commons="team_red",
-            members_only=False,
-            ignore_members=True,
+            filters=[AlignmentFilter(target="target", alignment="not_same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -466,17 +461,16 @@ class TestAOECommonsFiltering:
 
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before, (
-            f"Agent should NOT receive effect (ignore_members, same commons). "
+            f"Agent should NOT receive effect (not_same_commons filter, same commons). "
             f"Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_ignore_members_different_commons(self):
-        """Test that ignore_members effect applies when agent and source have different commons."""
+    def test_not_same_commons_filter_different_commons(self):
+        """Test that not_same_commons filter applies when agent and source have different commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons="team_red",
             source_commons="team_blue",
-            members_only=False,
-            ignore_members=True,
+            filters=[AlignmentFilter(target="target", alignment="not_same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -486,17 +480,16 @@ class TestAOECommonsFiltering:
 
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before + 10, (
-            f"Agent should receive effect (ignore_members, different commons). "
+            f"Agent should receive effect (not_same_commons filter, different commons). "
             f"Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_ignore_members_no_agent_commons(self):
-        """Test that ignore_members effect applies when agent has no commons."""
+    def test_not_same_commons_filter_no_agent_commons(self):
+        """Test that not_same_commons filter applies when agent has no commons."""
         sim = self._create_sim_with_commons_aoe(
             agent_commons=None,
             source_commons="team_red",
-            members_only=False,
-            ignore_members=True,
+            filters=[AlignmentFilter(target="target", alignment="not_same_commons")],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -506,7 +499,8 @@ class TestAOECommonsFiltering:
 
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before + 10, (
-            f"Agent should receive effect (ignore_members, no commons). Before: {energy_before}, After: {energy_after}"
+            f"Agent should receive effect (not_same_commons, no commons). "
+            f"Before: {energy_before}, After: {energy_after}"
         )
 
     def test_no_filter_always_applies(self):
@@ -514,8 +508,7 @@ class TestAOECommonsFiltering:
         sim = self._create_sim_with_commons_aoe(
             agent_commons="team_red",
             source_commons="team_blue",
-            members_only=False,
-            ignore_members=False,
+            filters=[],
         )
 
         energy_before = self._get_agent_inventory(sim, "energy")
@@ -526,6 +519,65 @@ class TestAOECommonsFiltering:
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before + 10, (
             f"Agent should receive effect (no filter). Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_different_commons_filter_neutral_source(self):
+        """Test that different_commons filter does NOT apply when source has no commons (neutral)."""
+        # Neutral sources have no enemies - they shouldn't attack anyone
+        sim = self._create_sim_with_commons_aoe(
+            agent_commons="team_red",  # Agent is aligned
+            source_commons=None,  # Source is neutral
+            filters=[AlignmentFilter(target="target", alignment="different_commons")],
+        )
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"Agent should NOT receive effect (neutral source has no enemies). "
+            f"Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_different_commons_filter_neutral_target(self):
+        """Test that different_commons filter does NOT apply when target has no commons (neutral)."""
+        # Neutral agents are not enemies - they shouldn't be attacked
+        sim = self._create_sim_with_commons_aoe(
+            agent_commons=None,  # Agent is neutral
+            source_commons="team_red",  # Source is aligned
+            filters=[AlignmentFilter(target="target", alignment="different_commons")],
+        )
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before, (
+            f"Agent should NOT receive effect (neutral target is not an enemy). "
+            f"Before: {energy_before}, After: {energy_after}"
+        )
+
+    def test_different_commons_filter_both_aligned_different(self):
+        """Test that different_commons filter applies when both have different commons."""
+        sim = self._create_sim_with_commons_aoe(
+            agent_commons="team_red",
+            source_commons="team_blue",
+            filters=[AlignmentFilter(target="target", alignment="different_commons")],
+        )
+
+        energy_before = self._get_agent_inventory(sim, "energy")
+
+        sim.agent(0).set_action("noop")
+        sim.step()
+
+        energy_after = self._get_agent_inventory(sim, "energy")
+        assert energy_after == energy_before + 10, (
+            f"Agent should receive effect (both aligned, different commons). "
+            f"Before: {energy_before}, After: {energy_after}"
         )
 
 
@@ -577,7 +629,7 @@ class TestAOEAlignmentChange:
                         AOEEffectConfig(
                             range=3,
                             resource_deltas={"energy": 10},
-                            members_only=True,  # Only for team_red members
+                            filters=[AlignmentFilter(target="target", alignment="same_commons")],
                         )
                     ],
                 ),
@@ -588,7 +640,7 @@ class TestAOEAlignmentChange:
                         AOEEffectConfig(
                             range=3,
                             resource_deltas={"heart": 5},
-                            members_only=True,  # Only for team_blue members
+                            filters=[AlignmentFilter(target="target", alignment="same_commons")],
                         )
                     ],
                 ),
@@ -886,10 +938,11 @@ class TestAOEAfterAlignmentChange:
 
     def _create_sim_with_alignable_aoe(
         self,
-        members_only: bool = False,
-        ignore_members: bool = False,
+        filters: list | None = None,
     ) -> Simulation:
         """Create a simulation with an agent and CommonsChest with AOE that can be scrambled."""
+        filters = filters or []
+
         game_map = [
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", "agent.agent", ".", "chest", "wall"],
@@ -926,8 +979,7 @@ class TestAOEAfterAlignmentChange:
                         AOEEffectConfig(
                             range=3,
                             resource_deltas={"energy": 10},
-                            members_only=members_only,
-                            ignore_members=ignore_members,
+                            filters=filters,
                         )
                     ],
                 ),
@@ -959,11 +1011,11 @@ class TestAOEAfterAlignmentChange:
         sim.agent(0).set_action("move_east")
         sim.step()
 
-    def test_members_only_stops_after_scramble(self):
-        """Test that members_only AOE stops applying after source is un-aligned."""
-        sim = self._create_sim_with_alignable_aoe(members_only=True, ignore_members=False)
+    def test_same_commons_filter_stops_after_scramble(self):
+        """Test that same_commons AOE stops applying after source is un-aligned."""
+        sim = self._create_sim_with_alignable_aoe(filters=[AlignmentFilter(target="target", alignment="same_commons")])
 
-        # Before scramble: agent and chest share commons, so members_only should apply
+        # Before scramble: agent and chest share commons, so same_commons filter passes
         energy_before = self._get_agent_inventory(sim, "energy")
         sim.agent(0).set_action("noop")
         sim.step()
@@ -976,7 +1028,7 @@ class TestAOEAfterAlignmentChange:
         # Scramble the chest (remove its alignment)
         self._scramble_chest(sim)
 
-        # After scramble: chest has no commons, so members_only should NOT apply to anyone
+        # After scramble: chest has no commons, so same_commons filter fails
         energy_before = self._get_agent_inventory(sim, "energy")
         sim.agent(0).set_action("noop")
         sim.step()
@@ -986,29 +1038,31 @@ class TestAOEAfterAlignmentChange:
             f"Before: {energy_before}, After: {energy_after}"
         )
 
-    def test_ignore_members_affects_all_after_scramble(self):
-        """Test that ignore_members AOE skips everyone after source is un-aligned."""
-        sim = self._create_sim_with_alignable_aoe(members_only=False, ignore_members=True)
+    def test_not_same_commons_filter_after_scramble(self):
+        """Test that not_same_commons AOE skips everyone after source is un-aligned."""
+        sim = self._create_sim_with_alignable_aoe(
+            filters=[AlignmentFilter(target="target", alignment="not_same_commons")]
+        )
 
-        # Before scramble: agent and chest share commons, so ignore_members skips the agent
+        # Before scramble: agent and chest share commons, so not_same_commons filter fails
         energy_before = self._get_agent_inventory(sim, "energy")
         sim.agent(0).set_action("noop")
         sim.step()
         energy_after = self._get_agent_inventory(sim, "energy")
         assert energy_after == energy_before, (
-            f"Before scramble: agent should NOT receive effect (same commons, ignore_members). "
+            f"Before scramble: agent should NOT receive effect (same commons, not_same_commons filter). "
             f"Before: {energy_before}, After: {energy_after}"
         )
 
         # Scramble the chest (remove its alignment)
         self._scramble_chest(sim)
 
-        # After scramble: chest has no commons, so ignore_members should skip everyone
+        # After scramble: chest has no commons, not_same_commons should pass (unaligned != same_commons)
         energy_before = self._get_agent_inventory(sim, "energy")
         sim.agent(0).set_action("noop")
         sim.step()
         energy_after = self._get_agent_inventory(sim, "energy")
-        assert energy_after == energy_before, (
-            f"After scramble: agent should still NOT receive effect (source has no commons). "
+        assert energy_after == energy_before + 10, (
+            f"After scramble: agent should receive effect (source has no commons, target is not same). "
             f"Before: {energy_before}, After: {energy_after}"
         )

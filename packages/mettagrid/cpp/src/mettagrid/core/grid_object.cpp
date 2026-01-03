@@ -158,6 +158,78 @@ bool AOEHelper::matches_target_tags(const GridObject* obj) const {
   return false;
 }
 
+// Helper to get commons name from an object (checks Alignable interface or tags)
+static std::string get_commons_name(GridObject* obj, const std::unordered_map<int, std::string>& tag_id_map) {
+  const std::string commons_tag_prefix = "commons:";
+
+  // First check if it's an Alignable with a commons
+  if (auto* alignable = dynamic_cast<Alignable*>(obj)) {
+    if (alignable->getCommons()) {
+      return alignable->getCommons()->name;
+    }
+  }
+
+  // Otherwise check tags for commons
+  for (int tag_id : obj->tag_ids) {
+    auto tag_it = tag_id_map.find(tag_id);
+    if (tag_it != tag_id_map.end()) {
+      const std::string& tag_name = tag_it->second;
+      if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+        return tag_name.substr(commons_tag_prefix.length());
+      }
+    }
+  }
+  return "";
+}
+
+// Check if a single AOE filter passes for the given source and target objects
+static bool check_aoe_filter(const ActivationFilterConfig& filter,
+                             GridObject* source,
+                             GridObject* target,
+                             const std::unordered_map<int, std::string>& tag_id_map) {
+  switch (filter.type) {
+    case FilterType::Alignment: {
+      // Resolve which object to check based on filter target
+      GridObject* check_obj = (filter.alignment.target == TargetType::Actor) ? source : target;
+
+      std::string target_commons = get_commons_name(check_obj, tag_id_map);
+      std::string source_commons = get_commons_name(source, tag_id_map);
+
+      switch (filter.alignment.alignment) {
+        case AlignmentType::Aligned:
+          return !target_commons.empty();
+        case AlignmentType::Unaligned:
+          return target_commons.empty();
+        case AlignmentType::SameCommons:
+          return !target_commons.empty() && !source_commons.empty() && target_commons == source_commons;
+        case AlignmentType::DifferentCommons:
+          // Both must have commons, and they must be different
+          return !target_commons.empty() && !source_commons.empty() && target_commons != source_commons;
+        case AlignmentType::NotSameCommons:
+          // NOT aligned to source: either unaligned or aligned to different commons
+          return target_commons.empty() || target_commons != source_commons;
+      }
+      break;
+    }
+    case FilterType::Vibe: {
+      // Check vibe of target or source
+      GridObject* check_obj = (filter.vibe.target == TargetType::Actor) ? source : target;
+      return check_obj->vibe == filter.vibe.vibe;
+    }
+    case FilterType::Resource: {
+      // Check resources of target or source
+      GridObject* check_obj = (filter.resource.target == TargetType::Actor) ? source : target;
+      auto* has_inv = dynamic_cast<HasInventory*>(check_obj);
+      if (!has_inv) return false;
+      for (const auto& [item, amount] : filter.resource.resources) {
+        if (has_inv->inventory.amount(item) < amount) return false;
+      }
+      break;
+    }
+  }
+  return true;
+}
+
 bool AOEHelper::passes_all_filters(GridObject* obj, const std::unordered_map<int, std::string>& tag_id_map) const {
   if (!_config) {
     return false;
@@ -168,62 +240,10 @@ bool AOEHelper::passes_all_filters(GridObject* obj, const std::unordered_map<int
     return false;
   }
 
-  // Check commons membership filtering
-  const std::string commons_tag_prefix = "commons:";
-
-  // Determine if source and target share the same commons
-  bool same_commons = false;
-
-  // Get source's commons
-  std::string source_commons_name;
-  if (auto* source_alignable = dynamic_cast<Alignable*>(_owner)) {
-    if (source_alignable->getCommons()) {
-      source_commons_name = source_alignable->getCommons()->name;
-    }
-  } else if (_owner) {
-    // Source is not Alignable, check tags for commons
-    for (int tag_id : _owner->tag_ids) {
-      auto tag_it = tag_id_map.find(tag_id);
-      if (tag_it != tag_id_map.end()) {
-        const std::string& tag_name = tag_it->second;
-        if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
-          source_commons_name = tag_name.substr(commons_tag_prefix.length());
-          break;
-        }
-      }
-    }
-  }
-
-  // Get target's commons and compare
-  if (auto* target_alignable = dynamic_cast<Alignable*>(obj)) {
-    if (target_alignable->getCommons() && !source_commons_name.empty()) {
-      same_commons = (target_alignable->getCommons()->name == source_commons_name);
-    }
-  } else {
-    // Target is not Alignable, check tags for commons
-    for (int tag_id : obj->tag_ids) {
-      auto tag_it = tag_id_map.find(tag_id);
-      if (tag_it != tag_id_map.end()) {
-        const std::string& tag_name = tag_it->second;
-        if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
-          std::string target_commons_name = tag_name.substr(commons_tag_prefix.length());
-          if (target_commons_name == source_commons_name) {
-            same_commons = true;
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // Apply members_only and ignore_members filters
-  if (_config->members_only && !same_commons) {
-    return false;  // Effect only for members, but target is not a member
-  }
-  if (_config->ignore_members) {
-    // If source has no commons, treat everyone as a member (skip all)
-    if (source_commons_name.empty() || same_commons) {
-      return false;  // Effect ignores members, and target is a member (or source has no alignment)
+  // Check all configured filters
+  for (const auto& filter : _config->filters) {
+    if (!check_aoe_filter(filter, _owner, obj, tag_id_map)) {
+      return false;
     }
   }
 
