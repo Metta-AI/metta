@@ -20,6 +20,7 @@ class SlicedScriptedClonerConfig(LossConfig):
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -50,6 +51,8 @@ class SlicedScriptedCloner(Loss):
         cfg: "SlicedScriptedClonerConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
@@ -108,7 +111,6 @@ class SlicedScriptedCloner(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
-
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]

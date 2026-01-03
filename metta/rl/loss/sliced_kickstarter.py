@@ -21,10 +21,10 @@ class SlicedKickstarterConfig(LossConfig):
     action_loss_coef: float = Field(default=0.6, ge=0, le=10.0)
     value_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
     temperature: float = Field(default=2.0, gt=0)
-
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -39,9 +39,7 @@ class SlicedKickstarterConfig(LossConfig):
 
 
 class SlicedKickstarter(Loss):
-    """This uses another policy that is forwarded during rollout, here, in the loss and then compares its logits and
-    value against the student's using a KL divergence and MSE loss respectively.
-    """
+    """Forward a teacher policy and distil its logits/values into the student."""
 
     __slots__ = ("teacher_policy", "rollout_batch_size", "stud_mask", "teacher_mask", "ppo_mask")
 
@@ -56,6 +54,8 @@ class SlicedKickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -111,7 +111,6 @@ class SlicedKickstarter(Loss):
     ) -> tuple[Tensor, TensorDict, bool]:
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
-
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]

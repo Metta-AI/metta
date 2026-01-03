@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from typing_extensions import Literal
@@ -21,6 +21,7 @@ class PPOCriticConfig(LossConfig):
     critic_update: Literal["mse", "gtd_lambda"] = "gtd_lambda"
     aux_coef: float = Field(default=1.0, ge=0)
     beta: float = Field(default=1.0, ge=0)
+    profiles: list[str] | None = Field(default=None)
 
     def create(
         self,
@@ -51,6 +52,8 @@ class PPOCritic(Loss):
         cfg: "PPOCriticConfig",
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
@@ -100,6 +103,9 @@ class PPOCritic(Loss):
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
+        indices = shared_loss_data["indices"]
+        if isinstance(indices, NonTensorData):
+            indices = indices.data
 
         # Advantages are computed in the core loop and passed through shared_loss_data.
         # Keep the full advantages around for explained variance logging and prioritized sampling.

@@ -9,7 +9,9 @@ import torch
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
-from mettagrid.policy.mpt_artifact import save_mpt
+from mettagrid.policy.mpt_artifact import load_mpt, save_mpt
+from mettagrid.policy.mpt_policy import MptPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -86,7 +88,12 @@ class CheckpointManager:
             return None
         return max(candidates, key=lambda x: x[1])[0]
 
-    def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
+    def save_policy_checkpoint(
+        self,
+        state_dict: dict,
+        architecture,
+        epoch: int,
+    ) -> str:
         filename = checkpoint_filename(self.run_name, epoch)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -165,3 +172,22 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
+    @staticmethod
+    def load_from_uri(
+        uri: str,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device | str = "cpu",
+        *,
+        strict: bool = True,
+    ) -> MptPolicy:
+        """Load a policy checkpoint."""
+
+        resolved_uri = resolve_uri(uri)
+        artifact = load_mpt(resolved_uri)
+        policy = artifact.instantiate(policy_env_info, device=device, strict=strict)
+        return policy
+
+
+# Here temporarily for backwards-compatibility but we will move it
+CheckpointPolicy = MptPolicy

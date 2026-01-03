@@ -3,8 +3,12 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Callable, Sequence
 
+import torch
 from pydantic import BaseModel, ConfigDict, Field
 
+from metta.rl.slot_config import PolicySlotConfig
+from metta.rl.slot_controller import SlotControllerPolicy
+from metta.rl.slot_registry import SlotRegistry
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
@@ -14,18 +18,50 @@ from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult,
 
 def _run_single_simulation(
     simulation: Any,
-    policy_data: Sequence[Any],
+    policy_data: Sequence[Any] | None,
     replay_dir: str | None,
     seed: int,
     device_override: str | None = None,
 ) -> "SimulationRunResult":
     sim_cfg = SimulationRunConfig.model_validate(simulation)
-    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
+    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data] if policy_data else []
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
-    multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
-    ]
+    multi_agent_policies: list[MultiAgentPolicy] = []
+    agent_map: Sequence[str] | None = None
+
+    if sim_cfg.policy_slots:
+        registry = SlotRegistry()
+        slots_cfg = list(sim_cfg.policy_slots)
+        slot_lookup = {slot.id: idx for idx, slot in enumerate(slots_cfg)}
+        controller_device = torch.device(device_override or "cpu")
+
+        num_agents = env_interface.num_agents
+        agent_map = sim_cfg.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
+        if len(agent_map) != num_agents:
+            raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
+        slot_ids = [slot_lookup[slot_id] for slot_id in agent_map]
+        agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long, device=controller_device)
+
+        slot_policies = {
+            idx: registry.get(slot, env_interface, device=controller_device) for idx, slot in enumerate(slots_cfg)
+        }
+        controller = SlotControllerPolicy(
+            slot_lookup=slot_lookup,
+            slots=slots_cfg,
+            slot_policies=slot_policies,
+            policy_env_info=env_interface,
+            agent_slot_map=agent_slot_tensor,
+        )
+        if hasattr(controller, "to"):
+            controller = controller.to(controller_device)
+        multi_agent_policies.append(controller)
+    else:
+        if not policy_specs:
+            raise ValueError("At least one policy spec is required when policy_slots are not provided")
+        multi_agent_policies = [
+            initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
+        ]
 
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
@@ -40,13 +76,38 @@ def _run_single_simulation(
         max_action_time_ms=sim_cfg.max_action_time_ms,
     )
 
-    return SimulationRunResult(run=sim_cfg, results=rollout_result)
+    per_slot_returns = None
+    per_slot_winrate = None
+    if sim_cfg.policy_slots and rollout_result.episode_returns:
+        effective_agent_map = sim_cfg.agent_slot_map or agent_map
+        if effective_agent_map:
+            per_slot_returns = {}
+            per_slot_winrate = {}
+            returns_tensor = torch.tensor(rollout_result.episode_returns)
+            wins_tensor = None
+            if rollout_result.episode_wins is not None:
+                wins_tensor = torch.tensor(rollout_result.episode_wins)
+            for slot_id in set(effective_agent_map):
+                idxs = [j for j, slot_name in enumerate(effective_agent_map) if slot_name == slot_id]
+                if idxs:
+                    per_slot_returns[slot_id] = float(returns_tensor[:, idxs].mean().item())
+                    if wins_tensor is not None:
+                        per_slot_winrate[slot_id] = float(wins_tensor[:, idxs].float().mean().item())
+
+    return SimulationRunResult(
+        run=sim_cfg,
+        results=rollout_result,
+        per_slot_returns=per_slot_returns,
+        per_slot_winrate=per_slot_winrate,
+    )
 
 
 class SimulationRunConfig(BaseModel):
     env: MettaGridConfig  # noqa: F821
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
     proportions: Sequence[float] | None = None
+    policy_slots: Sequence[PolicySlotConfig] | None = None
+    agent_slot_map: Sequence[str] | None = None
 
     max_action_time_ms: int | None = Field(
         default=10000, description="Maximum time (in ms) a policy is given to take an action"
@@ -59,11 +120,13 @@ class SimulationRunResult(BaseModel):
 
     run: SimulationRunConfig
     results: MultiEpisodeRolloutResult
+    per_slot_returns: dict[str, float] | None = None
+    per_slot_winrate: dict[str, float] | None = None
 
 
 def run_simulations(
     *,
-    policy_specs: Sequence[PolicySpec],
+    policy_specs: Sequence[PolicySpec] | None,
     simulations: Sequence[SimulationRunConfig],
     replay_dir: str | None,
     seed: int,
@@ -71,8 +134,8 @@ def run_simulations(
     on_progress: Callable[[str], None] = lambda x: None,
     device_override: str | None = None,
 ) -> list[SimulationRunResult]:
-    if not policy_specs:
-        raise ValueError("At least one policy spec is required")
+    if not policy_specs and not any(sim.policy_slots for sim in simulations):
+        raise ValueError("At least one policy spec or simulation-level policy slot is required")
 
     # Sequential path for max_workers unset or 1
     if not max_workers or max_workers <= 1 or len(simulations) <= 1:
@@ -91,7 +154,7 @@ def run_simulations(
 
     # Serialize configs to avoid pickling issues
     simulation_payloads = [sim.model_dump(mode="json") for sim in simulations]
-    policy_payloads = [spec.model_dump(mode="json") for spec in policy_specs]
+    policy_payloads = [spec.model_dump(mode="json") for spec in policy_specs] if policy_specs else []
 
     on_progress(f"Launching {len(simulations)} eval rollouts with up to {max_workers} workers")
 

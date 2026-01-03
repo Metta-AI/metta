@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -136,6 +136,8 @@ class Loss:
     loss_tracker: dict[str, list[float]] | None = None
     _zero_tensor: Tensor | None = None
     _context: ComponentContext | None = None
+    trainable_only: bool = False
+    loss_profiles: set[int] | None = None
 
     _state_attrs: set[str] = field(default_factory=set, init=False, repr=False)
 
@@ -196,7 +198,8 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("train", ctx):
             return self._zero(), shared_loss_data, False
-        return self.run_train(shared_loss_data, ctx, mb_idx)
+        filtered = self._filter_minibatch(shared_loss_data)
+        return self.run_train(filtered, ctx, mb_idx)
 
     def run_train(
         self,
@@ -264,6 +267,73 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
+        self.policy_experience_spec = experience.policy_experience_spec
+
+    def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
+        """Filter minibatch rows by slot profile/trainable flags."""
+
+        mb = shared_loss_data["sampled_mb"]
+
+        profiles = getattr(self, "loss_profiles", None)
+        mask = None
+        if profiles is not None:
+            pid = mb["loss_profile_id"]
+            mask = torch.isin(pid, torch.as_tensor(list(profiles), device=pid.device))
+
+        if getattr(self, "trainable_only", False):
+            train_mask = mb["is_trainable_agent"]
+            mask = train_mask if mask is None else mask & train_mask
+
+        if mask is None:
+            return shared_loss_data
+
+        if mask.dim() == 1:
+            row_mask = mask
+        elif mask.dim() == len(mb.batch_size):
+            row_mask = mask.any(dim=-1)
+        else:
+            raise ValueError(
+                "loss_profile_id/is_trainable_agent must be row-aligned scalars; "
+                f"got mask shape {tuple(mask.shape)} for minibatch {tuple(mb.batch_size)}"
+            )
+
+        filtered = shared_loss_data.clone()
+        filtered["sampled_mb"] = mb[row_mask]
+
+        for key, value in list(filtered.items()):
+            if key == "sampled_mb":
+                continue
+            filtered[key] = self._apply_row_mask(value, row_mask)
+
+        return filtered
+
+    def _apply_row_mask(self, value: Any, row_mask: torch.Tensor) -> Any:
+        rows = row_mask.numel()
+
+        if isinstance(value, NonTensorData):
+            data = value.data
+            if hasattr(data, "shape") and getattr(data, "shape", None):
+                if data.shape[0] != rows:
+                    return value
+                mask = row_mask.to(device=getattr(data, "device", row_mask.device))
+                return NonTensorData(data[mask])
+            bool_mask = row_mask.cpu().tolist()
+            if len(data) != rows:
+                return value
+            return NonTensorData([entry for entry, keep in zip(data, bool_mask, strict=False) if keep])
+
+        if isinstance(value, torch.Tensor):
+            if value.shape[:1] != (rows,):
+                raise ValueError(f"Row-aligned tensor expected leading dim {rows}, got {value.shape[0]}")
+            return value[row_mask]
+
+        if hasattr(value, "batch_size"):
+            bs = value.batch_size
+            if len(bs) < 1 or bs[0] != rows:
+                raise ValueError(f"Row-aligned object expected batch[0]=={rows}, got {bs}")
+            return value[row_mask]
+
+        raise TypeError(f"Unsupported row-aligned value type: {type(value).__name__}")
 
     # End utility helpers
 
