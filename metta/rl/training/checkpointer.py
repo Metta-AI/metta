@@ -108,8 +108,6 @@ class Checkpointer(TrainerComponent):
     def on_epoch_end(self, epoch: int) -> None:
         if not self._distributed.should_checkpoint():
             return
-        if epoch % self._config.epoch_interval != 0:
-            return
         self._save_policy(epoch)
 
     def on_training_complete(self) -> None:

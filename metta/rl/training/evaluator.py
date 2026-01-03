@@ -18,6 +18,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.rl.utils import should_run
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
@@ -98,6 +99,7 @@ class Evaluator(TrainerComponent):
         self._run_name = run_name
         self._stats_client = stats_client
         self._wandb_run = wandb_run
+        self._prev_epoch_for_evaluation: Optional[int] = None
 
         self._replay_dir = config.replay_dir or auto_replay_dir()
         self._evaluate_remote = config.evaluate_remote and stats_client is not None
@@ -130,7 +132,12 @@ class Evaluator(TrainerComponent):
                 raise GitError(f"{e}\n\nYou can skip this check with evaluator.skip_git_check=true") from e
 
     def should_evaluate(self, epoch: int) -> bool:
-        return self._config.epoch_interval > 0 and epoch % self._config.epoch_interval == 0
+        interval = self._config.epoch_interval
+        if interval <= 0:
+            return False
+        should_evaluate = should_run(epoch, interval, previous=self._prev_epoch_for_evaluation)
+        self._prev_epoch_for_evaluation = epoch
+        return should_evaluate
 
     def _create_policy_version(
         self,
@@ -141,7 +148,7 @@ class Evaluator(TrainerComponent):
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
-        """Create a policy version in Observatory with a submission zip."""
+        """Create a policy version in Observatory."""
 
         # Create policy version
         parsed = resolve_uri(policy_uri)
