@@ -8,7 +8,6 @@ import torch
 from pydantic import model_validator
 from rich.console import Console
 
-from metta.agent.policy import Policy as MettaPolicy
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
@@ -46,20 +45,6 @@ class PlayTool(Tool):
     render: RenderMode = "gui"
     stats_server_uri: str | None = auto_stats_server_uri()
 
-    def _load_policy_from_uri(
-        self, policy_uri: str, policy_env_info: PolicyEnvInterface, device: torch.device
-    ) -> MultiAgentPolicy:
-        """Load a policy from a URI."""
-        logger.info(f"Loading policy from URI: {policy_uri}")
-
-        policy_spec = policy_spec_from_uri(policy_uri, device=str(device))
-        policy: MettaPolicy = initialize_or_load_policy(policy_env_info, policy_spec)
-        if hasattr(policy, "initialize_to_environment"):
-            policy.initialize_to_environment(policy_env_info, device)
-        if hasattr(policy, "eval"):
-            policy.eval()
-        return policy
-
     @model_validator(mode="after")
     def validate(self) -> "PlayTool":
         if len([x for x in [self.policy_uri, self.policy_version_id, self.s3_path] if x is not None]) > 1:
@@ -94,13 +79,29 @@ class PlayTool(Tool):
 
         agent_policies: list[MultiAgentPolicy] = []
         if s3_path:
+            logger.info(f"Loading policy from s3 path: {s3_path}")
             policy_spec = policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True)
+            # Override device to CPU for local play
+            if policy_spec.init_kwargs:
+                policy_spec.init_kwargs["device"] = str(device)
             policy = initialize_or_load_policy(policy_env_info, policy_spec)
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(policy_env_info, device)
+            if hasattr(policy, "eval"):
+                policy.eval()
             agent_policies.append(policy)
-            logger.info("Loaded policy from s3 path")
         elif self.policy_uri:
-            agent_policies.append(self._load_policy_from_uri(self.policy_uri, policy_env_info, device))
-            logger.info("Loaded policy from deprecated-format policy uri")
+            logger.info(f"Loading policy from URI: {self.policy_uri}")
+            policy_spec = policy_spec_from_uri(self.policy_uri, device=str(device))
+            # Override device to CPU for local play (zip archives may have cuda hardcoded)
+            if policy_spec.init_kwargs:
+                policy_spec.init_kwargs["device"] = str(device)
+            policy = initialize_or_load_policy(policy_env_info, policy_spec)
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(policy_env_info, device)
+            if hasattr(policy, "eval"):
+                policy.eval()
+            agent_policies.append(policy)
         else:
             # Fall back to random policies only when no policy was configured explicitly.
             agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
@@ -124,7 +125,5 @@ class PlayTool(Tool):
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
         console.print(f"Steps: {episode.steps}")
-        console.print(f"Total Rewards: {episode.rewards}")
-        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
 
         return None
