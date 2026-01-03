@@ -94,38 +94,20 @@ class InventoryConfig(Config):
         return self.default_limit
 
 
-class DamageConfig(Config):
-    """Damage configuration for agents.
+class HealthConfig(Config):
+    """Health configuration for agents.
 
-    When an agent's inventory items reach or exceed all threshold values, one random
-    resource from the resources map is destroyed (weighted by quantity above minimum)
-    and the threshold amounts are subtracted from inventory.
+    When the health_resource reaches 0, the on_damage mutations are triggered.
     """
 
-    threshold: dict[str, int] = Field(
-        default_factory=dict,
-        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+    health_resource: str = Field(
+        default="hp",
+        description="Resource name used as health.",
     )
-    resources: dict[str, int] = Field(
-        default_factory=dict,
-        description="Map of resources that can be destroyed, with minimum values. "
-        "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
+    on_damage: list["AnyActivationMutation"] = Field(
+        default_factory=list,
+        description="Mutations applied when health reaches 0.",
     )
-
-    @model_validator(mode="after")
-    def _validate_distinct_keys(self) -> "DamageConfig":
-        """Ensure that threshold and resources keys don't overlap."""
-        threshold_keys = set(self.threshold.keys())
-        resources_keys = set(self.resources.keys())
-        overlapping_keys = threshold_keys.intersection(resources_keys)
-
-        if overlapping_keys:
-            raise ValueError(
-                f"Resources cannot appear in both threshold and resources maps. "
-                f"Overlapping keys: {sorted(overlapping_keys)}"
-            )
-
-        return self
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -146,9 +128,9 @@ class AgentConfig(Config):
         description="Resource names that contribute to inventory diversity metrics",
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
-    damage: Optional[DamageConfig] = Field(
+    health: Optional[HealthConfig] = Field(
         default=None,
-        description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
+        description="Health config: mutations applied when health resource reaches 0",
     )
     handlers: list["ActivationHandler"] = Field(
         default_factory=list,
@@ -530,8 +512,9 @@ AnyActivationMutation = Annotated[
     Discriminator("mutation_type"),
 ]
 
-# Update forward reference for AttackMutation.on_success
+# Update forward references
 AttackMutation.model_rebuild()
+HealthConfig.model_rebuild()
 
 
 class ActivationHandler(Config):

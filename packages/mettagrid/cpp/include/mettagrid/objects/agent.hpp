@@ -16,6 +16,8 @@
 #include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
+class Grid;
+struct GameConfig;
 class ObservationEncoder;
 
 class Agent : public GridObject, public HasInventory, public Usable, public Alignable {
@@ -40,8 +42,8 @@ public:
   // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount (can be negative for decay)
   // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
   std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>> inventory_regen_amounts;
-  // Damage configuration
-  DamageConfig damage_config;
+  // Health configuration
+  HealthConfig health_config;
 
   Agent(GridCoord r,
         GridCoord c,
@@ -59,9 +61,9 @@ public:
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
 
-  // Check and apply damage if all threshold stats are reached
+  // Check and apply health damage if health resource reaches 0
   // Returns true if damage was applied
-  bool check_and_apply_damage(std::mt19937& rng);
+  bool check_and_apply_health_damage(Grid* grid, const GameConfig* game_config);
 
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;
