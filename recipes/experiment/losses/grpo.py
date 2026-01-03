@@ -1,8 +1,7 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
-from metta.rl.loss.grpo import GRPOConfig
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes.grpo import GRPOConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
@@ -52,7 +51,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        losses=LossesConfig(grpo=grpo_config),
+        nodes={"grpo": grpo_config},
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -85,9 +84,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
-    )
+    nodes = {"grpo": grpo_config}
 
     # Configure optimizer
     optimizer_config = OptimizerConfig(
@@ -101,7 +98,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        nodes=nodes,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -134,9 +131,7 @@ def basic_easy_shaped() -> TrainTool:
         target_kl=None,
     )
 
-    loss_config = LossesConfig(
-        grpo=grpo_config,
-    )
+    nodes = {"grpo": grpo_config}
 
     # Configure optimizer
     optimizer_config = OptimizerConfig(
@@ -150,7 +145,7 @@ def basic_easy_shaped() -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        nodes=nodes,
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )

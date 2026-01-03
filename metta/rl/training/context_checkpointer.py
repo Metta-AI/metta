@@ -57,7 +57,7 @@ class ContextCheckpointer(TrainerComponent):
                     "optimizer_state": raw.get("optimizer_state", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
                     "curriculum_state": raw.get("curriculum_state"),
-                    "loss_states": raw.get("loss_states", {}),
+                    "node_states": raw.get("node_states", {}),
                 }
 
         payload = self._distributed.broadcast_from_master(payload)
@@ -120,19 +120,19 @@ class ContextCheckpointer(TrainerComponent):
             except Exception as exc:  # pragma: no cover - defensive
                 logger.warning("Failed to restore curriculum state: %s", exc)
 
-        loss_states = payload.get("loss_states") or {}
-        context.state.loss_states = loss_states
-        losses = getattr(context, "losses", None)
-        if losses:
-            for name, loss in losses.items():
-                stored = loss_states.get(name)
+        node_states = payload.get("node_states") or {}
+        context.state.node_states = node_states
+        nodes = getattr(context, "nodes", None)
+        if nodes:
+            for name, node in nodes.items():
+                stored = node_states.get(name)
                 if stored is None:
                     continue
                 try:
-                    loss.load_state_dict(stored, strict=False)
+                    node.load_state_dict(stored, strict=False)
                 except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning("Failed to restore loss state for %s: %s", name, exc)
-        context.state.loss_states = {}
+                    logger.warning("Failed to restore node state for %s: %s", name, exc)
+        context.state.node_states = {}
 
         context.timing_baseline = {
             "agent_step": context.agent_step,
@@ -174,11 +174,11 @@ class ContextCheckpointer(TrainerComponent):
             context.state.stopwatch_state = None
 
         context.state.optimizer_state = context.optimizer.state_dict()
-        losses = getattr(context, "losses", None)
-        if losses:
-            context.state.loss_states = {name: loss.state_dict() for name, loss in losses.items()}
+        nodes = getattr(context, "nodes", None)
+        if nodes:
+            context.state.node_states = {name: node.state_dict() for name, node in nodes.items()}
         else:
-            context.state.loss_states = {}
+            context.state.node_states = {}
 
         # Capture curriculum state
         try:
@@ -197,11 +197,11 @@ class ContextCheckpointer(TrainerComponent):
             avg_reward=context.state.avg_reward,
             stopwatch_state=context.state.stopwatch_state,
             curriculum_state=context.state.curriculum_state,
-            loss_states=context.state.loss_states,
+            node_states=context.state.node_states,
         )
 
         self._last_synced_policy_epoch = self.context.latest_saved_policy_epoch
 
         # Release references so we do not pin large GPU tensors between checkpoints
         context.state.optimizer_state = None
-        context.state.loss_states = {}
+        context.state.node_states = {}

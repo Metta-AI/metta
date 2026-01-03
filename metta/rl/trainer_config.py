@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes import default_nodes, node_specs_by_key
 from metta.rl.training import HeartbeatConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
@@ -75,7 +75,7 @@ class TorchProfilerConfig(Config):
 
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=10_000_000_000, gt=0)
-    losses: LossesConfig = Field(default_factory=LossesConfig)
+    nodes: dict[str, Any] = Field(default_factory=default_nodes)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
@@ -107,6 +107,8 @@ class TrainerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TrainerConfig":
+        object.__setattr__(self, "nodes", _normalize_nodes(self.nodes))
+
         if self.minibatch_size > self.batch_size:
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
@@ -118,3 +120,22 @@ class TrainerConfig(Config):
                     "update_epochs must be within [min_update_epochs, max_update_epochs] when autotune is enabled"
                 )
         return self
+
+
+def _normalize_nodes(nodes: dict[str, Any]) -> dict[str, Any]:
+    specs = node_specs_by_key()
+    normalized = dict(nodes)
+
+    for key, spec in specs.items():
+        if key not in normalized:
+            normalized[key] = spec.config_cls(enabled=spec.default_enabled)
+
+    for key, value in list(normalized.items()):
+        spec = specs.get(key)
+        if spec is None:
+            raise ValueError(f"Unknown node config '{key}'")
+        if isinstance(value, spec.config_cls):
+            continue
+        normalized[key] = spec.config_cls.model_validate(value)
+
+    return normalized

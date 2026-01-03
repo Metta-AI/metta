@@ -1,4 +1,4 @@
-# metta/rl/loss/contrastive.py
+# metta/rl/nodes/contrastive.py
 from typing import Any, Optional
 
 import torch
@@ -7,11 +7,11 @@ from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss
+from metta.rl.nodes.base import NodeBase
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class ContrastiveLoss(Loss):
+class ContrastiveLoss(NodeBase):
     """Contrastive loss for representation learning."""
 
     _EMBEDDING_CANDIDATES = ("encoder_output", "encoded_obs", "core", "hidden_state", "features")

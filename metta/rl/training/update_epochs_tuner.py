@@ -24,6 +24,8 @@ class UpdateEpochAutoTunerConfig(Config):
     target_kl: float = Field(default=0.015, ge=0.0)
     kl_tolerance: float = Field(default=0.3, ge=0.0)
     max_clipfrac: float = Field(default=0.3, ge=0.0, le=1.0)
+    approx_kl_key: str = Field(default="ppo_actor/approx_kl")
+    clipfrac_key: str = Field(default="ppo_actor/clipfrac")
 
     @model_validator(mode="after")
     def validate_bounds(self) -> "UpdateEpochAutoTunerConfig":
@@ -62,12 +64,12 @@ class UpdateEpochAutoTuner(TrainerComponent):
         if not self._cfg.enabled:
             return
 
-        stats = getattr(self.context, "latest_losses_stats", None)
+        stats = getattr(self.context, "latest_graph_stats", None)
         if not stats:
             return
 
-        approx_kl = float(stats.get("approx_kl", 0.0))
-        clipfrac = float(stats.get("clipfrac", 0.0))
+        approx_kl = float(stats.get(self._cfg.approx_kl_key, 0.0))
+        clipfrac = float(stats.get(self._cfg.clipfrac_key, 0.0))
         if approx_kl <= 0.0 and clipfrac <= 0.0:
             return
 

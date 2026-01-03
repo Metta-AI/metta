@@ -9,8 +9,8 @@ from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.cmpo import CMPOConfig
-from metta.rl.loss.loss import Loss
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.cmpo import CMPOConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 try:
@@ -56,38 +56,38 @@ class DummyPolicy(Policy):
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0, error_if_nonfinite=False)
 
 
-class DummyLoss(Loss):
-    """Loss subclass exposing the base-class helpers for testing."""
+class DummyNode(NodeBase):
+    """Node subclass exposing the base-class helpers for testing."""
 
     def __init__(self) -> None:
         policy = DummyPolicy()
         trainer_cfg = SimpleNamespace()
         env = SimpleNamespace()
-        loss_cfg = SimpleNamespace()
-        super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", loss_cfg)
+        node_cfg = NodeConfig()
+        super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", node_cfg)
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         return {"values"}
 
 
-def test_loss_stats_average_values() -> None:
-    loss = DummyLoss()
-    loss.loss_tracker["policy_loss"].extend([1.0, 3.0])
-    loss.loss_tracker["value_loss"].extend([2.0, 4.0, 6.0])
+def test_node_stats_average_values() -> None:
+    node = DummyNode()
+    node.loss_tracker["policy_loss"].extend([1.0, 3.0])
+    node.loss_tracker["value_loss"].extend([2.0, 4.0, 6.0])
 
-    stats = loss.stats()
+    stats = node.stats()
 
-    assert stats["policy_loss"] == 2.0
-    assert stats["value_loss"] == 4.0
+    assert stats["dummy/policy_loss"] == 2.0
+    assert stats["dummy/value_loss"] == 4.0
 
 
 def test_zero_loss_tracker_clears_values() -> None:
-    loss = DummyLoss()
-    loss.loss_tracker["entropy"].extend([0.1, 0.2])
+    node = DummyNode()
+    node.loss_tracker["entropy"].extend([0.1, 0.2])
 
-    loss.zero_loss_tracker()
+    node.zero_loss_tracker()
 
-    assert all(len(values) == 0 for values in loss.loss_tracker.values())
+    assert all(len(values) == 0 for values in node.loss_tracker.values())
 
 
 def test_cmpo_config_initializes_world_model() -> None:

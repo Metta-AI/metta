@@ -34,7 +34,7 @@ def test_update_epochs_autotuner_tracks_kl_signal() -> None:
         config=trainer_cfg,
         agent_step=0,
         epoch=0,
-        latest_losses_stats={},
+        latest_graph_stats={},
         distributed=MasterOnlyDistributed(),
     )
 
@@ -42,16 +42,16 @@ def test_update_epochs_autotuner_tracks_kl_signal() -> None:
     tuner.register(context)
 
     # Low KL encourages reusing the batch once.
-    context.latest_losses_stats = {"approx_kl": 0.002, "clipfrac": 0.05}
+    context.latest_graph_stats = {"ppo_actor/approx_kl": 0.002, "ppo_actor/clipfrac": 0.05}
     tuner.on_epoch_end(epoch=1)
     assert context.config.update_epochs == 2
 
     # KL near target keeps the current value steady.
-    context.latest_losses_stats = {"approx_kl": 0.018, "clipfrac": 0.07}
+    context.latest_graph_stats = {"ppo_actor/approx_kl": 0.018, "ppo_actor/clipfrac": 0.07}
     tuner.on_epoch_end(epoch=2)
     assert context.config.update_epochs == 2
 
     # Excessive clip fraction nudges the tuner back down.
-    context.latest_losses_stats = {"approx_kl": 0.03, "clipfrac": 0.4}
+    context.latest_graph_stats = {"ppo_actor/approx_kl": 0.03, "ppo_actor/clipfrac": 0.4}
     tuner.on_epoch_end(epoch=3)
     assert context.config.update_epochs == 1

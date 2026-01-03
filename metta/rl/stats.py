@@ -87,7 +87,7 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
 
 def process_training_stats(
     raw_stats: dict[str, Any],
-    losses_stats: dict[str, Any],
+    graph_stats: dict[str, Any],
     experience: Experience,
     trainer_config: TrainerConfig,
 ) -> dict[str, Any]:
@@ -95,14 +95,14 @@ def process_training_stats(
 
     Args:
         raw_stats: Raw statistics dictionary (possibly with lists of values)
-        losses_stats: Loss statistics dictionary
+        graph_stats: Graph statistics dictionary
         experience: Experience object with stats() method
         trainer_config: Training configuration
 
     Returns:
         Dictionary with processed statistics including:
         - mean_stats: Raw stats converted to means
-        - losses_stats: Loss statistics
+        - graph_stats: Graph statistics
         - experience_stats: Experience buffer statistics
         - environment_stats: Environment-specific stats
         - overview: High-level metrics like average reward
@@ -135,7 +135,7 @@ def process_training_stats(
 
     return {
         "mean_stats": mean_stats,
-        "losses_stats": losses_stats,
+        "graph_stats": graph_stats,
         "experience_stats": experience_stats,
         "environment_stats": environment_stats,
         "overview": overview,

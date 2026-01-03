@@ -16,7 +16,8 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
@@ -45,7 +46,7 @@ class WorldModelConfig(Config):
     gradient_clip: float = Field(default=1.0, gt=0)
 
 
-class CMPOConfig(LossConfig):
+class CMPOConfig(NodeConfig):
     # CMPO policy parameters
     temperature: float = Field(default=1.0, gt=0)
     adv_clip: float = Field(default=10.0, gt=0)
@@ -152,7 +153,7 @@ class TransitionBuffer:
         return TensorDict(stacked, batch_size=(actual,))
 
 
-class CMPO(Loss):
+class CMPO(NodeBase):
     def __init__(
         self,
         policy: Policy,
@@ -441,3 +442,14 @@ class CMPO(Loss):
             self.world_model_opt.step()
 
             self.loss_tracker["world_model_loss"].append(float(loss.item()))
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="cmpo",
+        config_cls=CMPOConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

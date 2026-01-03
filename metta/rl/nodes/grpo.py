@@ -8,11 +8,12 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class GRPOConfig(LossConfig):
+class GRPOConfig(NodeConfig):
     """Configuration for Group Relative Policy Optimization."""
 
     # Clip coefficient for policy gradient
@@ -47,7 +48,7 @@ class GRPOConfig(LossConfig):
         return GRPO(policy, trainer_cfg, env, device, instance_name, self)
 
 
-class GRPO(Loss):
+class GRPO(NodeBase):
     """Group Relative Policy Optimization loss.
 
     GRPO eliminates the value network and uses group-based advantage estimation,
@@ -281,3 +282,14 @@ class GRPO(Loss):
 
     def _track(self, key: str, value: Tensor) -> None:
         self.loss_tracker[key].append(float(value.item()))
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="grpo",
+        config_cls=GRPOConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]
