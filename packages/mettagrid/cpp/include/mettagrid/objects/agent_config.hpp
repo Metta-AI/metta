@@ -37,7 +37,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::unordered_map<std::string, RewardType>& stat_rewards = {},
               const std::unordered_map<std::string, RewardType>& stat_reward_max = {},
               const std::unordered_map<InventoryItem, InventoryQuantity>& initial_inventory = {},
-              const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>&
+              const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>&
                   inventory_regen_amounts = {},
               const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>>& vibe_transfers = {},
               const std::vector<InventoryItem>& diversity_tracked_resources = {},
@@ -63,9 +63,9 @@ struct AgentConfig : public GridObjectConfig {
   std::unordered_map<std::string, RewardType> stat_rewards;
   std::unordered_map<std::string, RewardType> stat_reward_max;
   std::unordered_map<InventoryItem, InventoryQuantity> initial_inventory;
-  // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount
+  // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount (can be negative for decay)
   // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>> inventory_regen_amounts;
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>> inventory_regen_amounts;
   // Maps vibe to resource deltas for agent-to-agent sharing
   std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
   std::vector<InventoryItem> diversity_tracked_resources;
@@ -95,7 +95,7 @@ inline void bind_agent_config(py::module& m) {
                     const std::unordered_map<std::string, RewardType>&,
                     const std::unordered_map<std::string, RewardType>&,
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
-                    const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>&,
+                    const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>&,
                     const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>>&,
                     const std::vector<InventoryItem>&,
                     ObservationType,
@@ -110,7 +110,7 @@ inline void bind_agent_config(py::module& m) {
            py::arg("stat_reward_max") = std::unordered_map<std::string, RewardType>(),
            py::arg("initial_inventory") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("inventory_regen_amounts") =
-               std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>>(),
+               std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>(),
            py::arg("vibe_transfers") = std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>>(),
            py::arg("diversity_tracked_resources") = std::vector<InventoryItem>(),
            py::arg("initial_vibe") = 0,
