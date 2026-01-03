@@ -59,7 +59,8 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
       .def_readwrite("start_clipped", &AssemblerConfig::start_clipped)
       .def_readwrite("chest_search_distance", &AssemblerConfig::chest_search_distance)
-      .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe);
+      .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe)
+      .def_readwrite("activation_handlers", &AssemblerConfig::activation_handlers);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ASSEMBLER_CONFIG_HPP_

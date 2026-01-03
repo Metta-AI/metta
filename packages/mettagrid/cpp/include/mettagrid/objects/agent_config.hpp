@@ -123,7 +123,8 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
       .def_readwrite("inventory_regen_amounts", &AgentConfig::inventory_regen_amounts)
       .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources)
-      .def_readwrite("damage_config", &AgentConfig::damage_config);
+      .def_readwrite("damage_config", &AgentConfig::damage_config)
+      .def_readwrite("activation_handlers", &AgentConfig::activation_handlers);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_CONFIG_HPP_

@@ -2,11 +2,36 @@
 
 #include <algorithm>
 
+#include "actions/activation_handler.hpp"
+#include "config/mettagrid_config.hpp"
 #include "core/grid.hpp"
 #include "objects/agent.hpp"
 #include "objects/alignable.hpp"
 #include "objects/commons.hpp"
 #include "objects/has_inventory.hpp"
+
+// GridObject::set_activation_handlers - handlers are applied in registration order
+void GridObject::set_activation_handlers(std::vector<std::shared_ptr<ActivationHandler>> handlers) {
+  _activation_handlers = std::move(handlers);
+}
+
+// GridObject::activate() - try activation handlers
+bool GridObject::activate(Agent& actor, Grid* grid, const GameConfig* game_config) {
+  if (_activation_handlers.empty()) {
+    return false;
+  }
+
+  ActivationContext ctx(actor, *this, grid, game_config);
+
+  // Try each handler in registration order
+  for (const auto& handler : _activation_handlers) {
+    if (handler->try_activate(ctx)) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 // Commons support has been moved to Alignable interface
 
