@@ -68,6 +68,11 @@ We'll train a simple starter policy on `training_facility.harvest`. Optional var
 # Play an episode of the training_facility.harvest mission with a scripted policy
 cogames play -m training_facility.harvest -p class=baseline
 
+# Play with an LLM policy (requires Ollama running locally, or API keys for gpt/claude)
+cogames play -m hello_world -p class=llm-ollama
+cogames play -m hello_world -p class=llm-openai
+cogames play -m hello_world -p class=llm-anthropic
+
 # Try the scripted policy on a set of eval missions
 cogames run -S integrated_evals -p class=baseline
 
