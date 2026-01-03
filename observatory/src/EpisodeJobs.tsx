@@ -1,8 +1,12 @@
 import clsx from 'clsx'
-import { FC, PropsWithChildren, useCallback, useContext, useEffect, useState, Fragment } from 'react'
-import { Link } from 'react-router-dom'
+import { FC, Fragment, useCallback, useContext, useEffect, useState } from 'react'
 
 import { AppContext } from './AppContext'
+import { Button } from './components/Button'
+import { Card } from './components/Card'
+import { Spinner } from './components/Spinner'
+import { StyledLink } from './components/StyledLink'
+import { Table, TD, TH, TR } from './components/Table'
 import { JobRequest, JobStatus } from './repo'
 import { formatDate, formatDurationBetween } from './utils/datetime'
 
@@ -17,22 +21,7 @@ const StatusBadge: FC<{ status: JobStatus }> = ({ status }) => {
   return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status]}`}>{status}</span>
 }
 
-const TH: FC<PropsWithChildren<{ width?: string | number }>> = ({ children, width }) => {
-  return (
-    <th
-      className="px-3 pt-2 pb-2 text-left text-xs text-gray-800 font-semibold tracking-wide uppercase"
-      style={{ width }}
-    >
-      {children}
-    </th>
-  )
-}
-
-const TD: FC<PropsWithChildren<{ className?: string }>> = ({ children, className = '' }) => {
-  return <td className={`px-3 py-2 text-sm ${className}`}>{children}</td>
-}
-
-const getTimeDiffColor = (from: string | null, to: string | null): string => {
+function getTimeDiffColor(from: string | null, to: string | null): string {
   if (!from || !to) return ''
   const fromTs = new Date(from).getTime()
   const toTs = new Date(to).getTime()
@@ -42,24 +31,7 @@ const getTimeDiffColor = (from: string | null, to: string | null): string => {
   return 'text-red-500'
 }
 
-const SimpleButton: FC<{
-  onClick: () => void
-  disabled?: boolean
-  children: React.ReactNode
-}> = ({ onClick, disabled, children }) => {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`px-3 py-1 text-sm rounded border border-gray-300 bg-white ${
-        disabled ? 'opacity-50 cursor-not-allowed text-gray-400' : 'hover:bg-gray-50 text-gray-700 cursor-pointer'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
+// TODO - consolidate with TaskAttemptTimeline
 const Timeline: FC<{ job: JobRequest }> = ({ job }) => {
   const dispatchedDiff = formatDurationBetween(job.created_at, job.dispatched_at)
   const runningDiff = formatDurationBetween(job.dispatched_at, job.running_at)
@@ -110,11 +82,8 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
 
   return (
     <Fragment>
-      <tr
-        className={clsx(
-          'border-b border-gray-200 hover:bg-gray-50 align-top',
-          hasExpandableContent && 'cursor-pointer'
-        )}
+      <TR
+        className={clsx(hasExpandableContent && 'hover:bg-gray-50 cursor-pointer')}
         onClick={() => hasExpandableContent && setExpanded(!expanded)}
       >
         <TD className="font-mono text-xs">{job.id.slice(0, 8)}</TD>
@@ -146,9 +115,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
         </TD>
         <TD>
           {episodeId ? (
-            <Link to={`/episodes/${episodeId}`} className="text-blue-600 hover:underline">
-              View
-            </Link>
+            <StyledLink to={`/episodes/${episodeId}`}>View</StyledLink>
           ) : error ? (
             <span className="text-red-600 text-xs">{expanded ? '[-] Error' : '[+] Error'}</span>
           ) : job.result ? (
@@ -157,7 +124,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
             '-'
           )}
         </TD>
-      </tr>
+      </TR>
       {expanded && hasExpandableContent && (
         <tr className="bg-gray-50">
           <td colSpan={6} className="px-3 py-2">
@@ -229,53 +196,52 @@ export const EpisodeJobs: FC = () => {
 
   return (
     <div className="p-5 max-w-[1600px] mx-auto">
-      <h1 className="mb-5">Episode Jobs</h1>
+      <Card title="Episode Jobs">
+        {error && (
+          <div className="px-4 py-3 mb-5 text-sm bg-red-50 border border-red-400 text-red-800 rounded">{error}</div>
+        )}
 
-      {error && (
-        <div className="px-4 py-3 mb-5 text-sm bg-red-50 border border-red-400 text-red-800 rounded">{error}</div>
-      )}
-
-      <div className="mb-4 flex gap-4 items-center">
-        <StatusDropdown value={statusFilter} onChange={setStatusFilter} />
-        <SimpleButton onClick={loadJobs} disabled={loading}>
-          Refresh
-        </SimpleButton>
-      </div>
-
-      {loading && jobs.length === 0 ? (
-        <div>Loading jobs...</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead className="border-b border-b-gray-300 bg-gray-100">
-              <tr>
-                <TH width={100}>Job ID</TH>
-                <TH width={100}>Status</TH>
-                <TH>Policy URIs</TH>
-                <TH width={200}>Tags</TH>
-                <TH width={280}>Timeline</TH>
-                <TH width={100}>Result</TH>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <JobRow key={job.id} job={job} />
-              ))}
-            </tbody>
-          </table>
-          {jobs.length === 0 && <div className="p-5 text-center text-gray-500">No jobs found</div>}
+        <div className="mb-4 flex gap-4 items-center">
+          <StatusDropdown value={statusFilter} onChange={setStatusFilter} />
+          <Button onClick={loadJobs} disabled={loading}>
+            Refresh
+          </Button>
         </div>
-      )}
 
-      <div className="flex gap-2 justify-center py-5">
-        <SimpleButton onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
-          Previous
-        </SimpleButton>
-        <span className="px-3 py-2 text-sm">Page {page + 1}</span>
-        <SimpleButton onClick={() => setPage((p) => p + 1)} disabled={jobs.length < pageSize}>
-          Next
-        </SimpleButton>
-      </div>
+        {loading && jobs.length === 0 ? (
+          <Spinner size="lg" />
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Header>
+                <TR>
+                  <TH style={{ width: 100 }}>Job ID</TH>
+                  <TH style={{ width: 100 }}>Status</TH>
+                  <TH>Policy URIs</TH>
+                  <TH style={{ width: 200 }}>Tags</TH>
+                  <TH style={{ width: 280 }}>Timeline</TH>
+                  <TH style={{ width: 100 }}>Result</TH>
+                </TR>
+              </Table.Header>
+              <Table.Body>
+                {jobs.map((job) => (
+                  <JobRow key={job.id} job={job} />
+                ))}
+              </Table.Body>
+            </Table>
+            {jobs.length === 0 && <div className="p-5 text-center text-gray-500">No jobs found</div>}
+            <div className="flex gap-2 justify-center py-5">
+              <Button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+                Previous
+              </Button>
+              <span className="px-3 py-2 text-sm">Page {page + 1}</span>
+              <Button onClick={() => setPage((p) => p + 1)} disabled={jobs.length < pageSize}>
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   )
 }

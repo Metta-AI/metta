@@ -1,15 +1,12 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from __future__ import annotations
+from typing import Optional, Sequence
 
-from typing import TYPE_CHECKING, Optional, Sequence
-
-if TYPE_CHECKING:
-    from metta.agent.policy import PolicyArchitecture
-    from metta.rl.training.teacher import TeacherConfig
-    from metta.tools.stub import StubTool
-    from metta.tools.sweep import SweepTool
-    from metta.tools.train import TrainTool
+from metta.agent.policy import PolicyArchitecture
+from metta.rl.training.teacher import TeacherConfig
+from metta.tools.stub import StubTool
+from metta.tools.sweep import SweepTool
+from metta.tools.train import TrainTool
 
 
 def train(
@@ -43,19 +40,6 @@ def train(
         maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
-    nodes_cfg = tt.trainer.nodes
-    needs_full_log_probs = any(
-        (nodes_cfg.get(name) and nodes_cfg[name].enabled)
-        for name in (
-            "supervisor",
-            "sliced_scripted_cloner",
-            "eer_kickstarter",
-            "eer_cloner",
-        )
-    )
-    action_probs_config = getattr(tt.policy_architecture, "action_probs_config", None)
-    if action_probs_config is not None and not needs_full_log_probs:
-        action_probs_config.emit_full_log_probs = False
     tt.system.torch_deterministic = False
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.

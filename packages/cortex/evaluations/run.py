@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
+from cortex.torch_init import enable_determinism, seed_everything
 from model import SequenceClassifier  # type: ignore[import-not-found]
 from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
 from synthetic_datasets import (  # type: ignore[import-not-found]
@@ -19,8 +20,6 @@ from synthetic_datasets import (  # type: ignore[import-not-found]
     MajorityHeadPadDataset,
 )
 from torch.utils.data import DataLoader
-
-from metta.rl.torch_init import enable_determinism
 
 # Globals used by optional Axons parity probe
 AXONS_PARITY_PROBE: int = 0
@@ -335,12 +334,6 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         return TaskSpec(name=task, make_splits=_splits, vocab_size=vocab_size, n_classes=n_classes)
 
     raise ValueError(f"Unknown task: {task}")
-
-
-def set_seed(seed: int) -> None:
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
 
 
 def train_one(
@@ -719,7 +712,7 @@ def main() -> None:
     else:
         logging.getLogger().setLevel(level)
 
-    set_seed(args.seed)
+    seed_everything(args.seed)
     if args.deterministic:
         enable_determinism()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

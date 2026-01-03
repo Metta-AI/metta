@@ -19,7 +19,7 @@ from metta.agent.policy import Policy
 from metta.rl.nodes.base import NodeBase, NodeConfig
 from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params, forward_policy_for_training
+from metta.rl.utils import add_dummy_loss_for_unused_params, ensure_sequence_metadata, forward_policy_for_training
 from mettagrid.base_config import Config
 
 
@@ -58,6 +58,10 @@ class CMPOConfig(NodeConfig):
     # Prior policy via EMA (None disables)
     prior_ema_decay: Optional[float] = Field(default=None, ge=0, le=1.0)
 
+    # Cap for (state, action) pairs processed at once in CMPO Q-value computation.
+    # Default: match PPO minibatch size to keep memory in line with PPO runs.
+    q_value_batch_size: Optional[int] = Field(default=None, gt=0)
+
     world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
 
     def create(
@@ -95,17 +99,22 @@ class WorldModelEnsemble(nn.Module):
         )
 
     def _predict(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
-        preds_state: list[Tensor] = []
-        preds_reward: list[Tensor] = []
+        mean_state: Optional[Tensor] = None
+        mean_reward: Optional[Tensor] = None
         for member in self.members:
             next_state, reward = member(state, action)
-            preds_state.append(next_state)
-            preds_reward.append(reward)
-        return torch.stack(preds_state, dim=0), torch.stack(preds_reward, dim=0)
+            if mean_state is None:
+                mean_state = next_state
+                mean_reward = reward
+            else:
+                mean_state = mean_state + next_state
+                mean_reward = mean_reward + reward
+        assert mean_state is not None and mean_reward is not None
+        scale = 1.0 / len(self.members)
+        return mean_state * scale, mean_reward * scale
 
     def forward(self, state: Tensor, action: Tensor) -> tuple[Tensor, Tensor]:
-        next_state_stack, reward_stack = self._predict(state, action)
-        return next_state_stack.mean(dim=0), reward_stack.mean(dim=0)
+        return self._predict(state, action)
 
 
 class TransitionBuffer:
@@ -178,6 +187,7 @@ class CMPO(NodeBase):
         self._prev_obs = torch.empty((0, self.obs_dim), dtype=torch.float32, device=device)
         self._prev_action_enc = torch.empty((0, self.action_dim), dtype=torch.float32, device=device)
         self._has_prev = torch.empty((0,), dtype=torch.bool, device=device)
+        self._valid_action_mask: Optional[Tensor] = None
 
     def attach_replay_buffer(self, experience: Experience) -> None:  # type: ignore[override]
         super().attach_replay_buffer(experience)
@@ -272,8 +282,12 @@ class CMPO(NodeBase):
             return self._zero(), shared_loss_data, stop_update_epoch
 
         policy_td = shared_loss_data["policy_td"]
+        B, TT = minibatch.batch_size
+        log_pi = policy_td["full_log_probs"].reshape(B, TT, -1)
+        if self._valid_action_mask is None:
+            self._valid_action_mask = (log_pi > -1e8).any(dim=(0, 1))
         prior_log_probs = self._get_prior_log_probs(minibatch, policy_td)
-        q_values = self._compute_q_values(minibatch["env_obs"])  # [B, T, A]
+        q_values = self._compute_q_values(minibatch["env_obs"], valid_action_mask=self._valid_action_mask)  # [B, T, A]
         pi_prior = prior_log_probs.exp()
         v_prior = (pi_prior * q_values).sum(dim=-1, keepdim=True)
         advantages = q_values - v_prior
@@ -288,7 +302,7 @@ class CMPO(NodeBase):
         pi_cmpo = pi_prior * torch.exp(advantages_scaled)
         pi_cmpo = pi_cmpo / pi_cmpo.sum(dim=-1, keepdim=True)
 
-        log_pi = policy_td["full_log_probs"].reshape(pi_cmpo.shape)
+        log_pi = log_pi.reshape(pi_cmpo.shape)
         # Eq. (9) KL regularizer: KL(π_CMPO || π) up to a constant.
         kl_loss = -(pi_cmpo.detach() * log_pi).sum(dim=-1).mean()
 
@@ -329,7 +343,7 @@ class CMPO(NodeBase):
             prior_td = forward_policy_for_training(self.prior_model, minibatch, self.policy_experience_spec)
         return prior_td["full_log_probs"].reshape(B, TT, -1).detach()
 
-    def _compute_q_values(self, obs: Tensor) -> Tensor:
+    def _compute_q_values(self, obs: Tensor, valid_action_mask: Tensor) -> Tensor:
         if self.prior_model is not None:
             value_model = self.prior_model
         else:
@@ -340,21 +354,39 @@ class CMPO(NodeBase):
         state_flat = self._flatten_obs(obs_flat)
         num_states = state_flat.shape[0]
 
-        actions = torch.eye(self.action_dim, device=obs.device)
-        actions = actions.unsqueeze(0).expand(num_states, -1, -1)
-        states = state_flat.unsqueeze(1).expand(num_states, self.action_dim, self.obs_dim)
-        states_flat = states.reshape(num_states * self.action_dim, self.obs_dim)
-        actions_flat = actions.reshape(num_states * self.action_dim, self.action_dim)
+        valid_action_mask = valid_action_mask.to(device=obs.device)
+        valid_action_indices = valid_action_mask.nonzero(as_tuple=False).view(-1)
+        num_actions = int(valid_action_indices.numel())
+        if num_actions == 0:
+            return torch.zeros((B, TT, self.action_dim), device=obs.device, dtype=torch.float32)
 
-        with torch.no_grad():
-            # Eq. (14): one-step model lookahead q̂(s,a)=r̂+γ v̂(s').
-            next_state, reward = self.world_model(states_flat, actions_flat)
-            next_obs = self._unflatten_obs(next_state)
-            next_values = self._value_from_obs(value_model, next_obs)
+        # Match PPO default memory footprint by limiting (state, action) pairs per chunk.
+        max_pairs = self.cfg.q_value_batch_size or self.trainer_cfg.minibatch_size
+        states_per_chunk = max(1, max_pairs // num_actions)
 
-        q_values = reward.view(num_states, self.action_dim) + (
-            self.trainer_cfg.advantage.gamma * next_values.view(num_states, self.action_dim)
-        )
+        q_values = torch.zeros((num_states, self.action_dim), device=obs.device, dtype=torch.float32)
+        action_eye = torch.eye(self.action_dim, device=obs.device, dtype=torch.float32)[valid_action_indices]
+
+        for start in range(0, num_states, states_per_chunk):
+            end = min(start + states_per_chunk, num_states)
+            state_chunk = state_flat[start:end]
+
+            actions = action_eye.unsqueeze(0).expand(end - start, -1, -1)
+            states = state_chunk.unsqueeze(1).expand(end - start, num_actions, self.obs_dim)
+            states_flat = states.reshape((end - start) * num_actions, self.obs_dim)
+            actions_flat = actions.reshape((end - start) * num_actions, self.action_dim)
+
+            with torch.no_grad():
+                # Eq. (14): one-step model lookahead q̂(s,a)=r̂+γ v̂(s').
+                next_state, reward = self.world_model(states_flat, actions_flat)
+                next_obs = self._unflatten_obs(next_state)
+                next_values = self._value_from_obs(value_model, next_obs)
+
+            q_chunk = reward.view(end - start, num_actions) + (
+                self.trainer_cfg.advantage.gamma * next_values.view(end - start, num_actions)
+            )
+            q_values[start:end].index_copy_(1, valid_action_indices, q_chunk)
+
         return q_values.view(B, TT, self.action_dim)
 
     def _value_from_obs(self, model: Policy, obs: Tensor) -> Tensor:
@@ -367,8 +399,7 @@ class CMPO(NodeBase):
             },
             batch_size=(batch,),
         )
-        td.set("batch", torch.ones(batch, device=obs.device, dtype=torch.long))
-        td.set("bptt", torch.ones(batch, device=obs.device, dtype=torch.long))
+        ensure_sequence_metadata(td, batch_size=batch, time_steps=1)
         dummy_actions = torch.zeros(batch, device=obs.device, dtype=torch.long)
         model.reset_memory()
         with torch.no_grad():
