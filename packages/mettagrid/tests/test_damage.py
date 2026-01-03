@@ -1,14 +1,19 @@
-"""Test damage system functionality."""
+"""Test health system functionality."""
 
-from mettagrid.config.mettagrid_config import DamageConfig, MettaGridConfig
+from mettagrid.config.mettagrid_config import (
+    ClearInventoryMutation,
+    HealthConfig,
+    MettaGridConfig,
+    ResourceDeltaMutation,
+)
 from mettagrid.simulator import Action, Simulation
 
 
-class TestDamage:
-    """Test damage configuration and behavior."""
+class TestHealth:
+    """Test health configuration and behavior."""
 
-    def test_damage_config_creation(self):
-        """Test that damage config can be created and accessed."""
+    def test_health_config_creation(self):
+        """Test that health config can be created and accessed."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
@@ -18,19 +23,19 @@ class TestDamage:
             char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
-        cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        cfg.game.agent.damage = DamageConfig(
-            threshold={"damage": 10},
-            resources={"battery": 0, "weapon": 0, "shield": 0},
+        cfg.game.resource_names = ["battery", "weapon", "shield", "hp"]
+        cfg.game.agent.health = HealthConfig(
+            health_resource="hp",
+            on_damage=[ResourceDeltaMutation(target="actor", deltas={"weapon": -1})],
         )
 
         # Verify the config is set correctly
-        assert cfg.game.agent.damage is not None
-        assert cfg.game.agent.damage.threshold == {"damage": 10}
-        assert cfg.game.agent.damage.resources == {"battery": 0, "weapon": 0, "shield": 0}
+        assert cfg.game.agent.health is not None
+        assert cfg.game.agent.health.health_resource == "hp"
+        assert len(cfg.game.agent.health.on_damage) == 1
 
-    def test_damage_triggers_when_threshold_reached(self):
-        """Test that damage triggers and removes items when threshold is reached."""
+    def test_health_triggers_when_zero(self):
+        """Test that on_damage triggers when health reaches 0."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
@@ -40,12 +45,12 @@ class TestDamage:
             char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
-        cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        # Start with damage at threshold so it triggers immediately
-        cfg.game.agent.inventory.initial = {"battery": 3, "weapon": 3, "shield": 3, "damage": 10}
-        cfg.game.agent.damage = DamageConfig(
-            threshold={"damage": 10},
-            resources={"battery": 0, "weapon": 0, "shield": 0},
+        cfg.game.resource_names = ["battery", "weapon", "shield", "hp"]
+        # Start with hp at 0 so it triggers immediately
+        cfg.game.agent.inventory.initial = {"battery": 3, "weapon": 3, "shield": 3, "hp": 0}
+        cfg.game.agent.health = HealthConfig(
+            health_resource="hp",
+            on_damage=[ResourceDeltaMutation(target="actor", deltas={"weapon": -1})],
         )
         cfg.game.actions.noop.enabled = True
 
@@ -53,34 +58,19 @@ class TestDamage:
         agent = sim.agent(0)
 
         # Check initial inventory
-        initial_battery = agent.inventory.get("battery", 0)
         initial_weapon = agent.inventory.get("weapon", 0)
-        initial_shield = agent.inventory.get("shield", 0)
-        initial_damage = agent.inventory.get("damage", 0)
-
-        assert initial_battery == 3
         assert initial_weapon == 3
-        assert initial_shield == 3
-        assert initial_damage == 10
 
-        # Take a step - damage should trigger
+        # Take a step - health damage should trigger since hp is 0
         agent.set_action(Action(name="noop"))
         sim.step()
 
-        # Damage should be reset (subtracted by threshold)
-        new_damage = agent.inventory.get("damage", 0)
-        assert new_damage == 0, f"Damage should be 0 after trigger, got {new_damage}"
-
-        # One of the equipment items should be reduced by 1
-        new_battery = agent.inventory.get("battery", 0)
+        # Weapon should be reduced by 1 from the on_damage mutation
         new_weapon = agent.inventory.get("weapon", 0)
-        new_shield = agent.inventory.get("shield", 0)
+        assert new_weapon == 2, f"Weapon should be 2 after damage trigger, got {new_weapon}"
 
-        total_equipment = new_battery + new_weapon + new_shield
-        assert total_equipment == 8, f"Total equipment should be 8 (one removed), got {total_equipment}"
-
-    def test_damage_with_regen(self):
-        """Test that damage works with inventory regeneration."""
+    def test_health_not_triggered_when_positive(self):
+        """Test that on_damage doesn't trigger when health is positive."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
@@ -90,85 +80,77 @@ class TestDamage:
             char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
-        cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        cfg.game.agent.inventory.initial = {"battery": 5, "weapon": 5, "shield": 5, "damage": 0}
-        cfg.game.agent.damage = DamageConfig(
-            threshold={"damage": 5},
-            resources={"battery": 0, "weapon": 0, "shield": 0},
+        cfg.game.resource_names = ["battery", "weapon", "shield", "hp"]
+        cfg.game.agent.inventory.initial = {"battery": 3, "weapon": 3, "shield": 3, "hp": 10}
+        cfg.game.agent.health = HealthConfig(
+            health_resource="hp",
+            on_damage=[ResourceDeltaMutation(target="actor", deltas={"weapon": -1})],
         )
-        cfg.game.agent.inventory.regen_amounts = {"default": {"damage": 1}}
+        cfg.game.actions.noop.enabled = True
+
+        sim = Simulation(cfg)
+        agent = sim.agent(0)
+
+        # Take a step - health damage should NOT trigger since hp > 0
+        agent.set_action(Action(name="noop"))
+        sim.step()
+
+        # Weapon should be unchanged
+        new_weapon = agent.inventory.get("weapon", 0)
+        assert new_weapon == 3, f"Weapon should still be 3, got {new_weapon}"
+
+    def test_health_with_regen(self):
+        """Test that health damage works with inventory regeneration."""
+        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
+            [
+                ["#", "#", "#"],
+                ["#", "@", "#"],
+                ["#", "#", "#"],
+            ],
+            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
+        )
+
+        cfg.game.resource_names = ["battery", "weapon", "shield", "hp"]
+        cfg.game.agent.inventory.initial = {"battery": 5, "weapon": 5, "shield": 5, "hp": 3}
+        cfg.game.agent.health = HealthConfig(
+            health_resource="hp",
+            on_damage=[ResourceDeltaMutation(target="actor", deltas={"weapon": -1})],
+        )
+        # HP decays by 1 each step
+        cfg.game.agent.inventory.regen_amounts = {"default": {"hp": -1}}
         cfg.game.inventory_regen_interval = 1
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)
         agent = sim.agent(0)
 
-        # Run 4 steps - damage accumulates but doesn't trigger yet
-        for _ in range(4):
+        # Run 2 steps - hp decreases but doesn't hit 0 yet
+        for _ in range(2):
             agent.set_action(Action(name="noop"))
             sim.step()
 
-        # Check damage is accumulating
-        damage_after_4 = agent.inventory.get("damage", 0)
-        assert damage_after_4 == 4, f"Damage should be 4 after 4 steps, got {damage_after_4}"
+        # Check hp is decreasing
+        hp_after_2 = agent.inventory.get("hp", 0)
+        assert hp_after_2 == 1, f"HP should be 1 after 2 steps, got {hp_after_2}"
 
-        # Equipment should still be intact
-        total_equipment = (
-            agent.inventory.get("battery", 0) + agent.inventory.get("weapon", 0) + agent.inventory.get("shield", 0)
-        )
-        assert total_equipment == 15, f"Equipment should be 15 before trigger, got {total_equipment}"
+        # Weapon should still be intact
+        weapon_after_2 = agent.inventory.get("weapon", 0)
+        assert weapon_after_2 == 5, f"Weapon should be 5 before trigger, got {weapon_after_2}"
 
-        # Step 5 - damage should hit 5 and trigger
+        # Step 3 - hp should hit 0 and trigger damage
         agent.set_action(Action(name="noop"))
         sim.step()
 
-        # Damage should be reset to 0 (5 - 5 = 0)
-        damage_after_5 = agent.inventory.get("damage", 0)
-        assert damage_after_5 == 0, f"Damage should be 0 after trigger, got {damage_after_5}"
-
-        # One equipment item should be removed
-        total_equipment = (
-            agent.inventory.get("battery", 0) + agent.inventory.get("weapon", 0) + agent.inventory.get("shield", 0)
-        )
-        assert total_equipment == 14, f"Equipment should be 14 after trigger, got {total_equipment}"
-
-    def test_damage_respects_minimum(self):
-        """Test that damage won't remove items at or below their minimum."""
-        cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-            [
-                ["#", "#", "#"],
-                ["#", "@", "#"],
-                ["#", "#", "#"],
-            ],
-            char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
-        )
-
-        cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        # Start with battery=1 (at minimum), weapon=5 (above minimum)
-        cfg.game.agent.inventory.initial = {"battery": 1, "weapon": 5, "shield": 0, "damage": 10}
-        cfg.game.agent.damage = DamageConfig(
-            threshold={"damage": 10},
-            resources={"battery": 1, "weapon": 0, "shield": 0},  # battery min=1, weapon min=0
-        )
-        cfg.game.actions.noop.enabled = True
-
-        sim = Simulation(cfg)
-        agent = sim.agent(0)
-
-        # Take a step - damage should trigger, but only weapon can be removed (battery at min)
-        agent.set_action(Action(name="noop"))
-        sim.step()
-
-        # Battery should still be 1 (protected by minimum)
-        new_battery = agent.inventory.get("battery", 0)
-        assert new_battery == 1, f"Battery should remain at 1 (minimum), got {new_battery}"
+        # HP should be 0
+        hp_after_3 = agent.inventory.get("hp", 0)
+        assert hp_after_3 == 0, f"HP should be 0 after trigger, got {hp_after_3}"
 
         # Weapon should be reduced
-        new_weapon = agent.inventory.get("weapon", 0)
-        assert new_weapon == 4, f"Weapon should be 4 after damage, got {new_weapon}"
+        weapon_after_3 = agent.inventory.get("weapon", 0)
+        assert weapon_after_3 == 4, f"Weapon should be 4 after trigger, got {weapon_after_3}"
 
-    def test_simulation_with_damage_config(self):
-        """Test that simulation runs with damage config."""
+    def test_health_clear_inventory_on_damage(self):
+        """Test using ClearInventoryMutation on damage."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
@@ -178,34 +160,33 @@ class TestDamage:
             char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
         )
 
-        cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-        cfg.game.agent.inventory.initial = {"battery": 2, "weapon": 2, "shield": 2, "damage": 0}
-        cfg.game.agent.damage = DamageConfig(
-            threshold={"damage": 100},
-            resources={"battery": 0, "weapon": 0, "shield": 0},
+        cfg.game.resource_names = ["battery", "weapon", "shield", "hp"]
+        cfg.game.agent.inventory.initial = {"battery": 5, "weapon": 5, "shield": 5, "hp": 0}
+        cfg.game.agent.inventory.limits = {
+            "gear": {"limit": 10, "resources": ["weapon", "shield"]},
+            "other": {"limit": 10, "resources": ["battery", "hp"]},
+        }
+        cfg.game.agent.health = HealthConfig(
+            health_resource="hp",
+            on_damage=[ClearInventoryMutation(target="actor", limit_name="gear")],
         )
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)
-
-        # Check initial inventory
         agent = sim.agent(0)
-        assert agent.inventory.get("battery", 0) == 2
-        assert agent.inventory.get("weapon", 0) == 2
-        assert agent.inventory.get("shield", 0) == 2
 
-        # Take some steps - damage should not trigger since we never reach the threshold
-        for _ in range(5):
-            agent.set_action(Action(name="noop"))
-            sim.step()
+        # Take a step - should clear gear (weapon and shield)
+        agent.set_action(Action(name="noop"))
+        sim.step()
 
-        # Inventory should be unchanged (no damage threshold reached)
-        assert agent.inventory.get("battery", 0) == 2
-        assert agent.inventory.get("weapon", 0) == 2
-        assert agent.inventory.get("shield", 0) == 2
+        # Gear should be cleared
+        assert agent.inventory.get("weapon", 0) == 0
+        assert agent.inventory.get("shield", 0) == 0
+        # Battery should be unchanged
+        assert agent.inventory.get("battery", 0) == 5
 
-    def test_damage_not_applied_without_config(self):
-        """Test that damage is not applied when damage config is None."""
+    def test_simulation_without_health_config(self):
+        """Test that simulation runs without health config."""
         cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
             [
                 ["#", "#", "#"],
@@ -217,7 +198,7 @@ class TestDamage:
 
         cfg.game.resource_names = ["battery", "weapon", "shield"]
         cfg.game.agent.inventory.initial = {"battery": 2, "weapon": 2, "shield": 2}
-        # No damage config set
+        # No health config set
         cfg.game.actions.noop.enabled = True
 
         sim = Simulation(cfg)
@@ -232,64 +213,3 @@ class TestDamage:
         assert agent.inventory.get("battery", 0) == 2
         assert agent.inventory.get("weapon", 0) == 2
         assert agent.inventory.get("shield", 0) == 2
-
-    def test_weighted_removal_favors_higher_quantities(self):
-        """Test that damage removal is weighted by quantity above minimum.
-
-        Items with more excess inventory should be removed more frequently.
-        """
-        # Run many trials to verify statistical distribution
-        removal_counts = {"battery": 0, "weapon": 0, "shield": 0}
-        num_trials = 300
-
-        for trial in range(num_trials):
-            cfg = MettaGridConfig.EmptyRoom(num_agents=1, with_walls=True).with_ascii_map(
-                [
-                    ["#", "#", "#"],
-                    ["#", "@", "#"],
-                    ["#", "#", "#"],
-                ],
-                char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty"},
-            )
-
-            cfg.game.resource_names = ["battery", "weapon", "shield", "damage"]
-            # battery=10 (weight 10), weapon=3 (weight 3), shield=1 (weight 1)
-            cfg.game.agent.inventory.initial = {"battery": 10, "weapon": 3, "shield": 1, "damage": 10}
-            cfg.game.agent.damage = DamageConfig(
-                threshold={"damage": 10},
-                resources={"battery": 0, "weapon": 0, "shield": 0},
-            )
-            cfg.game.actions.noop.enabled = True
-
-            # Use different seed for each trial to get different random outcomes
-            sim = Simulation(cfg, seed=trial)
-            agent = sim.agent(0)
-
-            # Trigger damage
-            agent.set_action(Action(name="noop"))
-            sim.step()
-
-            # Check which item was removed
-            if agent.inventory.get("battery", 0) == 9:
-                removal_counts["battery"] += 1
-            elif agent.inventory.get("weapon", 0) == 2:
-                removal_counts["weapon"] += 1
-            elif agent.inventory.get("shield", 0) == 0:
-                removal_counts["shield"] += 1
-
-        # Expected weights: battery=10, weapon=3, shield=1, total=14
-        # Expected probabilities: battery=10/14≈71%, weapon=3/14≈21%, shield=1/14≈7%
-        # With 300 trials, expect roughly: battery≈214, weapon≈64, shield≈21
-        # Allow reasonable variance (at least battery > weapon > shield)
-        assert removal_counts["battery"] > removal_counts["weapon"], (
-            f"Battery (weight 10) should be removed more than weapon (weight 3): "
-            f"battery={removal_counts['battery']}, weapon={removal_counts['weapon']}"
-        )
-        assert removal_counts["weapon"] > removal_counts["shield"], (
-            f"Weapon (weight 3) should be removed more than shield (weight 1): "
-            f"weapon={removal_counts['weapon']}, shield={removal_counts['shield']}"
-        )
-        # Battery should be removed at least 50% of the time (expected ~71%)
-        assert removal_counts["battery"] >= num_trials * 0.5, (
-            f"Battery should be removed at least 50% of the time, got {removal_counts['battery']}/{num_trials}"
-        )

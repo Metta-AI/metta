@@ -861,9 +861,9 @@ void MettaGrid::_step() {
     }
   }
 
-  // Check and apply damage for all agents
+  // Check and apply health damage for all agents
   for (auto* agent : _agents) {
-    agent->check_and_apply_damage(_rng);
+    agent->check_and_apply_health_damage(_grid.get(), &_game_config);
   }
 
   // Apply global systems

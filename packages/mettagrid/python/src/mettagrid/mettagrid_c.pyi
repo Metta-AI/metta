@@ -53,6 +53,12 @@ class PackedCoordinate:
         """Check if packed value represents empty location."""
         ...
 
+class ActivationMutationConfig:
+    def __init__(self) -> None: ...
+
+class ActivationFilterConfig:
+    def __init__(self) -> None: ...
+
 class AOEEffectConfig:
     def __init__(
         self,
@@ -84,10 +90,10 @@ class InventoryConfig:
     def __init__(self) -> None: ...
     limit_defs: list[LimitDef]
 
-class DamageConfig:
+class HealthConfig:
     def __init__(self) -> None: ...
-    threshold: dict[int, int]
-    resources: dict[int, int]
+    health_resource: int
+    on_damage: list[ActivationMutationConfig]
     def enabled(self) -> bool: ...
 
 class WallConfig(GridObjectConfig):
@@ -114,7 +120,7 @@ class AgentConfig(GridObjectConfig):
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
         initial_vibe: int = 0,
-        damage_config: DamageConfig = ...,
+        health_config: HealthConfig = ...,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -130,7 +136,7 @@ class AgentConfig(GridObjectConfig):
     inventory_regen_amounts: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
     initial_vibe: int
-    damage_config: DamageConfig
+    health_config: HealthConfig
 
 class ActionConfig:
     def __init__(

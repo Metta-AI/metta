@@ -42,9 +42,9 @@ from mettagrid.config.mettagrid_config import (
     CommonsConfig,
     CommonsDeposit,
     CommonsWithdraw,
-    DamageConfig,
     GameConfig,
     GlobalObsConfig,
+    HealthConfig,
     InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -297,7 +297,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             inventory=InventoryConfig(
                 limits={
                     "gear": ResourceLimitsConfig(limit=1, resources=gear),
-                    "hp": ResourceLimitsConfig(limit=10, resources=["hp"]),
+                    "hp": ResourceLimitsConfig(limit=10, resources=["hp"], modifiers={"scout": 100}),
                     "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
                     "energy": ResourceLimitsConfig(limit=10, resources=["energy"], modifiers={"scout": 100}),
                     "cargo": ResourceLimitsConfig(limit=3, resources=elements, modifiers={"miner": 10}),
@@ -326,9 +326,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "silicon": 0.01,
                 },
             ),
-            damage=DamageConfig(
-                threshold={"hp": 200},
-                resources={g: 0 for g in gear},
+            health=HealthConfig(
+                health_resource="hp",
+                on_damage=[
+                    ClearInventoryMutation(target="actor", limit_name="gear"),
+                    UpdateActor({"hp": 500}),
+                ],
             ),
         ),
         inventory_regen_interval=1,
@@ -337,15 +340,8 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             "assembler": nexus("assembler"),
             "charger": supply_depot_config("charger", "clips"),
             "chest": chest(),
-            "carbon_extractor": extractor("carbon"),
-            "oxygen_extractor": extractor("oxygen"),
-            "germanium_extractor": extractor("germanium"),
-            "silicon_extractor": extractor("silicon"),
-            # Gear stations - each clears all gear and grants its gear type
-            "aligner_station": gear_station("aligner"),
-            "scrambler_station": gear_station("scrambler"),
-            "miner_station": gear_station("miner"),
-            "scout_station": gear_station("scout"),
+            **{f"{resource}_extractor": extractor(resource) for resource in elements},
+            **{f"{gear}_station": gear_station(gear) for gear in gear},
         },
         commons=[
             CommonsConfig(
