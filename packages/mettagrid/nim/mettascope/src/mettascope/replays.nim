@@ -106,6 +106,10 @@ type
     gainMap*: seq[seq[ItemAmount]]
     isAgent*: bool
 
+  CommonsInventorySnapshot* = object
+    step*: int
+    inventory*: Table[string, int]  ## itemName -> count
+
   Replay* = ref object
     version*: int
     numAgents*: int
@@ -126,6 +130,9 @@ type
     rewardSharingMatrix*: seq[seq[float]]
 
     agents*: seq[Entity]
+
+    # Commons inventory over time: commons_name -> list of snapshots
+    commonsInventory*: Table[string, seq[CommonsInventorySnapshot]]
 
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
@@ -191,6 +198,7 @@ type
   ReplayStep* = ref object
     step*: int
     objects*: seq[ReplayEntity]
+    commons_inventory*: Table[string, Table[string, int]]  ## commons_name -> {item_name: count}
 
 ## Empty replays is used before a real replay is loaded,
 ## so that we don't need to check for nil everywhere.
@@ -828,6 +836,25 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "agent_id" in obj:
       replay.agents.add(entity)
 
+  # Load commons inventory snapshots
+  replay.commonsInventory = initTable[string, seq[CommonsInventorySnapshot]]()
+  if "commons_inventory" in jsonObj:
+    let commonsInvObj = jsonObj["commons_inventory"]
+    if commonsInvObj.kind == JObject:
+      for commonsName, snapshots in commonsInvObj.pairs:
+        var snapshotSeq: seq[CommonsInventorySnapshot] = @[]
+        if snapshots.kind == JArray:
+          for snapshot in snapshots:
+            if snapshot.kind == JArray and snapshot.len >= 2:
+              let step = snapshot[0].getInt
+              var inv = initTable[string, int]()
+              if snapshot[1].kind == JObject:
+                for itemName, count in snapshot[1].pairs:
+                  if count.kind == JInt:
+                    inv[itemName] = count.getInt
+              snapshotSeq.add(CommonsInventorySnapshot(step: step, inventory: inv))
+        replay.commonsInventory[commonsName] = snapshotSeq
+
   # compute gain maps for static replays.
   computeGainMap(replay)
 
@@ -940,3 +967,15 @@ proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.
   let replayStep = fromJson(replayStepJsonData, ReplayStep)
   replay.apply(replayStep.step, replayStep.objects)
+  # Update commons inventory from live data
+  if replayStep.commons_inventory.len > 0:
+    # Collect keys first to avoid iteration issues
+    var commonsNames: seq[string] = @[]
+    for k in replayStep.commons_inventory.keys:
+      commonsNames.add(k)
+    for commonsName in commonsNames:
+      let inventory = replayStep.commons_inventory[commonsName]
+      let snapshot = CommonsInventorySnapshot(step: replayStep.step, inventory: inventory)
+      if commonsName notin replay.commonsInventory:
+        replay.commonsInventory[commonsName] = @[]
+      replay.commonsInventory[commonsName].add(snapshot)

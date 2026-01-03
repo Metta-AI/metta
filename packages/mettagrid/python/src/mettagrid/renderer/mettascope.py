@@ -102,7 +102,17 @@ class MettascopeRenderer(Renderer):
                 )
             )
 
-        step_replay = {"step": self._sim.current_step, "objects": grid_objects}
+        # Get commons inventory for live display
+        commons_inventory = {}
+        commons_info = self._sim._c_sim.commons_info()
+        for commons_name, info in commons_info.items():
+            commons_inventory[commons_name] = dict(info.get("inventory", {}))
+
+        step_replay = {
+            "step": self._sim.current_step,
+            "objects": grid_objects,
+            "commons_inventory": commons_inventory,
+        }
 
         # Render and get user input
         self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
