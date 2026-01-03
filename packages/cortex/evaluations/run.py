@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
+from cortex.torch_init import enable_determinism, seed_everything
 from model import SequenceClassifier  # type: ignore[import-not-found]
 from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
 from synthetic_datasets import (  # type: ignore[import-not-found]
@@ -19,8 +20,6 @@ from synthetic_datasets import (  # type: ignore[import-not-found]
     MajorityHeadPadDataset,
 )
 from torch.utils.data import DataLoader
-
-from metta.rl.torch_init import enable_determinism, seed_everything
 
 # Globals used by optional Axons parity probe
 AXONS_PARITY_PROBE: int = 0
