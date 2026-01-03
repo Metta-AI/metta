@@ -3,8 +3,8 @@ line-length = 120
 # Specify the target Python version for compatibility checks
 target-version = "py312"
 
-# Exclude directories from linting
-# These are common directories that typically don't need linting
+# Exclude paths from linting (glob patterns)
+# See https://docs.astral.sh/ruff/settings/#exclude
 exclude = [
   ".git",                    # Git version control
   ".mypy_cache",             # MyPy type checking cache
@@ -19,6 +19,8 @@ exclude = [
   "*.ipynb",                 # Exclude notebooks from linting
   ".nim_runtime",            # Nim runtime generated files
   "generated",               # Nim python generated files
+  "*_pb2.py",                # Protobuf generated code
+  "*_pb2.pyi",               # Protobuf generated stubs
 ]
 
 [lint.isort]
