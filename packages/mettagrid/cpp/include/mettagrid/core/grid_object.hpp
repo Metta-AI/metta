@@ -85,11 +85,16 @@ struct GridObjectConfig {
   std::string type_name;
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
-  std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
+  std::vector<AOEEffectConfig> aoes;                         // List of AOE effects this object emits
   std::vector<ActivationHandlerConfig> activation_handlers;  // Handlers for when agent activates this object
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}), activation_handlers({}) {}
+      : type_id(type_id),
+        type_name(type_name),
+        tag_ids({}),
+        initial_vibe(initial_vibe),
+        aoes({}),
+        activation_handlers({}) {}
 
   virtual ~GridObjectConfig() = default;
 };
