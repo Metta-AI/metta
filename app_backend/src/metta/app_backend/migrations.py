@@ -166,7 +166,7 @@ MIGRATIONS = [
             """CREATE TYPE match_status AS ENUM ('pending', 'scheduled', 'running', 'completed', 'failed')""",
             """CREATE TABLE seasons (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 description TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
@@ -209,10 +209,28 @@ MIGRATIONS = [
                 match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
                 policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
                 policy_index INTEGER NOT NULL DEFAULT 0,
-                score FLOAT
+                score FLOAT,
+                UNIQUE (match_id, policy_version_id)
             )""",
             """CREATE INDEX idx_match_players_match_id ON match_players (match_id)""",
             """CREATE INDEX idx_match_players_policy_version_id ON match_players (policy_version_id)""",
+        ],
+    ),
+    SqlMigration(
+        version=5,
+        description="Create membership_changes table for tracking pool membership changes",
+        sql_statements=[
+            """CREATE TYPE membership_action AS ENUM ('add', 'retire')""",
+            """CREATE TABLE membership_changes (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
+                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                action membership_action NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE INDEX idx_membership_changes_pool_id ON membership_changes (pool_id)""",
+            """CREATE INDEX idx_membership_changes_policy_version_id ON membership_changes (policy_version_id)""",
+            """CREATE INDEX idx_membership_changes_created_at ON membership_changes (created_at DESC)""",
         ],
     ),
 ]

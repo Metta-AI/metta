@@ -256,6 +256,7 @@
     "Schulman",
     "scikit",
     "scipy",
+    "selfplay",
     "sessionfinish",
     "setsid",
     "setuptools",
