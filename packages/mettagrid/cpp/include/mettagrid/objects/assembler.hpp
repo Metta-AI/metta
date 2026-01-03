@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -331,12 +332,15 @@ public:
   }
 
   // Helper function to build a protocol map from a vector of protocols
+  // Creates deep copies of protocols so each Assembler has independent activation_count tracking
   static std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> build_protocol_map(
       const std::vector<std::shared_ptr<Protocol>>& protocol_list) {
     std::unordered_map<GroupVibe, std::vector<std::shared_ptr<Protocol>>> protocol_map;
     for (const auto& protocol : protocol_list) {
-      GroupVibe vibe = calculate_group_vibe_from_vibes(protocol->vibes);
-      protocol_map[vibe].push_back(protocol);
+      // Deep copy the protocol so each Assembler has its own activation_count
+      auto protocol_copy = std::make_shared<Protocol>(*protocol);
+      GroupVibe vibe = calculate_group_vibe_from_vibes(protocol_copy->vibes);
+      protocol_map[vibe].push_back(protocol_copy);
     }
     for (auto& [vibe, protocol_list] : protocol_map) {
       std::sort(protocol_list.begin(),
@@ -445,9 +449,25 @@ public:
       scaled_protocol.output_resources[resource] = scaled_amount;
     }
 
-    // Keep the same cooldown and vibes
+    // Keep the same cooldown, vibes, and sigmoid pricing settings
     scaled_protocol.cooldown = original_protocol.cooldown;
     scaled_protocol.vibes = original_protocol.vibes;
+    scaled_protocol.sigmoid = original_protocol.sigmoid;
+    scaled_protocol.inflation = original_protocol.inflation;
+    scaled_protocol.activation_count = original_protocol.activation_count;
+
+    return scaled_protocol;
+  }
+
+  // Apply sigmoid pricing to protocol input resources
+  // Returns a new protocol with scaled input costs (outputs unchanged)
+  static Protocol apply_sigmoid_pricing(const Protocol& protocol) {
+    Protocol scaled_protocol = protocol;
+
+    // Scale each input resource using the protocol's sigmoid pricing
+    for (auto& [resource, amount] : scaled_protocol.input_resources) {
+      amount = protocol.get_scaled_cost(amount);
+    }
 
     return scaled_protocol;
   }
@@ -488,6 +508,9 @@ public:
       }
     }
 
+    // Apply sigmoid pricing to input costs
+    protocol_to_use = apply_sigmoid_pricing(protocol_to_use);
+
     std::vector<Agent*> surrounding_agents = get_surrounding_agents(&actor);
     // Extract Inventory* pointers from agents for resource operations
     std::vector<Inventory*> input_inventories;
@@ -521,6 +544,8 @@ public:
       become_unclipped();
     } else {
       uses_count++;
+      // Increment the protocol's activation count for sigmoid pricing
+      original_protocol->activation_count++;
     }
     return true;
   }
