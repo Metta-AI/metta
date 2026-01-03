@@ -1,6 +1,6 @@
 import
   std/[json, algorithm, tables, sets, strutils, strformat],
-  vmath, silky, windy,
+  vmath, silky, windy, chroma,
   common, panels, replays
 
 type
@@ -9,6 +9,25 @@ type
     limit*: int
     resources*: seq[string]
     modifiers*: Table[string, int]
+
+  DeltaSource* = object
+    sourceName*: string
+    sourcePos*: IVec2
+    delta*: int
+
+const
+  DeltaPosColor = rgbx(100, 255, 100, 255)
+  DeltaNegColor = rgbx(255, 100, 100, 255)
+
+proc textWithDelta(baseText: string, delta: int) =
+  ## Draw text with an optional colored delta suffix.
+  let startPos = sk.at
+  text(baseText)
+  if delta != 0:
+    let deltaStr = if delta > 0: " (+" & $delta & ")" else: " (" & $delta & ")"
+    let color = if delta > 0: DeltaPosColor else: DeltaNegColor
+    let baseWidth = sk.getTextSize("Default", baseText).x
+    discard sk.drawText("Default", deltaStr, startPos + vec2(baseWidth, 0), color)
 
 proc parseInventoryLimits(mgConfig: JsonNode): seq[ResourceLimitGroup] =
   ## Parse inventory.limits from the agent config.
@@ -112,15 +131,47 @@ proc getAoeConfigs(typeName: string): JsonNode =
     return nil
   return objConfig["aoes"]
 
-proc isAgentAffectedByAoe(agentCommonsId: int, sourceCommonsId: int, membersOnly: bool, ignoreMembers: bool): bool =
-  ## Check if an agent is affected by an AOE based on commons filtering.
-  if membersOnly:
-    # Only affect agents with matching commons
-    return agentCommonsId >= 0 and agentCommonsId == sourceCommonsId
-  if ignoreMembers:
-    # Ignore agents with matching commons
+proc checkAlignmentFilter(agentCommonsId: int, sourceCommonsId: int, alignment: string): bool =
+  ## Check if an alignment filter passes for the given agent and source commons.
+  case alignment:
+  of "aligned":
+    return agentCommonsId >= 0
+  of "unaligned":
+    return agentCommonsId < 0
+  of "same_commons":
+    return agentCommonsId >= 0 and sourceCommonsId >= 0 and agentCommonsId == sourceCommonsId
+  of "different_commons":
+    # Both must have commons, and they must be different
+    return agentCommonsId >= 0 and sourceCommonsId >= 0 and agentCommonsId != sourceCommonsId
+  of "not_same_commons":
+    # Not same commons means: unaligned OR different commons
     return agentCommonsId < 0 or agentCommonsId != sourceCommonsId
-  # No filter, affect all agents
+  else:
+    return true
+
+proc isAgentAffectedByAoeFilters(agentCommonsId: int, sourceCommonsId: int, filters: JsonNode): bool =
+  ## Check if an agent is affected by an AOE based on filter array.
+  if filters.isNil or filters.kind != JArray or filters.len == 0:
+    return true
+  for filter in filters:
+    if filter.kind != JObject:
+      continue
+    if "filter_type" notin filter:
+      continue
+    let filterType = filter["filter_type"].getStr
+    case filterType:
+    of "alignment":
+      let alignment = if "alignment" in filter: filter["alignment"].getStr else: ""
+      let target = if "target" in filter: filter["target"].getStr else: "target"
+      # For AOE, actor is the source, target is the affected entity
+      let checkCommonsId = if target == "actor": sourceCommonsId else: agentCommonsId
+      if not checkAlignmentFilter(checkCommonsId, sourceCommonsId, alignment):
+        return false
+    of "vibe", "resource":
+      # These filters can't be fully checked without more context, assume they pass
+      discard
+    else:
+      discard
   return true
 
 type
@@ -128,8 +179,7 @@ type
     source*: Entity
     aoeConfig*: JsonNode
     aoeRange*: int
-    membersOnly*: bool
-    ignoreMembers*: bool
+    filters*: JsonNode
 
 proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
   ## Find all AOE sources that affect this agent.
@@ -162,22 +212,48 @@ proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
       if distance > aoeRange:
         continue
       # Get filter settings
-      var membersOnly = false
-      var ignoreMembers = false
-      if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
-        membersOnly = aoeConfig["members_only"].getBool
-      if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
-        ignoreMembers = aoeConfig["ignore_members"].getBool
+      var filters: JsonNode = nil
+      if "filters" in aoeConfig and aoeConfig["filters"].kind == JArray:
+        filters = aoeConfig["filters"]
       # Check if agent is affected by this source
-      if not isAgentAffectedByAoe(agent.commonsId, obj.commonsId, membersOnly, ignoreMembers):
+      if not isAgentAffectedByAoeFilters(agent.commonsId, obj.commonsId, filters):
         continue
       result.add(AoeSourceEffect(
         source: obj,
         aoeConfig: aoeConfig,
         aoeRange: aoeRange,
-        membersOnly: membersOnly,
-        ignoreMembers: ignoreMembers
+        filters: filters
       ))
+
+proc computeResourceDeltas(agent: Entity): (Table[string, int], Table[string, seq[DeltaSource]]) =
+  ## Compute total resource deltas and per-resource sources for an agent from AOE effects.
+  var totalDeltas = initTable[string, int]()
+  var deltaSources = initTable[string, seq[DeltaSource]]()
+  if not agent.isAgent:
+    return (totalDeltas, deltaSources)
+  let aoeSources = getAoeSourcesAffectingAgent(agent)
+  for effect in aoeSources:
+    let aoeConfig = effect.aoeConfig
+    if "resource_deltas" notin aoeConfig or aoeConfig["resource_deltas"].kind != JObject:
+      continue
+    for key, value in aoeConfig["resource_deltas"].pairs:
+      var delta = 0
+      if value.kind == JInt:
+        delta = value.getInt
+      elif value.kind == JFloat:
+        delta = value.getFloat.int
+      if delta == 0:
+        continue
+      if key notin totalDeltas:
+        totalDeltas[key] = 0
+        deltaSources[key] = @[]
+      totalDeltas[key] = totalDeltas[key] + delta
+      deltaSources[key].add(DeltaSource(
+        sourceName: effect.source.typeName,
+        sourcePos: effect.source.location.at(step).xy,
+        delta: delta
+      ))
+  return (totalDeltas, deltaSources)
 
 proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draws the object info panel using silky widgets.
@@ -191,6 +267,12 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
       return
 
     let cur = selection
+
+    # Compute resource deltas for agents.
+    var resourceDeltas: Table[string, int]
+    var deltaSources: Table[string, seq[DeltaSource]]
+    if cur.isAgent:
+      (resourceDeltas, deltaSources) = computeResourceDeltas(cur)
 
     button("Open Config"):
       if cur.isNil:
@@ -280,7 +362,8 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
         text(&"{group.name}: {usedAmount} / {effectiveLimit}")
         for itemAmount in groupItems:
           let itemName = getItemName(itemAmount)
-          text(&"  {itemName}: {itemAmount.count}")
+          let delta = resourceDeltas.getOrDefault(itemName, 0)
+          textWithDelta(&"  {itemName}: {itemAmount.count}", delta)
 
       var ungroupedItems: seq[ItemAmount] = @[]
       for itemAmount in currentInventory:
@@ -292,7 +375,9 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
       if ungroupedItems.len > 0:
         text("Other:")
         for itemAmount in ungroupedItems:
-          text("  " & formatItem(itemAmount))
+          let itemName = getItemName(itemAmount)
+          let delta = resourceDeltas.getOrDefault(itemName, 0)
+          textWithDelta("  " & formatItem(itemAmount), delta)
     else:
       text("Inventory")
       if currentInventory.len == 0:
@@ -369,62 +454,51 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
               delta = value.getFloat.int
             let sign = if delta >= 0: "+" else: ""
             text(&"    {key}: {sign}{delta}")
-        # Get filter settings
-        var membersOnly = false
-        var ignoreMembers = false
-        if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
-          membersOnly = aoeConfig["members_only"].getBool
-        if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
-          ignoreMembers = aoeConfig["ignore_members"].getBool
-        if membersOnly:
-          text("  Filter: Members only")
-        elif ignoreMembers:
-          text("  Filter: Ignore members")
+        # Get and display filter settings
+        if "filters" in aoeConfig and aoeConfig["filters"].kind == JArray:
+          for filter in aoeConfig["filters"]:
+            if filter.kind != JObject or "filter_type" notin filter:
+              continue
+            let filterType = filter["filter_type"].getStr
+            case filterType:
+            of "alignment":
+              let alignment = if "alignment" in filter: filter["alignment"].getStr else: ""
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: {alignment} ({target})")
+            of "vibe":
+              let vibe = if "vibe" in filter: filter["vibe"].getStr else: ""
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: vibe={vibe} ({target})")
+            of "resource":
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: resource ({target})")
+            else:
+              text(&"  Filter: {filterType}")
 
-    # AOE Effects - show incoming effects on agents
-    if cur.isAgent:
-      let aoeSources = getAoeSourcesAffectingAgent(cur)
-      if aoeSources.len > 0:
-        sk.advance(vec2(0, theme.spacing.float32))
-        text("Incoming AOE Effects")
-
-        # Aggregate all resource deltas from all sources
-        var totalDeltas = initTable[string, int]()
-        for effect in aoeSources:
-          let aoeConfig = effect.aoeConfig
-          if "resource_deltas" in aoeConfig and aoeConfig["resource_deltas"].kind == JObject:
-            for key, value in aoeConfig["resource_deltas"].pairs:
-              var delta = 0
-              if value.kind == JInt:
-                delta = value.getInt
-              elif value.kind == JFloat:
-                delta = value.getFloat.int
-              if key notin totalDeltas:
-                totalDeltas[key] = 0
-              totalDeltas[key] = totalDeltas[key] + delta
-
-        # Show totals with current -> new values
-        let inv = cur.inventory.at(step)
-        for resourceName, delta in totalDeltas.pairs:
-          let resourceIdx = replay.itemNames.find(resourceName)
-          var currentAmount = 0
-          if resourceIdx >= 0:
-            for item in inv:
-              if item.itemId == resourceIdx:
-                currentAmount = item.count
-                break
-          let newAmount = currentAmount + delta
-          let sign = if delta >= 0: "+" else: ""
-          text(&"  {resourceName}: {currentAmount} → {newAmount} ({sign}{delta})")
-
-        # List sources
-        sk.advance(vec2(0, theme.spacing.float32 / 2))
-        text("  Sources:")
-        for effect in aoeSources:
-          let sourcePos = effect.source.location.at(step).xy
-          let commonsName = getCommonsName(effect.source.commonsId)
-          let commonsInfo = if commonsName.len > 0: " [" & commonsName & "]" else: ""
-          text(&"    {effect.source.typeName}{commonsInfo} @ ({sourcePos.x}, {sourcePos.y})")
+    # Deltas section - show expected next-tick resource changes for agents
+    if cur.isAgent and resourceDeltas.len > 0:
+      sk.advance(vec2(0, theme.spacing.float32))
+      text("Deltas:")
+      for resourceName, delta in resourceDeltas.pairs:
+        let deltaStr = if delta > 0: "+" & $delta else: $delta
+        let color = if delta > 0: DeltaPosColor else: DeltaNegColor
+        # Build source list for this resource
+        var sourceList = ""
+        if resourceName in deltaSources:
+          var sourceNames: seq[string] = @[]
+          for src in deltaSources[resourceName]:
+            sourceNames.add(src.sourceName)
+          sourceList = " (" & sourceNames.join(", ") & ")"
+        # Draw the delta line with colored value
+        let baseText = &"  {resourceName}: "
+        let startPos = sk.at
+        text(baseText)
+        let baseWidth = sk.getTextSize("Default", baseText).x
+        discard sk.drawText("Default", deltaStr, startPos + vec2(baseWidth, 0), color)
+        # Draw source list in normal color if present
+        if sourceList.len > 0:
+          let deltaWidth = sk.getTextSize("Default", deltaStr).x
+          discard sk.drawText("Default", sourceList, startPos + vec2(baseWidth + deltaWidth, 0), rgbx(180, 180, 180, 255))
 
 
 proc selectObject*(obj: Entity) =
