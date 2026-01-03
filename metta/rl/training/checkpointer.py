@@ -64,25 +64,28 @@ class Checkpointer(TrainerComponent):
             )
 
             if normalized_uri:
-                payload: tuple[str, dict[str, torch.Tensor]] | None = None
+                payload: tuple[str, dict[str, object], dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
                     policy_spec = policy_spec_from_uri(normalized_uri)
                     state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
                     payload = (
-                        policy_spec.init_kwargs["architecture_spec"],
+                        policy_spec.class_path,
+                        policy_spec.init_kwargs or {},
                         {k: v.cpu() for k, v in state_dict.items()},
                     )
                 payload = self._distributed.broadcast_from_master(payload)
-                architecture_spec, state_dict = payload
-
-                policy = (
-                    load_symbol(architecture_spec.split("(", 1)[0].strip())
-                    .from_spec(architecture_spec)
-                    .make_policy(policy_env_info)
-                    .to(load_device)
-                )
+                class_path, init_kwargs, state_dict = payload
+                init_kwargs = dict(init_kwargs)
+                if "device" in init_kwargs:
+                    init_kwargs["device"] = str(load_device)
+                policy_class = load_symbol(class_path)
+                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+                if hasattr(policy, "to"):
+                    policy = policy.to(load_device)
                 policy.load_state_dict(state_dict, strict=True)
-                policy.initialize_to_environment(policy_env_info, load_device)
+                initialize = getattr(policy, "initialize_to_environment", None)
+                if callable(initialize):
+                    initialize(policy_env_info, load_device)
 
                 if self._distributed.is_master():
                     self._latest_policy_uri = normalized_uri

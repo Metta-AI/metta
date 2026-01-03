@@ -151,12 +151,7 @@ class S3SchemeResolver(SchemeResolver):
                 return latest
             raise ValueError(f"No latest checkpoint found for {base_uri}")
 
-        parsed = self.parse(uri)
-        latest = self._get_latest_checkpoint_uri(parsed)
-        if latest:
-            return latest
-
-        return parsed.canonical
+        return self.parse(uri).canonical
 
 
 class HttpSchemeResolver(SchemeResolver):

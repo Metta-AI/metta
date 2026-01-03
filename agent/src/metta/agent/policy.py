@@ -282,6 +282,12 @@ class CheckpointPolicy(Policy):
         if callable(initialize):
             initialize(self._policy_env_info, self._device)
 
+    def state_dict(self, *args, **kwargs):
+        return self._policy.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        return self._policy.load_state_dict(state_dict, *args, **kwargs)
+
     def save_policy_data(self, policy_data_path: str) -> None:
         self._policy.save_policy_data(policy_data_path)
 
