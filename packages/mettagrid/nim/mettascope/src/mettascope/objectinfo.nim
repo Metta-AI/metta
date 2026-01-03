@@ -131,18 +131,47 @@ proc getAoeConfigs(typeName: string): JsonNode =
     return nil
   return objConfig["aoes"]
 
-proc isAgentAffectedByAoe(agentCommonsId: int, sourceCommonsId: int, membersOnly: bool, ignoreMembers: bool): bool =
-  ## Check if an agent is affected by an AOE based on commons filtering.
-  if membersOnly:
-    # Only affect agents with matching commons
-    return agentCommonsId >= 0 and agentCommonsId == sourceCommonsId
-  if ignoreMembers:
-    # If source has no commons, skip all (everyone is treated as a "member" to ignore)
-    if sourceCommonsId < 0:
-      return false
-    # Ignore agents with matching commons (but affect unaligned agents and agents from other commons)
+proc checkAlignmentFilter(agentCommonsId: int, sourceCommonsId: int, alignment: string): bool =
+  ## Check if an alignment filter passes for the given agent and source commons.
+  case alignment:
+  of "aligned":
+    return agentCommonsId >= 0
+  of "unaligned":
+    return agentCommonsId < 0
+  of "same_commons":
+    return agentCommonsId >= 0 and sourceCommonsId >= 0 and agentCommonsId == sourceCommonsId
+  of "different_commons":
+    # Both must have commons, and they must be different
+    return agentCommonsId >= 0 and sourceCommonsId >= 0 and agentCommonsId != sourceCommonsId
+  of "not_same_commons":
+    # Not same commons means: unaligned OR different commons
     return agentCommonsId < 0 or agentCommonsId != sourceCommonsId
-  # No filter, affect all agents
+  else:
+    return true
+
+proc isAgentAffectedByAoeFilters(agentCommonsId: int, sourceCommonsId: int, filters: JsonNode): bool =
+  ## Check if an agent is affected by an AOE based on filter array.
+  if filters.isNil or filters.kind != JArray or filters.len == 0:
+    return true
+  for filter in filters:
+    if filter.kind != JObject:
+      continue
+    if "filter_type" notin filter:
+      continue
+    let filterType = filter["filter_type"].getStr
+    case filterType:
+    of "alignment":
+      let alignment = if "alignment" in filter: filter["alignment"].getStr else: ""
+      let target = if "target" in filter: filter["target"].getStr else: "target"
+      # For AOE, actor is the source, target is the affected entity
+      let checkCommonsId = if target == "actor": sourceCommonsId else: agentCommonsId
+      if not checkAlignmentFilter(checkCommonsId, sourceCommonsId, alignment):
+        return false
+    of "vibe", "resource":
+      # These filters can't be fully checked without more context, assume they pass
+      discard
+    else:
+      discard
   return true
 
 type
@@ -150,8 +179,7 @@ type
     source*: Entity
     aoeConfig*: JsonNode
     aoeRange*: int
-    membersOnly*: bool
-    ignoreMembers*: bool
+    filters*: JsonNode
 
 proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
   ## Find all AOE sources that affect this agent.
@@ -184,21 +212,17 @@ proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
       if distance > aoeRange:
         continue
       # Get filter settings
-      var membersOnly = false
-      var ignoreMembers = false
-      if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
-        membersOnly = aoeConfig["members_only"].getBool
-      if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
-        ignoreMembers = aoeConfig["ignore_members"].getBool
+      var filters: JsonNode = nil
+      if "filters" in aoeConfig and aoeConfig["filters"].kind == JArray:
+        filters = aoeConfig["filters"]
       # Check if agent is affected by this source
-      if not isAgentAffectedByAoe(agent.commonsId, obj.commonsId, membersOnly, ignoreMembers):
+      if not isAgentAffectedByAoeFilters(agent.commonsId, obj.commonsId, filters):
         continue
       result.add(AoeSourceEffect(
         source: obj,
         aoeConfig: aoeConfig,
         aoeRange: aoeRange,
-        membersOnly: membersOnly,
-        ignoreMembers: ignoreMembers
+        filters: filters
       ))
 
 proc computeResourceDeltas(agent: Entity): (Table[string, int], Table[string, seq[DeltaSource]]) =
@@ -430,17 +454,26 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
               delta = value.getFloat.int
             let sign = if delta >= 0: "+" else: ""
             text(&"    {key}: {sign}{delta}")
-        # Get filter settings
-        var membersOnly = false
-        var ignoreMembers = false
-        if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
-          membersOnly = aoeConfig["members_only"].getBool
-        if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
-          ignoreMembers = aoeConfig["ignore_members"].getBool
-        if membersOnly:
-          text("  Filter: Members only")
-        elif ignoreMembers:
-          text("  Filter: Ignore members")
+        # Get and display filter settings
+        if "filters" in aoeConfig and aoeConfig["filters"].kind == JArray:
+          for filter in aoeConfig["filters"]:
+            if filter.kind != JObject or "filter_type" notin filter:
+              continue
+            let filterType = filter["filter_type"].getStr
+            case filterType:
+            of "alignment":
+              let alignment = if "alignment" in filter: filter["alignment"].getStr else: ""
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: {alignment} ({target})")
+            of "vibe":
+              let vibe = if "vibe" in filter: filter["vibe"].getStr else: ""
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: vibe={vibe} ({target})")
+            of "resource":
+              let target = if "target" in filter: filter["target"].getStr else: "target"
+              text(&"  Filter: resource ({target})")
+            else:
+              text(&"  Filter: {filterType}")
 
     # Deltas section - show expected next-tick resource changes for agents
     if cur.isAgent and resourceDeltas.len > 0:
