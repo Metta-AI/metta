@@ -33,17 +33,17 @@ struct ActivationContext {
   ActivationContext(Agent& actor, GridObject& target, Grid* grid, const GameConfig* game_config)
       : actor(actor), target(target), grid(grid), game_config(game_config) {}
 
-  // Resolve inventory target
-  Inventory* resolve_inventory(const std::string& target_str) const;
+  // Resolve inventory target using enum
+  Inventory* resolve_inventory(TargetType target_type) const;
 
   // Resolve alignable target (for alignment mutations)
-  Alignable* resolve_alignable(const std::string& target_str) const;
+  Alignable* resolve_alignable(TargetType target_type) const;
 
   // Get commons for a target
-  Commons* resolve_commons(const std::string& target_str) const;
+  Commons* resolve_commons(TargetType target_type) const;
 
   // Get agent for a target (returns nullptr if target is not an agent)
-  Agent* resolve_agent(const std::string& target_str) const;
+  Agent* resolve_agent(TargetType target_type) const;
 };
 
 // ===== Filters =====
@@ -68,14 +68,14 @@ struct VibeFilter : ActivationFilter {
 
 // Check if entity has required resources
 struct ResourceFilter : ActivationFilter {
-  std::string target_str;  // "actor", "target", "actor_commons", "target_commons"
+  TargetType target_type = TargetType::Actor;  // Actor, Target, ActorCommons, TargetCommons
   std::unordered_map<InventoryItem, InventoryQuantity> resources;
   bool check(const ActivationContext& ctx) const override;
 };
 
 // Check alignment status of target
 struct AlignmentFilter : ActivationFilter {
-  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons", "not_same_commons"
+  AlignmentType alignment = AlignmentType::Aligned;
   bool check(const ActivationContext& ctx) const override;
 };
 
@@ -91,35 +91,35 @@ struct ActivationMutation {
 
 // Apply resource deltas to a target
 struct ResourceDeltaMutation : ActivationMutation {
-  std::string target;  // "actor", "target", "actor_commons", "target_commons"
+  TargetType target = TargetType::Actor;
   std::unordered_map<InventoryItem, InventoryDelta> deltas;
   bool apply(ActivationContext& ctx) const override;
 };
 
 // Transfer resources between entities
 struct ResourceTransferMutation : ActivationMutation {
-  std::string from_target;  // "actor", "target", "actor_commons", "target_commons"
-  std::string to_target;
+  TargetType from_target = TargetType::Actor;
+  TargetType to_target = TargetType::Target;
   std::unordered_map<InventoryItem, int> resources;  // -1 = all available
   bool apply(ActivationContext& ctx) const override;
 };
 
 // Update commons alignment
 struct AlignmentMutation : ActivationMutation {
-  std::string align_to;  // "actor_commons" or "none"
+  AlignToType align_to = AlignToType::None;
   bool apply(ActivationContext& ctx) const override;
 };
 
 // Freeze an entity
 struct FreezeMutation : ActivationMutation {
-  std::string target;  // "actor" or "target"
+  TargetType target = TargetType::Target;
   int duration = 0;
   bool apply(ActivationContext& ctx) const override;
 };
 
 // Clear all resources in a limit group (set to 0)
 struct ClearInventoryMutation : ActivationMutation {
-  std::string target;      // "actor" or "target"
+  TargetType target = TargetType::Target;
   std::string limit_name;  // Name of the resource limit group to clear (e.g., "gear")
   bool apply(ActivationContext& ctx) const override;
 };
@@ -166,12 +166,20 @@ public:
       }
     }
 
-    // Apply all mutations
-    for (const auto& mutation : mutations) {
-      mutation->apply(ctx);
+    // If no mutations, filters passing is enough (allows "blocker" handlers)
+    if (mutations.empty()) {
+      return true;
     }
 
-    return true;
+    // Apply all mutations - succeed if any mutation succeeds
+    bool any_succeeded = false;
+    for (const auto& mutation : mutations) {
+      if (mutation->apply(ctx)) {
+        any_succeeded = true;
+      }
+    }
+
+    return any_succeeded;
   }
 };
 

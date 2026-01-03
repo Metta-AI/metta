@@ -741,39 +741,88 @@ void MettaGrid::_step() {
         }
       }
 
-      // Check commons membership filtering
-      // First try Alignable interface (for agents), then check tags (for walls, etc.)
-      bool same_commons = false;
-      bool source_has_commons = false;
-
-      if (auto* source_alignable = dynamic_cast<Alignable*>(source.owner)) {
-        // Source is Alignable (e.g., another agent)
-        source_has_commons = (source_alignable->getCommons() != nullptr);
-        same_commons = (agent_commons != nullptr && source_alignable->getCommons() == agent_commons);
-      } else if (source.owner) {
-        // Source is not Alignable (e.g., Wall), check tags for commons
-        for (int tag_id : source.owner->tag_ids) {
-          auto tag_it = _game_config.tag_id_map.find(tag_id);
-          if (tag_it != _game_config.tag_id_map.end()) {
-            const std::string& tag_name = tag_it->second;
-            if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
-              source_has_commons = true;
-              std::string source_commons_name = tag_name.substr(commons_tag_prefix.length());
-              if (!agent_commons_name.empty() && source_commons_name == agent_commons_name) {
-                same_commons = true;
+      // Check all configured filters
+      bool filters_pass = true;
+      for (const auto& filter : config->filters) {
+        switch (filter.type) {
+          case FilterType::Alignment: {
+            // Get source commons name
+            std::string source_commons_name;
+            if (auto* source_alignable = dynamic_cast<Alignable*>(source.owner)) {
+              if (source_alignable->getCommons()) {
+                source_commons_name = source_alignable->getCommons()->name;
               }
-              break;
+            } else if (source.owner) {
+              for (int tag_id : source.owner->tag_ids) {
+                auto tag_it = _game_config.tag_id_map.find(tag_id);
+                if (tag_it != _game_config.tag_id_map.end()) {
+                  const std::string& tag_name = tag_it->second;
+                  if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+                    source_commons_name = tag_name.substr(commons_tag_prefix.length());
+                    break;
+                  }
+                }
+              }
             }
+
+            // Resolve which object's commons to check
+            const std::string& check_commons =
+                (filter.alignment.target == TargetType::Actor) ? source_commons_name : agent_commons_name;
+
+            switch (filter.alignment.alignment) {
+              case AlignmentType::Aligned:
+                filters_pass = !check_commons.empty();
+                break;
+              case AlignmentType::Unaligned:
+                filters_pass = check_commons.empty();
+                break;
+              case AlignmentType::SameCommons:
+                filters_pass = !check_commons.empty() && !source_commons_name.empty() &&
+                               agent_commons_name == source_commons_name;
+                break;
+              case AlignmentType::DifferentCommons:
+                // Both must have commons, and they must be different
+                filters_pass = !check_commons.empty() && !source_commons_name.empty() &&
+                               check_commons != source_commons_name;
+                break;
+              case AlignmentType::NotSameCommons:
+                filters_pass = check_commons.empty() || agent_commons_name != source_commons_name;
+                break;
+            }
+            break;
+          }
+          case FilterType::Vibe: {
+            // Check vibe of source or target
+            ObservationType check_vibe =
+                (filter.vibe.target == TargetType::Actor) ? source.owner->vibe : agent->vibe;
+            filters_pass = (check_vibe == filter.vibe.vibe);
+            break;
+          }
+          case FilterType::Resource: {
+            // Check resources of source or target
+            HasInventory* check_obj = nullptr;
+            if (filter.resource.target == TargetType::Actor) {
+              check_obj = dynamic_cast<HasInventory*>(source.owner);
+            } else {
+              check_obj = agent;  // Agent is always HasInventory
+            }
+            if (!check_obj) {
+              filters_pass = false;
+            } else {
+              for (const auto& [item, amount] : filter.resource.resources) {
+                if (check_obj->inventory.amount(item) < amount) {
+                  filters_pass = false;
+                  break;
+                }
+              }
+            }
+            break;
           }
         }
+        if (!filters_pass) break;
       }
-
-      // Apply members_only and ignore_members filters
-      if (config->members_only && !same_commons) {
-        continue;  // Skip: effect only for members, but agent is not a member
-      }
-      if (config->ignore_members && (!source_has_commons || same_commons)) {
-        continue;  // Skip: effect ignores members, and agent is a member (or source has no alignment)
+      if (!filters_pass) {
+        continue;  // Skip: filter check failed
       }
 
       // Aggregate the deltas from this source
@@ -1154,6 +1203,30 @@ py::none MettaGrid::set_inventory(GridObjectId agent_id,
   return py::none();
 }
 
+py::dict MettaGrid::commons_info() {
+  py::dict result;
+  for (size_t i = 0; i < _commons.size(); ++i) {
+    const auto& commons = _commons[i];
+    py::dict commons_dict;
+    commons_dict["name"] = commons->name;
+
+    // Get inventory
+    py::dict inv_dict;
+    for (const auto& [item, quantity] : commons->inventory.get()) {
+      // Use resource name if available
+      if (item < resource_names.size()) {
+        inv_dict[py::str(resource_names[item])] = quantity;
+      } else {
+        inv_dict[py::int_(item)] = quantity;
+      }
+    }
+    commons_dict["inventory"] = inv_dict;
+
+    result[py::str(commons->name)] = commons_dict;
+  }
+  return result;
+}
+
 py::array_t<ObservationType> MettaGrid::observations() {
   return _observations;
 }
@@ -1228,7 +1301,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("current_step", &MettaGrid::current_step)
       .def_readonly("object_type_names", &MettaGrid::object_type_names)
       .def_readonly("resource_names", &MettaGrid::resource_names)
-      .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
+      .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"))
+      .def("commons_info", &MettaGrid::commons_info);
 
   // Bind AOEEffectConfig for AOE effects on any object
   py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
@@ -1236,18 +1310,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def(py::init<unsigned int,
                     const std::unordered_map<InventoryItem, InventoryDelta>&,
                     const std::vector<int>&,
-                    bool,
-                    bool>(),
+                    const std::vector<ActivationFilterConfig>&>(),
            py::arg("range") = 1,
            py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>(),
            py::arg("target_tag_ids") = std::vector<int>(),
-           py::arg("members_only") = false,
-           py::arg("ignore_members") = false)
+           py::arg("filters") = std::vector<ActivationFilterConfig>())
       .def_readwrite("range", &AOEEffectConfig::range)
       .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas)
       .def_readwrite("target_tag_ids", &AOEEffectConfig::target_tag_ids)
-      .def_readwrite("members_only", &AOEEffectConfig::members_only)
-      .def_readwrite("ignore_members", &AOEEffectConfig::ignore_members);
+      .def_readwrite("filters", &AOEEffectConfig::filters);
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
