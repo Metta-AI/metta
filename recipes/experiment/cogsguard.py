@@ -35,27 +35,19 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    AOEEffectConfig,
     AssemblerConfig,
-    AttackActionConfig,
-    BuildConfig,
     ChangeVibeActionConfig,
     ChestConfig,
     DamageConfig,
-    DemolishConfig,
     GameConfig,
     GlobalObsConfig,
+    GridObjectConfig,
     InventoryConfig,
-    MarketConfig,
-    MarketTerminalConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
-    TransferActionConfig,
-    VibeTransfer,
-    WallConfig,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
@@ -81,8 +73,23 @@ vibes = [
     Vibe("🔋", "battery"),
     Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
-    Vibe("🪨", "barrier"),
 ]
+
+
+class PylonConfig(GridObjectConfig):
+    radius: int
+
+
+class RoleStationConfig(GridObjectConfig):
+    role: str
+
+
+class ExtractorConfig(GridObjectConfig):
+    pass
+
+
+class ColonyConfig(GridObjectConfig):
+    pass
 
 
 class CogAssemblerConfig(CvCStationConfig):
@@ -99,43 +106,12 @@ class CogAssemblerConfig(CvCStationConfig):
                     input_resources={
                         "carbon": 10,
                         "oxygen": 10,
-                        "germanium": 1,
-                        "silicon": 50,
+                        "germanium": 10,
+                        "silicon": 10,
                     },
                     output_resources={"heart": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["weapon"],
-                    input_resources={"carbon": 5},
-                    output_resources={"weapon": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["shield"],
-                    input_resources={"silicon": 25},
-                    output_resources={"shield": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["battery"],
-                    input_resources={"germanium": 5, "silicon": 5},
-                    output_resources={"battery": 1},
-                    sigmoid=3,
-                    inflation=0.1,
-                ),
-                ProtocolConfig(
-                    vibes=["gear"],
-                    input_resources={"oxygen": 10, "silicon": 50, "carbon": 10, "germanium": 5},
-                    output_resources={"gear": 1},
-                    sigmoid=5,
-                    inflation=0.1,
                 ),
             ],
-            agent_cooldown=10,
         )
 
 
@@ -161,23 +137,6 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
-            attack=AttackActionConfig(
-                consumed_resources={"energy": 7},
-                defense_resources={"energy": 0},
-                weapon_resources={"weapon": 10},
-                armor_resources={"shield": 15},
-                loot=["heart"],
-                enabled=False,
-                vibes=["weapon"],  # Attack triggered when agent has weapon vibe
-            ),
-            transfer=TransferActionConfig(
-                vibe_transfers=[
-                    VibeTransfer(vibe="battery", target={"energy": 50}, actor={"energy": -50}),
-                    VibeTransfer(vibe="heart", target={"heart": 1}, actor={"heart": -1}),
-                    VibeTransfer(vibe="gear", target={"damage": -100}, actor={"energy": -10}),
-                ],
-                vibes=["battery", "heart", "gear"],  # Transfer triggered for these vibes
-            ),
         ),
         agent=AgentConfig(
             inventory=InventoryConfig(
@@ -237,39 +196,10 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
                 }
             ),
-            "market": MarketConfig(
-                terminals={
-                    # Terminals are keyed by the direction the agent enters the market from.
-                    "north": MarketTerminalConfig(sell=False, amount=1),  # buy
-                    "south": MarketTerminalConfig(sell=True, amount=1),  # sell
-                },
-                inventory=InventoryConfig(
-                    initial={
-                        "battery": 10,
-                        "weapon": 10,
-                        "shield": 10,
-                        "gear": 4,
-                    },
-                ),
-                currency_resource="heart",
-            ),
             "carbon_extractor": CarbonExtractorConfig().station_cfg(),
             "oxygen_extractor": OxygenExtractorConfig(efficiency=200).station_cfg(),
             "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
             "silicon_extractor": SiliconExtractorConfig().station_cfg(),
-            "barrier": WallConfig(
-                name="barrier",
-                render_symbol="🪨",
-                build=BuildConfig(vibe="barrier", cost={"energy": 50, "silicon": 25}),
-                demolish=DemolishConfig(
-                    cost={"energy": 100},
-                    scrap={"silicon": 12},
-                ),
-                aoe=AOEEffectConfig(
-                    range=1,
-                    resource_deltas={"damage": 1},
-                ),
-            ),
         },
     )
 
