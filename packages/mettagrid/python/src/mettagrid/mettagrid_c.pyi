@@ -181,18 +181,39 @@ class ClipperConfig:
     scaled_cutoff_distance: int
     clip_period: int
 
+class AttackOutcome:
+    def __init__(
+        self,
+        actor_inv_delta: dict[int, int] = {},
+        target_inv_delta: dict[int, int] = {},
+        loot: list[int] = [],
+        freeze: int = 0,
+    ) -> None: ...
+    actor_inv_delta: dict[int, int]
+    target_inv_delta: dict[int, int]
+    loot: list[int]
+    freeze: int
+
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
+        armor_resources: dict[int, int] = {},
+        weapon_resources: dict[int, int] = {},
+        success: AttackOutcome = ...,
         enabled: bool = True,
         vibes: list[int] = [],
+        vibe_bonus: dict[int, int] = {},
     ) -> None: ...
     defense_resources: dict[int, int]
+    armor_resources: dict[int, int]
+    weapon_resources: dict[int, int]
+    success: AttackOutcome
     enabled: bool
     vibes: list[int]
+    vibe_bonus: dict[int, int]
 
 class MoveActionConfig(ActionConfig):
     def __init__(
