@@ -22,6 +22,7 @@ root_packages =
     metta.app_backend
     cogames
     mettagrid
+    cortex
 include_external_packages = True
 
 # Layers contract: modules higher can import from lower, NOT vice versa.
@@ -99,3 +100,16 @@ ignore_imports =
     metta.common.** -> metta.common.**
     # Tech debt - remove as violations are fixed:
     metta.common.** -> metta.rl.**
+
+
+[importlinter:contract:cortex-independence]
+name = cortex cannot import from metta
+type = forbidden
+source_modules =
+    cortex
+forbidden_modules =
+    metta
+    cogames
+    gitta
+    codebot
+    tribal_village

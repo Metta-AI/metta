@@ -16,7 +16,7 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 
 class QuantilePPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
 
@@ -113,9 +113,10 @@ class QuantilePPOCritic(Loss):
             values_quantiles = self.replay.buffer["values"]  # [T, B, N]
             values_mean = values_quantiles.mean(dim=-1)  # [T, B]
 
+            centered_rewards = self.replay.buffer["rewards"] - self.replay.buffer["reward_baseline"]
             self.advantages = compute_advantage(
                 values_mean,
-                self.replay.buffer["rewards"],
+                centered_rewards,
                 self.replay.buffer["dones"],
                 torch.ones_like(values_mean),
                 torch.zeros_like(values_mean, device=self.device),

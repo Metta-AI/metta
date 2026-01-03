@@ -10,6 +10,9 @@ metta status              # Check component status
 metta install             # Reinstall if imports fail
 ```
 
+Most of the time, you shouldn't need to run install.sh or metta install. Only run these if you're having trouble with
+imports or other setup issues.
+
 ## Commands
 
 ```bash
@@ -54,3 +57,7 @@ Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv r
 ```
 
 See `common/src/metta/common/tool/README.md` for details.
+
+## Git Hub Integration
+
+Use graphite ("gt") to create PRs. Name the branch $user-short-issue-name (5 words or less)

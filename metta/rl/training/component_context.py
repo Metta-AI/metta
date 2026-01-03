@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
@@ -44,6 +45,7 @@ class TrainerState:
 
     epoch: int = 0
     agent_step: int = 0
+    avg_reward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0, dtype=torch.float32))
     latest_policy_uri: Optional[str] = None
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)

@@ -40,7 +40,7 @@ Config fields (all keyword-only):
 | ----------------------- | ----------------------------------------------------------------------------------------------- |
 | Size (MapGen)           | `width`, `height`                                                                               |
 | Randomness (MapGen)     | `seed`                                                                                          |
-| Base biome              | `base_biome` (`"caves"`, `"forest"`, `"desert"`, `"city"`), `base_biome_config`                 |
+| Base biome              | `base_biome` (`"caves"`, `"forest"`, `"desert"`, `"city"`, `"plains"`), `base_biome_config`     |
 | Biome overlays          | `biome_weights`, `biome_count`, `density_scale`, `max_biome_zone_fraction`                      |
 | Dungeon overlays        | `dungeon_weights`, `dungeon_count`, `max_dungeon_zone_fraction`                                 |
 | Buildings               | `building_names`, `building_weights`, `building_coverage`                                       |

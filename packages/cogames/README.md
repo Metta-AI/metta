@@ -57,7 +57,7 @@ while you use the GUI to accomplish your first training mission.
 
 ## Step 3: Train a simple policy
 
-We'll train a simple starter policy. `easy_hearts` uses three variants to simplify training:
+We'll train a simple starter policy on `training_facility.harvest`. Optional variants to simplify training:
 
 - `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
   energy)
@@ -65,14 +65,14 @@ We'll train a simple starter policy. `easy_hearts` uses three variants to simpli
 - `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
 
 ```bash
-# Play an episode of the easy_hearts mission with a scripted policy
-cogames play -m easy_hearts -p class=baseline
+# Play an episode of the training_facility.harvest mission with a scripted policy
+cogames play -m training_facility.harvest -p class=baseline
 
 # Try the scripted policy on a set of eval missions
 cogames run -S integrated_evals -p class=baseline
 
-# Train with an LSTM policy on easy_hearts
-cogames tutorial train -m easy_hearts -p class=lstm
+# Train with an LSTM policy on training_facility.harvest
+cogames tutorial train -m training_facility.harvest -p class=lstm
 ```
 
 ## Step 4: Learn about missions
@@ -213,7 +213,7 @@ components are:
 To train using your policy:
 
 ```bash
-cogames tutorial train -m easy_hearts -p class=my_policy.MyTrainablePolicy
+cogames tutorial train -m training_facility.harvest -p class=my_policy.MyTrainablePolicy
 ```
 
 #### Environment API

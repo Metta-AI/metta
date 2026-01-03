@@ -8,7 +8,7 @@ import torch
 
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
-from metta.tools.utils.auto_config import auto_policy_storage_decision
+from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
 
@@ -18,7 +18,13 @@ logger = logging.getLogger(__name__)
 class CheckpointManager:
     """Manages run directories and trainer state checkpointing."""
 
-    def __init__(self, run: str, system_cfg: SystemConfig, require_remote_enabled: bool = False):
+    def __init__(
+        self,
+        run: str,
+        system_cfg: SystemConfig,
+        require_remote_enabled: bool = False,
+        storage_decision: PolicyStorageDecision | None = None,
+    ):
         if not run or not run.strip():
             raise ValueError("Run name cannot be empty")
         if any(char in run for char in [" ", "/", "*", "\\", ":", "<", ">", "|", "?", '"']):
@@ -36,12 +42,13 @@ class CheckpointManager:
 
         self._remote_prefix: str | None = None
         if not system_cfg.local_only:
-            self._setup_remote_prefix()
+            self._setup_remote_prefix(storage_decision)
         if require_remote_enabled and self._remote_prefix is None:
             raise ValueError("Remote checkpoints are required but remote prefix is not set")
 
-    def _setup_remote_prefix(self) -> None:
-        storage_decision = auto_policy_storage_decision(self.run_name)
+    def _setup_remote_prefix(self, storage_decision: PolicyStorageDecision | None = None) -> None:
+        if storage_decision is None:
+            storage_decision = auto_policy_storage_decision(self.run_name)
         if storage_decision.remote_prefix:
             self._remote_prefix = storage_decision.remote_prefix
             if storage_decision.reason == "env_override":
@@ -103,6 +110,8 @@ class CheckpointManager:
             "epoch": state.get("epoch", 0),
             "agent_step": state.get("agent_step", 0),
         }
+        if "avg_reward" in state:
+            result["avg_reward"] = state["avg_reward"]
         if "stopwatch_state" in state:
             result["stopwatch_state"] = state["stopwatch_state"]
         if "curriculum_state" in state:
@@ -116,6 +125,7 @@ class CheckpointManager:
         optimizer,
         epoch: int,
         agent_step: int,
+        avg_reward: torch.Tensor | float | None = None,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
         loss_states: Optional[Dict[str, Any]] = None,
@@ -128,6 +138,8 @@ class CheckpointManager:
             optimizer.eval()
 
         state: dict[str, Any] = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        if avg_reward is not None:
+            state["avg_reward"] = torch.as_tensor(avg_reward).detach().to(device="cpu")
         if stopwatch_state:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:

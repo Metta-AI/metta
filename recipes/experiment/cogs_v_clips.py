@@ -13,9 +13,8 @@ import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
 
 # eval_missions.py was deleted - missions moved to integrated_evals.py
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
-from cogames.cogs_vs_clips.missions import MISSIONS
+from cogames.cogs_vs_clips.missions import get_core_missions
 from cogames.cogs_vs_clips.variants import VARIANTS
 from devops.stable.registry import ci_job, stable_job
 from devops.stable.runner import AcceptanceCriterion
@@ -84,18 +83,18 @@ def _normalize_variant_names(
 
 
 def _resolve_mission_template(name: str) -> Mission:
-    for mission in MISSIONS:
+    for mission in get_core_missions():
         if mission.name == name or mission.full_name() == name:
             return mission
 
     if MAP_MISSION_DELIMITER not in name:
-        return find_mission(name, None)
+        return find_mission(name, None, include_evals=True)
 
     if name.count(MAP_MISSION_DELIMITER) > 1:
         raise ValueError(f"Mission name can contain at most one '{MAP_MISSION_DELIMITER}' delimiter")
 
     site_name, mission_name = name.split(MAP_MISSION_DELIMITER)
-    return find_mission(site_name, mission_name)
+    return find_mission(site_name, mission_name, include_evals=True)
 
 
 def _resolve_eval_variants(
@@ -137,12 +136,17 @@ def make_eval_suite(
         num_cogs: Number of agents per mission (1, 2, 4, or 8)
         difficulty: Difficulty variant to apply (e.g., "standard", "hard", "story_mode")
         subset: Optional list of mission names to include (defaults to all)
-        variants: Additional mission variants to apply (lonely_heart, heart_chorus, ...)
+        variants: Additional mission variants to apply (heart_chorus, ...)
 
     Returns:
         A list of SimulationConfig objects ready for evaluation.
     """
-    eval_missions = list(missions) if missions is not None else list(EVAL_MISSIONS)
+    if missions is not None:
+        eval_missions = list(missions)
+    else:
+        from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+
+        eval_missions = list(INTEGRATED_EVAL_MISSIONS)
     if subset:
         eval_missions = [m for m in eval_missions if m.name in subset]
 
@@ -182,7 +186,7 @@ def make_eval_suite(
 
 def make_training_env(
     num_cogs: int = 4,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     variants: Optional[Sequence[str]] = None,
 ) -> MettaGridConfig:
     """Create a single training environment from a mission."""
@@ -198,7 +202,7 @@ def make_training_env(
 
     # If vibe swapping is disabled, prune stale vibe transfers to avoid invalid IDs.
     change_vibe_action = getattr(env.game.actions, "change_vibe", None)
-    if change_vibe_action is not None and change_vibe_action.number_of_vibes <= 1:
+    if change_vibe_action is not None and len(change_vibe_action.vibes) <= 1:
         allowed_vibes = env.game.vibe_names or ["default"]
         env.game.vibe_names = list(allowed_vibes)
 
@@ -376,7 +380,7 @@ def train(
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
-        epoch_interval=600,
+        epoch_interval=150,
     )
 
     tt = TrainTool(
@@ -467,7 +471,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -548,7 +552,7 @@ def evaluate_remote(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -574,7 +578,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="easy_hearts",
+        mission="training_facility.harvest",
         num_cogs=num_cogs,
         variants=variants,
     )
@@ -781,7 +785,11 @@ def sweep(
 @ci_job(timeout_s=240)
 def train_ci() -> TrainTool:
     """Minimal CvC train for CI smoke test."""
-    env = make_training_env(num_cogs=2, mission="easy_hearts", variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    env = make_training_env(
+        num_cogs=2,
+        mission="training_facility.harvest",
+        variants=["heart_chorus"],
+    )
     curriculum_cfg = cc.env_curriculum(env)
     return TrainTool(
         trainer=TrainerConfig(
@@ -809,8 +817,8 @@ def train_ci() -> TrainTool:
 @ci_job(timeout_s=120)
 def play_ci() -> PlayTool:
     """CvC play test with random policy."""
-    env = make_training_env(num_cogs=2, mission="easy_hearts")
-    sim = SimulationConfig(suite="cogs_vs_clips", name="easy_hearts_ci", env=env)
+    env = make_training_env(num_cogs=2, mission="training_facility.harvest")
+    sim = SimulationConfig(suite="cogs_vs_clips", name="harvest_ci", env=env)
     return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
 
 
@@ -824,7 +832,7 @@ def play_ci() -> PlayTool:
 )
 def train_200ep() -> TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 200 * 524288
     return tool
 
@@ -837,6 +845,6 @@ def train_200ep() -> TrainTool:
 )
 def train_2b() -> TrainTool:
     """CvC multi GPU - 2B timesteps."""
-    tool = train(num_cogs=4, variants=["lonely_heart", "heart_chorus", "pack_rat"])
+    tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 2_000_000_000
     return tool

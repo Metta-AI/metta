@@ -796,10 +796,13 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   auto resource_names = create_test_resource_names();
   std::unordered_map<std::string, ObservationType> proto_feature_ids;
   // Assign arbitrary, unique feature ids for protocol input/output per resource
+  // Use multi-token encoding with :p1, :p2 suffixes (default token_value_base=256 needs 2 tokens for uint16_t)
   for (size_t i = 0; i < resource_names.size(); ++i) {
     proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
     proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
     proto_feature_ids[std::string("inv:") + resource_names[i]] = static_cast<ObservationType>(140 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i] + ":p1"] = static_cast<ObservationType>(160 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i] + ":p2"] = static_cast<ObservationType>(180 + i);
   }
   ObservationEncoder encoder(true, resource_names, proto_feature_ids);
   assembler->set_obs_encoder(&encoder);

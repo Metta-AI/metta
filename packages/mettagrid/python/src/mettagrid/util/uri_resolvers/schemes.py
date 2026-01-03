@@ -264,7 +264,27 @@ def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
 ):
     from mettagrid.policy.policy import PolicySpec
-    from mettagrid.policy.prepare_policy_spec import load_policy_spec_from_local_dir, load_policy_spec_from_s3
+    from mettagrid.policy.prepare_policy_spec import (
+        download_policy_spec_from_s3_as_zip,
+        load_policy_spec_from_local_dir,
+        load_policy_spec_from_zip,
+    )
+
+    # Handle metta://policy/<builtin> URIs for built-in policies
+    if uri.startswith("metta://policy/"):
+        from mettagrid.policy.loader import discover_and_register_policies
+        from mettagrid.policy.policy_registry import get_policy_registry
+
+        identifier = uri[len("metta://policy/") :]
+        discover_and_register_policies()
+        registry = get_policy_registry()
+
+        # Check if it's a registered short name
+        if identifier in registry:
+            return PolicySpec(class_path=registry[identifier])
+        # Check if it looks like a full class path
+        if "." in identifier:
+            return PolicySpec(class_path=identifier)
 
     parsed = resolve_uri(uri)
 
@@ -276,15 +296,24 @@ def policy_spec_from_uri(
                 "checkpoint_uri": checkpoint_path,
                 "device": device,
                 "strict": strict,
+                "allow_legacy_architecture": parsed.scheme == "s3",
             },
         )
 
     if parsed.scheme == "s3":
-        return load_policy_spec_from_s3(
-            parsed.canonical, remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit, device=device
+        local = download_policy_spec_from_s3_as_zip(
+            s3_path=parsed.canonical,
+            remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
         )
+        parsed = resolve_uri(local.as_uri())
 
     if parsed.local_path:
+        if parsed.local_path.is_file():
+            return load_policy_spec_from_zip(
+                parsed.local_path,
+                device=device,
+                remove_downloaded_copy_on_exit=remove_downloaded_copy_on_exit,
+            )
         return load_policy_spec_from_local_dir(parsed.local_path, device=device)
 
     raise ValueError(f"Cannot load policy spec from URI: {uri}")

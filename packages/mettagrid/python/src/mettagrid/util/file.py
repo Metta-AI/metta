@@ -17,6 +17,11 @@ from mettagrid.util.uri_resolvers.schemes import parse_uri
 logger = logging.getLogger(__name__)
 
 
+def copy_data(src: str, dest: str, content_type: str = "application/octet-stream") -> None:
+    data = read(src)
+    write_data(dest, data, content_type=content_type)
+
+
 def write_data(path: str, data: Union[str, bytes], *, content_type: str = "application/octet-stream") -> None:
     """Write in-memory bytes/str to *local*, *s3://* destinations."""
     if isinstance(data, str):
