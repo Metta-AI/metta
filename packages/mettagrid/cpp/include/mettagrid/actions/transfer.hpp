@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "core/grid.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -157,6 +158,8 @@ public:
       if (actor_commons != nullptr && actor_commons != target_commons) {
         target->setCommons(actor_commons);
         actor.stats.incr(_action_prefix(actor_group) + "aligned");
+        // Refresh AOE registrations since commons membership changed
+        _grid->refresh_aoe_registrations();
       }
     }
 
