@@ -35,10 +35,10 @@ from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import CommonsChestConfig as CppCommonsChestConfig
 from mettagrid.mettagrid_c import CommonsConfig as CppCommonsConfig
-from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import FilterType as CppFilterType
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from mettagrid.mettagrid_c import HealthConfig as CppHealthConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
@@ -124,10 +124,58 @@ def _convert_aoe_configs(
 def _convert_activation_mutation(
     mutation, resource_name_to_id: dict[str, int], vibe_name_to_id: dict[str, int]
 ) -> CppActivationMutationConfig:
-    """Convert a Python activation mutation to C++ config."""
+    """Convert a Python activation mutation to C++ config.
+
+    Handles both typed mutation objects and dictionary representations.
+    """
     cpp_config = CppActivationMutationConfig()
 
-    if isinstance(mutation, ResourceDeltaMutation):
+    # Handle dictionary inputs (from serialized config)
+    if isinstance(mutation, dict):
+        mutation_type = mutation.get("mutation_type")
+        if mutation_type == "resource_delta":
+            cpp_config.type = CppMutationType.ResourceDelta
+            cpp_config.resource_delta.target = _TARGET_TYPE_MAP[mutation["target"]]
+            cpp_config.resource_delta.deltas = {resource_name_to_id[k]: int(v) for k, v in mutation["deltas"].items()}
+        elif mutation_type == "resource_transfer":
+            cpp_config.type = CppMutationType.ResourceTransfer
+            cpp_config.resource_transfer.from_target = _TARGET_TYPE_MAP[mutation["from_target"]]
+            cpp_config.resource_transfer.to_target = _TARGET_TYPE_MAP[mutation["to_target"]]
+            cpp_config.resource_transfer.resources = {
+                resource_name_to_id[k]: int(v) for k, v in mutation["resources"].items()
+            }
+        elif mutation_type == "alignment":
+            cpp_config.type = CppMutationType.Alignment
+            cpp_config.alignment.align_to = _ALIGN_TO_TYPE_MAP[mutation["align_to"]]
+        elif mutation_type == "freeze":
+            cpp_config.type = CppMutationType.Freeze
+            cpp_config.freeze.target = _TARGET_TYPE_MAP[mutation["target"]]
+            cpp_config.freeze.duration = mutation["duration"]
+        elif mutation_type == "clear_inventory":
+            cpp_config.type = CppMutationType.ClearInventory
+            cpp_config.clear_inventory.target = _TARGET_TYPE_MAP[mutation["target"]]
+            cpp_config.clear_inventory.limit_name = mutation["limit_name"]
+        elif mutation_type == "attack":
+            cpp_config.type = CppMutationType.Attack
+            cpp_config.attack.defense_resources = {
+                resource_name_to_id[k]: int(v) for k, v in mutation.get("defense_resources", {}).items()
+            }
+            cpp_config.attack.armor_resources = {
+                resource_name_to_id[k]: int(v) for k, v in mutation.get("armor_resources", {}).items()
+            }
+            cpp_config.attack.weapon_resources = {
+                resource_name_to_id[k]: int(v) for k, v in mutation.get("weapon_resources", {}).items()
+            }
+            cpp_config.attack.vibe_bonus = {
+                vibe_name_to_id[k]: int(v) for k, v in mutation.get("vibe_bonus", {}).items()
+            }
+            cpp_config.attack.on_success = [
+                _convert_activation_mutation(m, resource_name_to_id, vibe_name_to_id)
+                for m in mutation.get("on_success", [])
+            ]
+        else:
+            raise ValueError(f"Unknown mutation type in dict: {mutation_type}")
+    elif isinstance(mutation, ResourceDeltaMutation):
         cpp_config.type = CppMutationType.ResourceDelta
         cpp_config.resource_delta.target = _TARGET_TYPE_MAP[mutation.target]
         cpp_config.resource_delta.deltas = {resource_name_to_id[k]: int(v) for k, v in mutation.deltas.items()}
@@ -363,26 +411,21 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             if resource_name in resource_name_to_id
         ]
 
-        # Build damage config if present
-        damage_config_py = agent_props.get("damage")
-        cpp_damage_config = CppDamageConfig()
-        if damage_config_py is not None:
-            # Convert threshold resource names to IDs
-            for resource_name in damage_config_py.get("threshold", {}).keys():
-                assert resource_name in resource_name_to_id, (
-                    f"Threshold resource '{resource_name}' not in resource_names"
-                )
-            cpp_damage_config.threshold = {
-                resource_name_to_id[resource_name]: threshold_value
-                for resource_name, threshold_value in damage_config_py.get("threshold", {}).items()
-            }
-            # Convert resources map (name -> minimum) to IDs
-            for resource_name in damage_config_py.get("resources", {}).keys():
-                assert resource_name in resource_name_to_id, f"Damage resource '{resource_name}' not in resource_names"
-            cpp_damage_config.resources = {
-                resource_name_to_id[resource_name]: minimum_value
-                for resource_name, minimum_value in damage_config_py.get("resources", {}).items()
-            }
+        # Build health config if present
+        health_config_py = agent_props.get("health")
+        cpp_health_config = CppHealthConfig()
+        if health_config_py is not None:
+            # Convert health resource name to ID
+            health_resource_name = health_config_py.get("health_resource", "hp")
+            assert health_resource_name in resource_name_to_id, (
+                f"Health resource '{health_resource_name}' not in resource_names"
+            )
+            cpp_health_config.health_resource = resource_name_to_id[health_resource_name]
+            # Convert on_damage mutations
+            cpp_health_config.on_damage = [
+                _convert_activation_mutation(m, resource_name_to_id, vibe_name_to_id)
+                for m in health_config_py.get("on_damage", [])
+            ]
 
         # Build inventory config with support for grouped limits and modifiers
         limit_defs = []
@@ -424,7 +467,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             initial_inventory=initial_inventory,
             inventory_regen_amounts=inventory_regen_amounts,
             diversity_tracked_resources=diversity_tracked_resources,
-            damage_config=cpp_damage_config,
+            health_config=cpp_health_config,
         )
         cpp_agent_config.tag_ids = tag_ids
         cpp_agent_config.activation_handlers = _convert_activation_handlers(

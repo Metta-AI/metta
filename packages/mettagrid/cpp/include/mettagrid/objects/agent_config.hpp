@@ -10,21 +10,20 @@
 #include <unordered_map>
 #include <vector>
 
+#include "actions/activation_handler_config.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/inventory_config.hpp"
 
-// Configuration for damage system: when all threshold inventory resources are reached,
-// one random resource from the resources map is destroyed (weighted by quantity above minimum)
-struct DamageConfig {
-  // Map of inventory item to threshold values. All must be reached to trigger damage.
-  std::unordered_map<InventoryItem, int> threshold;
-  // Map of inventory items that can be destroyed, with their minimum values.
-  // Only resources listed here can be destroyed. Resources at or below minimum are protected.
-  std::unordered_map<InventoryItem, int> resources;
+// Configuration for health system: when health_resource reaches 0, on_damage mutations trigger
+struct HealthConfig {
+  // Resource ID used as health
+  InventoryItem health_resource = 0;
+  // Mutations applied when health reaches 0
+  std::vector<ActivationMutationConfig> on_damage;
 
   bool enabled() const {
-    return !threshold.empty() && !resources.empty();
+    return !on_damage.empty();
   }
 };
 
@@ -42,7 +41,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>&
                   inventory_regen_amounts = {},
               const std::vector<InventoryItem>& diversity_tracked_resources = {},
-              const DamageConfig& damage_config = DamageConfig())
+              const HealthConfig& health_config = HealthConfig())
       : GridObjectConfig(type_id, type_name, initial_vibe),
         group_id(group_id),
         group_name(group_name),
@@ -53,7 +52,7 @@ struct AgentConfig : public GridObjectConfig {
         initial_inventory(initial_inventory),
         inventory_regen_amounts(inventory_regen_amounts),
         diversity_tracked_resources(diversity_tracked_resources),
-        damage_config(damage_config) {}
+        health_config(health_config) {}
 
   unsigned char group_id;
   std::string group_name;
@@ -66,21 +65,21 @@ struct AgentConfig : public GridObjectConfig {
   // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
   std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>> inventory_regen_amounts;
   std::vector<InventoryItem> diversity_tracked_resources;
-  DamageConfig damage_config;
+  HealthConfig health_config;
 };
 
 namespace py = pybind11;
 
-inline void bind_damage_config(py::module& m) {
-  py::class_<DamageConfig>(m, "DamageConfig")
+inline void bind_health_config(py::module& m) {
+  py::class_<HealthConfig>(m, "HealthConfig")
       .def(py::init<>())
-      .def_readwrite("threshold", &DamageConfig::threshold)
-      .def_readwrite("resources", &DamageConfig::resources)
-      .def("enabled", &DamageConfig::enabled);
+      .def_readwrite("health_resource", &HealthConfig::health_resource)
+      .def_readwrite("on_damage", &HealthConfig::on_damage)
+      .def("enabled", &HealthConfig::enabled);
 }
 
 inline void bind_agent_config(py::module& m) {
-  bind_damage_config(m);
+  bind_health_config(m);
 
   py::class_<AgentConfig, GridObjectConfig, std::shared_ptr<AgentConfig>>(m, "AgentConfig")
       .def(py::init<TypeId,
@@ -95,7 +94,7 @@ inline void bind_agent_config(py::module& m) {
                     const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>&,
                     const std::vector<InventoryItem>&,
-                    const DamageConfig&>(),
+                    const HealthConfig&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -109,7 +108,7 @@ inline void bind_agent_config(py::module& m) {
            py::arg("inventory_regen_amounts") =
                std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>>(),
            py::arg("diversity_tracked_resources") = std::vector<InventoryItem>(),
-           py::arg("damage_config") = DamageConfig())
+           py::arg("health_config") = HealthConfig())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("tag_ids", &AgentConfig::tag_ids)
@@ -123,7 +122,7 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
       .def_readwrite("inventory_regen_amounts", &AgentConfig::inventory_regen_amounts)
       .def_readwrite("diversity_tracked_resources", &AgentConfig::diversity_tracked_resources)
-      .def_readwrite("damage_config", &AgentConfig::damage_config)
+      .def_readwrite("health_config", &AgentConfig::health_config)
       .def_readwrite("activation_handlers", &AgentConfig::activation_handlers);
 }
 
