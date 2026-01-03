@@ -30,6 +30,7 @@ from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    AlignActionConfig,
     AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
@@ -99,7 +100,7 @@ def supply_depot_config(map_name: str) -> CommonsChestConfig:
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
-        commons="cogs",
+        # commons="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
         aoes=[
             AOEEffectConfig(
@@ -171,6 +172,14 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             noop=NoopActionConfig(),
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
+            align=AlignActionConfig(
+                vibe="heart",
+                cost={"heart": 1},
+            ),
+            scramble=AlignActionConfig(
+                vibe="weapon",
+                set_to_none=True,
+            ),
         ),
         agent=AgentConfig(
             commons="cogs",
@@ -193,7 +202,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "oxygen": 50,
                     "carbon": 50,
                     "germanium": 50,
-                    "heart": 1000,
+                    "heart": 5,
                 },
                 regen_amounts={
                     "default": {

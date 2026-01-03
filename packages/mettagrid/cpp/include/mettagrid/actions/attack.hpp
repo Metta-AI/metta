@@ -84,6 +84,11 @@ public:
     return _vibes;
   }
 
+  // Check if this attack handler is configured for the given vibe
+  bool has_vibe(ObservationType vibe) const {
+    return std::find(_vibes.begin(), _vibes.end(), vibe) != _vibes.end();
+  }
+
   std::vector<Action> create_actions() override {
     // Attack only triggers via move, no standalone actions
     return {};

@@ -13,8 +13,6 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
-#include "objects/alignable.hpp"
-#include "objects/commons.hpp"
 #include "objects/has_inventory.hpp"
 
 namespace py = pybind11;
@@ -36,14 +34,11 @@ struct TransferActionConfig : public ActionConfig {
   // Maps vibe ID to transfer effects (separate actor/target deltas)
   std::unordered_map<ObservationType, VibeTransferEffect> vibe_transfers;
   bool enabled;
-  // If true, transfer also aligns the target's commons to the actor's commons
-  bool align;
 
   TransferActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
                        const std::unordered_map<ObservationType, VibeTransferEffect>& vibe_transfers = {},
-                       bool enabled = true,
-                       bool align = false)
-      : ActionConfig(required_resources, {}), vibe_transfers(vibe_transfers), enabled(enabled), align(align) {}
+                       bool enabled = true)
+      : ActionConfig(required_resources, {}), vibe_transfers(vibe_transfers), enabled(enabled) {}
 };
 
 class Transfer : public ActionHandler {
@@ -51,7 +46,7 @@ public:
   explicit Transfer(const TransferActionConfig& cfg,
                     [[maybe_unused]] const GameConfig* game_config,
                     const std::string& action_name = "transfer")
-      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled), _align(cfg.align) {
+      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled) {
     priority = 0;  // Lower priority than attack
     // Derive vibes from vibe_transfers keys
     for (const auto& [vibe_id, _] : _vibe_transfers) {
@@ -84,10 +79,6 @@ public:
     }
     if (!target_object) return false;
 
-    Agent* target = dynamic_cast<Agent*>(target_object);
-    if (!target) return false;             // Can only transfer with agents
-    if (target->frozen > 0) return false;  // Can't transfer with frozen agents, allow swap
-
     auto vibe_it = _vibe_transfers.find(actor.vibe);
     if (vibe_it == _vibe_transfers.end()) {
       return false;  // No transfer configured for this vibe
@@ -95,82 +86,79 @@ public:
 
     const VibeTransferEffect& effect = vibe_it->second;
     const std::string& actor_group = actor.group_name;
-    const std::string& target_group = target->group_name;
 
-    // 1. Check if actor has resources to give (negative deltas)
-    // Cast inventory amounts to int to avoid truncation when delta exceeds uint16_t range
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta < 0 && static_cast<int>(actor.inventory.amount(resource)) < -delta) {
-        return false;  // Actor doesn't have enough resources to give
-      }
-    }
+    Agent* target = dynamic_cast<Agent*>(target_object);
 
-    // 2. Check if target has resources to give (negative deltas)
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta < 0 && static_cast<int>(target->inventory.amount(resource)) < -delta) {
-        return false;  // Target doesn't have enough resources to give
-      }
-    }
+    // If target is an agent, handle resource transfers
+    if (target) {
+      if (target->frozen > 0) return false;  // Can't transfer with frozen agents, allow swap
 
-    // 3. Check if actor has capacity for receiving resources (positive deltas)
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta > 0) {
-        int free = static_cast<int>(actor.inventory.free_space(resource));
-        if (delta > free) {
-          return false;  // Actor doesn't have capacity to receive
+      const std::string& target_group = target->group_name;
+
+      // 1. Check if actor has resources to give (negative deltas)
+      // Cast inventory amounts to int to avoid truncation when delta exceeds uint16_t range
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta < 0 && static_cast<int>(actor.inventory.amount(resource)) < -delta) {
+          return false;  // Actor doesn't have enough resources to give
         }
       }
-    }
 
-    // 4. Check if target has capacity for receiving resources (positive deltas)
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta > 0) {
-        int free = static_cast<int>(target->inventory.free_space(resource));
-        if (delta > free) {
-          return false;  // Target doesn't have capacity to receive
+      // 2. Check if target has resources to give (negative deltas)
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta < 0 && static_cast<int>(target->inventory.amount(resource)) < -delta) {
+          return false;  // Target doesn't have enough resources to give
         }
       }
-    }
 
-    // 5. Update actor and target resources
-    for (const auto& [resource, delta] : effect.actor_deltas) {
-      if (delta != 0) {
-        InventoryDelta actual = actor.inventory.update(resource, delta);
-        if (actual != 0) {
-          _log_transfer(actor, resource, actual, "self");
+      // 3. Check if actor has capacity for receiving resources (positive deltas)
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta > 0) {
+          int free = static_cast<int>(actor.inventory.free_space(resource));
+          if (delta > free) {
+            return false;  // Actor doesn't have capacity to receive
+          }
         }
       }
-    }
 
-    for (const auto& [resource, delta] : effect.target_deltas) {
-      if (delta != 0) {
-        InventoryDelta actual = target->inventory.update(resource, delta);
-        if (actual != 0) {
-          _log_transfer(actor, resource, actual, "to." + target_group);
+      // 4. Check if target has capacity for receiving resources (positive deltas)
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta > 0) {
+          int free = static_cast<int>(target->inventory.free_space(resource));
+          if (delta > free) {
+            return false;  // Target doesn't have capacity to receive
+          }
         }
       }
-    }
 
-    // Align target's commons to actor's commons if enabled
-    if (_align) {
-      Commons* actor_commons = actor.getCommons();
-      Commons* target_commons = target->getCommons();
-      if (actor_commons != nullptr && actor_commons != target_commons) {
-        target->setCommons(actor_commons);
-        actor.stats.incr(_action_prefix(actor_group) + "aligned");
-        // Refresh AOE registrations since commons membership changed
-        _grid->refresh_aoe_registrations();
+      // 5. Update actor and target resources
+      for (const auto& [resource, delta] : effect.actor_deltas) {
+        if (delta != 0) {
+          InventoryDelta actual = actor.inventory.update(resource, delta);
+          if (actual != 0) {
+            _log_transfer(actor, resource, actual, "self");
+          }
+        }
       }
+
+      for (const auto& [resource, delta] : effect.target_deltas) {
+        if (delta != 0) {
+          InventoryDelta actual = target->inventory.update(resource, delta);
+          if (actual != 0) {
+            _log_transfer(actor, resource, actual, "to." + target_group);
+          }
+        }
+      }
+
+      actor.stats.incr(_action_prefix(actor_group) + "count");
+      return true;
     }
 
-    actor.stats.incr(_action_prefix(actor_group) + "count");
-    return true;
+    return false;
   }
 
 protected:
   std::unordered_map<ObservationType, VibeTransferEffect> _vibe_transfers;
   bool _enabled;
-  bool _align;
   std::vector<ObservationType> _vibes;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
@@ -208,15 +196,12 @@ inline void bind_transfer_action_config(py::module& m) {
   py::class_<TransferActionConfig, ActionConfig, std::shared_ptr<TransferActionConfig>>(m, "TransferActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, VibeTransferEffect>&,
-                    bool,
                     bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("vibe_transfers") = std::unordered_map<ObservationType, VibeTransferEffect>(),
-           py::arg("enabled") = true,
-           py::arg("align") = false)
+           py::arg("enabled") = true)
       .def_readwrite("vibe_transfers", &TransferActionConfig::vibe_transfers)
-      .def_readwrite("enabled", &TransferActionConfig::enabled)
-      .def_readwrite("align", &TransferActionConfig::align);
+      .def_readwrite("enabled", &TransferActionConfig::enabled);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_TRANSFER_HPP_
