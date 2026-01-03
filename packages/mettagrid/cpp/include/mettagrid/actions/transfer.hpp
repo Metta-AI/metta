@@ -79,7 +79,8 @@ public:
     if (!target_object) return false;
 
     Agent* target = dynamic_cast<Agent*>(target_object);
-    if (!target) return false;  // Can only transfer with agents
+    if (!target) return false;             // Can only transfer with agents
+    if (target->frozen > 0) return false;  // Can't transfer with frozen agents, allow swap
 
     auto vibe_it = _vibe_transfers.find(actor.vibe);
     if (vibe_it == _vibe_transfers.end()) {
