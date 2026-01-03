@@ -132,14 +132,14 @@ def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool
             ),
             ActivationHandler(
                 name="align",
-                filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, "heart": 1})],
-                mutations=[UpdateActor({"heart": -1}), Align()],
+                filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, **ALIGN_COST})],
+                mutations=[UpdateActor(neg(ALIGN_COST)), Align()],
             ),
             # Scramble handler: remove this depot's commons alignment (only if aligned)
             ActivationHandler(
                 name="scramble",
-                filters=[isEnemy(), ActorHas({"scrambler": 1, "heart": 1})],
-                mutations=[RemoveAlignment(), UpdateActor({"heart": -1})],
+                filters=[isEnemy(), ActorHas({"scrambler": 1, **SCRAMBLE_COST})],
+                mutations=[RemoveAlignment(), UpdateActor(neg(SCRAMBLE_COST))],
             ),
         ],
     )
