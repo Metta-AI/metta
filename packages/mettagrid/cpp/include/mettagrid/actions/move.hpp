@@ -9,19 +9,19 @@
 #include "actions/action_handler.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
+#include "actions/transfer.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/usable.hpp"
 
-// Forward declaration
 struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const MoveActionConfig& cfg, const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _game_config(game_config), _allowed_directions(cfg.allowed_directions) {
+  explicit Move(const MoveActionConfig& cfg, [[maybe_unused]] const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _allowed_directions(cfg.allowed_directions) {
     // Build direction name to orientation mapping
     _direction_map["north"] = Orientation::North;
     _direction_map["south"] = Orientation::South;
@@ -43,6 +43,16 @@ public:
       }
     }
     return actions;
+  }
+
+  void set_transfer_handler(Transfer* transfer) {
+    _transfer_handler = transfer;
+    // Build vibe->handler map from transfer's vibes
+    if (transfer) {
+      for (ObservationType vibe : transfer->get_vibes()) {
+        _vibe_handlers[vibe] = transfer;
+      }
+    }
   }
 
 protected:
@@ -80,6 +90,15 @@ protected:
     GridObject* target_object = _grid->object_at(target_location);
     assert(target_object && "is_empty returned false but no object at location");
 
+    // Check if vibe-specific transfer action applies
+    auto vibe_handler_it = _vibe_handlers.find(actor.vibe);
+    if (vibe_handler_it != _vibe_handlers.end()) {
+      Transfer* transfer_handler = vibe_handler_it->second;
+      if (transfer_handler && transfer_handler->try_transfer(actor, target_object)) {
+        return true;
+      }
+    }
+
     // Swap with frozen agents (must check before usable since Agent is Usable)
     Agent* target_agent = dynamic_cast<Agent*>(target_object);
     if (target_agent && target_agent->frozen > 0) {
@@ -107,9 +126,10 @@ protected:
   }
 
 private:
-  const GameConfig* _game_config;
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
+  Transfer* _transfer_handler = nullptr;
+  std::unordered_map<ObservationType, Transfer*> _vibe_handlers;  // vibe -> transfer handler map
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

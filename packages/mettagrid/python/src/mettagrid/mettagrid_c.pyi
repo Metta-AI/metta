@@ -55,6 +55,27 @@ class PackedCoordinate:
 
 class GridObjectConfig: ...
 
+class LimitDef:
+    def __init__(
+        self,
+        resources: list[int] = [],
+        base_limit: int = 0,
+        modifiers: dict[int, int] = {},
+    ) -> None: ...
+    resources: list[int]
+    base_limit: int
+    modifiers: dict[int, int]
+
+class InventoryConfig:
+    def __init__(self) -> None: ...
+    limit_defs: list[LimitDef]
+
+class DamageConfig:
+    def __init__(self) -> None: ...
+    threshold: dict[int, int]
+    resources: dict[int, int]
+    def enabled(self) -> bool: ...
+
 class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str): ...
     type_id: int
@@ -68,27 +89,29 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        resource_limits: dict[int, int] = {},
+        initial_vibe: int = 0,
+        inventory_config: InventoryConfig = ...,
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
-        vibe_transfers: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
+        damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
     type_name: str
     tag_ids: list[int]
+    initial_vibe: int
     group_id: int
     group_name: str
     freeze_duration: int
-    resource_limits: dict[int, int]
-    stat_rewards: dict[str, float]  # Added this
-    stat_reward_max: dict[str, float]  # Added this
+    inventory_config: InventoryConfig
+    stat_rewards: dict[str, float]
+    stat_reward_max: dict[str, float]
     initial_inventory: dict[int, int]
     inventory_regen_amounts: dict[int, dict[int, int]]
-    vibe_transfers: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
+    damage_config: DamageConfig
 
 class ActionConfig:
     def __init__(
@@ -123,6 +146,25 @@ class AttackActionConfig(ActionConfig):
         enabled: bool = True,
     ) -> None: ...
     defense_resources: dict[int, int]
+    enabled: bool
+
+class VibeTransferEffect:
+    def __init__(
+        self,
+        target_deltas: dict[int, int] = {},
+        actor_deltas: dict[int, int] = {},
+    ) -> None: ...
+    target_deltas: dict[int, int]
+    actor_deltas: dict[int, int]
+
+class TransferActionConfig(ActionConfig):
+    def __init__(
+        self,
+        required_resources: dict[int, int] = {},
+        vibe_transfers: dict[int, VibeTransferEffect] = {},
+        enabled: bool = True,
+    ) -> None: ...
+    vibe_transfers: dict[int, VibeTransferEffect]
     enabled: bool
 
 class ChangeVibeActionConfig(ActionConfig):

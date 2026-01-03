@@ -75,7 +75,6 @@ public:
 private:
   const ObservationEncoder* obs_encoder = nullptr;
   const std::vector<std::string>* resource_names = nullptr;
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
   void update_inventory_diversity_stats(InventoryItem item, InventoryQuantity amount);
   std::vector<char> diversity_tracked_mask;
   std::vector<char> tracked_resource_presence;
