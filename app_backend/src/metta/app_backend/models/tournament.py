@@ -1,10 +1,14 @@
 from datetime import UTC, datetime
 from enum import Enum
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import ARRAY, INTEGER
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from metta.app_backend.models.job_request import JobRequest
 
 
 class MatchStatus(str, Enum):
@@ -15,8 +19,13 @@ class MatchStatus(str, Enum):
     failed = "failed"
 
 
+class MembershipAction(str, Enum):
+    add = "add"
+    retire = "retire"
+
+
 class _SeasonBase(SQLModel):
-    name: str = Field(index=True)
+    name: str = Field(index=True, unique=True)
     description: str | None = None
 
 
@@ -25,17 +34,18 @@ class SeasonCreate(_SeasonBase):
 
 
 class Season(_SeasonBase, table=True):
-    __tablename__ = "seasons"
+    __tablename__ = "seasons"  # type: ignore[assignment]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
     )
 
+    pools: list["Pool"] = Relationship(back_populates="season")
+
 
 class _PoolBase(SQLModel):
     name: str | None = None
-    is_academy: bool = Field(default=False)
 
 
 class PoolCreate(_PoolBase):
@@ -43,13 +53,16 @@ class PoolCreate(_PoolBase):
 
 
 class Pool(_PoolBase, table=True):
-    __tablename__ = "pools"
+    __tablename__ = "pools"  # type: ignore[assignment]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     season_id: UUID | None = Field(foreign_key="seasons.id", nullable=True, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
     )
+
+    season: Season | None = Relationship(back_populates="pools")
+    matches: list["Match"] = Relationship(back_populates="pool")
 
 
 class _PoolPlayerBase(SQLModel):
@@ -62,7 +75,7 @@ class PoolPlayerCreate(_PoolPlayerBase):
 
 
 class PoolPlayer(_PoolPlayerBase, table=True):
-    __tablename__ = "pool_players"
+    __tablename__ = "pool_players"  # type: ignore[assignment]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     added_at: datetime = Field(
@@ -89,7 +102,7 @@ class MatchUpdate(SQLModel):
 
 
 class Match(_MatchBase, table=True):
-    __tablename__ = "matches"
+    __tablename__ = "matches"  # type: ignore[assignment]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     job_id: UUID | None = Field(foreign_key="job_requests.id", nullable=True, index=True)
@@ -98,6 +111,10 @@ class Match(_MatchBase, table=True):
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
     )
     completed_at: datetime | None = None
+
+    pool: Pool = Relationship(back_populates="matches")
+    players: list["MatchPlayer"] = Relationship(back_populates="match", sa_relationship_kwargs={"lazy": "selectin"})
+    job: Optional["JobRequest"] = Relationship()
 
 
 class _MatchPlayerBase(SQLModel):
@@ -115,7 +132,21 @@ class MatchPlayerUpdate(SQLModel):
 
 
 class MatchPlayer(_MatchPlayerBase, table=True):
-    __tablename__ = "match_players"
+    __tablename__ = "match_players"  # type: ignore[assignment]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     score: float | None = None
+
+    match: Match = Relationship(back_populates="players")
+
+
+class MembershipChangeRecord(SQLModel, table=True):
+    __tablename__ = "membership_changes"  # type: ignore[assignment]
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    pool_id: UUID = Field(foreign_key="pools.id", index=True)
+    policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
+    action: MembershipAction
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
+    )
