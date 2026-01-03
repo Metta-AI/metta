@@ -24,17 +24,18 @@ from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
-from typing_extensions import TypeVar
 
-import metta.rl.torch_init  # noqa: F401
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
 from metta.common.tool.schema import get_pydantic_field_info
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.rl.system_config import seed_everything
-from mettagrid.base_config import Config
+from metta.rl.torch_init import (
+    configure_torch_for_determinism,
+    configure_torch_globally_for_performance,
+    seed_everything_distributed_aware,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ _KNOWN_TOOLS = {"train", "evaluate", "evaluate_remote", "play", "replay", "sweep
 # Environment setup
 # --------------------------------------------------------------------------------------
 
-
-T = TypeVar("T", bound=Config)
+# This should be called early.
+configure_torch_globally_for_performance()
 
 # --------------------------------------------------------------------------------------
 # Output handling
@@ -655,7 +656,10 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     # Seed & Run
     # ----------------------------------------------------------------------------------
-    seed_everything(tool_cfg.system)
+
+    seed_everything_distributed_aware(tool_cfg.system.seed)
+    if tool_cfg.system.torch_deterministic:
+        configure_torch_for_determinism()
 
     output_info(f"\n{bold(green('Running tool...'))}\n")
 
