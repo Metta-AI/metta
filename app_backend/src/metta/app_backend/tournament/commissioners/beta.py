@@ -57,7 +57,7 @@ class BetaCommissioner(CommissionerInterface):
                     .where(Match.pool_id == pool_id)
                     .where(Match.status == MatchStatus.completed)
                     .where(col(MatchPlayer.score).is_not(None))
-                    .group_by(MatchPlayer.policy_version_id)
+                    .group_by(col(MatchPlayer.policy_version_id))
                 )
             ).all()
         }
