@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -392,6 +393,7 @@ class CommissionerInterface(ABC):
                 await session.execute(
                     select(Match)
                     .filter_by(pool_id=pool.id)
+                    .options(selectinload(Match.players))
                     .order_by(col(Match.created_at).desc())
                     .offset(offset)
                     .limit(limit)
