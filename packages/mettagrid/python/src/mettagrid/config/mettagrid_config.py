@@ -150,7 +150,7 @@ class AgentConfig(Config):
         default=None,
         description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
     )
-    activation_handlers: list["ActivationHandler"] = Field(
+    handlers: list["ActivationHandler"] = Field(
         default_factory=list,
         description="Handlers triggered when another agent moves onto this agent",
     )
@@ -367,7 +367,7 @@ ActivationTarget = Literal["actor", "target", "actor_commons", "target_commons"]
 class ActivationFilter(Config):
     """Base class for activation filters. All filters in a handler must pass."""
 
-    target: Literal["actor", "target"] = Field(
+    target: Literal["actor", "target", "actor_commons", "target_commons"] = Field(
         default="actor",
         description="Entity to check the filter against",
     )
@@ -398,13 +398,18 @@ class AlignmentFilter(ActivationFilter):
     """
 
     filter_type: Literal["alignment"] = "alignment"
-    alignment: Literal["aligned", "unaligned", "same_commons", "different_commons"] = Field(
+    target: Literal["actor", "target"] = Field(
+        default="target",
+        description="Entity to check the filter against (only actor/target for alignment)",
+    )
+    alignment: Literal["aligned", "unaligned", "same_commons", "different_commons", "not_same_commons"] = Field(
         description=(
             "Alignment condition to check: "
             "'aligned' = target has any commons, "
             "'unaligned' = target has no commons, "
             "'same_commons' = target has same commons as actor, "
-            "'different_commons' = target has different commons than actor (but is aligned)"
+            "'different_commons' = target has different commons than actor (but is aligned), "
+            "'not_same_commons' = target is not aligned to actor (unaligned OR different_commons)"
         ),
     )
 
@@ -547,6 +552,141 @@ class ActivationHandler(Config):
     )
 
 
+# ===== Helper Filter Functions =====
+# Factory functions for creating common filter configurations
+
+
+def isAligned() -> AlignmentFilter:
+    """Filter: target is aligned to actor (same commons)."""
+    return AlignmentFilter(target="target", alignment="same_commons")
+
+
+def hasCommons() -> AlignmentFilter:
+    """Filter: target has any commons alignment."""
+    return AlignmentFilter(target="target", alignment="aligned")
+
+
+def isNeutral() -> AlignmentFilter:
+    """Filter: target has no alignment (unaligned)."""
+    return AlignmentFilter(target="target", alignment="unaligned")
+
+
+def isNotAligned() -> AlignmentFilter:
+    """Filter: target is NOT aligned to actor (unaligned OR different commons)."""
+    return AlignmentFilter(target="target", alignment="not_same_commons")
+
+
+def isEnemy() -> AlignmentFilter:
+    """Filter: target is aligned to a different commons than actor."""
+    return AlignmentFilter(target="target", alignment="different_commons")
+
+
+def ActorHas(resources: dict[str, int]) -> ResourceFilter:
+    """Filter: actor has at least the specified resources."""
+    return ResourceFilter(target="actor", resources=resources)
+
+
+def TargetHas(resources: dict[str, int]) -> ResourceFilter:
+    """Filter: target has at least the specified resources."""
+    return ResourceFilter(target="target", resources=resources)
+
+
+def ActorCommonsHas(resources: dict[str, int]) -> ResourceFilter:
+    """Filter: actor's commons has at least the specified resources."""
+    return ResourceFilter(target="actor_commons", resources=resources)
+
+
+def TargetCommonsHas(resources: dict[str, int]) -> ResourceFilter:
+    """Filter: target's commons has at least the specified resources."""
+    return ResourceFilter(target="target_commons", resources=resources)
+
+
+# ===== Helper Mutation Functions =====
+# Factory functions for creating common mutation configurations
+
+
+def Align() -> AlignmentMutation:
+    """Mutation: align target to actor's commons."""
+    return AlignmentMutation(target="target", align_to="actor_commons")
+
+
+def RemoveAlignment() -> AlignmentMutation:
+    """Mutation: remove target's alignment (set commons to none)."""
+    return AlignmentMutation(target="target", align_to="none")
+
+
+def Withdraw(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from target to actor.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="target", to_target="actor", resources=resources)
+
+
+def Deposit(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from actor to target.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="actor", to_target="target", resources=resources)
+
+
+def CommonsDeposit(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from actor to actor's commons.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="actor", to_target="actor_commons", resources=resources)
+
+
+def CommonsWithdraw(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from actor's commons to actor.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="actor_commons", to_target="actor", resources=resources)
+
+
+def UpdateTarget(deltas: dict[str, int]) -> ResourceDeltaMutation:
+    """Mutation: apply resource deltas to target.
+
+    Args:
+        deltas: Map of resource name to delta (positive = gain, negative = lose).
+    """
+    return ResourceDeltaMutation(target="target", deltas=deltas)
+
+
+def UpdateActor(deltas: dict[str, int]) -> ResourceDeltaMutation:
+    """Mutation: apply resource deltas to actor.
+
+    Args:
+        deltas: Map of resource name to delta (positive = gain, negative = lose).
+    """
+    return ResourceDeltaMutation(target="actor", deltas=deltas)
+
+
+def TargetCommonsUpdate(deltas: dict[str, int]) -> ResourceDeltaMutation:
+    """Mutation: apply resource deltas to target's commons.
+
+    Args:
+        deltas: Map of resource name to delta (positive = gain, negative = lose).
+    """
+    return ResourceDeltaMutation(target="target_commons", deltas=deltas)
+
+
+def ActorCommonsUpdate(deltas: dict[str, int]) -> ResourceDeltaMutation:
+    """Mutation: apply resource deltas to actor's commons.
+
+    Args:
+        deltas: Map of resource name to delta (positive = gain, negative = lose).
+    """
+    return ResourceDeltaMutation(target="actor_commons", deltas=deltas)
+
+
 class ActionsConfig(Config):
     """
     Actions configuration.
@@ -598,10 +738,9 @@ class AOEEffectConfig(Config):
                    If None or empty, all HasInventory objects are affected.
                    Agents are always checked every tick (they move).
                    Static objects are registered/unregistered with the AOE for efficiency.
-
-    Commons filtering:
-    - members_only: If True, effect only applies to objects with the same commons as the source object
-    - ignore_members: If True, effect is skipped for objects with the same commons as the source object
+    - filters: List of filters that must all pass for the effect to apply.
+               Uses the same filter types as activation handlers (AlignmentFilter, VibeFilter, ResourceFilter).
+               In AOE context, "actor" refers to the AOE source object and "target" refers to the affected object.
     """
 
     range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
@@ -614,13 +753,10 @@ class AOEEffectConfig(Config):
         description="If set, only objects with at least one matching tag are affected. "
         "If None, all HasInventory objects are affected.",
     )
-    members_only: bool = Field(
-        default=False,
-        description="If True, effect only applies to objects with the same commons as the source object",
-    )
-    ignore_members: bool = Field(
-        default=False,
-        description="If True, effect is skipped for objects with the same commons as the source object",
+    filters: list[AnyActivationFilter] = Field(
+        default_factory=list,
+        description="Filters that must all pass for effect to apply. "
+        "In AOE context, 'actor' = source object, 'target' = affected object.",
     )
 
 
@@ -646,7 +782,7 @@ class GridObjectConfig(Config):
         default_factory=list,
         description="List of AOE effects this object emits to agents within range each tick",
     )
-    activation_handlers: list[ActivationHandler] = Field(
+    handlers: list[ActivationHandler] = Field(
         default_factory=list,
         description="Handlers triggered when an agent moves onto this object",
     )

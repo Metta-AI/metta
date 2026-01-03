@@ -99,6 +99,8 @@ class EpisodeReplay:
         self.sim = sim
         self.step = 0
         self.objects: list[dict[str, Any]] = []
+        self.commons_inventory: dict[str, list[Any]] = {}  # commons_name -> [[step, {item: count}], ...]
+        self._last_commons_inventory: dict[str, dict[str, int]] = {}  # For change detection
         self.total_rewards = np.zeros(sim.num_agents)
         # Map object IDs to their index in self.objects for consistent ordering
         self._object_id_to_index: dict[int, int] = {}
@@ -117,6 +119,7 @@ class EpisodeReplay:
             "max_steps": sim.config.game.max_steps,
             "mg_config": sim.config.model_dump(mode="json"),
             "objects": self.objects,
+            "commons_inventory": self.commons_inventory,
         }
 
     def set_compression(self, compression: str):
@@ -157,12 +160,30 @@ class EpisodeReplay:
             )
 
             self._seq_key_merge(self.objects[idx], self.step, update_object)
+
+        # Log commons inventory changes
+        self._log_commons_inventory()
+
         self.step += 1
         if current_step != self.step:
             raise ValueError(
                 f"Writing multiple steps at once: step {current_step} != Replay step {self.step}."
                 "Probably a vecenv issue."
             )
+
+    def _log_commons_inventory(self):
+        """Log commons inventory, only recording changes."""
+        commons_info = self.sim._c_sim.commons_info()
+        for commons_name, info in commons_info.items():
+            current_inv = info.get("inventory", {})
+            last_inv = self._last_commons_inventory.get(commons_name, {})
+
+            # Check if inventory changed
+            if current_inv != last_inv:
+                if commons_name not in self.commons_inventory:
+                    self.commons_inventory[commons_name] = []
+                self.commons_inventory[commons_name].append([self.step, dict(current_inv)])
+                self._last_commons_inventory[commons_name] = dict(current_inv)
 
     def _seq_key_merge(self, grid_object: dict, step: int, update_object: dict):
         """Add a sequence keys to replay grid object."""
