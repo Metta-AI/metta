@@ -112,10 +112,14 @@ public:
 
       // Check if there's a configured resource deltas for this vibe
       auto vibe_it = vibe_transfers.find(agent_vibe);
+      if (vibe_it == vibe_transfers.end()) {
+        // Fallback to default (vibe 0) if agent's vibe not configured
+        vibe_it = vibe_transfers.find(0);
+      }
       if (vibe_it != vibe_transfers.end()) {
         return transfer_resources(actor, vibe_it->second);
       }
-      return false;  // No action configured for this vibe
+      return false;  // No action configured for this vibe or default
     }
 
     return false;
