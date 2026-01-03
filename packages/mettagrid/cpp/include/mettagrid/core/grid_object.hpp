@@ -60,21 +60,15 @@ public:
 struct AOEEffectConfig {
   unsigned int range = 1;                                             // Radius of effect (Manhattan distance)
   std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;  // Per-tick resource changes
-  std::vector<int> target_tag_ids;  // If non-empty, only affect objects with these tags
-  bool members_only = false;        // Only affect objects with matching commons
-  bool ignore_members = false;      // Ignore objects with matching commons
+  std::vector<int> target_tag_ids;              // If non-empty, only affect objects with these tags
+  std::vector<ActivationFilterConfig> filters;  // Filters that must all pass for effect to apply
 
   AOEEffectConfig() = default;
   AOEEffectConfig(unsigned int range,
                   const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas,
                   const std::vector<int>& target_tag_ids = {},
-                  bool members_only = false,
-                  bool ignore_members = false)
-      : range(range),
-        resource_deltas(resource_deltas),
-        target_tag_ids(target_tag_ids),
-        members_only(members_only),
-        ignore_members(ignore_members) {}
+                  const std::vector<ActivationFilterConfig>& filters = {})
+      : range(range), resource_deltas(resource_deltas), target_tag_ids(target_tag_ids), filters(filters) {}
 };
 
 // Forward declaration for activation handler config

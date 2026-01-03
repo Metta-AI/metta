@@ -615,7 +615,7 @@ def RemoveAlignment() -> AlignmentMutation:
     return AlignmentMutation(target="target", align_to="none")
 
 
-def Pickup(resources: dict[str, int]) -> ResourceTransferMutation:
+def Withdraw(resources: dict[str, int]) -> ResourceTransferMutation:
     """Mutation: transfer resources from target to actor.
 
     Args:
@@ -624,13 +624,31 @@ def Pickup(resources: dict[str, int]) -> ResourceTransferMutation:
     return ResourceTransferMutation(from_target="target", to_target="actor", resources=resources)
 
 
-def Drop(resources: dict[str, int]) -> ResourceTransferMutation:
+def Deposit(resources: dict[str, int]) -> ResourceTransferMutation:
     """Mutation: transfer resources from actor to target.
 
     Args:
         resources: Map of resource name to amount. Use -1 for "all available".
     """
     return ResourceTransferMutation(from_target="actor", to_target="target", resources=resources)
+
+
+def CommonsDeposit(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from actor to actor's commons.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="actor", to_target="actor_commons", resources=resources)
+
+
+def CommonsWithdraw(resources: dict[str, int]) -> ResourceTransferMutation:
+    """Mutation: transfer resources from actor's commons to actor.
+
+    Args:
+        resources: Map of resource name to amount. Use -1 for "all available".
+    """
+    return ResourceTransferMutation(from_target="actor_commons", to_target="actor", resources=resources)
 
 
 def UpdateTarget(deltas: dict[str, int]) -> ResourceDeltaMutation:
@@ -651,7 +669,7 @@ def UpdateActor(deltas: dict[str, int]) -> ResourceDeltaMutation:
     return ResourceDeltaMutation(target="actor", deltas=deltas)
 
 
-def UpdateTargetCommons(deltas: dict[str, int]) -> ResourceDeltaMutation:
+def TargetCommonsUpdate(deltas: dict[str, int]) -> ResourceDeltaMutation:
     """Mutation: apply resource deltas to target's commons.
 
     Args:
@@ -660,7 +678,7 @@ def UpdateTargetCommons(deltas: dict[str, int]) -> ResourceDeltaMutation:
     return ResourceDeltaMutation(target="target_commons", deltas=deltas)
 
 
-def UpdateActorCommons(deltas: dict[str, int]) -> ResourceDeltaMutation:
+def ActorCommonsUpdate(deltas: dict[str, int]) -> ResourceDeltaMutation:
     """Mutation: apply resource deltas to actor's commons.
 
     Args:
@@ -720,10 +738,9 @@ class AOEEffectConfig(Config):
                    If None or empty, all HasInventory objects are affected.
                    Agents are always checked every tick (they move).
                    Static objects are registered/unregistered with the AOE for efficiency.
-
-    Commons filtering:
-    - members_only: If True, effect only applies to objects with the same commons as the source object
-    - ignore_members: If True, effect is skipped for objects with the same commons as the source object
+    - filters: List of filters that must all pass for the effect to apply.
+               Uses the same filter types as activation handlers (AlignmentFilter, VibeFilter, ResourceFilter).
+               In AOE context, "actor" refers to the AOE source object and "target" refers to the affected object.
     """
 
     range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
@@ -736,13 +753,10 @@ class AOEEffectConfig(Config):
         description="If set, only objects with at least one matching tag are affected. "
         "If None, all HasInventory objects are affected.",
     )
-    members_only: bool = Field(
-        default=False,
-        description="If True, effect only applies to objects with the same commons as the source object",
-    )
-    ignore_members: bool = Field(
-        default=False,
-        description="If True, effect is skipped for objects with the same commons as the source object",
+    filters: list[AnyActivationFilter] = Field(
+        default_factory=list,
+        description="Filters that must all pass for effect to apply. "
+        "In AOE context, 'actor' = source object, 'target' = affected object.",
     )
 
 

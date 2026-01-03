@@ -59,14 +59,12 @@ class AOEEffectConfig:
         range: int = 1,
         resource_deltas: dict[int, int] = {},
         target_tag_ids: list[int] = [],
-        members_only: bool = False,
-        ignore_members: bool = False,
+        filters: list[ActivationFilterConfig] = [],
     ) -> None: ...
     range: int
     resource_deltas: dict[int, int]
     target_tag_ids: list[int]
-    members_only: bool
-    ignore_members: bool
+    filters: list[ActivationFilterConfig]
 
 class GridObjectConfig:
     aoes: list[AOEEffectConfig]
