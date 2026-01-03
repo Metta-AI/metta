@@ -1,18 +1,21 @@
 """Policy checkpoint management component."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import torch
 from pydantic import Field
+from safetensors.torch import load_file as load_safetensors_file
 
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config
-from mettagrid.policy.mpt_artifact import MptArtifact, load_mpt
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.module import load_symbol
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -56,34 +59,33 @@ class Checkpointer(TrainerComponent):
         load_device = torch.device(self._distributed.config.device)
 
         if self._distributed.is_distributed:
-            normalized_uri = None
-            if self._distributed.is_master() and candidate_uri:
-                normalized_uri = resolve_uri(candidate_uri).canonical
-            normalized_uri = self._distributed.broadcast_from_master(normalized_uri)
+            normalized_uri = self._distributed.broadcast_from_master(
+                resolve_uri(candidate_uri).canonical if self._distributed.is_master() and candidate_uri else None
+            )
 
             if normalized_uri:
-                artifact: MptArtifact | None = None
+                payload: tuple[str, dict[str, object], dict[str, torch.Tensor]] | None = None
                 if self._distributed.is_master():
-                    artifact = load_mpt(normalized_uri)
-
-                state_dict = self._distributed.broadcast_from_master(
-                    {k: v.cpu() for k, v in artifact.state_dict.items()} if artifact else None
-                )
-                arch = self._distributed.broadcast_from_master(artifact.architecture if artifact else None)
-                action_count = self._distributed.broadcast_from_master(
-                    len(policy_env_info.actions.actions()) if self._distributed.is_master() else None
-                )
-
-                local_action_count = len(policy_env_info.actions.actions())
-                if local_action_count != action_count:
-                    raise ValueError(f"Action space mismatch: master={action_count}, rank={local_action_count}")
-
-                policy = arch.make_policy(policy_env_info).to(load_device)
-                if hasattr(policy, "initialize_to_environment"):
-                    policy.initialize_to_environment(policy_env_info, load_device)
-                missing, unexpected = policy.load_state_dict(state_dict, strict=True)
-                if missing or unexpected:
-                    raise RuntimeError(f"Strict loading failed. Missing: {missing}, Unexpected: {unexpected}")
+                    policy_spec = policy_spec_from_uri(normalized_uri)
+                    state_dict = load_safetensors_file(str(Path(policy_spec.data_path).expanduser()))
+                    payload = (
+                        policy_spec.class_path,
+                        policy_spec.init_kwargs or {},
+                        {k: v.cpu() for k, v in state_dict.items()},
+                    )
+                payload = self._distributed.broadcast_from_master(payload)
+                class_path, init_kwargs, state_dict = payload
+                init_kwargs = dict(init_kwargs)
+                if "device" in init_kwargs:
+                    init_kwargs["device"] = str(load_device)
+                policy_class = load_symbol(class_path)
+                policy = policy_class(policy_env_info, **init_kwargs)  # type: ignore[call-arg]
+                if hasattr(policy, "to"):
+                    policy = policy.to(load_device)
+                policy.load_state_dict(state_dict, strict=True)
+                initialize = getattr(policy, "initialize_to_environment", None)
+                if callable(initialize):
+                    initialize(policy_env_info, load_device)
 
                 if self._distributed.is_master():
                     self._latest_policy_uri = normalized_uri
@@ -91,8 +93,11 @@ class Checkpointer(TrainerComponent):
                 return policy
 
         if candidate_uri:
-            artifact = load_mpt(candidate_uri)
-            policy = artifact.instantiate(policy_env_info, self._distributed.config.device)
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(candidate_uri),
+                device_override=str(load_device),
+            )
             self._latest_policy_uri = resolve_uri(candidate_uri).canonical
             logger.info("Loaded policy from %s", candidate_uri)
             return policy
@@ -113,26 +118,16 @@ class Checkpointer(TrainerComponent):
             return
         self._save_policy(self.context.epoch)
 
-    def _policy_to_save(self) -> Policy:
-        policy: Policy = self.context.policy
-        if hasattr(policy, "module"):
-            return policy.module
-        return policy
-
     def _save_policy(self, epoch: int) -> None:
-        policy = self._policy_to_save()
         uri = self._checkpoint_manager.save_policy_checkpoint(
-            state_dict=policy.state_dict(),
+            state_dict=self.context.policy.state_dict(),
             architecture=self._policy_architecture,
             epoch=epoch,
         )
 
         self._latest_policy_uri = uri
         self.context.latest_policy_uri_value = uri
-        try:
-            self.context.latest_saved_policy_epoch = epoch
-        except AttributeError:
-            logger.debug("Component context missing latest_saved_policy_epoch attribute")
+        self.context.latest_saved_policy_epoch = epoch
 
         # Log latest checkpoint URI to wandb if available
         stats_reporter = getattr(self.context, "stats_reporter", None)

@@ -15,12 +15,11 @@ from rich.console import Console
 from cogames.policy.signal_handler import DeferSigintContextManager
 from cogames.train import _resolve_vector_counts
 from mettagrid.policy.loader import (
-    find_policy_checkpoints,
     get_policy_class_shorthand,
     initialize_or_load_policy,
-    resolve_policy_data_path,
 )
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
@@ -213,11 +212,8 @@ def train(settings: dict[str, Any]) -> None:
     )
 
     initial_weights_path = settings.get("initial_weights_path")
-    resolved_initial_weights = (
-        resolve_policy_data_path(initial_weights_path) if initial_weights_path is not None else None
-    )
 
-    policy_spec = PolicySpec(class_path=settings["policy_class_path"], data_path=resolved_initial_weights)
+    policy_spec = PolicySpec(class_path=settings["policy_class_path"], data_path=initial_weights_path)
     policy = initialize_or_load_policy(policy_env_info, policy_spec)
     network = policy.network()
     assert network is not None, f"Policy {settings['policy_class_path']} must be trainable (network() returned None)"
@@ -314,7 +310,10 @@ def train(settings: dict[str, Any]) -> None:
     vecenv.close()
 
     console.rule("[bold green]Training Summary")
-    checkpoints = find_policy_checkpoints(settings["checkpoints_path"], env_name)
+    checkpoints = sorted(
+        {path.parent for path in settings["checkpoints_path"].rglob(POLICY_SPEC_FILENAME)},
+        key=lambda path: path.stat().st_mtime,
+    )
 
     if checkpoints:
         final_checkpoint = checkpoints[-1]

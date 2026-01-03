@@ -143,10 +143,7 @@ class TrainTool(Tool):
         supervisor_policy_spec: PolicySpec | None = None
         if sup_uri:
             candidate = Path(sup_uri)
-            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
-            looks_like_uri = "://" in sup_uri
-
-            if looks_like_uri or looks_like_path:
+            if "://" in sup_uri or candidate.suffix or os.sep in sup_uri or candidate.parent != Path("."):
                 supervisor_policy_spec = policy_spec_from_uri(sup_uri)
             else:
                 class_path = resolve_policy_class_path(sup_uri)

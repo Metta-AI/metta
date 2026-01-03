@@ -4,11 +4,14 @@ This ensures that all policies (ComponentPolicy, PyTorch agents with mixin, etc.
 implement the required methods that MettaAgent depends on."""
 
 from abc import abstractmethod
+from pathlib import Path
 from typing import Any, ClassVar, List, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 from pydantic import ConfigDict
+from safetensors.torch import load_file as load_safetensors_file
 from tensordict import TensorDict
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -230,6 +233,74 @@ class Policy(MultiAgentPolicy, nn.Module):
         td.set("t_in_row", torch.zeros(1, dtype=torch.long, device=device))
 
 
+class CheckpointPolicy(Policy):
+    """Policy wrapper for checkpoint bundles with architecture specs and safetensors weights."""
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        architecture_spec: str,
+        device: str = "cpu",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(policy_env_info)
+        self._architecture_spec = architecture_spec
+        self._device = torch.device(device)
+        architecture = PolicyArchitecture.from_spec(architecture_spec)
+        self._policy = architecture.make_policy(policy_env_info).to(self._device)
+
+    def __getattr__(self, name: str):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            if name == "_policy":
+                raise
+            policy = self.__dict__.get("_policy")
+            if policy is None and "_modules" in self.__dict__:
+                policy = self.__dict__["_modules"].get("_policy")
+            if policy is None:
+                raise
+            return getattr(policy, name)
+
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+        return self._policy.forward(td, action=action)
+
+    @property
+    def device(self) -> torch.device:
+        return self._policy.device
+
+    def reset_memory(self) -> None:
+        self._policy.reset_memory()
+
+    def agent_policy(self, agent_id: int) -> AgentPolicy:
+        return self._policy.agent_policy(agent_id)
+
+    def load_policy_data(self, policy_data_path: str) -> None:
+        state_dict = load_safetensors_file(str(Path(policy_data_path).expanduser()))
+        self._policy.load_state_dict(dict(state_dict))
+        initialize = getattr(self._policy, "initialize_to_environment", None)
+        if callable(initialize):
+            initialize(self._policy_env_info, self._device)
+
+    def state_dict(self, *args, **kwargs):
+        return self._policy.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        return self._policy.load_state_dict(state_dict, *args, **kwargs)
+
+    def save_policy_data(self, policy_data_path: str) -> None:
+        self._policy.save_policy_data(policy_data_path)
+
+    def network(self) -> Optional[nn.Module]:
+        return self._policy.network()
+
+    def reset(self) -> None:
+        self._policy.reset()
+
+    def step_batch(self, raw_observations: np.ndarray, raw_actions: np.ndarray) -> None:
+        self._policy.step_batch(raw_observations, raw_actions)
+
+
 class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=PolicyRegistryABCMeta):
     """Thin wrapper around DistributedDataParallel that preserves Policy interface."""
 
@@ -251,6 +322,12 @@ class DistributedPolicy(MultiAgentPolicy, DistributedDataParallel, metaclass=Pol
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
+    def state_dict(self, *args, **kwargs):
+        return self.module.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, state_dict, *args, **kwargs):
+        return self.module.load_state_dict(state_dict, *args, **kwargs)
 
 
 class ExternalPolicyWrapper(Policy):

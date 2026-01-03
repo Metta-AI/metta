@@ -21,15 +21,9 @@ from metta.sim.simulate_and_record import (
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
-
-
-def _spec_display_name(policy_spec: PolicySpec) -> str:
-    init_kwargs = policy_spec.init_kwargs or {}
-    return init_kwargs.get("display_name") or policy_spec.name
 
 
 class EvaluateTool(Tool):
@@ -42,36 +36,6 @@ class EvaluateTool(Tool):
     verbose: bool = False
     push_metrics_to_wandb: bool = False
     max_workers: int | None = None
-
-    def _compute_num_workers(self) -> int:
-        if self.max_workers is not None:
-            return self.max_workers
-
-        cpu_count = multiprocessing.cpu_count()
-        remainder = len(self.simulations) % cpu_count
-        if remainder == 0 or len(self.simulations) < cpu_count:
-            return cpu_count
-
-        full_rounds = math.floor(len(self.simulations) / cpu_count)
-        return math.ceil(len(self.simulations) / full_rounds)
-
-    def _to_simulation_run_configs(self) -> list[SimulationRunConfig]:
-        result = []
-        for sim in self.simulations:
-            if isinstance(sim, SimulationConfig):
-                result.append(sim.to_simulation_run_config())
-            else:
-                result.append(sim)
-        return result
-
-    def _get_policy_version(self, uri: str) -> PolicyVersionWithName | None:
-        if not uri.startswith("metta://"):
-            return None
-        try:
-            resolver = MettaSchemeResolver(self.stats_server_uri)
-            return resolver.get_policy_version(uri)
-        except Exception:
-            return None
 
     def invoke(self, args: dict[str, str]) -> int:
         """CLI entrypoint via run_tool. Runs eval and returns success exit code."""
@@ -100,9 +64,19 @@ class EvaluateTool(Tool):
                 raise ValueError("stats_server_uri is required when using metta:// policies or pushing metrics")
             stats_client = StatsClient.create(self.stats_server_uri)
 
-        policy_versions = (
-            [self._get_policy_version(uri) for uri in policy_uris] if stats_client else [None for _ in policy_uris]
-        )
+        if stats_client:
+            resolver = MettaSchemeResolver(self.stats_server_uri)
+            policy_versions: list[PolicyVersionWithName | None] = []
+            for uri in policy_uris:
+                if uri.startswith("metta://"):
+                    try:
+                        policy_versions.append(resolver.get_policy_version(uri))
+                    except Exception:
+                        policy_versions.append(None)
+                else:
+                    policy_versions.append(None)
+        else:
+            policy_versions = [None for _ in policy_uris]
         primary_policy_version = policy_versions[0]
 
         if primary_policy_version and stats_client:
@@ -140,23 +114,34 @@ class EvaluateTool(Tool):
                     agent_step=agent_step,
                 )
 
-            num_workers = self._compute_num_workers()
+            if self.max_workers is not None:
+                num_workers = self.max_workers
+            else:
+                cpu_count = multiprocessing.cpu_count()
+                remainder = len(self.simulations) % cpu_count
+                if remainder == 0 or len(self.simulations) < cpu_count:
+                    num_workers = cpu_count
+                else:
+                    full_rounds = math.floor(len(self.simulations) / cpu_count)
+                    num_workers = math.ceil(len(self.simulations) / full_rounds)
             logger.info("Using %d workers for evaluation", num_workers)
+            sim_run_configs = [
+                sim.to_simulation_run_config() if isinstance(sim, SimulationConfig) else sim for sim in self.simulations
+            ]
             rollout_results = simulate_and_record(
                 policy_specs=policy_specs,
-                simulations=self._to_simulation_run_configs(),
+                simulations=sim_run_configs,
                 replay_dir=self.replay_dir,
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
                 max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
-                device_override="cpu",
             )
 
         render_eval_summary(
             rollout_results,
-            policy_names=[_spec_display_name(spec) for spec in policy_specs],
+            policy_names=[(spec.init_kwargs or {}).get("display_name") or spec.name for spec in policy_specs],
             verbose=self.verbose,
         )
 
