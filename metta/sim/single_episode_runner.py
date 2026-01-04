@@ -83,8 +83,8 @@ def main():
             )
             if result.returncode != 0:
                 error_output = result.stderr or result.stdout or "No output"
-                if len(error_output) > 2000:
-                    error_output = error_output[:2000] + "\n... (truncated)"
+                if len(error_output) > 200000:
+                    error_output = error_output[:200000] + "\n... (truncated)"
                 raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
 
         for src, dest, content_type in [

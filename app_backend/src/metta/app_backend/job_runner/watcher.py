@@ -1,8 +1,6 @@
 import functools
 import logging
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Literal, TypedDict
 from uuid import UUID
 
@@ -14,6 +12,7 @@ from kubernetes import config as kubernetes_config
 from kubernetes.client.rest import ApiException
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.health_server import start_health_server, update_heartbeat
 from metta.app_backend.job_runner.config import (
     JOB_NAMESPACE,
     LABEL_APP,
@@ -26,44 +25,7 @@ from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
 
-HEALTH_PORT = 8080
-HEALTH_TIMEOUT_SECONDS = 120
 WATCH_TIMEOUT_SECONDS = 30
-
-_last_heartbeat: float = 0.0
-_heartbeat_lock = threading.Lock()
-
-
-def _update_heartbeat():
-    global _last_heartbeat
-    with _heartbeat_lock:
-        _last_heartbeat = time.time()
-
-
-def _is_healthy() -> bool:
-    with _heartbeat_lock:
-        return (time.time() - _last_heartbeat) < HEALTH_TIMEOUT_SECONDS
-
-
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path in ("/health", "/healthz"):
-            status, body = (200, b"ok") if _is_healthy() else (503, b"unhealthy: watch loop stale")
-            self.send_response(status)
-            self.end_headers()
-            self.wfile.write(body)
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        pass
-
-
-def _start_health_server():
-    server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    logger.info(f"Health server started on port {HEALTH_PORT}")
 
 
 @functools.cache
@@ -95,8 +57,7 @@ def run_watcher():
     cfg = get_dispatch_config()
     _get_k8s_clients()
 
-    _start_health_server()
-    _update_heartbeat()
+    start_health_server()
 
     stats_client = StatsClient(backend_url=cfg.STATS_SERVER_URI, machine_token=cfg.MACHINE_TOKEN)
     stats_client._validate_authenticated()
@@ -127,7 +88,7 @@ def _watch_pods(stats_client: StatsClient):
 
     resource_version = pod_list.metadata.resource_version
     logger.info(f"Starting pod watch from resourceVersion={resource_version}")
-    _update_heartbeat()
+    update_heartbeat()
 
     w = watch.Watch()
     event: K8sPodWatchEvent
@@ -138,7 +99,7 @@ def _watch_pods(stats_client: StatsClient):
         resource_version=resource_version,
         timeout_seconds=WATCH_TIMEOUT_SECONDS,
     ):
-        _update_heartbeat()
+        update_heartbeat()
         event_type, pod = event["type"], event["object"]
         if event_type in ("ADDED", "MODIFIED"):
             _handle_pod_state(stats_client, pod)

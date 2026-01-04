@@ -15,6 +15,7 @@ from sqlmodel import col, select
 # SQLModel Relationship() type annotations cause false positives on join()/selectinload()
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.database import get_db, with_db
+from metta.app_backend.health_server import update_heartbeat
 from metta.app_backend.models.episodes import Episode, EpisodePolicyMetric
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType
 from metta.app_backend.models.policies import PolicyVersion
@@ -83,6 +84,7 @@ class CommissionerBase(ABC):
         await self._ensure_season_exists()
         logger.info(f"Starting commissioner for season '{self.season_name}'")
         while True:
+            update_heartbeat()
             had_activity = False
             start = time.monotonic()
             try:

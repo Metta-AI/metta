@@ -1,0 +1,53 @@
+{{- if .Values.tournament.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-tournament
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-tournament
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}-tournament
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}-tournament
+    spec:
+      serviceAccountName: {{ include "orchestrator.serviceAccountName" . }}
+      initContainers:
+      - name: wait-for-backend
+        image: curlimages/curl:8.5.0
+        command: ['sh', '-c', 'until curl -sf {{ .Values.env.BACKEND_URL }}/whoami; do echo "Waiting for backend..."; sleep 5; done']
+      containers:
+      - name: tournament
+        image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["uv", "run", "--no-sync", "python", "-m", "metta.app_backend.tournament.cli"]
+        ports:
+        - containerPort: 8080
+          name: health
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: health
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        env:
+        - name: STATS_SERVER_URI
+          value: {{ .Values.env.BACKEND_URL | quote }}
+        - name: MACHINE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.machineToken }}
+              key: token
+        envFrom:
+        - secretRef:
+            name: {{ .Values.tournament.dbSecret }}
+        resources:
+          {{- toYaml .Values.tournament.resources | nindent 10 }}
+{{- end }}
