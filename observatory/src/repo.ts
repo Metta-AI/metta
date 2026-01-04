@@ -281,51 +281,20 @@ export type LeaderboardResponse = {
   entries: LeaderboardEntry[]
 }
 
-export type MatchPlayerSummary = {
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
-  policy_index: number
-  score: number | null
-}
-
-export type MatchSummary = {
-  id: string
-  job_id: string | null
-  status: MatchStatus
-  assignments: number[]
-  players: MatchPlayerSummary[]
-  episode_tags: Record<string, any>
-  episode_id: string | null
-  created_at: string
-  completed_at: string | null
-}
-
 export type SubmissionResponse = {
   pools: string[]
 }
 
-export type PoolMember = {
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
-  added_at: string
-  retired: boolean
-  retired_at: string | null
-}
-
-export type PolicyPoolStatus = {
+export type PoolMembership = {
   pool_name: string
-  status: string
-  matches_completed: number
-  avg_score: number | null
+  active: boolean
 }
 
 export type PolicySummary = {
   policy_version_id: string
   policy_name: string | null
   policy_version: number | null
-  pools: PolicyPoolStatus[]
+  pools: PoolMembership[]
 }
 
 export type SeasonMatchPlayerSummary = {
@@ -343,12 +312,10 @@ export type SeasonMatchSummary = {
   assignments: number[]
   players: SeasonMatchPlayerSummary[]
   episode_id: string | null
-  episode_tags: Record<string, string>
   created_at: string
 }
 
 export type MembershipHistoryEntry = {
-  id: string
   pool_name: string
   action: string
   notes: string | null
@@ -705,17 +672,10 @@ export class Repo {
     return this.apiCall<PolicySummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/policies`)
   }
 
-  async getSeasonMatches(
-    seasonName: string,
-    params?: { pool_name?: string; policy_version_id?: string; limit?: number }
-  ): Promise<SeasonMatchSummary[]> {
-    const searchParams = new URLSearchParams()
-    if (params?.pool_name) searchParams.append('pool_name', params.pool_name)
-    if (params?.policy_version_id) searchParams.append('policy_version_id', params.policy_version_id)
-    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
-    const query = searchParams.toString()
+  async getSeasonMatches(seasonName: string, params?: { limit?: number }): Promise<SeasonMatchSummary[]> {
+    const query = params?.limit !== undefined ? `?limit=${params.limit}` : ''
     return this.apiCall<SeasonMatchSummary[]>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query}`
     )
   }
 

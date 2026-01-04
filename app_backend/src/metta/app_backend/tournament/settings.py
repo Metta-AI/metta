@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 POLL_INTERVAL_SECONDS: float = 30.0
 POLL_INTERVAL_FAST_SECONDS: float = 2.0
 MAX_MATCHES_PER_CYCLE: int = 10
-PROMOTION_MIN_SCORE: float = 0.0
+PROMOTION_MIN_SCORE: float = 1
 
 
 class CommissionerSettings(BaseSettings):

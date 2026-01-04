@@ -161,9 +161,10 @@ MIGRATIONS = [
     ),
     SqlMigration(
         version=4,
-        description="Create tournament tables (seasons, pools, matches)",
+        description="Create tournament tables",
         sql_statements=[
             """CREATE TYPE match_status AS ENUM ('pending', 'scheduled', 'running', 'completed', 'failed')""",
+            """CREATE TYPE membership_action AS ENUM ('add', 'remove')""",
             """CREATE TABLE seasons (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 name TEXT NOT NULL UNIQUE,
@@ -175,17 +176,13 @@ MIGRATIONS = [
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 season_id UUID REFERENCES seasons(id) ON DELETE CASCADE,
                 name TEXT,
-                is_academy BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
             """CREATE INDEX idx_pools_season_id ON pools (season_id)""",
-            """CREATE INDEX idx_pools_is_academy ON pools (is_academy)""",
             """CREATE TABLE pool_players (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
                 policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
-                added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                removed_at TIMESTAMP,
                 retired BOOLEAN NOT NULL DEFAULT FALSE,
                 UNIQUE (pool_id, policy_version_id)
             )""",
@@ -195,7 +192,6 @@ MIGRATIONS = [
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
                 job_id UUID REFERENCES job_requests(id) ON DELETE SET NULL,
-                environment_name TEXT NOT NULL DEFAULT 'machina1_open_world',
                 assignments INTEGER[] NOT NULL,
                 status match_status NOT NULL DEFAULT 'pending',
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -207,37 +203,21 @@ MIGRATIONS = [
             """CREATE TABLE match_players (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
-                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                pool_player_id UUID NOT NULL REFERENCES pool_players(id) ON DELETE CASCADE,
                 policy_index INTEGER NOT NULL DEFAULT 0,
-                score FLOAT,
-                UNIQUE (match_id, policy_version_id)
+                score FLOAT
             )""",
             """CREATE INDEX idx_match_players_match_id ON match_players (match_id)""",
-            """CREATE INDEX idx_match_players_policy_version_id ON match_players (policy_version_id)""",
-        ],
-    ),
-    SqlMigration(
-        version=5,
-        description="Create membership_changes table for tracking pool membership changes",
-        sql_statements=[
-            """CREATE TYPE membership_action AS ENUM ('add', 'retire')""",
+            """CREATE INDEX idx_match_players_pool_player_id ON match_players (pool_player_id)""",
             """CREATE TABLE membership_changes (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                pool_id UUID NOT NULL REFERENCES pools(id) ON DELETE CASCADE,
-                policy_version_id UUID NOT NULL REFERENCES policy_versions(id) ON DELETE CASCADE,
+                pool_player_id UUID NOT NULL REFERENCES pool_players(id) ON DELETE CASCADE,
                 action membership_action NOT NULL,
+                notes TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )""",
-            """CREATE INDEX idx_membership_changes_pool_id ON membership_changes (pool_id)""",
-            """CREATE INDEX idx_membership_changes_policy_version_id ON membership_changes (policy_version_id)""",
+            """CREATE INDEX idx_membership_changes_pool_player_id ON membership_changes (pool_player_id)""",
             """CREATE INDEX idx_membership_changes_created_at ON membership_changes (created_at DESC)""",
-        ],
-    ),
-    SqlMigration(
-        version=6,
-        description="Add notes column to membership_changes table",
-        sql_statements=[
-            """ALTER TABLE membership_changes ADD COLUMN notes TEXT""",
         ],
     ),
 ]

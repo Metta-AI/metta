@@ -2,17 +2,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import col, func, select
+from sqlalchemy.orm import selectinload
+from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.database import db_session
+from metta.app_backend.models.job_request import JobRequest
+from metta.app_backend.models.policies import PolicyVersion
 from metta.app_backend.models.tournament import (
     Match,
     MatchPlayer,
-    MatchStatus,
-    MembershipChangeRecord,
+    MembershipChange,
     Pool,
     PoolPlayer,
     Season,
@@ -26,9 +27,25 @@ async def get_session():
         yield session
 
 
-class SeasonDetail(BaseModel):
-    name: str
-    pools: list[str]
+async def get_season_pools(session: AsyncSession, season_name: str) -> dict[UUID, str]:
+    result = await session.execute(
+        select(Pool)
+        .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
+        .where(Season.name == season_name)
+        .where(col(Pool.name).isnot(None))
+    )
+    return {p.id: p.name for p in result.scalars().all() if p.name is not None}
+
+
+async def get_policy_versions(session: AsyncSession, pv_ids: list[UUID]) -> dict[UUID, PolicyVersion]:
+    if not pv_ids:
+        return {}
+    result = await session.execute(
+        select(PolicyVersion)
+        .options(selectinload(PolicyVersion.policy))  # type: ignore[arg-type]
+        .where(col(PolicyVersion.id).in_(pv_ids))
+    )
+    return {pv.id: pv for pv in result.scalars().all()}
 
 
 class LeaderboardEntry(BaseModel):
@@ -40,18 +57,16 @@ class LeaderboardEntry(BaseModel):
     matches: int
 
 
-class PolicyPoolStatus(BaseModel):
+class PoolMembership(BaseModel):
     pool_name: str
-    status: str
-    matches_completed: int
-    avg_score: float | None
+    active: bool
 
 
 class PolicySummary(BaseModel):
     policy_version_id: UUID
     policy_name: str | None
     policy_version: int | None
-    pools: list[PolicyPoolStatus]
+    pools: list[PoolMembership]
 
 
 class SubmitRequest(BaseModel):
@@ -73,16 +88,14 @@ class MatchPlayerSummary(BaseModel):
 class MatchSummary(BaseModel):
     id: UUID
     pool_name: str
-    status: MatchStatus
+    status: str
     assignments: list[int]
     players: list[MatchPlayerSummary]
     episode_id: str | None
-    episode_tags: dict[str, str]
     created_at: str
 
 
 class MembershipHistoryEntry(BaseModel):
-    id: UUID
     pool_name: str
     action: str
     notes: str | None
@@ -99,20 +112,13 @@ class PlayerDetail(BaseModel):
 def create_tournament_router() -> APIRouter:
     router = APIRouter(prefix="/tournament", tags=["tournament"])
 
-    @router.get("/seasons")
-    @timed_http_handler
-    async def list_seasons(_user: UserOrToken, session: AsyncSession = Depends(get_session)) -> list[str]:
-        result = await session.execute(select(Season.name))
-        existing = {row[0] for row in result.all()}
-        return [name for name in SEASONS.keys() if name in existing]
-
     @router.get("/seasons/{season_name}")
     @timed_http_handler
-    async def get_season(season_name: str, _user: UserOrToken) -> SeasonDetail:
+    async def get_season(_user: UserOrToken, season_name: str) -> dict:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
         commissioner = SEASONS[season_name]()
-        return SeasonDetail(name=season_name, pools=list(commissioner.referees.keys()))
+        return {"name": season_name, "pools": list(commissioner.referees.keys())}
 
     @router.get("/seasons/{season_name}/leaderboard")
     @timed_http_handler
@@ -124,28 +130,16 @@ def create_tournament_router() -> APIRouter:
 
         commissioner = SEASONS[season_name]()
         leaderboard = await commissioner.get_leaderboard()
-
         if not leaderboard:
             return []
 
-        pv_ids = [pv_id for pv_id, _, _ in leaderboard]
-        result = await session.execute(
-            text("""
-                SELECT pv.id, p.name, pv.version
-                FROM policy_versions pv
-                JOIN policies p ON p.id = pv.policy_id
-                WHERE pv.id = ANY(:pv_ids)
-            """),
-            {"pv_ids": pv_ids},
-        )
-        pv_info = {row[0]: (row[1], row[2]) for row in result.all()}
-
+        pvs = await get_policy_versions(session, [pv_id for pv_id, _, _ in leaderboard])
         return [
             LeaderboardEntry(
                 rank=i + 1,
                 policy_version_id=pv_id,
-                policy_name=pv_info.get(pv_id, (None, None))[0],
-                policy_version=pv_info.get(pv_id, (None, None))[1],
+                policy_name=pvs[pv_id].policy.name if pv_id in pvs else None,
+                policy_version=pvs[pv_id].version if pv_id in pvs else None,
                 score=score,
                 matches=match_count,
             )
@@ -160,79 +154,32 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        season = (await session.execute(select(Season).filter_by(name=season_name))).scalar_one_or_none()
-        if not season:
-            return []
-
-        pools: dict[UUID, str] = {
-            p.id: p.name
-            for p in (await session.execute(select(Pool).filter_by(season_id=season.id))).scalars().all()
-            if p.name is not None
-        }
+        pools = await get_season_pools(session, season_name)
         if not pools:
             return []
 
         pool_players = list(
             (await session.execute(select(PoolPlayer).where(col(PoolPlayer.pool_id).in_(pools.keys())))).scalars().all()
         )
-
-        all_pv_ids = list({pp.policy_version_id for pp in pool_players})
-        if not all_pv_ids:
+        pv_ids = list({pp.policy_version_id for pp in pool_players})
+        if not pv_ids:
             return []
 
-        result = await session.execute(
-            text("""
-                SELECT pv.id, p.name, pv.version
-                FROM policy_versions pv
-                JOIN policies p ON p.id = pv.policy_id
-                WHERE pv.id = ANY(:pv_ids)
-            """),
-            {"pv_ids": all_pv_ids},
-        )
-        pv_info = {row[0]: (row[1], row[2]) for row in result.all()}
+        pvs = await get_policy_versions(session, pv_ids)
 
-        match_stats = {}
-        stats_result = await session.execute(
-            select(
-                MatchPlayer.policy_version_id,
-                Match.pool_id,
-                func.count().label("match_count"),
-                func.avg(MatchPlayer.score).label("avg_score"),
-            )
-            .join(Match, col(MatchPlayer.match_id) == col(Match.id))
-            .where(col(Match.pool_id).in_(pools.keys()))
-            .where(Match.status == MatchStatus.completed)
-            .group_by(col(MatchPlayer.policy_version_id), col(Match.pool_id))
-        )
-        for row in stats_result.all():
-            match_stats[(row[0], row[1])] = (row[2], float(row[3]) if row[3] else None)
-
-        policies_by_pv: dict[UUID, list[PolicyPoolStatus]] = {}
+        policies_by_pv: dict[UUID, list[PoolMembership]] = {}
         for pp in pool_players:
-            pv_id = pp.policy_version_id
-            pool_name = pools[pp.pool_id]
-            stats = match_stats.get((pv_id, pp.pool_id), (0, None))
-
-            status = "retired" if pp.retired else "active"
-            pool_status = PolicyPoolStatus(
-                pool_name=pool_name,
-                status=status,
-                matches_completed=stats[0],
-                avg_score=stats[1],
-            )
-
-            if pv_id not in policies_by_pv:
-                policies_by_pv[pv_id] = []
-            policies_by_pv[pv_id].append(pool_status)
+            membership = PoolMembership(pool_name=pools[pp.pool_id], active=not pp.retired)
+            policies_by_pv.setdefault(pp.policy_version_id, []).append(membership)
 
         return [
             PolicySummary(
                 policy_version_id=pv_id,
-                policy_name=pv_info.get(pv_id, (None, None))[0],
-                policy_version=pv_info.get(pv_id, (None, None))[1],
-                pools=pool_statuses,
+                policy_name=pvs[pv_id].policy.name if pv_id in pvs else None,
+                policy_version=pvs[pv_id].version if pv_id in pvs else None,
+                pools=memberships,
             )
-            for pv_id, pool_statuses in policies_by_pv.items()
+            for pv_id, memberships in policies_by_pv.items()
         ]
 
     @router.get("/seasons/{season_name}/matches")
@@ -241,110 +188,75 @@ def create_tournament_router() -> APIRouter:
         season_name: str,
         _user: UserOrToken,
         session: AsyncSession = Depends(get_session),
-        pool_name: str | None = None,
-        policy_version_id: UUID | None = None,
-        limit: int = 50,
+        limit: int = 100,
     ) -> list[MatchSummary]:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        season = (await session.execute(select(Season).filter_by(name=season_name))).scalar_one_or_none()
-        if not season:
-            return []
-
-        pools: dict[UUID, str] = {
-            p.id: p.name
-            for p in (await session.execute(select(Pool).filter_by(season_id=season.id))).scalars().all()
-            if p.name is not None
-        }
+        pools = await get_season_pools(session, season_name)
         if not pools:
             return []
 
-        pool_ids = list(pools.keys())
-        if pool_name:
-            pool_ids = [pid for pid, pname in pools.items() if pname == pool_name]
-            if not pool_ids:
-                return []
-
-        query = (
-            select(Match).where(col(Match.pool_id).in_(pool_ids)).order_by(col(Match.created_at).desc()).limit(limit)
+        matches = list(
+            (
+                await session.execute(
+                    select(Match)
+                    .where(col(Match.pool_id).in_(pools.keys()))
+                    .order_by(col(Match.created_at).desc())
+                    .limit(limit)
+                    .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
+                )
+            )
+            .scalars()
+            .all()
         )
-        matches = list((await session.execute(query)).scalars().all())
         if not matches:
             return []
 
-        match_ids = [m.id for m in matches]
-        players_result = await session.execute(select(MatchPlayer).where(col(MatchPlayer.match_id).in_(match_ids)))
-        all_players = list(players_result.scalars().all())
-
-        all_pv_ids = list({p.policy_version_id for p in all_players})
-        pv_info: dict[UUID, tuple[str | None, int | None]] = {}
-        if all_pv_ids:
-            result = await session.execute(
-                text("""
-                    SELECT pv.id, p.name, pv.version
-                    FROM policy_versions pv
-                    JOIN policies p ON p.id = pv.policy_id
-                    WHERE pv.id = ANY(:pv_ids)
-                """),
-                {"pv_ids": all_pv_ids},
-            )
-            pv_info = {row[0]: (row[1], row[2]) for row in result.all()}
-
-        players_by_match: dict[UUID, list[MatchPlayer]] = {}
-        for p in all_players:
-            players_by_match.setdefault(p.match_id, []).append(p)
-
-        if policy_version_id:
-            matches = [
-                m
-                for m in matches
-                if any(p.policy_version_id == policy_version_id for p in players_by_match.get(m.id, []))
-            ]
-
-        from metta.app_backend.models.job_request import JobRequest
+        pv_ids = list({mp.pool_player.policy_version_id for m in matches for mp in m.players})
+        pvs = await get_policy_versions(session, pv_ids)
 
         job_ids = [m.job_id for m in matches if m.job_id]
         episode_by_job: dict[UUID, str | None] = {}
-        tags_by_job: dict[UUID, dict[str, str]] = {}
         if job_ids:
             jobs_result = await session.execute(
-                select(JobRequest.id, JobRequest.job, JobRequest.result).where(col(JobRequest.id).in_(job_ids))
-            )
-            for row in jobs_result.all():
-                job_id, job_spec, result = row[0], row[1], row[2]
-                if result and isinstance(result, dict):
-                    episode_by_job[job_id] = result.get("episode_id")
-                if job_spec and isinstance(job_spec, dict):
-                    tags_by_job[job_id] = job_spec.get("episode_tags", {})
-
-        summaries = []
-        for m in matches:
-            match_players = sorted(players_by_match.get(m.id, []), key=lambda p: p.policy_index)
-            episode_id = episode_by_job.get(m.job_id) if m.job_id else None
-            episode_tags = tags_by_job.get(m.job_id, {}) if m.job_id else {}
-            summaries.append(
-                MatchSummary(
-                    id=m.id,
-                    pool_name=pools.get(m.pool_id, "unknown"),
-                    status=m.status,
-                    assignments=m.assignments or [],
-                    players=[
-                        MatchPlayerSummary(
-                            policy_version_id=p.policy_version_id,
-                            policy_name=pv_info.get(p.policy_version_id, (None, None))[0],
-                            policy_version=pv_info.get(p.policy_version_id, (None, None))[1],
-                            policy_index=p.policy_index,
-                            score=p.score,
-                        )
-                        for p in match_players
-                    ],
-                    episode_id=episode_id,
-                    episode_tags=episode_tags,
-                    created_at=m.created_at.isoformat() if m.created_at else "",
+                select(col(JobRequest.id).label("job_id"), col(JobRequest.result).label("result")).where(
+                    col(JobRequest.id).in_(job_ids)
                 )
             )
-        return summaries
+            for row in jobs_result.all():
+                if row.result and isinstance(row.result, dict):
+                    episode_by_job[row.job_id] = row.result.get("episode_id")
+
+        return [
+            MatchSummary(
+                id=m.id,
+                pool_name=pools.get(m.pool_id, "unknown"),
+                status=m.status.value,
+                assignments=m.assignments or [],
+                players=[
+                    MatchPlayerSummary(
+                        policy_version_id=mp.pool_player.policy_version_id,
+                        policy_name=(
+                            pvs[mp.pool_player.policy_version_id].policy.name
+                            if mp.pool_player.policy_version_id in pvs
+                            else None
+                        ),
+                        policy_version=(
+                            pvs[mp.pool_player.policy_version_id].version
+                            if mp.pool_player.policy_version_id in pvs
+                            else None
+                        ),
+                        policy_index=mp.policy_index,
+                        score=mp.score,
+                    )
+                    for mp in sorted(m.players, key=lambda p: p.policy_index)
+                ],
+                episode_id=episode_by_job.get(m.job_id) if m.job_id else None,
+                created_at=m.created_at.isoformat() if m.created_at else "",
+            )
+            for m in matches
+        ]
 
     @router.post("/seasons/{season_name}/submit")
     @timed_http_handler
@@ -352,70 +264,51 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
         commissioner = SEASONS[season_name]()
-        try:
-            pool_names = await commissioner.submit(request.policy_version_id)
-            return SubmitResponse(pools=pool_names)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        pool_names = await commissioner.submit(request.policy_version_id)
+        return SubmitResponse(pools=pool_names)
 
     @router.get("/seasons/{season_name}/players/{policy_version_id}")
     @timed_http_handler
     async def get_player(
         season_name: str, policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
     ) -> PlayerDetail:
-        season = (await session.execute(select(Season).filter_by(name=season_name))).scalar_one_or_none()
-        if not season:
+        pools = await get_season_pools(session, season_name)
+        if not pools:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        pools = {
-            p.id: p.name
-            for p in (await session.execute(select(Pool).filter_by(season_id=season.id))).scalars().all()
-            if p.name is not None
-        }
-        pool_ids = list(pools.keys())
-
-        pv_result = await session.execute(
-            text("""
-                SELECT pv.id, p.name, pv.version
-                FROM policy_versions pv
-                JOIN policies p ON p.id = pv.policy_id
-                WHERE pv.id = :pv_id
-            """),
-            {"pv_id": policy_version_id},
-        )
-        pv_row = pv_result.one_or_none()
-        if not pv_row:
+        pvs = await get_policy_versions(session, [policy_version_id])
+        if policy_version_id not in pvs:
             raise HTTPException(status_code=404, detail="Policy version not found")
+        pv = pvs[policy_version_id]
 
         changes = list(
             (
                 await session.execute(
-                    select(MembershipChangeRecord)
-                    .where(col(MembershipChangeRecord.policy_version_id) == policy_version_id)
-                    .where(col(MembershipChangeRecord.pool_id).in_(pool_ids))
-                    .order_by(col(MembershipChangeRecord.created_at).desc())
+                    select(MembershipChange)
+                    .join(PoolPlayer, MembershipChange.pool_player_id == PoolPlayer.id)  # type: ignore[arg-type]
+                    .where(PoolPlayer.policy_version_id == policy_version_id)
+                    .where(col(PoolPlayer.pool_id).in_(pools.keys()))
+                    .order_by(col(MembershipChange.created_at).desc())
+                    .options(selectinload(MembershipChange.pool_player))  # type: ignore[arg-type]
                 )
             )
             .scalars()
             .all()
         )
 
-        history = [
-            MembershipHistoryEntry(
-                id=c.id,
-                pool_name=pools.get(c.pool_id, "unknown"),
-                action=c.action.value,
-                notes=c.notes,
-                created_at=c.created_at.isoformat() if c.created_at else "",
-            )
-            for c in changes
-        ]
-
         return PlayerDetail(
             policy_version_id=policy_version_id,
-            policy_name=pv_row[1],
-            policy_version=pv_row[2],
-            membership_history=history,
+            policy_name=pv.policy.name,
+            policy_version=pv.version,
+            membership_history=[
+                MembershipHistoryEntry(
+                    pool_name=pools.get(c.pool_player.pool_id, "unknown"),
+                    action=c.action.value,
+                    notes=c.notes,
+                    created_at=c.created_at.isoformat() if c.created_at else "",
+                )
+                for c in changes
+            ],
         )
 
     return router

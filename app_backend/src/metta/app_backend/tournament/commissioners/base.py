@@ -13,13 +13,15 @@ from sqlmodel import col, select
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.database import get_db, with_db
-from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType, SingleEpisodeJob
+from metta.app_backend.models.episodes import Episode, EpisodePolicy, EpisodePolicyMetric
+from metta.app_backend.models.job_request import JobRequestCreate, JobStatus, JobType, SingleEpisodeJob
+from metta.app_backend.models.policies import PolicyVersion
 from metta.app_backend.models.tournament import (
     Match,
     MatchPlayer,
     MatchStatus,
     MembershipAction,
-    MembershipChangeRecord,
+    MembershipChange,
     Pool,
     PoolPlayer,
     Season,
@@ -37,28 +39,29 @@ logger = logging.getLogger(__name__)
 SOFTMAX_S3_REPLAYS_PREFIX = "s3://softmax-public/replays/tournament"
 
 
-class MembershipChange(BaseModel):
+class MembershipChangeRequest(BaseModel):
     pool_name: str
     policy_version_id: UUID
-    action: Literal["add", "retire"]
+    action: Literal["add", "remove"]
     notes: str | None = None
 
 
 class CommissionerBase(ABC):
     season_name: str
     referees: dict[str, RefereeBase]
-    leaderboard_pool: str | None = None
+    leaderboard_pool: str
 
     @abstractmethod
-    def get_new_submission_membership_changes(self, policy_version_id: UUID) -> list[MembershipChange]:
+    def get_new_submission_membership_changes(self, policy_version_id: UUID) -> list[MembershipChangeRequest]:
         pass
 
     @abstractmethod
-    async def get_membership_changes(self, pools: dict[str, Pool]) -> list[MembershipChange]:
+    async def get_membership_changes(self, pools: dict[str, Pool]) -> list[MembershipChangeRequest]:
         pass
 
     async def run(self) -> None:
         await self._ensure_season_exists()
+        await self._ensure_pools_exist(list(self.referees.keys()))
         logger.info(f"Starting commissioner for season '{self.season_name}' ({self.season_id})")
         while True:
             had_activity = False
@@ -140,6 +143,7 @@ class CommissionerBase(ABC):
                     .join(Pool, Match.pool_id == Pool.id)  # type: ignore[arg-type]
                     .where(Pool.season_id == self.season_id)
                     .where(col(Match.status).in_([MatchStatus.scheduled, MatchStatus.running]))
+                    .options(selectinload(Match.job))  # type: ignore[arg-type]
                 )
             )
             .scalars()
@@ -147,30 +151,23 @@ class CommissionerBase(ABC):
         )
 
         updated = 0
-        job_ids = [m.job_id for m in pending if m.job_id]
-        if job_ids:
-            jobs_by_id = {
-                j.id: j
-                for j in (await session.execute(select(JobRequest).where(col(JobRequest.id).in_(job_ids)))).scalars()
-            }
+        for match in pending:
+            job = match.job
+            if not job:
+                continue
+            if job.status == JobStatus.running and match.status != MatchStatus.running:
+                match.status = MatchStatus.running
+                updated += 1
+            elif job.status == JobStatus.completed:
+                match.status = MatchStatus.completed
+                match.completed_at = datetime.now(UTC)
+                updated += 1
+            elif job.status == JobStatus.failed:
+                match.status = MatchStatus.failed
+                updated += 1
 
-            for match in pending:
-                if not match.job_id or match.job_id not in jobs_by_id:
-                    continue
-                job = jobs_by_id[match.job_id]
-                if job.status == JobStatus.running and match.status != MatchStatus.running:
-                    match.status = MatchStatus.running
-                    updated += 1
-                elif job.status == JobStatus.completed:
-                    match.status = MatchStatus.completed
-                    match.completed_at = datetime.now(UTC)
-                    updated += 1
-                elif job.status == JobStatus.failed:
-                    match.status = MatchStatus.failed
-                    updated += 1
-
-            if updated > 0:
-                logger.info(f"Updated {updated} match statuses")
+        if updated > 0:
+            logger.info(f"Updated {updated} match statuses")
             await session.commit()
 
         scores_updated = await self._sync_match_scores()
@@ -207,43 +204,56 @@ class CommissionerBase(ABC):
         matches_by_id = {m.id: m for m in matches}
 
         # Debug: query episode_policies to see num_agents per policy
-        episode_policies_query = """
-            SELECT e.id AS episode_id, ep.policy_version_id, ep.num_agents
-            FROM episodes e
-            JOIN episode_policies ep ON ep.episode_id = e.id
-            WHERE e.id = ANY(:episode_ids)
-            ORDER BY e.id, ep.policy_version_id
-        """
-        ep_result = await session.execute(text(episode_policies_query), {"episode_ids": episode_ids})
+        ep_result = await session.execute(
+            select(
+                col(Episode.id).label("episode_id"),
+                col(EpisodePolicy.policy_version_id).label("policy_version_id"),
+                col(EpisodePolicy.num_agents).label("num_agents"),
+            )
+            .join(EpisodePolicy, EpisodePolicy.episode_id == Episode.id)  # type: ignore[arg-type]
+            .where(col(Episode.id).in_(episode_ids))
+            .order_by(col(Episode.id), col(EpisodePolicy.policy_version_id))
+        )
         ep_rows = ep_result.all()
         if ep_rows:
             logger.info("Episode policies for score sync:")
             for row in ep_rows:
-                logger.info(f"  episode={row[0]}, pv={row[1]}, num_agents={row[2]}")
+                logger.info(f"  episode={row.episode_id}, pv={row.policy_version_id}, num_agents={row.num_agents}")
 
-        scores_query = """
-            SELECT e.id AS episode_id, pv.id AS policy_version_id, epm.value AS reward
-            FROM episodes e
-            JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-            JOIN policy_versions pv ON pv.internal_id = epm.pv_internal_id
-            WHERE epm.metric_name = 'reward' AND e.id = ANY(:episode_ids)
-        """
-        result = await session.execute(text(scores_query), {"episode_ids": episode_ids})
-        score_rows = result.all()
+        scores_result = await session.execute(
+            select(
+                col(Episode.id).label("episode_id"),
+                col(PolicyVersion.id).label("policy_version_id"),
+                col(EpisodePolicyMetric.value).label("reward"),
+            )
+            .join(EpisodePolicyMetric, EpisodePolicyMetric.episode_internal_id == Episode.internal_id)  # type: ignore[arg-type]
+            .join(PolicyVersion, PolicyVersion.internal_id == EpisodePolicyMetric.pv_internal_id)  # type: ignore[arg-type]
+            .where(EpisodePolicyMetric.metric_name == "reward")
+            .where(col(Episode.id).in_(episode_ids))
+        )
+        score_rows = scores_result.all()
 
         scores_by_episode: dict[str, dict[UUID, float]] = defaultdict(dict)
         for row in score_rows:
-            ep_id = str(row[0]) if row[0] else None
-            pv_id = row[1]
+            ep_id = str(row.episode_id) if row.episode_id else None
+            pv_id = row.policy_version_id
             if ep_id and pv_id:
-                scores_by_episode[ep_id][pv_id] = row[2]
-                logger.info(f"Policy reward: episode={ep_id}, pv={pv_id}, total_reward={row[2]}")
+                scores_by_episode[ep_id][pv_id] = row.reward
+                logger.info(f"Policy reward: episode={ep_id}, pv={pv_id}, total_reward={row.reward}")
 
         if not scores_by_episode:
             return False
 
         match_players = list(
-            (await session.execute(select(MatchPlayer).where(col(MatchPlayer.match_id).in_(match_ids)))).scalars().all()
+            (
+                await session.execute(
+                    select(MatchPlayer)
+                    .where(col(MatchPlayer.match_id).in_(match_ids))
+                    .options(selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
+                )
+            )
+            .scalars()
+            .all()
         )
 
         updated = 0
@@ -252,13 +262,14 @@ class CommissionerBase(ABC):
             if not episode_id:
                 continue
             episode_scores = scores_by_episode.get(episode_id, {})
-            if mp.policy_version_id in episode_scores:
-                total_reward = episode_scores[mp.policy_version_id]
+            pv_id = mp.pool_player.policy_version_id
+            if pv_id in episode_scores:
+                total_reward = episode_scores[pv_id]
                 match = matches_by_id.get(mp.match_id)
                 agent_count = match.assignments.count(mp.policy_index) if match and match.assignments else 1
                 mp.score = total_reward / max(agent_count, 1)
                 logger.info(
-                    f"Score calc: match={mp.match_id}, pv={mp.policy_version_id}, "
+                    f"Score calc: match={mp.match_id}, pv={pv_id}, "
                     f"total_reward={total_reward}, agent_count={agent_count}, score={mp.score}"
                 )
                 updated += 1
@@ -276,28 +287,24 @@ class CommissionerBase(ABC):
 
     async def _get_pool_matches(self, pool_id: UUID) -> list[MatchData]:
         session = get_db()
-        matches = list((await session.execute(select(Match).filter_by(pool_id=pool_id))).scalars().all())
-
-        match_ids = [m.id for m in matches]
-        if not match_ids:
-            return []
-
-        match_players = list(
-            (await session.execute(select(MatchPlayer).where(col(MatchPlayer.match_id).in_(match_ids)))).scalars().all()
+        matches = list(
+            (
+                await session.execute(
+                    select(Match).filter_by(pool_id=pool_id).options(selectinload(Match.players))  # type: ignore[arg-type]
+                )
+            )
+            .scalars()
+            .all()
         )
-
-        players_by_match: dict[UUID, list[MatchPlayer]] = defaultdict(list)
-        for mp in match_players:
-            players_by_match[mp.match_id].append(mp)
 
         result = []
         for m in matches:
-            sorted_players = sorted(players_by_match[m.id], key=lambda x: x.policy_index)
+            sorted_players = sorted(m.players, key=lambda x: x.policy_index)
             result.append(
                 MatchData(
                     match_id=m.id,
                     status=m.status,
-                    player_pv_ids=[mp.policy_version_id for mp in sorted_players],
+                    pool_player_ids=[mp.pool_player_id for mp in sorted_players],
                     assignments=m.assignments or [],
                 )
             )
@@ -306,67 +313,38 @@ class CommissionerBase(ABC):
     @with_db
     async def submit(self, policy_version_id: UUID) -> list[str]:
         changes = self.get_new_submission_membership_changes(policy_version_id)
-        adds = [c for c in changes if c.action == "add"]
-        if not adds:
-            raise ValueError("No initial pools configured")
-
-        session = get_db()
-        season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
-        if not season:
-            raise ValueError(f"Season '{self.season_name}' not initialized")
-
-        pool_names = [c.pool_name for c in adds]
-        pools = {
-            p.name: p
-            for p in (
-                await session.execute(select(Pool).filter_by(season_id=season.id).where(col(Pool.name).in_(pool_names)))
-            )
-            .scalars()
-            .all()
-        }
-
-        for pool_name in pool_names:
-            if pool_name not in pools:
-                raise ValueError(f"Pool '{pool_name}' not found")
-
-        for change in adds:
-            pool = pools[change.pool_name]
-            existing = (
-                await session.execute(
-                    select(PoolPlayer).filter_by(pool_id=pool.id, policy_version_id=policy_version_id, retired=False)
-                )
-            ).scalar_one_or_none()
-            if existing:
-                raise ValueError(f"Already submitted to pool '{change.pool_name}'")
-
-        session.add_all([PoolPlayer(pool_id=pools[c.pool_name].id, policy_version_id=policy_version_id) for c in adds])
-        await session.commit()
-        logger.info(f"Submitted {policy_version_id} to pools {pool_names} in season '{self.season_name}'")
-        return pool_names
+        pools = await self._ensure_pools_exist(list(self.referees.keys()))
+        await self._apply_membership_changes(changes, pools)
+        return [c.pool_name for c in changes if c.action == "add"]
 
     @with_db
-    async def get_leaderboard(self) -> list[tuple[UUID, float]]:
+    async def get_leaderboard(self) -> list[tuple[UUID, float, int]]:
         session = get_db()
-        season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
-        if not season:
-            return []
-
-        pool_name = self.leaderboard_pool or list(self.referees.keys())[0]
-        pool = (await session.execute(select(Pool).filter_by(season_id=season.id, name=pool_name))).scalar_one_or_none()
+        pool = (
+            await session.execute(
+                select(Pool)
+                .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
+                .where(Season.name == self.season_name)
+                .where(Pool.name == self.leaderboard_pool)
+            )
+        ).scalar_one_or_none()
         if not pool:
             return []
 
-        referee = self.referees[pool_name]
+        referee = self.referees[self.leaderboard_pool]
         return await referee.get_leaderboard(pool.id)
 
     @with_db
     async def get_matches(self, pool_name: str, limit: int = 50, offset: int = 0) -> list[Match]:
         session = get_db()
-        season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
-        if not season:
-            return []
-
-        pool = (await session.execute(select(Pool).filter_by(season_id=season.id, name=pool_name))).scalar_one_or_none()
+        pool = (
+            await session.execute(
+                select(Pool)
+                .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
+                .where(Season.name == self.season_name)
+                .where(Pool.name == pool_name)
+            )
+        ).scalar_one_or_none()
         if not pool:
             raise ValueError(f"Pool '{pool_name}' not found")
 
@@ -375,7 +353,7 @@ class CommissionerBase(ABC):
                 await session.execute(
                     select(Match)
                     .filter_by(pool_id=pool.id)
-                    .options(selectinload(Match.players))
+                    .options(selectinload(Match.players))  # type: ignore[arg-type]
                     .order_by(col(Match.created_at).desc())
                     .offset(offset)
                     .limit(limit)
@@ -386,88 +364,85 @@ class CommissionerBase(ABC):
         )
         return list(matches)
 
-    async def _apply_membership_changes(self, changes: list[MembershipChange], pools: dict[str, Pool]) -> None:
+    async def _apply_membership_changes(self, changes: list[MembershipChangeRequest], pools: dict[str, Pool]) -> None:
         if not changes:
             return
         session = get_db()
 
-        adds_by_pool: dict[str, list[tuple[UUID, str | None]]] = defaultdict(list)
-        retires: list[tuple[UUID, UUID, str | None]] = []
+        all_pool_ids = {pools[c.pool_name].id for c in changes if c.pool_name in pools}
+        all_pv_ids = {c.policy_version_id for c in changes if c.pool_name in pools}
+
+        existing_players: dict[tuple[UUID, UUID], PoolPlayer] = {}
+        if all_pool_ids and all_pv_ids:
+            result = await session.execute(
+                select(PoolPlayer)
+                .where(col(PoolPlayer.pool_id).in_(all_pool_ids))
+                .where(col(PoolPlayer.policy_version_id).in_(all_pv_ids))
+            )
+            for player in result.scalars().all():
+                existing_players[(player.pool_id, player.policy_version_id)] = player
 
         for change in changes:
             if change.pool_name not in pools:
                 continue
             pool = pools[change.pool_name]
+            key = (pool.id, change.policy_version_id)
+
             if change.action == "add":
-                adds_by_pool[change.pool_name].append((change.policy_version_id, change.notes))
-            elif change.action == "retire":
-                retires.append((pool.id, change.policy_version_id, change.notes))
-
-        records: list[MembershipChangeRecord] = []
-
-        for pool_name, pv_entries in adds_by_pool.items():
-            pool = pools[pool_name]
-            pv_ids = [pv for pv, _ in pv_entries]
-            notes_by_pv = {pv: notes for pv, notes in pv_entries}
-            existing = set(
-                (
-                    await session.execute(
-                        select(PoolPlayer.policy_version_id)
-                        .filter_by(pool_id=pool.id)
-                        .where(col(PoolPlayer.policy_version_id).in_(pv_ids))
+                if key in existing_players:
+                    continue
+                player = PoolPlayer(pool_id=pool.id, policy_version_id=change.policy_version_id)
+                session.add(player)
+                await session.flush()
+                session.add(
+                    MembershipChange(
+                        pool_player_id=player.id,
+                        action=MembershipAction.add,
+                        notes=change.notes,
                     )
                 )
-                .scalars()
-                .all()
-            )
-            new_pv_ids = [pv for pv in pv_ids if pv not in existing]
-            if new_pv_ids:
-                session.add_all([PoolPlayer(pool_id=pool.id, policy_version_id=pv_id) for pv_id in new_pv_ids])
-                records.extend(
-                    [
-                        MembershipChangeRecord(
-                            pool_id=pool.id,
-                            policy_version_id=pv_id,
-                            action=MembershipAction.add,
-                            notes=notes_by_pv.get(pv_id),
+                existing_players[key] = player
+                logger.info(f"Added {change.policy_version_id} to pool '{change.pool_name}'")
+
+            elif change.action == "remove":
+                player = existing_players.get(key)
+                if player and not player.retired:
+                    player.retired = True
+                    session.add(
+                        MembershipChange(
+                            pool_player_id=player.id,
+                            action=MembershipAction.remove,
+                            notes=change.notes,
                         )
-                        for pv_id in new_pv_ids
-                    ]
-                )
-                logger.info(f"Added {len(new_pv_ids)} players to pool '{pool_name}'")
-
-        for pool_id, pv_id, notes in retires:
-            result = await session.execute(
-                select(PoolPlayer).filter_by(pool_id=pool_id, policy_version_id=pv_id, retired=False)
-            )
-            player = result.scalar_one_or_none()
-            if player:
-                player.retired = True
-                records.append(
-                    MembershipChangeRecord(
-                        pool_id=pool_id, policy_version_id=pv_id, action=MembershipAction.retire, notes=notes
                     )
-                )
+                    logger.info(f"Retired {change.policy_version_id} from pool '{change.pool_name}'")
 
-        if records:
-            session.add_all(records)
-            await session.commit()
+        await session.commit()
 
     async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> None:
         session = get_db()
+
+        pool_players = {
+            pp.id: pp
+            for pp in (await session.execute(select(PoolPlayer).where(col(PoolPlayer.id).in_(request.pool_player_ids))))
+            .scalars()
+            .all()
+        }
+
         match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
         session.add(match)
         await session.flush()
         session.add_all(
             [
-                MatchPlayer(match_id=match.id, policy_version_id=pv_id, policy_index=idx)
-                for idx, pv_id in enumerate(request.policy_version_ids)
+                MatchPlayer(match_id=match.id, pool_player_id=pp_id, policy_index=idx)
+                for idx, pp_id in enumerate(request.pool_player_ids)
             ]
         )
         await session.commit()
         match_id, match_pool_id = match.id, match.pool_id
 
-        policy_uris = [f"metta://policy/{pv}" for pv in request.policy_version_ids]
+        policy_version_ids = [pool_players[pp_id].policy_version_id for pp_id in request.pool_player_ids]
+        policy_uris = [f"metta://policy/{pv}" for pv in policy_version_ids]
         episode_tags = {"match_id": str(match_id), "pool_id": str(match_pool_id), **request.episode_tags}
         job_spec = SingleEpisodeJob(
             policy_uris=policy_uris,

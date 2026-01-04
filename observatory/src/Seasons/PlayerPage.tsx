@@ -12,7 +12,7 @@ import { formatRelativeTime } from '../utils/datetime'
 const ActionBadge: FC<{ action: string }> = ({ action }) => {
   const colors: Record<string, string> = {
     add: 'bg-green-100 text-green-800',
-    retire: 'bg-gray-100 text-gray-600',
+    remove: 'bg-gray-100 text-gray-600',
   }
   return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[action] || 'bg-gray-100'}`}>{action}</span>
 }
@@ -121,8 +121,8 @@ export const PlayerPage: FC = () => {
               <TH>Notes</TH>
             </Table.Header>
             <Table.Body>
-              {player.membership_history.map((entry) => (
-                <TR key={entry.id}>
+              {player.membership_history.map((entry, i) => (
+                <TR key={i}>
                   <TD className="text-gray-500 text-sm">{formatRelativeTime(entry.created_at)}</TD>
                   <TD className="capitalize">{entry.pool_name}</TD>
                   <TD>

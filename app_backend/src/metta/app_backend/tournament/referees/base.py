@@ -4,19 +4,19 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlmodel import select
 
-from metta.app_backend.models.tournament import Match, MatchStatus, PoolPlayer
+from metta.app_backend.models.tournament import Match, MatchPlayer, MatchStatus, PoolPlayer
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 
 class MatchData(BaseModel):
     match_id: UUID
     status: MatchStatus
-    player_pv_ids: list[UUID]
+    pool_player_ids: list[UUID]
     assignments: list[int] = []
 
 
 class MatchRequest(BaseModel):
-    policy_version_ids: list[UUID]
+    pool_player_ids: list[UUID]
     assignments: list[int]
     env: MettaGridConfig
     episode_tags: dict[str, str] = {}
@@ -53,13 +53,18 @@ class RefereeBase(ABC):
 
     async def get_leaderboard(self, pool_id: UUID) -> list[tuple[UUID, float, int]]:
         """Returns list of (policy_version_id, score, match_count) sorted by score descending."""
+        from sqlalchemy.orm import selectinload
+
         from metta.app_backend.database import get_db
 
         session = get_db()
         matches = list(
             (
                 await session.execute(
-                    select(Match).where(Match.pool_id == pool_id).where(Match.status == MatchStatus.completed)
+                    select(Match)
+                    .where(Match.pool_id == pool_id)
+                    .where(Match.status == MatchStatus.completed)
+                    .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
                 )
             )
             .scalars()
@@ -80,11 +85,12 @@ class RefereeBase(ABC):
             policy_scores: dict[UUID, float] = {}
             policy_version_ids: list[UUID] = []
             for mp in sorted(match.players, key=lambda x: x.policy_index):
-                policy_scores[mp.policy_version_id] = mp.score  # type: ignore[assignment]
+                pv_id = mp.pool_player.policy_version_id
+                policy_scores[pv_id] = mp.score  # type: ignore[assignment]
                 if mp.policy_index >= len(policy_version_ids):
-                    policy_version_ids.append(mp.policy_version_id)
-                all_policy_ids.add(mp.policy_version_id)
-                match_counts[mp.policy_version_id] = match_counts.get(mp.policy_version_id, 0) + 1
+                    policy_version_ids.append(pv_id)
+                all_policy_ids.add(pv_id)
+                match_counts[pv_id] = match_counts.get(pv_id, 0) + 1
 
             scored_matches.append(
                 ScoredMatchData(
