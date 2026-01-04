@@ -150,6 +150,7 @@ class MembershipChangeRecord(SQLModel, table=True):
     # FK exists in DB (migrations.py) but can't declare here - no SQLModel class for policy_versions
     policy_version_id: UUID = Field(index=True)
     action: MembershipAction
+    notes: str | None = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
     )

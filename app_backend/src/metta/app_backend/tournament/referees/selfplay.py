@@ -67,14 +67,13 @@ class SelfPlayReferee(RefereeBase):
                         policy_version_ids=[pv],
                         assignments=[0, 0, 0, 0],
                         env=_make_env(),
-                        episode_tags={"match_type": "self_play"},
+                        episode_tags={"match_type": "self_play", "env": "machina1_open_world"},
                     )
                 )
 
         return requests
 
-    def should_retire_policy(self, matches: list[MatchData], policy_version_id: UUID) -> bool:
-        """Returns True if policy has exhausted retry attempts without completing required matches."""
+    def should_retire_reason(self, matches: list[MatchData], policy_version_id: UUID) -> str | None:
         completed = 0
         failed = 0
         for md in matches:
@@ -83,4 +82,6 @@ class SelfPlayReferee(RefereeBase):
                     completed += 1
                 elif md.status == MatchStatus.failed:
                     failed += 1
-        return failed >= MAX_FAILED_ATTEMPTS and completed < self.matches_per_player
+        if failed >= MAX_FAILED_ATTEMPTS and completed < self.matches_per_player:
+            return f"Exhausted retry attempts ({MAX_FAILED_ATTEMPTS} failures)"
+        return None

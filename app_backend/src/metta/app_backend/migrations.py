@@ -233,4 +233,11 @@ MIGRATIONS = [
             """CREATE INDEX idx_membership_changes_created_at ON membership_changes (created_at DESC)""",
         ],
     ),
+    SqlMigration(
+        version=6,
+        description="Add notes column to membership_changes table",
+        sql_statements=[
+            """ALTER TABLE membership_changes ADD COLUMN notes TEXT""",
+        ],
+    ),
 ]

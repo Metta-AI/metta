@@ -12,6 +12,7 @@ class MatchData(BaseModel):
     match_id: UUID
     status: MatchStatus
     player_pv_ids: list[UUID]
+    assignments: list[int] = []
 
 
 class MatchRequest(BaseModel):
@@ -50,7 +51,8 @@ class RefereeBase(ABC):
     ) -> list[MatchRequest]:
         pass
 
-    async def get_leaderboard(self, pool_id: UUID) -> list[tuple[UUID, float]]:
+    async def get_leaderboard(self, pool_id: UUID) -> list[tuple[UUID, float, int]]:
+        """Returns list of (policy_version_id, score, match_count) sorted by score descending."""
         from metta.app_backend.database import get_db
 
         session = get_db()
@@ -69,6 +71,7 @@ class RefereeBase(ABC):
 
         all_policy_ids: set[UUID] = set()
         scored_matches: list[ScoredMatchData] = []
+        match_counts: dict[UUID, int] = {}
 
         for match in matches:
             if not match.players or any(mp.score is None for mp in match.players):
@@ -81,6 +84,7 @@ class RefereeBase(ABC):
                 if mp.policy_index >= len(policy_version_ids):
                     policy_version_ids.append(mp.policy_version_id)
                 all_policy_ids.add(mp.policy_version_id)
+                match_counts[mp.policy_version_id] = match_counts.get(mp.policy_version_id, 0) + 1
 
             scored_matches.append(
                 ScoredMatchData(
@@ -95,4 +99,5 @@ class RefereeBase(ABC):
             return []
 
         scores = self.scorer.compute_scores(list(all_policy_ids), scored_matches)
-        return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        results = [(pv, score, match_counts.get(pv, 0)) for pv, score in scores.items()]
+        return sorted(results, key=lambda x: x[1], reverse=True)

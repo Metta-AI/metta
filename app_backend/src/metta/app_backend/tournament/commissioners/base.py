@@ -41,6 +41,7 @@ class MembershipChange(BaseModel):
     pool_name: str
     policy_version_id: UUID
     action: Literal["add", "retire"]
+    notes: str | None = None
 
 
 class CommissionerBase(ABC):
@@ -285,11 +286,22 @@ class CommissionerBase(ABC):
             (await session.execute(select(MatchPlayer).where(col(MatchPlayer.match_id).in_(match_ids)))).scalars().all()
         )
 
-        players_by_match: dict[UUID, list[UUID]] = defaultdict(list)
+        players_by_match: dict[UUID, list[MatchPlayer]] = defaultdict(list)
         for mp in match_players:
-            players_by_match[mp.match_id].append(mp.policy_version_id)
+            players_by_match[mp.match_id].append(mp)
 
-        return [MatchData(match_id=m.id, status=m.status, player_pv_ids=players_by_match[m.id]) for m in matches]
+        result = []
+        for m in matches:
+            sorted_players = sorted(players_by_match[m.id], key=lambda x: x.policy_index)
+            result.append(
+                MatchData(
+                    match_id=m.id,
+                    status=m.status,
+                    player_pv_ids=[mp.policy_version_id for mp in sorted_players],
+                    assignments=m.assignments or [],
+                )
+            )
+        return result
 
     @with_db
     async def submit(self, policy_version_id: UUID) -> list[str]:
@@ -379,22 +391,24 @@ class CommissionerBase(ABC):
             return
         session = get_db()
 
-        adds_by_pool: dict[str, list[UUID]] = defaultdict(list)
-        retires: list[tuple[UUID, UUID]] = []
+        adds_by_pool: dict[str, list[tuple[UUID, str | None]]] = defaultdict(list)
+        retires: list[tuple[UUID, UUID, str | None]] = []
 
         for change in changes:
             if change.pool_name not in pools:
                 continue
             pool = pools[change.pool_name]
             if change.action == "add":
-                adds_by_pool[change.pool_name].append(change.policy_version_id)
+                adds_by_pool[change.pool_name].append((change.policy_version_id, change.notes))
             elif change.action == "retire":
-                retires.append((pool.id, change.policy_version_id))
+                retires.append((pool.id, change.policy_version_id, change.notes))
 
         records: list[MembershipChangeRecord] = []
 
-        for pool_name, pv_ids in adds_by_pool.items():
+        for pool_name, pv_entries in adds_by_pool.items():
             pool = pools[pool_name]
+            pv_ids = [pv for pv, _ in pv_entries]
+            notes_by_pv = {pv: notes for pv, notes in pv_entries}
             existing = set(
                 (
                     await session.execute(
@@ -411,13 +425,18 @@ class CommissionerBase(ABC):
                 session.add_all([PoolPlayer(pool_id=pool.id, policy_version_id=pv_id) for pv_id in new_pv_ids])
                 records.extend(
                     [
-                        MembershipChangeRecord(pool_id=pool.id, policy_version_id=pv_id, action=MembershipAction.add)
+                        MembershipChangeRecord(
+                            pool_id=pool.id,
+                            policy_version_id=pv_id,
+                            action=MembershipAction.add,
+                            notes=notes_by_pv.get(pv_id),
+                        )
                         for pv_id in new_pv_ids
                     ]
                 )
                 logger.info(f"Added {len(new_pv_ids)} players to pool '{pool_name}'")
 
-        for pool_id, pv_id in retires:
+        for pool_id, pv_id, notes in retires:
             result = await session.execute(
                 select(PoolPlayer).filter_by(pool_id=pool_id, policy_version_id=pv_id, retired=False)
             )
@@ -425,7 +444,9 @@ class CommissionerBase(ABC):
             if player:
                 player.retired = True
                 records.append(
-                    MembershipChangeRecord(pool_id=pool_id, policy_version_id=pv_id, action=MembershipAction.retire)
+                    MembershipChangeRecord(
+                        pool_id=pool_id, policy_version_id=pv_id, action=MembershipAction.retire, notes=notes
+                    )
                 )
 
         if records:

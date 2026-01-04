@@ -21,14 +21,6 @@ import {
 } from '../repo'
 import { formatRelativeTime } from '../utils/datetime'
 
-const StatusBadge: FC<{ status: string }> = ({ status }) => {
-  const colors: Record<string, string> = {
-    active: 'bg-green-100 text-green-800',
-    retired: 'bg-gray-100 text-gray-600',
-  }
-  return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || 'bg-gray-100'}`}>{status}</span>
-}
-
 const MatchStatusBadge: FC<{ status: MatchStatus }> = ({ status }) => {
   const colors: Record<MatchStatus, string> = {
     pending: 'bg-gray-100 text-gray-800',
@@ -351,6 +343,14 @@ export const SeasonPage: FC = () => {
     return counts
   }, [allMatches])
 
+  const leaderboardScoreByPolicy = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const entry of leaderboard) {
+      map[entry.policy_version_id] = entry.score
+    }
+    return map
+  }, [leaderboard])
+
   const handleMatchFilterClick = (poolName: string, policyVersionId: string) => {
     setMatchFilter({ pool_names: [poolName], policy_version_ids: [policyVersionId] })
   }
@@ -407,6 +407,7 @@ export const SeasonPage: FC = () => {
             <Table.Header>
               <TH>Rank</TH>
               <TH>Policy</TH>
+              <TH>Matches</TH>
               <TH>Score</TH>
             </Table.Header>
             <Table.Body>
@@ -418,6 +419,7 @@ export const SeasonPage: FC = () => {
                       {formatPolicyDisplay(entry)}
                     </StyledLink>
                   </TD>
+                  <TD>{entry.matches}</TD>
                   <TD>{entry.score.toPrecision(4)}</TD>
                 </TR>
               ))}
@@ -464,16 +466,32 @@ export const SeasonPage: FC = () => {
                       }
                       return (
                         <TD key={poolName}>
-                          <div className="flex flex-col gap-1">
-                            <StatusBadge status={status.status} />
-                            <button
-                              onClick={() => handleMatchFilterClick(poolName, policy.policy_version_id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline text-left"
-                            >
-                              {counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`}
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <Link to={`/seasons/${seasonName}/players/${policy.policy_version_id}`}>
+                              <span
+                                className={`inline-block px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                  status.status === 'active'
+                                    ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                              >
+                                {status.status}
+                              </span>
+                            </Link>
+                            <button onClick={() => handleMatchFilterClick(poolName, policy.policy_version_id)}>
+                              <span className="inline-block px-2 py-1 rounded text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
+                                {counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`}
+                              </span>
                             </button>
-                            {status.avg_score !== null && (
-                              <span className="text-xs text-gray-500">{status.avg_score.toPrecision(3)} avg</span>
+                            {leaderboardScoreByPolicy[policy.policy_version_id] !== undefined &&
+                            poolName === 'competition' ? (
+                              <span className="text-xs text-gray-500">
+                                {leaderboardScoreByPolicy[policy.policy_version_id].toPrecision(4)} avg
+                              </span>
+                            ) : (
+                              status.avg_score !== null && (
+                                <span className="text-xs text-gray-500">{status.avg_score.toPrecision(3)} avg</span>
+                              )
                             )}
                           </div>
                         </TD>
@@ -526,27 +544,40 @@ export const SeasonPage: FC = () => {
         ) : (
           <Table>
             <Table.Header>
+              <TH>Created</TH>
               <TH>Status</TH>
               <TH>Pool</TH>
-              <TH>Players</TH>
-              <TH>Scores</TH>
+              <TH className="text-right">Players</TH>
+              <TH>Agents</TH>
+              <TH>Avg score</TH>
               <TH>Tags</TH>
-              <TH>Created</TH>
-              <TH>Episode</TH>
             </Table.Header>
             <Table.Body>
               {filteredMatches.map((match) => {
                 const tagEntries = Object.entries(match.episode_tags || {}).filter(
                   ([k]) => !['match_id', 'pool_id'].includes(k)
                 )
+                const agentCounts = match.players.map(
+                  (p) => match.assignments.filter((a) => a === p.policy_index).length
+                )
                 return (
                   <TR key={match.id}>
+                    <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
                     <TD>
-                      <MatchStatusBadge status={match.status} />
+                      {match.status === 'completed' && match.episode_id ? (
+                        <Link
+                          to={`/episodes/${match.episode_id}`}
+                          className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                        >
+                          Results
+                        </Link>
+                      ) : (
+                        <MatchStatusBadge status={match.status} />
+                      )}
                     </TD>
                     <TD className="capitalize">{match.pool_name}</TD>
-                    <TD>
-                      <div className="flex flex-col gap-1">
+                    <TD className="text-right">
+                      <div className="flex flex-col gap-1 items-end">
                         {match.players.map((p, i) => (
                           <StyledLink
                             key={i}
@@ -555,6 +586,13 @@ export const SeasonPage: FC = () => {
                           >
                             {formatPolicyDisplay(p)}
                           </StyledLink>
+                        ))}
+                      </div>
+                    </TD>
+                    <TD>
+                      <div className="flex flex-col gap-1 font-mono text-xs">
+                        {match.players.map((_, i) => (
+                          <span key={i}>{agentCounts[i]}</span>
                         ))}
                       </div>
                     </TD>
@@ -569,19 +607,11 @@ export const SeasonPage: FC = () => {
                       {tagEntries.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
                           {tagEntries.map(([k, v]) => (
-                            <span key={k} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                              {k}={v}
+                            <span key={k} className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">
+                              <span className="text-gray-500">{k}:</span> <span className="text-gray-700">{v}</span>
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </TD>
-                    <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
-                    <TD>
-                      {match.episode_id ? (
-                        <StyledLink to={`/episodes/${match.episode_id}`}>View</StyledLink>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
