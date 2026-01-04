@@ -11,6 +11,9 @@ import { Leaderboard } from './Leaderboard'
 import { PoliciesPage } from './PoliciesPage'
 import { PolicyPage } from './PolicyPage'
 import { PolicyVersionPage } from './PolicyVersionPage'
+import { PlayerPage } from './Seasons/PlayerPage'
+import { SeasonPage } from './Seasons/SeasonPage'
+import { SeasonsPage } from './Seasons/index'
 import { SQLQuery } from './SQLQuery'
 import { TopMenu } from './TopMenu'
 
@@ -40,6 +43,9 @@ function App() {
             <Route path="/eval-tasks" element={<EvalTasks />} />
             <Route path="/episode-jobs" element={<EpisodeJobs />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/seasons" element={<SeasonsPage />} />
+            <Route path="/seasons/:seasonName" element={<SeasonPage />} />
+            <Route path="/seasons/:seasonName/players/:policyVersionId" element={<PlayerPage />} />
             <Route path="/episodes/:episodeId" element={<EpisodeDetailPage />} />
             <Route path="/sql-query" element={<SQLQuery />} />
           </Routes>
