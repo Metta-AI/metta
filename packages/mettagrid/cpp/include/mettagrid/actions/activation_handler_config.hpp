@@ -27,6 +27,11 @@ struct ResourceFilterConfig {
   std::unordered_map<InventoryItem, InventoryQuantity> resources;
 };
 
+struct AlignmentFilterConfig {
+  std::string target = "target";
+  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons"
+};
+
 struct ResourceDeltaMutationConfig {
   std::string target;
   std::unordered_map<InventoryItem, InventoryDelta> deltas;
@@ -47,6 +52,11 @@ struct FreezeMutationConfig {
   int duration = 0;
 };
 
+struct ClearInventoryMutationConfig {
+  std::string target;
+  std::string limit_name;  // Name of the resource limit group to clear (e.g., "gear")
+};
+
 // Forward declaration for recursive type
 struct ActivationMutationConfig;
 
@@ -59,19 +69,21 @@ struct AttackMutationConfig {
 };
 
 struct ActivationMutationConfig {
-  std::string type;  // "resource_delta", "resource_transfer", "alignment", "freeze", "attack"
+  std::string type;  // "resource_delta", "resource_transfer", "alignment", "freeze", "attack", "clear_inventory"
   // Only one of these will be set based on type
   ResourceDeltaMutationConfig resource_delta;
   ResourceTransferMutationConfig resource_transfer;
   AlignmentMutationConfig alignment;
   FreezeMutationConfig freeze;
   AttackMutationConfig attack;
+  ClearInventoryMutationConfig clear_inventory;
 };
 
 struct ActivationFilterConfig {
-  std::string type;  // "vibe", "resource"
+  std::string type;  // "vibe", "resource", "alignment"
   VibeFilterConfig vibe;
   ResourceFilterConfig resource;
+  AlignmentFilterConfig alignment;
 };
 
 struct ActivationHandlerConfig {
@@ -93,6 +105,11 @@ inline void bind_activation_handler_configs(py::module& m) {
       .def_readwrite("target", &ResourceFilterConfig::target)
       .def_readwrite("resources", &ResourceFilterConfig::resources);
 
+  py::class_<AlignmentFilterConfig>(m, "AlignmentFilterConfig")
+      .def(py::init<>())
+      .def_readwrite("target", &AlignmentFilterConfig::target)
+      .def_readwrite("alignment", &AlignmentFilterConfig::alignment);
+
   py::class_<ResourceDeltaMutationConfig>(m, "ResourceDeltaMutationConfig")
       .def(py::init<>())
       .def_readwrite("target", &ResourceDeltaMutationConfig::target)
@@ -113,6 +130,11 @@ inline void bind_activation_handler_configs(py::module& m) {
       .def_readwrite("target", &FreezeMutationConfig::target)
       .def_readwrite("duration", &FreezeMutationConfig::duration);
 
+  py::class_<ClearInventoryMutationConfig>(m, "ClearInventoryMutationConfig")
+      .def(py::init<>())
+      .def_readwrite("target", &ClearInventoryMutationConfig::target)
+      .def_readwrite("limit_name", &ClearInventoryMutationConfig::limit_name);
+
   py::class_<AttackMutationConfig>(m, "AttackMutationConfig")
       .def(py::init<>())
       .def_readwrite("defense_resources", &AttackMutationConfig::defense_resources)
@@ -128,13 +150,15 @@ inline void bind_activation_handler_configs(py::module& m) {
       .def_readwrite("resource_transfer", &ActivationMutationConfig::resource_transfer)
       .def_readwrite("alignment", &ActivationMutationConfig::alignment)
       .def_readwrite("freeze", &ActivationMutationConfig::freeze)
-      .def_readwrite("attack", &ActivationMutationConfig::attack);
+      .def_readwrite("attack", &ActivationMutationConfig::attack)
+      .def_readwrite("clear_inventory", &ActivationMutationConfig::clear_inventory);
 
   py::class_<ActivationFilterConfig>(m, "ActivationFilterConfig")
       .def(py::init<>())
       .def_readwrite("type", &ActivationFilterConfig::type)
       .def_readwrite("vibe", &ActivationFilterConfig::vibe)
-      .def_readwrite("resource", &ActivationFilterConfig::resource);
+      .def_readwrite("resource", &ActivationFilterConfig::resource)
+      .def_readwrite("alignment", &ActivationFilterConfig::alignment);
 
   py::class_<ActivationHandlerConfig>(m, "ActivationHandlerConfig")
       .def(py::init<>())
@@ -144,4 +168,3 @@ inline void bind_activation_handler_configs(py::module& m) {
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_CONFIG_HPP_
-

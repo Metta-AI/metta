@@ -1,11 +1,13 @@
 from mettagrid.config.mettagrid_config import (
     ActivationHandler,
     AgentConfig,
+    AlignmentFilter,
     AlignmentMutation,
     AOEEffectConfig,
     AssemblerConfig,
     AttackMutation,
     ChestConfig,
+    ClearInventoryMutation,
     ClipperConfig,
     CommonsChestConfig,
     FreezeMutation,
@@ -85,6 +87,10 @@ def _convert_activation_mutation(
         cpp_config.type = "freeze"
         cpp_config.freeze.target = mutation.target
         cpp_config.freeze.duration = mutation.duration
+    elif isinstance(mutation, ClearInventoryMutation):
+        cpp_config.type = "clear_inventory"
+        cpp_config.clear_inventory.target = mutation.target
+        cpp_config.clear_inventory.limit_name = mutation.limit_name
     elif isinstance(mutation, AttackMutation):
         cpp_config.type = "attack"
         cpp_config.attack.defense_resources = {
@@ -131,6 +137,10 @@ def _convert_activation_handlers(
                 cpp_filter.resource.resources = {
                     resource_name_to_id[k]: int(v) for k, v in filter_obj.resources.items()
                 }
+            elif isinstance(filter_obj, AlignmentFilter):
+                cpp_filter.type = "alignment"
+                cpp_filter.alignment.target = filter_obj.target
+                cpp_filter.alignment.alignment = filter_obj.alignment
             else:
                 raise ValueError(f"Unknown filter type: {type(filter_obj)}")
             cpp_filters.append(cpp_filter)
@@ -764,4 +774,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     game_cpp_params["commons"] = commons_cpp
 
-    return CppGameConfig(**game_cpp_params)
+    cpp_game_config = CppGameConfig(**game_cpp_params)
+
+    # Build inventory_limit_resources mapping from agent inventory limits
+    # This is used by ClearInventoryMutation to look up which resources belong to a limit
+    # Must be set after construction as it's not a constructor parameter
+    inventory_limit_resources: dict[str, list[int]] = {}
+    default_agent = game_config.agent
+    for limit_name, limit_config in default_agent.inventory.limits.items():
+        resource_ids = [resource_name_to_id[name] for name in limit_config.resources if name in resource_name_to_id]
+        if resource_ids:
+            inventory_limit_resources[limit_name] = resource_ids
+    cpp_game_config.inventory_limit_resources = inventory_limit_resources
+
+    return cpp_game_config

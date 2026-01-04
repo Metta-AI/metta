@@ -50,7 +50,10 @@ struct ActivationContext {
 // Base filter interface
 
 struct ActivationFilter {
-  enum class Target { Actor, Target };
+  enum class Target {
+    Actor,
+    Target
+  };
   Target target = Target::Actor;
 
   virtual ~ActivationFilter() = default;
@@ -66,6 +69,12 @@ struct VibeFilter : ActivationFilter {
 // Check if entity has required resources
 struct ResourceFilter : ActivationFilter {
   std::unordered_map<InventoryItem, InventoryQuantity> resources;
+  bool check(const ActivationContext& ctx) const override;
+};
+
+// Check alignment status of target
+struct AlignmentFilter : ActivationFilter {
+  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons"
   bool check(const ActivationContext& ctx) const override;
 };
 
@@ -104,6 +113,13 @@ struct AlignmentMutation : ActivationMutation {
 struct FreezeMutation : ActivationMutation {
   std::string target;  // "actor" or "target"
   int duration = 0;
+  bool apply(ActivationContext& ctx) const override;
+};
+
+// Clear all resources in a limit group (set to 0)
+struct ClearInventoryMutation : ActivationMutation {
+  std::string target;      // "actor" or "target"
+  std::string limit_name;  // Name of the resource limit group to clear (e.g., "gear")
   bool apply(ActivationContext& ctx) const override;
 };
 
@@ -169,4 +185,3 @@ std::shared_ptr<ActivationHandler> create_activation_handler(const ActivationHan
 // Pybind11 bindings are in activation_handler_config.hpp
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_HPP_
-

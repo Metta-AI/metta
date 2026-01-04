@@ -3,8 +3,10 @@ from pydantic import Field
 from mettagrid.base_config import Config
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
+    ActivationHandler,
     AssemblerConfig,
     ChestConfig,
+    ClearInventoryMutation,
     GridObjectConfig,
     InventoryConfig,
     ProtocolConfig,
@@ -18,6 +20,7 @@ resources = [
     "germanium",
     "silicon",
     "heart",
+    "aligner",
     "decoder",
     "modulator",
     "resonator",
@@ -238,3 +241,51 @@ class CvCAssemblerConfig(CvCStationConfig):
             # Note: Generic ['gear'] protocol is added dynamically by clipping variants
             # C++ only allows ONE protocol per unique vibe list, so we can't pre-add all 4 here
         )
+
+
+GEAR_TYPES = ["aligner", "scrambler", "decoder", "modulator", "resonator"]
+
+
+def make_gear_station(
+    gear_type: str,
+    cooldown: int = 10,
+    start_clipped: bool = False,
+    clip_immune: bool = False,
+) -> AssemblerConfig:
+    """Create a gear station that clears all gear and adds its specific gear.
+
+    Args:
+        gear_type: The gear type this station provides (e.g., "aligner", "scrambler")
+        cooldown: Cooldown between uses
+        start_clipped: Whether the station starts clipped
+        clip_immune: Whether the station is immune to clipping
+    """
+    # Main protocol: give gear when stepped on (no input required)
+    protocols = [
+        ProtocolConfig(
+            output_resources={gear_type: 1},
+            cooldown=cooldown,
+        )
+    ]
+
+    # Activation handler to clear all gear when agent steps on station
+    activation_handlers = [
+        ActivationHandler(
+            name="clear_gear",
+            mutations=[
+                ClearInventoryMutation(
+                    target="actor",
+                    limit_name="gear",
+                )
+            ],
+        )
+    ]
+
+    return AssemblerConfig(
+        name=f"{gear_type}_station",
+        render_symbol=vibes.VIBE_BY_NAME.get(gear_type, vibes.VIBE_BY_NAME["assembler"]).symbol,
+        clip_immune=clip_immune,
+        start_clipped=start_clipped,
+        protocols=protocols,
+        activation_handlers=activation_handlers,
+    )

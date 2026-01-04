@@ -6,6 +6,7 @@ from typing import override
 from pydantic import Field
 
 from cogames.cogs_vs_clips.stations import (
+    GEAR_TYPES,
     CarbonExtractorConfig,
     ChargerConfig,
     CvCAssemblerConfig,
@@ -14,6 +15,7 @@ from cogames.cogs_vs_clips.stations import (
     GermaniumExtractorConfig,
     OxygenExtractorConfig,
     SiliconExtractorConfig,
+    make_gear_station,
     resources,
 )
 from mettagrid.base_config import Config
@@ -196,7 +198,8 @@ class Mission(Config):
                             limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
                         ),
                         "gear": ResourceLimitsConfig(
-                            limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                            limit=self.gear_capacity,
+                            resources=["aligner", "scrambler", "modulator", "decoder", "resonator"],
                         ),
                     },
                     initial={"energy": self.energy_capacity},
@@ -279,6 +282,8 @@ class Mission(Config):
                 "clipped_silicon_extractor": self.silicon_extractor.model_copy(update={"start_clipped": True})
                 .station_cfg()
                 .model_copy(update={"map_name": "clipped_silicon_extractor"}),
+                # Gear stations: each clears other gear and adds its own gear
+                **{f"{gear}_station": make_gear_station(gear) for gear in GEAR_TYPES},
             },
         )
 
