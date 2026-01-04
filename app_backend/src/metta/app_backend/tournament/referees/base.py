@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlmodel import select
 
+# pyright: reportArgumentType=false
 from metta.app_backend.models.tournament import Match, MatchPlayer, MatchStatus, PoolPlayer
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
@@ -21,6 +22,7 @@ class MatchRequest(BaseModel):
     assignments: list[int]
     env: MettaGridConfig
     episode_tags: dict[str, str] = {}
+    seed: int = 42
 
 
 class ScoredMatchData(BaseModel):
@@ -65,7 +67,7 @@ class RefereeBase(ABC):
                     select(Match)
                     .where(Match.pool_id == pool_id)
                     .where(Match.status == MatchStatus.completed)
-                    .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
+                    .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))
                 )
             )
             .scalars()

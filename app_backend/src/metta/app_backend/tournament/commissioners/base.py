@@ -7,14 +7,15 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
+# pyright: reportArgumentType=false
+# SQLModel Relationship() type annotations cause false positives on join()/selectinload()
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.database import get_db, with_db
-from metta.app_backend.models.episodes import Episode, EpisodePolicy, EpisodePolicyMetric
-from metta.app_backend.models.job_request import JobRequestCreate, JobStatus, JobType
+from metta.app_backend.models.episodes import Episode, EpisodePolicyMetric
+from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobStatus, JobType
 from metta.app_backend.models.policies import PolicyVersion
 from metta.app_backend.models.tournament import (
     Match,
@@ -141,7 +142,7 @@ class CommissionerBase(ABC):
         all_pools = (
             (
                 await session.execute(
-                    select(Pool).filter_by(season_id=self.season_id).options(selectinload(Pool.players))  # type: ignore[arg-type]
+                    select(Pool).filter_by(season_id=self.season_id).options(selectinload(Pool.players))
                 )
             )
             .scalars()
@@ -156,10 +157,10 @@ class CommissionerBase(ABC):
             (
                 await session.execute(
                     select(Match)
-                    .join(Pool, Match.pool_id == Pool.id)  # type: ignore[arg-type]
+                    .join(Match.pool)
                     .where(Pool.season_id == self.season_id)
                     .where(col(Match.status).in_([MatchStatus.scheduled, MatchStatus.running]))
-                    .options(selectinload(Match.job))  # type: ignore[arg-type]
+                    .options(selectinload(Match.job))
                 )
             )
             .scalars()
@@ -193,102 +194,69 @@ class CommissionerBase(ABC):
         """Sync match scores from episode metrics. Returns True if any updated."""
         session = get_db()
 
-        # Find completed matches with missing scores and their episode IDs
-        matches_query = text("""
-            SELECT DISTINCT m.id AS match_id, jr.result->>'episode_id' AS episode_id
-            FROM matches m
-            JOIN pools p ON m.pool_id = p.id
-            JOIN match_players mp ON mp.match_id = m.id
-            JOIN job_requests jr ON jr.id = m.job_id
-            WHERE p.season_id = :season_id
-                AND m.status = 'completed'
-                AND mp.score IS NULL
-                AND jr.result->>'episode_id' IS NOT NULL
-        """)
-        result = await session.execute(matches_query, {"season_id": self.season_id})
-        rows = result.all()
+        # Find completed matches with missing scores, load players and episode_id in one query
+        matches_with_episodes = (
+            await session.execute(
+                select(Match, JobRequest.episode_id)
+                .join(Match.pool)
+                .join(Match.job)
+                .where(Pool.season_id == self.season_id)
+                .where(Match.status == MatchStatus.completed)
+                .where(JobRequest.episode_id.is_not(None))
+                .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))
+            )
+        ).all()
 
-        if not rows:
+        # Filter to only matches with unscored players
+        matches_needing_scores: list[tuple[Match, str]] = []
+        for match, episode_id in matches_with_episodes:
+            if episode_id and any(mp.score is None for mp in match.players):
+                matches_needing_scores.append((match, episode_id))
+
+        if not matches_needing_scores:
             return False
 
-        match_ids = [row[0] for row in rows]
-        episode_ids = [row[1] for row in rows]
-        episode_by_match: dict[UUID, str] = {row[0]: row[1] for row in rows}
+        episode_ids = [ep_id for _, ep_id in matches_needing_scores]
 
-        # Load matches to get assignments for computing agent counts
-        matches = list((await session.execute(select(Match).where(col(Match.id).in_(match_ids)))).scalars().all())
-        matches_by_id = {m.id: m for m in matches}
-
-        # Debug: query episode_policies to see num_agents per policy
-        ep_result = await session.execute(
-            select(
-                col(Episode.id).label("episode_id"),
-                col(EpisodePolicy.policy_version_id).label("policy_version_id"),
-                col(EpisodePolicy.num_agents).label("num_agents"),
-            )
-            .join(EpisodePolicy, EpisodePolicy.episode_id == Episode.id)  # type: ignore[arg-type]
-            .where(col(Episode.id).in_(episode_ids))
-            .order_by(col(Episode.id), col(EpisodePolicy.policy_version_id))
-        )
-        ep_rows = ep_result.all()
-        if ep_rows:
-            logger.info("Episode policies for score sync:")
-            for row in ep_rows:
-                logger.info(f"  episode={row.episode_id}, pv={row.policy_version_id}, num_agents={row.num_agents}")
-
+        # Get scores from episode metrics
         scores_result = await session.execute(
             select(
                 col(Episode.id).label("episode_id"),
                 col(PolicyVersion.id).label("policy_version_id"),
                 col(EpisodePolicyMetric.value).label("reward"),
             )
-            .join(EpisodePolicyMetric, EpisodePolicyMetric.episode_internal_id == Episode.internal_id)  # type: ignore[arg-type]
-            .join(PolicyVersion, PolicyVersion.internal_id == EpisodePolicyMetric.pv_internal_id)  # type: ignore[arg-type]
+            .join(EpisodePolicyMetric, EpisodePolicyMetric.episode_internal_id == Episode.internal_id)
+            .join(PolicyVersion, PolicyVersion.internal_id == EpisodePolicyMetric.pv_internal_id)
             .where(EpisodePolicyMetric.metric_name == "reward")
             .where(col(Episode.id).in_(episode_ids))
         )
-        score_rows = scores_result.all()
 
         scores_by_episode: dict[str, dict[UUID, float]] = defaultdict(dict)
-        for row in score_rows:
+        for row in scores_result.all():
             ep_id = str(row.episode_id) if row.episode_id else None
             pv_id = row.policy_version_id
             if ep_id and pv_id:
                 scores_by_episode[ep_id][pv_id] = row.reward
-                logger.info(f"Policy reward: episode={ep_id}, pv={pv_id}, total_reward={row.reward}")
 
         if not scores_by_episode:
             return False
 
-        match_players = list(
-            (
-                await session.execute(
-                    select(MatchPlayer)
-                    .where(col(MatchPlayer.match_id).in_(match_ids))
-                    .options(selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
-                )
-            )
-            .scalars()
-            .all()
-        )
-
         updated = 0
-        for mp in match_players:
-            episode_id = episode_by_match.get(mp.match_id)
-            if not episode_id:
-                continue
+        for match, episode_id in matches_needing_scores:
             episode_scores = scores_by_episode.get(episode_id, {})
-            pv_id = mp.pool_player.policy_version_id
-            if pv_id in episode_scores:
-                total_reward = episode_scores[pv_id]
-                match = matches_by_id.get(mp.match_id)
-                agent_count = match.assignments.count(mp.policy_index) if match and match.assignments else 1
-                mp.score = total_reward / max(agent_count, 1)
-                logger.info(
-                    f"Score calc: match={mp.match_id}, pv={pv_id}, "
-                    f"total_reward={total_reward}, agent_count={agent_count}, score={mp.score}"
-                )
-                updated += 1
+            for mp in match.players:
+                if mp.score is not None:
+                    continue
+                pv_id = mp.pool_player.policy_version_id
+                if pv_id in episode_scores:
+                    total_reward = episode_scores[pv_id]
+                    agent_count = match.assignments.count(mp.policy_index) if match.assignments else 1
+                    mp.score = total_reward / max(agent_count, 1)
+                    logger.info(
+                        f"Score calc: match={match.id}, pv={pv_id}, "
+                        f"total_reward={total_reward}, agent_count={agent_count}, score={mp.score}"
+                    )
+                    updated += 1
 
         if updated > 0:
             logger.info(f"Updated {updated} match player scores")
@@ -307,9 +275,9 @@ class CommissionerBase(ABC):
             (
                 await session.execute(
                     select(Match)
-                    .join(Pool, Match.pool_id == Pool.id)  # type: ignore[arg-type]
+                    .join(Match.pool)
                     .where(Pool.season_id == self.season_id)
-                    .options(selectinload(Match.players))  # type: ignore[arg-type]
+                    .options(selectinload(Match.players))
                 )
             )
             .scalars()
@@ -343,7 +311,7 @@ class CommissionerBase(ABC):
         pool = (
             await session.execute(
                 select(Pool)
-                .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
+                .join(Pool.season)
                 .where(Season.name == self.season_name)
                 .where(Pool.name == self.leaderboard_pool)
             )
@@ -359,10 +327,7 @@ class CommissionerBase(ABC):
         session = get_db()
         pool = (
             await session.execute(
-                select(Pool)
-                .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
-                .where(Season.name == self.season_name)
-                .where(Pool.name == pool_name)
+                select(Pool).join(Pool.season).where(Season.name == self.season_name).where(Pool.name == pool_name)
             )
         ).scalar_one_or_none()
         if not pool:
@@ -373,7 +338,7 @@ class CommissionerBase(ABC):
                 await session.execute(
                     select(Match)
                     .filter_by(pool_id=pool.id)
-                    .options(selectinload(Match.players))  # type: ignore[arg-type]
+                    .options(selectinload(Match.players))
                     .order_by(col(Match.created_at).desc())
                     .offset(offset)
                     .limit(limit)
@@ -442,13 +407,6 @@ class CommissionerBase(ABC):
     async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> None:
         session = get_db()
 
-        pool_players = {
-            pp.id: pp
-            for pp in (await session.execute(select(PoolPlayer).where(col(PoolPlayer.id).in_(request.pool_player_ids))))
-            .scalars()
-            .all()
-        }
-
         match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
         session.add(match)
         await session.flush()
@@ -459,19 +417,27 @@ class CommissionerBase(ABC):
             ]
         )
         await session.commit()
-        match_id, match_pool_id = match.id, match.pool_id
+        match_id = match.id
 
-        policy_version_ids = [pool_players[pp_id].policy_version_id for pp_id in request.pool_player_ids]
-        policy_uris = [f"metta://policy/{pv}" for pv in policy_version_ids]
-        episode_tags = {"match_id": str(match_id), "pool_id": str(match_pool_id), **request.episode_tags}
+        pv_ids = dict(
+            (
+                await session.execute(
+                    select(PoolPlayer.id, PoolPlayer.policy_version_id).where(
+                        col(PoolPlayer.id).in_(request.pool_player_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
         job_spec = dict(
-            policy_uris=policy_uris,
+            policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
             assignments=request.assignments,
             env=request.env.model_dump(),
             replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
-            seed=hash(str(match_id)) % (2**31),
-            episode_tags=episode_tags,
+            seed=request.seed,
+            episode_tags=request.episode_tags,
         )
 
         stats_client = StatsClient(settings.STATS_SERVER_URI)

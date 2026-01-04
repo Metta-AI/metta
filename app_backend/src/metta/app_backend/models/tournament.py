@@ -7,6 +7,8 @@ from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import ARRAY, INTEGER
 from sqlmodel import Field, Relationship, SQLModel
 
+from metta.app_backend.models.policies import PolicyVersion
+
 if TYPE_CHECKING:
     from metta.app_backend.models.job_request import JobRequest
 
@@ -72,6 +74,7 @@ class PoolPlayer(SQLModel, table=True):
     retired: bool = Field(default=False)
 
     pool: "Pool" = Relationship(back_populates="players")
+    policy_version: PolicyVersion = Relationship()
     membership_changes: list["MembershipChange"] = Relationship(back_populates="pool_player")
 
 

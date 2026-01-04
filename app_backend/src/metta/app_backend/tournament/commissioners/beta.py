@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlmodel import col, func, select
 
+# pyright: reportArgumentType=false
 from metta.app_backend.database import get_db
 from metta.app_backend.models.tournament import Match, MatchPlayer, MatchStatus, Pool, PoolPlayer
 from metta.app_backend.tournament.commissioners.base import CommissionerBase, MembershipChangeRequest
@@ -95,41 +96,26 @@ class BetaCommissioner(CommissionerBase):
         """Get (avg_score, completed_count, failed_count) for each pool_player in pool."""
         session = get_db()
 
-        score_result = await session.execute(
+        is_completed = col(Match.status) == MatchStatus.completed
+        is_failed = col(Match.status) == MatchStatus.failed
+        result = await session.execute(
             select(
                 col(MatchPlayer.pool_player_id).label("pp_id"),
-                func.avg(MatchPlayer.score).label("avg_score"),
-                func.count().label("completed"),
+                func.avg(MatchPlayer.score).filter(is_completed).label("avg_score"),
+                func.count().filter(is_completed, col(MatchPlayer.score).is_not(None)).label("completed"),
+                func.count().filter(is_failed).label("failed"),
             )
-            .join(Match, MatchPlayer.match_id == Match.id)  # type: ignore[arg-type]
-            .join(PoolPlayer, MatchPlayer.pool_player_id == PoolPlayer.id)  # type: ignore[arg-type]
+            .join(MatchPlayer.match)
+            .join(MatchPlayer.pool_player)
             .where(PoolPlayer.pool_id == pool_id)
-            .where(Match.status == MatchStatus.completed)
-            .where(col(MatchPlayer.score).is_not(None))
+            .where(col(Match.status).in_([MatchStatus.completed, MatchStatus.failed]))
             .group_by(col(MatchPlayer.pool_player_id))
         )
-        stats: dict[UUID, tuple[float | None, int, int]] = {
-            row.pp_id: (float(row.avg_score) if row.avg_score is not None else None, row.completed or 0, 0)
-            for row in score_result.all()
+        return {
+            row.pp_id: (
+                float(row.avg_score) if row.avg_score is not None else None,
+                row.completed or 0,
+                row.failed or 0,
+            )
+            for row in result.all()
         }
-
-        failed_result = await session.execute(
-            select(
-                col(MatchPlayer.pool_player_id).label("pp_id"),
-                func.count().label("failed"),
-            )
-            .join(Match, MatchPlayer.match_id == Match.id)  # type: ignore[arg-type]
-            .join(PoolPlayer, MatchPlayer.pool_player_id == PoolPlayer.id)  # type: ignore[arg-type]
-            .where(PoolPlayer.pool_id == pool_id)
-            .where(Match.status == MatchStatus.failed)
-            .group_by(col(MatchPlayer.pool_player_id))
-        )
-        for row in failed_result.all():
-            pp_id = row.pp_id
-            if pp_id in stats:
-                avg_score, completed, _ = stats[pp_id]
-                stats[pp_id] = (avg_score, completed, row.failed or 0)
-            else:
-                stats[pp_id] = (None, 0, row.failed or 0)
-
-        return stats

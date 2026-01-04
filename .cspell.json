@@ -9,6 +9,7 @@
     "ASGI",
     "assignee",
     "assignees",
+    "astext",
     "autogroup",
     "autostop",
     "autostops",
@@ -242,6 +243,7 @@
     "randn",
     "raylib",
     "readlink",
+    "redef",
     "regen",
     "reinit",
     "relogin",
@@ -257,6 +259,7 @@
     "Schulman",
     "scikit",
     "scipy",
+    "selectin",
     "selectinload",
     "selfplay",
     "sessionfinish",
@@ -306,6 +309,7 @@
     "uncompiled",
     "Unconfigured",
     "unpushed",
+    "unscored",
     "unsubmitted",
     "USERNS",
     "valarray",
@@ -331,5 +335,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

@@ -6,6 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
+# pyright: reportArgumentType=false
+# SQLModel's Relationship() returns the target type, not SQLAlchemy's InstrumentedAttribute,
+# causing false positives on join() and selectinload() calls.
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.database import db_session
 from metta.app_backend.models.job_request import JobRequest
@@ -27,32 +30,19 @@ async def get_session():
         yield session
 
 
-async def get_season_pools(session: AsyncSession, season_name: str) -> dict[UUID, str]:
-    result = await session.execute(
-        select(Pool)
-        .join(Season, Pool.season_id == Season.id)  # type: ignore[arg-type]
-        .where(Season.name == season_name)
-        .where(col(Pool.name).isnot(None))
-    )
-    return {p.id: p.name for p in result.scalars().all() if p.name is not None}
+class PolicyVersionSummary(BaseModel):
+    id: UUID
+    name: str | None
+    version: int | None
 
-
-async def get_policy_versions(session: AsyncSession, pv_ids: list[UUID]) -> dict[UUID, PolicyVersion]:
-    if not pv_ids:
-        return {}
-    result = await session.execute(
-        select(PolicyVersion)
-        .options(selectinload(PolicyVersion.policy))  # type: ignore[arg-type]
-        .where(col(PolicyVersion.id).in_(pv_ids))
-    )
-    return {pv.id: pv for pv in result.scalars().all()}
+    @classmethod
+    def from_model(cls, pv: PolicyVersion) -> "PolicyVersionSummary":
+        return cls(id=pv.id, name=pv.policy.name, version=pv.version)
 
 
 class LeaderboardEntry(BaseModel):
     rank: int
-    policy_version_id: UUID
-    policy_name: str | None
-    policy_version: int | None
+    policy: PolicyVersionSummary
     score: float
     matches: int
 
@@ -63,9 +53,7 @@ class PoolMembership(BaseModel):
 
 
 class PolicySummary(BaseModel):
-    policy_version_id: UUID
-    policy_name: str | None
-    policy_version: int | None
+    policy: PolicyVersionSummary
     pools: list[PoolMembership]
 
 
@@ -78,9 +66,7 @@ class SubmitResponse(BaseModel):
 
 
 class MatchPlayerSummary(BaseModel):
-    policy_version_id: UUID
-    policy_name: str | None
-    policy_version: int | None
+    policy: PolicyVersionSummary
     policy_index: int
     score: float | None
 
@@ -103,9 +89,7 @@ class MembershipHistoryEntry(BaseModel):
 
 
 class PlayerDetail(BaseModel):
-    policy_version_id: UUID
-    policy_name: str | None
-    policy_version: int | None
+    policy: PolicyVersionSummary
     membership_history: list[MembershipHistoryEntry]
 
 
@@ -133,13 +117,26 @@ def create_tournament_router() -> APIRouter:
         if not leaderboard:
             return []
 
-        pvs = await get_policy_versions(session, [pv_id for pv_id, _, _ in leaderboard])
+        pv_ids = [pv_id for pv_id, _, _ in leaderboard]
+        pvs_result = (
+            (
+                await session.execute(
+                    select(PolicyVersion)
+                    .where(col(PolicyVersion.id).in_(pv_ids))
+                    .options(selectinload(PolicyVersion.policy))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        pvs = {pv.id: pv for pv in pvs_result}
+
         return [
             LeaderboardEntry(
                 rank=i + 1,
-                policy_version_id=pv_id,
-                policy_name=pvs[pv_id].policy.name if pv_id in pvs else None,
-                policy_version=pvs[pv_id].version if pv_id in pvs else None,
+                policy=PolicyVersionSummary.from_model(pvs[pv_id])
+                if pv_id in pvs
+                else PolicyVersionSummary(id=pv_id, name=None, version=None),
                 score=score,
                 matches=match_count,
             )
@@ -154,32 +151,35 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        pools = await get_season_pools(session, season_name)
-        if not pools:
-            return []
-
-        pool_players = list(
-            (await session.execute(select(PoolPlayer).where(col(PoolPlayer.pool_id).in_(pools.keys())))).scalars().all()
+        pool_players = (
+            (
+                await session.execute(
+                    select(PoolPlayer)
+                    .join(PoolPlayer.pool)
+                    .join(Pool.season)
+                    .where(Season.name == season_name)
+                    .options(
+                        selectinload(PoolPlayer.policy_version).selectinload(PolicyVersion.policy),
+                        selectinload(PoolPlayer.pool),
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        pv_ids = list({pp.policy_version_id for pp in pool_players})
-        if not pv_ids:
+        if not pool_players:
             return []
 
-        pvs = await get_policy_versions(session, pv_ids)
-
-        policies_by_pv: dict[UUID, list[PoolMembership]] = {}
+        policies_by_pv: dict[UUID, tuple[PolicyVersion, list[PoolMembership]]] = {}
         for pp in pool_players:
-            membership = PoolMembership(pool_name=pools[pp.pool_id], active=not pp.retired)
-            policies_by_pv.setdefault(pp.policy_version_id, []).append(membership)
+            membership = PoolMembership(pool_name=pp.pool.name or "unknown", active=not pp.retired)
+            if pp.policy_version_id not in policies_by_pv:
+                policies_by_pv[pp.policy_version_id] = (pp.policy_version, [])
+            policies_by_pv[pp.policy_version_id][1].append(membership)
 
         return [
-            PolicySummary(
-                policy_version_id=pv_id,
-                policy_name=pvs[pv_id].policy.name if pv_id in pvs else None,
-                policy_version=pvs[pv_id].version if pv_id in pvs else None,
-                pools=memberships,
-            )
-            for pv_id, memberships in policies_by_pv.items()
+            PolicySummary(policy=PolicyVersionSummary.from_model(pv), pools=memberships)
+            for pv, memberships in policies_by_pv.values()
         ]
 
     @router.get("/seasons/{season_name}/matches")
@@ -193,69 +193,45 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        pools = await get_season_pools(session, season_name)
-        if not pools:
-            return []
-
-        matches = list(
-            (
-                await session.execute(
-                    select(Match)
-                    .where(col(Match.pool_id).in_(pools.keys()))
-                    .order_by(col(Match.created_at).desc())
-                    .limit(limit)
-                    .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))  # type: ignore[arg-type]
+        rows = (
+            await session.execute(
+                select(Match, JobRequest.episode_id)
+                .join(Match.job)
+                .join(Match.pool)
+                .join(Pool.season)
+                .where(Season.name == season_name)
+                .order_by(col(Match.created_at).desc())
+                .limit(limit)
+                .options(
+                    selectinload(Match.players)
+                    .selectinload(MatchPlayer.pool_player)
+                    .selectinload(PoolPlayer.policy_version)
+                    .selectinload(PolicyVersion.policy),
+                    selectinload(Match.pool),
                 )
             )
-            .scalars()
-            .all()
-        )
-        if not matches:
+        ).all()
+        if not rows:
             return []
-
-        pv_ids = list({mp.pool_player.policy_version_id for m in matches for mp in m.players})
-        pvs = await get_policy_versions(session, pv_ids)
-
-        job_ids = [m.job_id for m in matches if m.job_id]
-        episode_by_job: dict[UUID, str | None] = {}
-        if job_ids:
-            jobs_result = await session.execute(
-                select(col(JobRequest.id).label("job_id"), col(JobRequest.result).label("result")).where(
-                    col(JobRequest.id).in_(job_ids)
-                )
-            )
-            for row in jobs_result.all():
-                if row.result and isinstance(row.result, dict):
-                    episode_by_job[row.job_id] = row.result.get("episode_id")
 
         return [
             MatchSummary(
                 id=m.id,
-                pool_name=pools.get(m.pool_id, "unknown"),
+                pool_name=m.pool.name,
                 status=m.status.value,
                 assignments=m.assignments or [],
                 players=[
                     MatchPlayerSummary(
-                        policy_version_id=mp.pool_player.policy_version_id,
-                        policy_name=(
-                            pvs[mp.pool_player.policy_version_id].policy.name
-                            if mp.pool_player.policy_version_id in pvs
-                            else None
-                        ),
-                        policy_version=(
-                            pvs[mp.pool_player.policy_version_id].version
-                            if mp.pool_player.policy_version_id in pvs
-                            else None
-                        ),
+                        policy=PolicyVersionSummary.from_model(mp.pool_player.policy_version),
                         policy_index=mp.policy_index,
                         score=mp.score,
                     )
                     for mp in sorted(m.players, key=lambda p: p.policy_index)
                 ],
-                episode_id=episode_by_job.get(m.job_id) if m.job_id else None,
+                episode_id=episode_id,
                 created_at=m.created_at.isoformat() if m.created_at else "",
             )
-            for m in matches
+            for m, episode_id in rows
         ]
 
     @router.post("/seasons/{season_name}/submit")
@@ -272,24 +248,30 @@ def create_tournament_router() -> APIRouter:
     async def get_player(
         season_name: str, policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
     ) -> PlayerDetail:
-        pools = await get_season_pools(session, season_name)
-        if not pools:
+        if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        pvs = await get_policy_versions(session, [policy_version_id])
-        if policy_version_id not in pvs:
+        pv = (
+            await session.execute(
+                select(PolicyVersion)
+                .where(PolicyVersion.id == policy_version_id)
+                .options(selectinload(PolicyVersion.policy))
+            )
+        ).scalar_one_or_none()
+        if not pv:
             raise HTTPException(status_code=404, detail="Policy version not found")
-        pv = pvs[policy_version_id]
 
-        changes = list(
+        changes = (
             (
                 await session.execute(
                     select(MembershipChange)
-                    .join(PoolPlayer, MembershipChange.pool_player_id == PoolPlayer.id)  # type: ignore[arg-type]
+                    .join(MembershipChange.pool_player)
+                    .join(PoolPlayer.pool)
+                    .join(Pool.season)
                     .where(PoolPlayer.policy_version_id == policy_version_id)
-                    .where(col(PoolPlayer.pool_id).in_(pools.keys()))
+                    .where(Season.name == season_name)
                     .order_by(col(MembershipChange.created_at).desc())
-                    .options(selectinload(MembershipChange.pool_player))  # type: ignore[arg-type]
+                    .options(selectinload(MembershipChange.pool_player).selectinload(PoolPlayer.pool))
                 )
             )
             .scalars()
@@ -297,15 +279,13 @@ def create_tournament_router() -> APIRouter:
         )
 
         return PlayerDetail(
-            policy_version_id=policy_version_id,
-            policy_name=pv.policy.name,
-            policy_version=pv.version,
+            policy=PolicyVersionSummary.from_model(pv),
             membership_history=[
                 MembershipHistoryEntry(
-                    pool_name=pools.get(c.pool_player.pool_id, "unknown"),
+                    pool_name=c.pool_player.pool.name or "unknown",
                     action=c.action.value,
                     notes=c.notes,
-                    created_at=c.created_at.isoformat() if c.created_at else "",
+                    created_at=c.created_at.isoformat(),
                 )
                 for c in changes
             ],

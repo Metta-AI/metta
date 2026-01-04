@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlmodel import Field, SQLModel
 
 # SQLModel + Pydantic multiple-models pattern for FastAPI.
@@ -54,6 +55,7 @@ class JobRequestUpdate(SQLModel):
 
 class JobRequest(_JobRequestBase, JobRequestUpdate, table=True):
     __tablename__ = "job_requests"  # type: ignore[assignment]
+    model_config = {"ignored_types": (hybrid_property,)}  # type: ignore[misc]
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     status: JobStatus = Field(default=JobStatus.pending, nullable=False)
@@ -64,3 +66,13 @@ class JobRequest(_JobRequestBase, JobRequestUpdate, table=True):
     dispatched_at: datetime | None = None
     running_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @hybrid_property
+    def episode_id(self) -> str | None:  # type: ignore[no-redef]
+        if self.result and isinstance(self.result, dict):
+            return self.result.get("episode_id")
+        return None
+
+    @episode_id.expression  # type: ignore[no-redef]
+    def episode_id(cls):
+        return cls.result["episode_id"].astext  # type: ignore[union-attr]

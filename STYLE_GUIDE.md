@@ -35,31 +35,6 @@ from metta.common.types import X    # Shared types from types.py
 
 Circular import? Extract types to `types.py` or use module import (`import x.y as y_mod`).
 
-### SQLModel/SQLAlchemy Async Patterns
-
-**Database session management:**
-
-- Entry point methods use `@with_db` decorator to establish session
-- Internal methods called within a session use `get_db()` directly (no decorator)
-- Never nest decorators - if caller has `@with_db`, callees just use `get_db()`
-
-**Query syntax:**
-
-- Use `filter_by()` for simple equality: `select(X).filter_by(user_id=uid, active=True)`
-- Use `.where()` for complex conditions: `.where(col(X.id).in_(ids))`
-- Combine result and processing in one expression:
-
-```python
-# Good: single expression
-matches = list(
-    (await session.execute(select(Match).filter_by(pool_id=pool_id))).scalars().all()
-)
-
-# Avoid: separate result variable
-result = await session.execute(select(Match).filter_by(pool_id=pool_id))
-matches = list(result.scalars().all())
-```
-
 ## What Not To Do
 
 - Don't add error handling for impossible cases
@@ -68,3 +43,7 @@ matches = list(result.scalars().all())
 - Don't add backwards-compatibility shims for unused code
 - Don't run lint/tests automatically (too slow)
 - Don't push to git remote (humans do that)
+
+## Additional style guides
+
+Some guidelines exist in STYLE_GUIDE.md files closer to the code they are relevant to.
