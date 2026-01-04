@@ -44,6 +44,7 @@ class PlayTool(Tool):
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
+    autostart: bool = False
     stats_server_uri: str | None = auto_stats_server_uri()
 
     def _load_policy_from_uri(
@@ -112,6 +113,7 @@ class PlayTool(Tool):
             seed=self.seed,
             render_mode=self.render,
             max_action_time_ms=10000,
+            autostart=self.autostart,
         )
         episode = rollout_result.episodes[0]
 
