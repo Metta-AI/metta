@@ -209,6 +209,10 @@ class AttackActionConfig(ActionConfig):
     target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
         default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
     )
+    vibes: list[str] = Field(
+        default_factory=list,
+        description="Vibe names that trigger attack on move (e.g., ['weapon'])",
+    )
 
     def _actions(self) -> list[Action]:
         return [self.Attack(location) for location in self.target_locations]
