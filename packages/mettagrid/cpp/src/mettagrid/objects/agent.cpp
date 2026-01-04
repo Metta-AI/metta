@@ -2,12 +2,11 @@
 
 #include <algorithm>
 #include <cassert>
+#include <random>
 
+#include "actions/activation_handler.hpp"
 #include "config/observation_features.hpp"
 #include "systems/observation_encoder.hpp"
-
-// For std::shuffle
-#include <random>
 
 Agent::Agent(GridCoord r,
              GridCoord c,
@@ -29,7 +28,7 @@ Agent::Agent(GridCoord r,
       prev_location(r, c),
       steps_without_motion(0),
       inventory_regen_amounts(config.inventory_regen_amounts),
-      damage_config(config.damage_config),
+      health_config(config.health_config),
       resource_names(resource_names),
       diversity_tracked_mask(resource_names != nullptr ? resource_names->size() : 0, 0),
       tracked_resource_presence(resource_names != nullptr ? resource_names->size() : 0, 0),
@@ -155,48 +154,30 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
   }
 }
 
-bool Agent::check_and_apply_damage(std::mt19937& rng) {
-  if (!damage_config.enabled()) {
+bool Agent::check_and_apply_health_damage(Grid* grid, const GameConfig* game_config) {
+  if (!health_config.enabled()) {
     return false;
   }
 
-  // Check if all threshold inventory items are at or above their threshold values
-  for (const auto& [item, threshold_value] : damage_config.threshold) {
-    InventoryQuantity amount = this->inventory.amount(item);
-    if (amount < static_cast<InventoryQuantity>(threshold_value)) {
-      return false;  // Not all thresholds met
+  // Check if health resource has reached 0
+  InventoryQuantity health = this->inventory.amount(health_config.health_resource);
+  if (health > 0) {
+    return false;  // Still has health
+  }
+
+  // Health is 0 - apply on_damage mutations
+  // Create activation context with self as both actor and target
+  ActivationContext ctx(*this, *this, grid, game_config);
+
+  // Apply all on_damage mutations
+  for (const auto& mutation_config : health_config.on_damage) {
+    MutationPtr mutation = create_mutation(mutation_config);
+    if (mutation) {
+      mutation->apply(ctx);
     }
   }
 
-  // Subtract threshold values from inventory first
-  for (const auto& [item, threshold_value] : damage_config.threshold) {
-    this->inventory.update(item, -static_cast<InventoryDelta>(threshold_value));
-  }
-
-  // Find which resources from the damage map the agent has above their minimum
-  // and build weights based on quantity available for removal (after threshold subtraction)
-  std::vector<InventoryItem> available_resources;
-  std::vector<int> weights;
-  for (const auto& [item, minimum] : damage_config.resources) {
-    InventoryQuantity amount = this->inventory.amount(item);
-    int removable = static_cast<int>(amount) - minimum;
-    if (removable > 0) {
-      available_resources.push_back(item);
-      weights.push_back(removable);
-    }
-  }
-
-  // If resources available, pick one weighted by quantity above minimum
-  if (!available_resources.empty()) {
-    std::discrete_distribution<size_t> dist(weights.begin(), weights.end());
-    size_t selected_idx = dist(rng);
-    InventoryItem item_to_remove = available_resources[selected_idx];
-    this->inventory.update(item_to_remove, -1);
-    this->stats.incr("damage.items_lost");
-    this->stats.incr("damaged." + this->stats.resource_name(item_to_remove));
-  }
-
-  this->stats.incr("damage.triggered");
+  this->stats.incr("health.damage_triggered");
   return true;
 }
 
