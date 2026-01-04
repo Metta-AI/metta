@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import uuid
 
-from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
+from cogames.cogs_vs_clips.missions import Machina1OpenWorldSharedRewardsMission
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
@@ -32,7 +32,7 @@ def run_example(policy_uri: str, results_uri: str, replay_uri: str) -> PureSingl
         results_uri=file://./results.json \
         replay_uri=file://./replay.json.z
     """
-    env = Machina1OpenWorldMission.model_copy(deep=True).make_env()
+    env = Machina1OpenWorldSharedRewardsMission.model_copy(deep=True).make_env()
     return PureSingleEpisodeTool(
         job=PureSingleEpisodeJob(
             policy_uris=[policy_uri],
