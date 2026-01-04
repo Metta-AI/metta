@@ -670,9 +670,27 @@ export class Repo {
     return this.apiCall<PolicySummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/policies`)
   }
 
-  async getSeasonMatches(seasonName: string, params?: { limit?: number }): Promise<SeasonMatchSummary[]> {
-    const query = params?.limit !== undefined ? `?limit=${params.limit}` : ''
-    return this.apiCall<SeasonMatchSummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query}`)
+  async getSeasonMatches(
+    seasonName: string,
+    params?: { limit?: number; offset?: number; pool_names?: string[]; policy_version_ids?: string[] }
+  ): Promise<SeasonMatchSummary[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    if (params?.pool_names) {
+      for (const name of params.pool_names) {
+        searchParams.append('pool_names', name)
+      }
+    }
+    if (params?.policy_version_ids) {
+      for (const id of params.policy_version_ids) {
+        searchParams.append('policy_version_ids', id)
+      }
+    }
+    const query = searchParams.toString()
+    return this.apiCall<SeasonMatchSummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`
+    )
   }
 
   async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {

@@ -222,29 +222,48 @@ def create_tournament_router() -> APIRouter:
         season_name: str,
         _user: UserOrToken,
         session: AsyncSession = Depends(get_session),
-        limit: int = 100,
+        limit: int = 50,
+        offset: int = 0,
+        pool_names: list[str] | None = None,
+        policy_version_ids: list[UUID] | None = None,
     ) -> list[MatchSummary]:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        rows = (
-            await session.execute(
-                select(Match, JobRequest.episode_id)
-                .join(Match.job)
-                .join(Match.pool)
-                .join(Pool.season)
-                .where(Season.name == season_name)
-                .order_by(col(Match.created_at).desc())
-                .limit(limit)
-                .options(
-                    selectinload(Match.players)
-                    .selectinload(MatchPlayer.pool_player)
-                    .selectinload(PoolPlayer.policy_version)
-                    .selectinload(PolicyVersion.policy),
-                    selectinload(Match.pool),
+        query = (
+            select(Match, JobRequest.episode_id)
+            .join(Match.job)
+            .join(Match.pool)
+            .join(Pool.season)
+            .where(Season.name == season_name)
+        )
+
+        if pool_names:
+            query = query.where(col(Pool.name).in_(pool_names))
+
+        if policy_version_ids:
+            for pv_id in policy_version_ids:
+                subq = (
+                    select(MatchPlayer.match_id)
+                    .join(MatchPlayer.pool_player)
+                    .where(PoolPlayer.policy_version_id == pv_id)
                 )
+                query = query.where(Match.id.in_(subq))
+
+        query = (
+            query.order_by(col(Match.created_at).desc())
+            .limit(limit)
+            .offset(offset)
+            .options(
+                selectinload(Match.players)
+                .selectinload(MatchPlayer.pool_player)
+                .selectinload(PoolPlayer.policy_version)
+                .selectinload(PolicyVersion.policy),
+                selectinload(Match.pool),
             )
-        ).all()
+        )
+
+        rows = (await session.execute(query)).all()
         if not rows:
             return []
 

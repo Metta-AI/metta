@@ -262,6 +262,8 @@ export const SeasonsPage: FC = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [policies, setPolicies] = useState<PolicySummary[]>([])
   const [allMatches, setAllMatches] = useState<SeasonMatchSummary[]>([])
+  const [matchPage, setMatchPage] = useState(0)
+  const [hasMoreMatches, setHasMoreMatches] = useState(true)
   const [matchFilter, setMatchFilter] = useState<MatchFilter>({ pool_names: [], policy_version_ids: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -289,6 +291,10 @@ export const SeasonsPage: FC = () => {
     }
   }, [urlSeasonName])
 
+  useEffect(() => {
+    setMatchPage(0)
+  }, [selectedSeasonName, matchFilter])
+
   const season = seasons.find((s) => s.name === selectedSeasonName) || null
 
   const loadData = useCallback(async () => {
@@ -305,15 +311,23 @@ export const SeasonsPage: FC = () => {
     }
   }, [repo, selectedSeasonName, refreshKey])
 
+  const MATCHES_PAGE_SIZE = 50
+
   const loadMatches = useCallback(async () => {
     if (!selectedSeasonName) return
     try {
-      const m = await repo.getSeasonMatches(selectedSeasonName, { limit: 100 })
+      const m = await repo.getSeasonMatches(selectedSeasonName, {
+        limit: MATCHES_PAGE_SIZE,
+        offset: matchPage * MATCHES_PAGE_SIZE,
+        pool_names: matchFilter.pool_names.length > 0 ? matchFilter.pool_names : undefined,
+        policy_version_ids: matchFilter.policy_version_ids.length > 0 ? matchFilter.policy_version_ids : undefined,
+      })
       setAllMatches(m)
+      setHasMoreMatches(m.length === MATCHES_PAGE_SIZE)
     } catch (err: any) {
       setError(err.message)
     }
-  }, [repo, selectedSeasonName])
+  }, [repo, selectedSeasonName, matchPage, matchFilter])
 
   useEffect(() => {
     loadData()
@@ -328,21 +342,6 @@ export const SeasonsPage: FC = () => {
   }, [loadMatches])
 
   const existingPolicyVersionIds = new Set(policies.map((p) => p.policy.id))
-
-  const filteredMatches = useMemo(() => {
-    return allMatches.filter((m) => {
-      if (matchFilter.pool_names.length > 0 && !matchFilter.pool_names.includes(m.pool_name)) {
-        return false
-      }
-      if (matchFilter.policy_version_ids.length > 0) {
-        const matchPvIds = m.players.map((p) => p.policy.id)
-        if (!matchFilter.policy_version_ids.every((id) => matchPvIds.includes(id))) {
-          return false
-        }
-      }
-      return true
-    })
-  }, [allMatches, matchFilter])
 
   const matchCountsByPolicyPool = useMemo(() => {
     const counts: Record<string, { scored: number; pending: number }> = {}
@@ -568,7 +567,7 @@ export const SeasonsPage: FC = () => {
                 />
               </div>
             </div>
-            {filteredMatches.length === 0 ? (
+            {allMatches.length === 0 ? (
               <div className="text-gray-500 py-4">No matches</div>
             ) : (
               <Table>
@@ -581,7 +580,7 @@ export const SeasonsPage: FC = () => {
                   <TH className="w-20">Score</TH>
                 </Table.Header>
                 <Table.Body>
-                  {filteredMatches.map((match) => {
+                  {allMatches.map((match) => {
                     const agentCounts = match.players.map(
                       (p) => match.assignments.filter((a) => a === p.policy_index).length
                     )
@@ -634,6 +633,15 @@ export const SeasonsPage: FC = () => {
                 </Table.Body>
               </Table>
             )}
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+              <Button size="sm" onClick={() => setMatchPage((p) => Math.max(0, p - 1))} disabled={matchPage === 0}>
+                Previous
+              </Button>
+              <span className="text-sm text-gray-500">Page {matchPage + 1}</span>
+              <Button size="sm" onClick={() => setMatchPage((p) => p + 1)} disabled={!hasMoreMatches}>
+                Next
+              </Button>
+            </div>
           </Card>
         </>
       )}
