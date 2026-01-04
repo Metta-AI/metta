@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -65,12 +66,14 @@ class CommissionerBase(ABC):
         logger.info(f"Starting commissioner for season '{self.season_name}'")
         while True:
             had_activity = False
+            start = time.monotonic()
             try:
                 had_activity = await self._run_cycle()
             except Exception as e:
                 logger.error(f"Commissioner cycle error: {e}", exc_info=True)
             interval = POLL_INTERVAL_FAST_SECONDS if had_activity else POLL_INTERVAL_SECONDS
-            await asyncio.sleep(interval)
+            elapsed = time.monotonic() - start
+            await asyncio.sleep(max(0, interval - elapsed))
 
     @with_db
     async def _ensure_season_exists(self) -> None:
@@ -118,7 +121,7 @@ class CommissionerBase(ABC):
             logger.info(f"Scheduled {total_scheduled} new matches")
 
         changes = await self.get_membership_changes(pools)
-        await self._apply_membership_changes(changes, pools)
+        await self._apply_membership_changes(changes)
 
         return status_changed or total_scheduled > 0 or len(changes) > 0
 
@@ -307,8 +310,7 @@ class CommissionerBase(ABC):
     @with_db
     async def submit(self, policy_version_id: UUID) -> list[str]:
         changes = self.get_new_submission_membership_changes(policy_version_id)
-        pools = await self._ensure_pools_exist(list(self.referees.keys()))
-        await self._apply_membership_changes(changes, pools)
+        await self._apply_membership_changes(changes)
         return [c.pool_name for c in changes if c.action == "add"]
 
     @with_db
@@ -355,13 +357,19 @@ class CommissionerBase(ABC):
         )
         return list(matches)
 
-    async def _apply_membership_changes(self, changes: list[MembershipChangeRequest], pools: dict[str, Pool]) -> None:
+    async def _apply_membership_changes(self, changes: list[MembershipChangeRequest]) -> None:
         if not changes:
             return
         session = get_db()
 
-        all_pool_ids = {pools[c.pool_name].id for c in changes if c.pool_name in pools}
-        all_pv_ids = {c.policy_version_id for c in changes if c.pool_name in pools}
+        pool_names = {c.pool_name for c in changes}
+        pools_result = await session.execute(
+            select(Pool).join(Pool.season).where(Season.name == self.season_name).where(col(Pool.name).in_(pool_names))
+        )
+        pools = {p.name: p for p in pools_result.scalars().all() if p.name}
+
+        all_pool_ids = {p.id for p in pools.values()}
+        all_pv_ids = {c.policy_version_id for c in changes}
 
         existing_players: dict[tuple[UUID, UUID], PoolPlayer] = {}
         if all_pool_ids and all_pv_ids:
@@ -374,9 +382,9 @@ class CommissionerBase(ABC):
                 existing_players[(player.pool_id, player.policy_version_id)] = player
 
         for change in changes:
-            if change.pool_name not in pools:
+            pool = pools.get(change.pool_name)
+            if not pool:
                 continue
-            pool = pools[change.pool_name]
             key = (pool.id, change.policy_version_id)
 
             if change.action == "add":
