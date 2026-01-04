@@ -122,6 +122,14 @@ def process_feature_at_position(
             outputs[resource] = value
         return
 
+    # Handle inventory features (for chests/extractors)
+    if feature_name.startswith("inv:"):
+        resource = feature_name[4:]  # Remove "inv:" prefix
+        inventory = position_features[pos].setdefault("inventory", {})
+        if isinstance(inventory, dict):
+            inventory[resource] = value
+        return
+
 
 def create_object_state(
     features: dict[str, Union[int, list[int], dict[str, int]]],
@@ -164,6 +172,7 @@ def create_object_state(
         cooldown_remaining=get_int("cooldown_remaining", 0),
         clipped=get_int("clipped", 0),
         remaining_uses=get_int("remaining_uses", 999),
+        inventory=get_dict("inventory"),
         protocol_inputs=get_dict("protocol_inputs"),
         protocol_outputs=get_dict("protocol_outputs"),
         agent_group=get_int("agent_group", -1),
@@ -284,21 +293,26 @@ def change_vibe_action(
     Return a safe vibe-change action.
     Guard against disabled or single-vibe configurations before issuing the action.
     """
-    from mettagrid.config.vibes import VIBE_BY_NAME
-
     change_vibe_cfg = getattr(actions, "change_vibe", None)
     if change_vibe_cfg is None:
         return actions.noop.Noop()
     if not getattr(change_vibe_cfg, "enabled", True):
         return actions.noop.Noop()
-    num_vibes = len(getattr(change_vibe_cfg, "vibes", []))
-    if num_vibes <= 1:
+    vibes = getattr(change_vibe_cfg, "vibes", [])
+    if len(vibes) <= 1:
         return actions.noop.Noop()
-    # Raise loudly if the requested vibe isn't registered instead of silently
-    # falling back to noop; otherwise config issues become very hard to spot.
-    vibe = VIBE_BY_NAME.get(vibe_name)
+
+    # Look up vibe by name from the action config's vibes list (not global VIBE_BY_NAME)
+    # This supports custom vibes defined per-recipe
+    vibe = None
+    for v in vibes:
+        if v.name == vibe_name:
+            vibe = v
+            break
+
     if vibe is None:
-        raise Exception(f"No valid vibes called {vibe_name}")
+        available = [v.name for v in vibes]
+        raise Exception(f"No valid vibe called '{vibe_name}'. Available vibes: {available}")
     return actions.change_vibe.ChangeVibe(vibe)
 
 

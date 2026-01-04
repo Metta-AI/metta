@@ -123,6 +123,9 @@ class ObjectState:
     clipped: int = 0
     remaining_uses: int = 999
 
+    # Inventory (for chests/extractors - maps resource name to amount)
+    inventory: dict[str, int] = field(default_factory=dict)
+
     # Protocol details (recipes for assemblers/extractors)
     protocol_inputs: dict[str, int] = field(default_factory=dict)
     protocol_outputs: dict[str, int] = field(default_factory=dict)

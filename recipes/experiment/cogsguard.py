@@ -94,6 +94,7 @@ resources = [
 vibes = [
     Vibe("😐", "default"),
     Vibe("❤️", "heart"),
+    Vibe("⚙️", "gear"),
     Vibe("🌀", "scrambler"),
     Vibe("🔗", "aligner"),
     Vibe("⛏️", "miner"),
@@ -156,7 +157,6 @@ def nexus(map_name: str) -> AssemblerConfig:
         map_name=map_name,
         render_symbol="🏛️",
         clip_immune=True,
-        chest_search_distance=10,
         commons="cogs",
         aoes=[influence_aoe(), attack_aoe()],
         handlers=[
@@ -197,8 +197,8 @@ def chest() -> AssemblerConfig:
 def extractor(resource: str, amount: int = 100) -> ChestConfig:
     """Chest (mine) containing a resource with alignment-based extraction.
 
-    - If aligned to actor's commons: add 10 resource to commons + cooldown
-    - If not aligned: add to agent's inventory
+    - If actor has miner gear: extract 10 resources
+    - Otherwise: extract 1 resource
     """
     return ChestConfig(
         name=f"{resource}_chest",
@@ -259,7 +259,7 @@ def gear_station(gear_type: str) -> AssemblerConfig:
     )
 
 
-def make_env(num_agents: int = 10) -> MettaGridConfig:
+def make_env(num_agents: int = 10, max_steps: int = 10000) -> MettaGridConfig:
     # Configure hub with gear stations
     hub_config = BaseHubConfig(
         corner_bundle="extractors",
@@ -270,6 +270,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             "scrambler_station",
             "miner_station",
             "scout_station",
+            "chest",
         ],
     )
     map_builder = MapGen.Config(
@@ -284,7 +285,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
     vibe_names = [vibe.name for vibe in vibes]
     game = GameConfig(
         map_builder=map_builder,
-        max_steps=1000,
+        max_steps=max_steps,
         num_agents=num_agents,
         resource_names=resources,
         vibe_names=vibe_names,
@@ -327,7 +328,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     # "silicon": 0.001,
                 },
                 commons_stats={
-                    "aligned.charger.held": 0.001,
+                    "aligned.charger.held": 1.0 / max_steps,
                 },
             ),
             health=HealthConfig(
