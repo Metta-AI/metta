@@ -10,7 +10,14 @@ import { Spinner } from '../components/Spinner'
 import { StyledLink } from '../components/StyledLink'
 import { Table, TH, TR, TD } from '../components/Table'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { LeaderboardEntry, PolicyRow, PolicySummary, PublicPolicyVersionRow, SeasonDetail, SeasonMatchSummary } from '../repo'
+import {
+  LeaderboardEntry,
+  PolicyRow,
+  PolicySummary,
+  PublicPolicyVersionRow,
+  SeasonDetail,
+  SeasonMatchSummary,
+} from '../repo'
 import { formatRelativeTime } from '../utils/datetime'
 
 const MatchStatusBadge: FC<{ status: string }> = ({ status }) => {

@@ -3,35 +3,9 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel
 from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
-
-from mettagrid.config.mettagrid_config import MettaGridConfig
-
-# SQLModel + Pydantic multiple-models pattern for FastAPI.
-# See: https://sqlmodel.tiangolo.com/tutorial/fastapi/multiple-models/
-#
-# A convention to stick to for our codebase:
-#   - _<Name>Base: shared fields (no table=True). Not to be exposed to other files
-#   - <Name>Create: fields needed for creation, extends Base
-#   - <Name>Update: fields needed for updates
-#   - <Name>: defines columns of the db table (table=True). Extends Base and possibly others, adds other fields
-#   - <Name>Public (optional): model for api responses. Note that FastAPI will both:
-#         - auto-marshall between <Name> and <Name>Public based on the return type annotation on the endpoint.
-#         - exclude Fields with `exclude=True` from the API response.
-
-
-class SingleEpisodeJob(BaseModel):
-    policy_uris: list[str]
-    assignments: list[int]
-    env: MettaGridConfig
-    results_uri: str | None = None
-    replay_uri: str | None = None
-    seed: int = 0
-    max_action_time_ms: int = 10000
-    episode_tags: dict[str, str] = Field(default_factory=dict)
 
 
 class JobType(str, Enum):

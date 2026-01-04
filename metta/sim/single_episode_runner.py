@@ -7,8 +7,10 @@ import tempfile
 import uuid
 from uuid import UUID
 
+from pydantic import BaseModel
+
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.models.job_request import JobRequestUpdate, SingleEpisodeJob
+from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
@@ -17,6 +19,18 @@ from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingl
 from mettagrid import MettaGridConfig
 from mettagrid.util.file import copy_data, read
 from mettagrid.util.uri_resolvers.schemes import parse_uri
+
+
+class SingleEpisodeJob(BaseModel):
+    policy_uris: list[str]
+    assignments: list[int]
+    env: MettaGridConfig
+    results_uri: str | None = None
+    replay_uri: str | None = None
+    seed: int = 0
+    max_action_time_ms: int = 10000
+    episode_tags: dict[str, str] = {}
+
 
 logger = logging.getLogger(__name__)
 

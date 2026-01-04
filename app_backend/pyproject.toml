@@ -26,6 +26,7 @@ dependencies = [
   "httpx>=0.28.1",
   "wandb>=0.22.3",
   "metta-common",
+  "mettagrid",
   "gitta",
   "sqlmodel>=0.0.22",
   "greenlet>=3.0.0",
@@ -62,3 +63,4 @@ source = ["metta.app_backend"]
 
 [tool.uv.sources]
 metta-common = { workspace = true }
+mettagrid = { workspace = true }

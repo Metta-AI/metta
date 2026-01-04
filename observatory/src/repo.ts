@@ -674,9 +674,7 @@ export class Repo {
 
   async getSeasonMatches(seasonName: string, params?: { limit?: number }): Promise<SeasonMatchSummary[]> {
     const query = params?.limit !== undefined ? `?limit=${params.limit}` : ''
-    return this.apiCall<SeasonMatchSummary[]>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query}`
-    )
+    return this.apiCall<SeasonMatchSummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query}`)
   }
 
   async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {

@@ -10,6 +10,7 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 
 class MatchData(BaseModel):
     match_id: UUID
+    pool_id: UUID
     status: MatchStatus
     pool_player_ids: list[UUID]
     assignments: list[int] = []

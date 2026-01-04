@@ -14,7 +14,7 @@ from sqlmodel import col, select
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.database import get_db, with_db
 from metta.app_backend.models.episodes import Episode, EpisodePolicy, EpisodePolicyMetric
-from metta.app_backend.models.job_request import JobRequestCreate, JobStatus, JobType, SingleEpisodeJob
+from metta.app_backend.models.job_request import JobRequestCreate, JobStatus, JobType
 from metta.app_backend.models.policies import PolicyVersion
 from metta.app_backend.models.tournament import (
     Match,
@@ -28,11 +28,12 @@ from metta.app_backend.models.tournament import (
 )
 from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase
 from metta.app_backend.tournament.settings import (
-    MAX_MATCHES_PER_CYCLE,
+    MAX_OUTSTANDING_MATCHES,
     POLL_INTERVAL_FAST_SECONDS,
     POLL_INTERVAL_SECONDS,
     settings,
 )
+from metta.sim.single_episode_runner import SingleEpisodeJob
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,6 @@ class CommissionerBase(ABC):
 
     async def run(self) -> None:
         await self._ensure_season_exists()
-        await self._ensure_pools_exist(list(self.referees.keys()))
         logger.info(f"Starting commissioner for season '{self.season_name}' ({self.season_id})")
         while True:
             had_activity = False
@@ -93,17 +93,30 @@ class CommissionerBase(ABC):
 
         status_changed = await self._sync_match_statuses()
 
+        all_matches = await self._get_season_matches()
+        matches_by_pool: dict[UUID, list[MatchData]] = {pool.id: [] for pool in pools.values()}
+        outstanding = 0
+        for m in all_matches:
+            if m.pool_id in matches_by_pool:
+                matches_by_pool[m.pool_id].append(m)
+            if m.status in (MatchStatus.pending, MatchStatus.scheduled, MatchStatus.running):
+                outstanding += 1
+
+        slots_available = max(0, MAX_OUTSTANDING_MATCHES - outstanding)
+
         total_scheduled = 0
         for pool_name, pool in pools.items():
-            assert pool_name in self.referees
+            if slots_available <= 0:
+                break
             referee = self.referees[pool_name]
             players = await self._get_pool_players(pool.id)
-            matches = await self._get_pool_matches(pool.id)
+            matches = matches_by_pool[pool.id]
 
             requests = referee.get_matches_to_schedule(players, matches)
-            for req in requests[:MAX_MATCHES_PER_CYCLE]:
+            for req in requests[:slots_available]:
                 await self._create_and_dispatch_match(pool.id, req)
                 total_scheduled += 1
+                slots_available -= 1
 
         if total_scheduled > 0:
             logger.info(f"Scheduled {total_scheduled} new matches")
@@ -115,23 +128,27 @@ class CommissionerBase(ABC):
 
     async def _ensure_pools_exist(self, pool_names: list[str]) -> dict[str, Pool]:
         session = get_db()
-        pools: dict[str, Pool] = {}
 
-        existing_pools = (await session.execute(select(Pool).filter_by(season_id=self.season_id))).scalars().all()
-        existing = {p.name: p for p in existing_pools if p.name}
+        existing = list((await session.execute(select(Pool).filter_by(season_id=self.season_id))).scalars().all())
+        existing_names = {p.name for p in existing if p.name}
 
         for name in pool_names:
-            if name in existing:
-                pools[name] = existing[name]
-            else:
-                pool = Pool(season_id=self.season_id, name=name)
-                session.add(pool)
-                await session.flush()
-                pools[name] = pool
+            if name not in existing_names:
+                session.add(Pool(season_id=self.season_id, name=name))
                 logger.info(f"Created pool '{name}' for season {self.season_id}")
 
         await session.commit()
-        return pools
+
+        all_pools = (
+            (
+                await session.execute(
+                    select(Pool).filter_by(season_id=self.season_id).options(selectinload(Pool.players))  # type: ignore[arg-type]
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return {p.name: p for p in all_pools if p.name}
 
     async def _sync_match_statuses(self) -> bool:
         """Sync match statuses from job statuses. Returns True if any changed."""
@@ -285,12 +302,15 @@ class CommissionerBase(ABC):
             (await session.execute(select(PoolPlayer).filter_by(pool_id=pool_id, retired=False))).scalars().all()
         )
 
-    async def _get_pool_matches(self, pool_id: UUID) -> list[MatchData]:
+    async def _get_season_matches(self) -> list[MatchData]:
         session = get_db()
         matches = list(
             (
                 await session.execute(
-                    select(Match).filter_by(pool_id=pool_id).options(selectinload(Match.players))  # type: ignore[arg-type]
+                    select(Match)
+                    .join(Pool, Match.pool_id == Pool.id)  # type: ignore[arg-type]
+                    .where(Pool.season_id == self.season_id)
+                    .options(selectinload(Match.players))  # type: ignore[arg-type]
                 )
             )
             .scalars()
@@ -303,6 +323,7 @@ class CommissionerBase(ABC):
             result.append(
                 MatchData(
                     match_id=m.id,
+                    pool_id=m.pool_id,
                     status=m.status,
                     pool_player_ids=[mp.pool_player_id for mp in sorted_players],
                     assignments=m.assignments or [],
