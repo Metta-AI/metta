@@ -33,13 +33,13 @@ class FormatterConfig(BaseModel):
     def run(self, fix: bool = False, files: set[str] | None = None) -> FormatterResult:
         if self.runner is not None:
             return self.runner(fix, files)
+        if files is not None and not self.accepts_file_args:
+            return FormatterResult(success=True, processed_files=0)
         commands = self.check_cmds if not fix else self.format_cmds
         if not commands:
             return FormatterResult(success=True, processed_files=len(files or []))
         file_count = len(files or [])
         file_args = sorted(files) if files else []
-        if file_args and not self.accepts_file_args:
-            file_args = []
         for base_cmd in commands:
             cmd = list(base_cmd)
             if file_args:
@@ -132,8 +132,6 @@ def _format_progress_message(formatter_name: str, action: str, file_count: int, 
 
 
 def _make_cpp_runner() -> Callable[[bool, set[str] | None], FormatterResult]:
-    """Create a runner for C++ formatting using clang-format."""
-
     def _runner(fix: bool, _files: set[str] | None) -> FormatterResult:
         repo_root = get_repo_root()
         mettagrid_dir = repo_root / "packages" / "mettagrid"
@@ -294,11 +292,16 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 accepts_file_args=False,
             ),
             FormatterConfig(
-                name="Javascript",
-                extensions=(".js", ".jsx", ".ts", ".tsx"),
-                runner=_make_prettier_runner(
-                    extensions=(".js", ".jsx", ".ts", ".tsx"),
-                ),
+                name="Javascript (prettier)",
+                extensions=(".ts", ".tsx", ".js", ".jsx"),
+                runner=_make_prettier_runner(extensions=(".ts", ".tsx", ".js", ".jsx")),
+            ),
+            FormatterConfig(
+                name="Javascript (turbo)",
+                extensions=(".ts", ".tsx", ".js", ".jsx"),
+                check_cmds=(("pnpm", "exec", "turbo", "lint"),),
+                format_cmds=(("pnpm", "exec", "turbo", "format"),),
+                accepts_file_args=False,
             ),
         ]
     }
