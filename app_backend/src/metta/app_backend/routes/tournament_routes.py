@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -224,8 +224,8 @@ def create_tournament_router() -> APIRouter:
         session: AsyncSession = Depends(get_session),
         limit: int = 50,
         offset: int = 0,
-        pool_names: list[str] | None = None,
-        policy_version_ids: list[UUID] | None = None,
+        pool_names: list[str] | None = Query(default=None),
+        policy_version_ids: list[UUID] | None = Query(default=None),
     ) -> list[MatchSummary]:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
