@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings
 
 POLL_INTERVAL_SECONDS: float = 30.0
 MAX_MATCHES_PER_CYCLE: int = 10
-PROMOTION_MIN_MATCHES: int = 5
 PROMOTION_MIN_SCORE: float = 0.0
 
 

@@ -24,25 +24,12 @@ from metta.app_backend.models.tournament import (
     PoolPlayer,
     Season,
 )
+from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase
 from metta.app_backend.tournament.settings import MAX_MATCHES_PER_CYCLE, POLL_INTERVAL_SECONDS, settings
-from mettagrid.config.mettagrid_config import MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
 SOFTMAX_S3_REPLAYS_PREFIX = "s3://softmax-public/replays/tournament"
-
-
-class MatchData(BaseModel):
-    match_id: UUID
-    status: MatchStatus
-    player_pv_ids: list[UUID]
-
-
-class MatchRequest(BaseModel):
-    policy_version_ids: list[UUID]
-    assignments: list[int]
-    env: MettaGridConfig
-    episode_tags: dict[str, str] = {}
 
 
 class MembershipChange(BaseModel):
@@ -51,39 +38,10 @@ class MembershipChange(BaseModel):
     action: Literal["add", "retire"]
 
 
-class ScoredMatchData(BaseModel):
-    match_id: UUID
-    policy_scores: dict[UUID, float]
-    assignments: list[int]
-    policy_version_ids: list[UUID]
-    episode_tags: dict[str, str] = {}
-
-
-class ScorerInterface(ABC):
-    @abstractmethod
-    def compute_scores(
-        self,
-        policy_version_ids: list[UUID],
-        matches: list[ScoredMatchData],
-    ) -> dict[UUID, float]:
-        pass
-
-
-class RefereeInterface(ABC):
-    @abstractmethod
-    def get_matches_to_schedule(
-        self,
-        players: list[PoolPlayer],
-        matches: list[MatchData],
-    ) -> list[MatchRequest]:
-        pass
-
-
-class CommissionerInterface(ABC):
-    scorer: ScorerInterface
-
+class CommissionerBase(ABC):
     season_name: str
-    referees: dict[str, RefereeInterface]
+    referees: dict[str, RefereeBase]
+    leaderboard_pool: str | None = None
 
     @abstractmethod
     def get_new_submission_membership_changes(self, policy_version_id: UUID) -> list[MembershipChange]:
@@ -177,61 +135,81 @@ class CommissionerInterface(ABC):
         )
 
         job_ids = [m.job_id for m in pending if m.job_id]
-        if not job_ids:
+        if job_ids:
+            jobs_by_id = {
+                j.id: j
+                for j in (await session.execute(select(JobRequest).where(col(JobRequest.id).in_(job_ids)))).scalars()
+            }
+
+            updated = 0
+            for match in pending:
+                if not match.job_id or match.job_id not in jobs_by_id:
+                    continue
+                job = jobs_by_id[match.job_id]
+                if job.status == JobStatus.running and match.status != MatchStatus.running:
+                    match.status = MatchStatus.running
+                    updated += 1
+                elif job.status == JobStatus.completed:
+                    match.status = MatchStatus.completed
+                    match.completed_at = datetime.now(UTC)
+                    updated += 1
+                elif job.status == JobStatus.failed:
+                    match.status = MatchStatus.failed
+                    updated += 1
+
+            if updated > 0:
+                logger.info(f"Updated {updated} match statuses")
+            await session.commit()
+
+        await self._sync_match_scores()
+
+    async def _sync_match_scores(self) -> None:
+        session = get_db()
+
+        # Find completed matches with missing scores and their episode IDs
+        matches_query = text("""
+            SELECT DISTINCT m.id AS match_id, jr.result->>'episode_id' AS episode_id
+            FROM matches m
+            JOIN pools p ON m.pool_id = p.id
+            JOIN match_players mp ON mp.match_id = m.id
+            JOIN job_requests jr ON jr.id = m.job_id
+            WHERE p.season_id = :season_id
+                AND m.status = 'completed'
+                AND mp.score IS NULL
+                AND jr.result->>'episode_id' IS NOT NULL
+        """)
+        result = await session.execute(matches_query, {"season_id": self.season_id})
+        rows = result.all()
+
+        if not rows:
             return
 
-        jobs_by_id = {
-            j.id: j
-            for j in (await session.execute(select(JobRequest).where(col(JobRequest.id).in_(job_ids)))).scalars()
-        }
+        match_ids = [row[0] for row in rows]
+        episode_ids = [row[1] for row in rows]
+        episode_by_match: dict[UUID, str] = {row[0]: row[1] for row in rows}
 
-        updated = 0
-        completed_match_ids: list[UUID] = []
-        for match in pending:
-            if not match.job_id or match.job_id not in jobs_by_id:
-                continue
-            job = jobs_by_id[match.job_id]
-            if job.status == JobStatus.running and match.status != MatchStatus.running:
-                match.status = MatchStatus.running
-                updated += 1
-            elif job.status == JobStatus.completed:
-                match.status = MatchStatus.completed
-                match.completed_at = datetime.now(UTC)
-                completed_match_ids.append(match.id)
-                updated += 1
-            elif job.status == JobStatus.failed:
-                match.status = MatchStatus.failed
-                updated += 1
+        # Load matches to get assignments for computing agent counts
+        matches = list((await session.execute(select(Match).where(col(Match.id).in_(match_ids)))).scalars().all())
+        matches_by_id = {m.id: m for m in matches}
 
-        if updated > 0:
-            logger.info(f"Updated {updated} match statuses")
-        await session.commit()
-
-        if completed_match_ids:
-            await self._sync_match_scores(completed_match_ids)
-
-    async def _sync_match_scores(self, match_ids: list[UUID]) -> None:
-        session = get_db()
         scores_query = """
-            SELECT et.value AS match_id, pv.id AS policy_version_id, epm.value AS avg_reward
-            FROM episode_tags et
-            JOIN episodes e ON e.id = et.episode_id
-            JOIN episode_policies ep ON ep.episode_id = e.id
-            JOIN policy_versions pv ON pv.id = ep.policy_version_id
+            SELECT e.id AS episode_id, pv.id AS policy_version_id, epm.value AS reward
+            FROM episodes e
             JOIN episode_policy_metrics epm ON epm.episode_internal_id = e.internal_id
-                AND epm.pv_internal_id = pv.internal_id
-                AND epm.metric_name = 'avg_reward'
-            WHERE et.key = 'match_id' AND et.value = ANY(:match_ids)
+            JOIN policy_versions pv ON pv.internal_id = epm.pv_internal_id
+            WHERE epm.metric_name = 'reward' AND e.id = ANY(:episode_ids)
         """
-        result = await session.execute(text(scores_query), {"match_ids": [str(m) for m in match_ids]})
-        scores_by_match: dict[UUID, dict[UUID, float]] = defaultdict(dict)
-        for row in result.all():
-            match_id = UUID(row[0])
-            pv_id = row[1]
-            avg_reward = row[2]
-            scores_by_match[match_id][pv_id] = avg_reward
+        result = await session.execute(text(scores_query), {"episode_ids": episode_ids})
+        score_rows = result.all()
 
-        if not scores_by_match:
+        scores_by_episode: dict[str, dict[UUID, float]] = defaultdict(dict)
+        for row in score_rows:
+            ep_id = str(row[0]) if row[0] else None
+            pv_id = row[1]
+            if ep_id and pv_id:
+                scores_by_episode[ep_id][pv_id] = row[2]
+
+        if not scores_by_episode:
             return
 
         match_players = list(
@@ -240,9 +218,15 @@ class CommissionerInterface(ABC):
 
         updated = 0
         for mp in match_players:
-            match_scores = scores_by_match.get(mp.match_id, {})
-            if mp.policy_version_id in match_scores:
-                mp.score = match_scores[mp.policy_version_id]
+            episode_id = episode_by_match.get(mp.match_id)
+            if not episode_id:
+                continue
+            episode_scores = scores_by_episode.get(episode_id, {})
+            if mp.policy_version_id in episode_scores:
+                total_reward = episode_scores[mp.policy_version_id]
+                match = matches_by_id.get(mp.match_id)
+                agent_count = match.assignments.count(mp.policy_index) if match else 1
+                mp.score = total_reward / max(agent_count, 1)
                 updated += 1
 
         if updated > 0:
@@ -315,67 +299,19 @@ class CommissionerInterface(ABC):
         return pool_names
 
     @with_db
-    async def get_leaderboard(self, pool_name: str | None = None) -> list[tuple[UUID, float]]:
+    async def get_leaderboard(self) -> list[tuple[UUID, float]]:
         session = get_db()
         season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
         if not season:
             return []
 
-        if pool_name:
-            pool = (
-                await session.execute(select(Pool).filter_by(season_id=season.id, name=pool_name))
-            ).scalar_one_or_none()
-            if not pool:
-                raise ValueError(f"Pool '{pool_name}' not found")
-            pool_ids = [pool.id]
-        else:
-            pool_ids = [row[0] for row in (await session.execute(select(Pool.id).filter_by(season_id=season.id))).all()]
-
-        if not pool_ids:
+        pool_name = self.leaderboard_pool or list(self.referees.keys())[0]
+        pool = (await session.execute(select(Pool).filter_by(season_id=season.id, name=pool_name))).scalar_one_or_none()
+        if not pool:
             return []
 
-        matches = list(
-            (
-                await session.execute(
-                    select(Match).where(col(Match.pool_id).in_(pool_ids)).where(Match.status == MatchStatus.completed)
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        if not matches:
-            return []
-
-        all_policy_ids: set[UUID] = set()
-        scored_matches: list[ScoredMatchData] = []
-
-        for match in matches:
-            if not match.players or any(mp.score is None for mp in match.players):
-                continue
-
-            policy_scores: dict[UUID, float] = {}
-            policy_version_ids: list[UUID] = []
-            for mp in sorted(match.players, key=lambda x: x.policy_index):
-                policy_scores[mp.policy_version_id] = mp.score  # type: ignore[assignment]
-                if mp.policy_index >= len(policy_version_ids):
-                    policy_version_ids.append(mp.policy_version_id)
-                all_policy_ids.add(mp.policy_version_id)
-
-            scored_matches.append(
-                ScoredMatchData(
-                    match_id=match.id,
-                    policy_scores=policy_scores,
-                    assignments=match.assignments,
-                    policy_version_ids=policy_version_ids,
-                )
-            )
-
-        if not scored_matches:
-            return []
-
-        scores = self.scorer.compute_scores(list(all_policy_ids), scored_matches)
-        return sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        referee = self.referees[pool_name]
+        return await referee.get_leaderboard(pool.id)
 
     @with_db
     async def get_matches(self, pool_name: str, limit: int = 50, offset: int = 0) -> list[Match]:

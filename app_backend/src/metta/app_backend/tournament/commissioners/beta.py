@@ -5,18 +5,17 @@ from sqlmodel import col, func, select
 
 from metta.app_backend.database import get_db
 from metta.app_backend.models.tournament import Match, MatchPlayer, MatchStatus, Pool, PoolPlayer
-from metta.app_backend.tournament.interfaces import CommissionerInterface, MembershipChange, ScorerInterface
+from metta.app_backend.tournament.commissioners.base import CommissionerBase, MembershipChange
 from metta.app_backend.tournament.referees.pairing import PairingReferee
 from metta.app_backend.tournament.referees.selfplay import SelfPlayReferee
-from metta.app_backend.tournament.scorers.weighted import WeightedScorer
-from metta.app_backend.tournament.settings import PROMOTION_MIN_MATCHES, PROMOTION_MIN_SCORE
+from metta.app_backend.tournament.settings import PROMOTION_MIN_SCORE
 
 logger = logging.getLogger(__name__)
 
 
-class BetaCommissioner(CommissionerInterface):
-    scorer: ScorerInterface = WeightedScorer()
+class BetaCommissioner(CommissionerBase):
     season_name = "beta"
+    leaderboard_pool = "competition"
     referees = {
         "qualifying": SelfPlayReferee(),
         "competition": PairingReferee(),
@@ -31,13 +30,14 @@ class BetaCommissioner(CommissionerInterface):
 
         qualifying_pool = pools["qualifying"]
         competition_pool = pools["competition"]
+        qualifying_referee: SelfPlayReferee = self.referees["qualifying"]  # type: ignore[assignment]
 
         stats = await self._get_player_stats(qualifying_pool.id)
         existing_in_competition = await self._get_pool_member_ids(competition_pool.id)
 
         changes: list[MembershipChange] = []
         for pv_id, (avg_score, match_count) in stats.items():
-            if match_count < PROMOTION_MIN_MATCHES:
+            if match_count < qualifying_referee.matches_per_player:
                 continue
             if avg_score is None or avg_score < PROMOTION_MIN_SCORE:
                 continue

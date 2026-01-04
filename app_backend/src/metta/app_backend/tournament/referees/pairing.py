@@ -1,11 +1,10 @@
-"""Pairing referee for competition pools."""
-
 from typing import Tuple
 from uuid import UUID
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.models.tournament import PoolPlayer
-from metta.app_backend.tournament.interfaces import MatchData, MatchRequest, RefereeInterface
+from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase, ScorerInterface
+from metta.app_backend.tournament.scorers.weighted import WeightedScorer
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 NUM_AGENTS = 4
@@ -17,13 +16,14 @@ def _make_env() -> MettaGridConfig:
     return mission.make_env()
 
 
-class PairingReferee(RefereeInterface):
+class PairingReferee(RefereeBase):
     """Schedules matches between pairs of policies to find optimal teammates.
 
     Each unique pair of policies plays up to `matches_per_pair` matches together,
     with agents split evenly between the two policies (2v2 configuration).
     """
 
+    scorer: ScorerInterface = WeightedScorer()
     matches_per_pair: int = 3
 
     def get_matches_to_schedule(

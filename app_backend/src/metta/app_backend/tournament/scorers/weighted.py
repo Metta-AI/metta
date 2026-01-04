@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from metta.app_backend.tournament.interfaces import ScoredMatchData, ScorerInterface
+from metta.app_backend.tournament.referees.base import ScoredMatchData, ScorerInterface
 
 
 class WeightedScorer(ScorerInterface):
