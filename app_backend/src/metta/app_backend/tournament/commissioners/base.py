@@ -433,17 +433,10 @@ class CommissionerBase(ABC):
         await session.commit()
         match_id = match.id
 
-        pv_ids = dict(
-            (
-                await session.execute(
-                    select(PoolPlayer.id, PoolPlayer.policy_version_id).where(
-                        col(PoolPlayer.id).in_(request.pool_player_ids)
-                    )
-                )
-            )
-            .scalars()
-            .all()
+        pv_result = await session.execute(
+            select(PoolPlayer.id, PoolPlayer.policy_version_id).where(col(PoolPlayer.id).in_(request.pool_player_ids))
         )
+        pv_ids = {row[0]: row[1] for row in pv_result.all()}
         # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
         job_spec = dict(
             policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],

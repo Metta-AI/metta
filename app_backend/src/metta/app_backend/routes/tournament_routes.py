@@ -96,6 +96,11 @@ class PlayerDetail(BaseModel):
 def create_tournament_router() -> APIRouter:
     router = APIRouter(prefix="/tournament", tags=["tournament"])
 
+    @router.get("/seasons")
+    @timed_http_handler
+    async def list_seasons(_user: UserOrToken) -> list[str]:
+        return list(SEASONS.keys())
+
     @router.get("/seasons/{season_name}")
     @timed_http_handler
     async def get_season(_user: UserOrToken, season_name: str) -> dict:
