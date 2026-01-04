@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
 import { Card } from './components/Card'
-import { LinkButton } from './components/LinkButton'
 import { ReplayViewer } from './components/ReplayViewer'
 import { SmallHeader } from './components/SmallHeader'
 import { StyledLink } from './components/StyledLink'
