@@ -11,6 +11,7 @@ from kubernetes import (
     watch,  # type: ignore[attr-defined]
 )
 from kubernetes import config as kubernetes_config
+from kubernetes.client.rest import ApiException
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.job_runner.config import (
@@ -217,6 +218,11 @@ def _delete_k8s_job_for_pod(pod: client.V1Pod):
     try:
         _, batch_v1 = _get_k8s_clients()
         batch_v1.delete_namespaced_job(name=job_name, namespace=JOB_NAMESPACE, propagation_policy="Background")
+    except ApiException as e:
+        if e.status == 404:
+            logger.debug(f"K8s job {job_name} already deleted")
+        else:
+            logger.error(f"Failed to delete k8s job {job_name}: {e}")
     except Exception as e:
         logger.error(f"Failed to delete k8s job {job_name}: {e}")
 

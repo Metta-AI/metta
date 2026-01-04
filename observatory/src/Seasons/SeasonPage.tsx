@@ -11,17 +11,24 @@ import { Table, TH, TR, TD } from '../components/Table'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import {
   LeaderboardEntry,
-  MatchPlayerSummary,
   MatchStatus,
-  MatchSummary,
   PolicyRow,
-  PoolMember,
+  PolicySummary,
   PublicPolicyVersionRow,
   SeasonDetail,
+  SeasonMatchSummary,
 } from '../repo'
 import { formatRelativeTime } from '../utils/datetime'
 
-const StatusBadge: FC<{ status: MatchStatus }> = ({ status }) => {
+const StatusBadge: FC<{ status: string }> = ({ status }) => {
+  const colors: Record<string, string> = {
+    active: 'bg-green-100 text-green-800',
+    retired: 'bg-gray-100 text-gray-600',
+  }
+  return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status] || 'bg-gray-100'}`}>{status}</span>
+}
+
+const MatchStatusBadge: FC<{ status: MatchStatus }> = ({ status }) => {
   const colors: Record<MatchStatus, string> = {
     pending: 'bg-gray-100 text-gray-800',
     scheduled: 'bg-blue-100 text-blue-800',
@@ -31,19 +38,6 @@ const StatusBadge: FC<{ status: MatchStatus }> = ({ status }) => {
   }
   return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status]}`}>{status}</span>
 }
-
-const formatPlayerDisplay = (p: MatchPlayerSummary): string => {
-  if (p.policy_name && p.policy_version !== null) {
-    return `${p.policy_name}:v${p.policy_version}`
-  }
-  return p.policy_version_id.slice(0, 8)
-}
-
-const PlayerLink: FC<{ player: MatchPlayerSummary }> = ({ player }) => (
-  <StyledLink to={`/policies/versions/${player.policy_version_id}`} className="font-mono text-xs">
-    {formatPlayerDisplay(player)}
-  </StyledLink>
-)
 
 const SubmitForm: FC<{
   seasonName: string
@@ -103,7 +97,7 @@ const SubmitForm: FC<{
     setSubmitSuccess(null)
     try {
       const result = await repo.submitToSeason(seasonName, selectedVersion.id)
-      setSubmitSuccess(`Submitted to pools: ${result.pool_names.join(', ')}`)
+      setSubmitSuccess(`Submitted to pools: ${result.pools.join(', ')}`)
       setSelectedPolicy(null)
       setSelectedVersion(null)
       setPolicySearch('')
@@ -195,15 +189,32 @@ const SubmitForm: FC<{
   )
 }
 
+const formatPolicyDisplay = (p: {
+  policy_name: string | null
+  policy_version: number | null
+  policy_version_id: string
+}) => {
+  if (p.policy_name && p.policy_version !== null) {
+    return `${p.policy_name}:v${p.policy_version}`
+  }
+  return p.policy_version_id.slice(0, 8)
+}
+
+type MatchFilter = {
+  pool_name?: string
+  policy_version_id?: string
+  policy_display?: string
+}
+
 export const SeasonPage: FC = () => {
   const { seasonName } = useParams<{ seasonName: string }>()
   const { repo } = useContext(AppContext)
 
   const [season, setSeason] = useState<SeasonDetail | null>(null)
-  const [selectedPool, setSelectedPool] = useState<string>('')
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
-  const [matches, setMatches] = useState<MatchSummary[]>([])
-  const [members, setMembers] = useState<PoolMember[]>([])
+  const [policies, setPolicies] = useState<PolicySummary[]>([])
+  const [matches, setMatches] = useState<SeasonMatchSummary[]>([])
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -216,9 +227,6 @@ export const SeasonPage: FC = () => {
         const data = await repo.getSeason(seasonName)
         if (!ignore) {
           setSeason(data)
-          if (data.pools.length > 0) {
-            setSelectedPool(data.pools[0])
-          }
           setError(null)
         }
       } catch (err: any) {
@@ -237,43 +245,52 @@ export const SeasonPage: FC = () => {
     }
   }, [repo, seasonName])
 
-  const loadLeaderboard = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!seasonName) return
     try {
-      const lb = await repo.getSeasonLeaderboard(seasonName)
-      setLeaderboard(lb.entries)
+      const [lb, pol] = await Promise.all([repo.getSeasonLeaderboard(seasonName), repo.getSeasonPolicies(seasonName)])
+      setLeaderboard(lb)
+      setPolicies(pol)
     } catch (err: any) {
       setError(err.message)
     }
   }, [repo, seasonName, refreshKey])
 
-  const loadPoolData = useCallback(async () => {
-    if (!seasonName || !selectedPool) return
+  const loadMatches = useCallback(async () => {
+    if (!seasonName) return
     try {
-      const [m, mem] = await Promise.all([
-        repo.getPoolMatches(seasonName, selectedPool, { limit: 20 }),
-        repo.getPoolMembers(seasonName, selectedPool),
-      ])
+      const m = await repo.getSeasonMatches(seasonName, {
+        pool_name: matchFilter.pool_name,
+        policy_version_id: matchFilter.policy_version_id,
+        limit: 50,
+      })
       setMatches(m)
-      setMembers(mem)
     } catch (err: any) {
       setError(err.message)
     }
-  }, [repo, seasonName, selectedPool, refreshKey])
+  }, [repo, seasonName, matchFilter])
 
   useEffect(() => {
-    loadLeaderboard()
-    const interval = setInterval(loadLeaderboard, 10000)
+    loadData()
+    const interval = setInterval(loadData, 10000)
     return () => clearInterval(interval)
-  }, [loadLeaderboard])
+  }, [loadData])
 
   useEffect(() => {
-    loadPoolData()
-    const interval = setInterval(loadPoolData, 10000)
+    loadMatches()
+    const interval = setInterval(loadMatches, 5000)
     return () => clearInterval(interval)
-  }, [loadPoolData])
+  }, [loadMatches])
 
-  const existingPolicyVersionIds = new Set(leaderboard.map((e) => e.policy_version_id))
+  const existingPolicyVersionIds = new Set(policies.map((p) => p.policy_version_id))
+
+  const handleMatchFilterClick = (poolName: string, policyVersionId: string, policyDisplay: string) => {
+    setMatchFilter({ pool_name: poolName, policy_version_id: policyVersionId, policy_display: policyDisplay })
+  }
+
+  const clearMatchFilter = () => {
+    setMatchFilter({})
+  }
 
   if (loading) {
     return (
@@ -303,6 +320,11 @@ export const SeasonPage: FC = () => {
     )
   }
 
+  const matchFilterLabel =
+    matchFilter.pool_name || matchFilter.policy_version_id
+      ? `${matchFilter.pool_name || 'all pools'}${matchFilter.policy_display ? ` / ${matchFilter.policy_display}` : ''}`
+      : null
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
@@ -324,23 +346,17 @@ export const SeasonPage: FC = () => {
               <TH>Score</TH>
             </Table.Header>
             <Table.Body>
-              {leaderboard.map((entry) => {
-                const displayName =
-                  entry.policy_name && entry.policy_version !== null
-                    ? `${entry.policy_name}:v${entry.policy_version}`
-                    : entry.policy_version_id.slice(0, 8)
-                return (
-                  <TR key={entry.policy_version_id}>
-                    <TD>{entry.rank}</TD>
-                    <TD>
-                      <StyledLink to={`/policies/versions/${entry.policy_version_id}`} className="font-mono text-sm">
-                        {displayName}
-                      </StyledLink>
-                    </TD>
-                    <TD>{entry.score.toPrecision(4)}</TD>
-                  </TR>
-                )
-              })}
+              {leaderboard.map((entry) => (
+                <TR key={entry.policy_version_id}>
+                  <TD>{entry.rank}</TD>
+                  <TD>
+                    <StyledLink to={`/policies/versions/${entry.policy_version_id}`} className="font-mono text-sm">
+                      {formatPolicyDisplay(entry)}
+                    </StyledLink>
+                  </TD>
+                  <TD>{entry.score.toPrecision(4)}</TD>
+                </TR>
+              ))}
             </Table.Body>
           </Table>
         )}
@@ -354,151 +370,136 @@ export const SeasonPage: FC = () => {
         />
       </Card>
 
-      <hr className="border-gray-200" />
-
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-600 mr-1">Pool:</span>
-        {season.pools.map((pool) => (
-          <button
-            key={pool}
-            onClick={() => setSelectedPool(pool)}
-            className={`px-3 py-1 text-sm rounded-full border transition-colors capitalize ${
-              selectedPool === pool
-                ? 'border-blue-600 text-blue-600 bg-blue-50'
-                : 'border-gray-300 text-gray-600 bg-white hover:border-gray-400'
-            }`}
-          >
-            {pool}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-6">
-        <Card title="Match History">
-          {matches.length === 0 ? (
-            <div className="text-gray-500 py-4">No matches yet</div>
-          ) : (
-            <Table>
-              <Table.Header>
-                <TH>Status</TH>
-                <TH>Policy</TH>
-                <TH>Agents</TH>
-                <TH>Score</TH>
-                <TH>Tags</TH>
-                <TH>Created</TH>
-                <TH>Episode</TH>
-              </Table.Header>
-              <Table.Body>
-                {matches.map((match) => {
-                  const tags = match.episode_tags || {}
-                  const displayTags = Object.entries(tags).filter(([k]) => k !== 'match_id' && k !== 'pool_id')
-                  const agentCounts = match.assignments.reduce(
-                    (acc, policyIdx) => {
-                      acc[policyIdx] = (acc[policyIdx] || 0) + 1
-                      return acc
-                    },
-                    {} as Record<number, number>
-                  )
-                  return (
-                    <TR key={match.id}>
-                      <TD>
-                        <StatusBadge status={match.status} />
-                      </TD>
-                      <TD>
-                        <div className="flex flex-col gap-1">
-                          {match.players.map((p, i) => (
-                            <PlayerLink key={i} player={p} />
-                          ))}
-                        </div>
-                      </TD>
-                      <TD>
-                        <div className="flex flex-col gap-1 text-xs text-gray-600">
-                          {match.players.map((p, i) => (
-                            <span key={i}>{agentCounts[p.policy_index] || 0}</span>
-                          ))}
-                        </div>
-                      </TD>
-                      <TD>
-                        <div className="flex flex-col gap-1 font-mono text-xs">
-                          {match.players.map((p, i) => (
-                            <span key={i}>{p.score !== null ? p.score.toPrecision(4) : '-'}</span>
-                          ))}
-                        </div>
-                      </TD>
-                      <TD>
-                        {displayTags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {displayTags.map(([k, v]) => (
-                              <span
-                                key={k}
-                                className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded"
-                                title={`${k}: ${v}`}
-                              >
-                                {k}={v}
-                              </span>
-                            ))}
+      <Card title="Policies">
+        {policies.length === 0 ? (
+          <div className="text-gray-500 py-4">No policies submitted yet</div>
+        ) : (
+          <Table>
+            <Table.Header>
+              <TH>Policy</TH>
+              {season.pools.map((pool) => (
+                <TH key={pool} className="capitalize">
+                  {pool}
+                </TH>
+              ))}
+            </Table.Header>
+            <Table.Body>
+              {policies.map((policy) => {
+                const poolStatusMap = Object.fromEntries(policy.pools.map((p) => [p.pool_name, p]))
+                return (
+                  <TR key={policy.policy_version_id}>
+                    <TD>
+                      <StyledLink to={`/policies/versions/${policy.policy_version_id}`} className="font-mono text-sm">
+                        {formatPolicyDisplay(policy)}
+                      </StyledLink>
+                    </TD>
+                    {season.pools.map((poolName) => {
+                      const status = poolStatusMap[poolName]
+                      if (!status) {
+                        return (
+                          <TD key={poolName} className="text-gray-400">
+                            -
+                          </TD>
+                        )
+                      }
+                      return (
+                        <TD key={poolName}>
+                          <div className="flex flex-col gap-1">
+                            <StatusBadge status={status.status} />
+                            <button
+                              onClick={() =>
+                                handleMatchFilterClick(poolName, policy.policy_version_id, formatPolicyDisplay(policy))
+                              }
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline text-left"
+                            >
+                              {status.matches_completed} matches
+                            </button>
+                            {status.avg_score !== null && (
+                              <span className="text-xs text-gray-500">{status.avg_score.toPrecision(3)} avg</span>
+                            )}
                           </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TD>
-                      <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
-                      <TD>
-                        {match.episode_id ? (
-                          <StyledLink to={`/episodes/${match.episode_id}`}>View</StyledLink>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TD>
-                    </TR>
-                  )
-                })}
-              </Table.Body>
-            </Table>
-          )}
-        </Card>
+                        </TD>
+                      )
+                    })}
+                  </TR>
+                )
+              })}
+            </Table.Body>
+          </Table>
+        )}
+      </Card>
 
-        <Card title="Pool Members">
-          {members.length === 0 ? (
-            <div className="text-gray-500 py-4">No members yet</div>
-          ) : (
-            <Table>
-              <Table.Header>
-                <TH>Policy</TH>
-                <TH>Added</TH>
-                <TH>Status</TH>
-              </Table.Header>
-              <Table.Body>
-                {members.map((member) => {
-                  const displayName =
-                    member.policy_name && member.policy_version !== null
-                      ? `${member.policy_name}:v${member.policy_version}`
-                      : member.policy_version_id.slice(0, 8)
-                  return (
-                    <TR key={member.policy_version_id}>
-                      <TD>
-                        <StyledLink to={`/policies/versions/${member.policy_version_id}`} className="font-mono text-sm">
-                          {displayName}
+      <Card
+        title={
+          <div className="flex items-center gap-2">
+            <span>Matches</span>
+            {matchFilterLabel && (
+              <>
+                <span className="text-sm font-normal text-gray-500">({matchFilterLabel})</span>
+                <button
+                  onClick={clearMatchFilter}
+                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  clear
+                </button>
+              </>
+            )}
+          </div>
+        }
+      >
+        {matches.length === 0 ? (
+          <div className="text-gray-500 py-4">No matches yet</div>
+        ) : (
+          <Table>
+            <Table.Header>
+              <TH>Status</TH>
+              <TH>Pool</TH>
+              <TH>Players</TH>
+              <TH>Scores</TH>
+              <TH>Created</TH>
+              <TH>Episode</TH>
+            </Table.Header>
+            <Table.Body>
+              {matches.map((match) => (
+                <TR key={match.id}>
+                  <TD>
+                    <MatchStatusBadge status={match.status} />
+                  </TD>
+                  <TD className="capitalize">{match.pool_name}</TD>
+                  <TD>
+                    <div className="flex flex-col gap-1">
+                      {match.players.map((p, i) => (
+                        <StyledLink
+                          key={i}
+                          to={`/policies/versions/${p.policy_version_id}`}
+                          className="font-mono text-xs"
+                        >
+                          {formatPolicyDisplay(p)}
                         </StyledLink>
-                      </TD>
-                      <TD className="text-gray-500 text-sm">{formatRelativeTime(member.added_at)}</TD>
-                      <TD>
-                        {member.retired ? (
-                          <span className="text-xs text-gray-500">
-                            Retired {member.retired_at ? formatRelativeTime(member.retired_at) : ''}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-green-600">Active</span>
-                        )}
-                      </TD>
-                    </TR>
-                  )
-                })}
-              </Table.Body>
-            </Table>
-          )}
-        </Card>
-      </div>
+                      ))}
+                    </div>
+                  </TD>
+                  <TD>
+                    <div className="flex flex-col gap-1 font-mono text-xs">
+                      {match.players.map((p, i) => (
+                        <span key={i}>{p.score !== null ? p.score.toPrecision(3) : '-'}</span>
+                      ))}
+                    </div>
+                  </TD>
+                  <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
+                  <TD>
+                    {match.episode_id ? (
+                      <StyledLink to={`/episodes/${match.episode_id}`}>View</StyledLink>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </TD>
+                </TR>
+              ))}
+            </Table.Body>
+          </Table>
+        )}
+      </Card>
     </div>
   )
 }

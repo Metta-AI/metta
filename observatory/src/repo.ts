@@ -301,8 +301,7 @@ export type MatchSummary = {
 }
 
 export type SubmissionResponse = {
-  status: string
-  pool_names: string[]
+  pools: string[]
 }
 
 export type PoolMember = {
@@ -312,6 +311,38 @@ export type PoolMember = {
   added_at: string
   retired: boolean
   retired_at: string | null
+}
+
+export type PolicyPoolStatus = {
+  pool_name: string
+  status: string
+  matches_completed: number
+  avg_score: number | null
+}
+
+export type PolicySummary = {
+  policy_version_id: string
+  policy_name: string | null
+  policy_version: number | null
+  pools: PolicyPoolStatus[]
+}
+
+export type SeasonMatchPlayerSummary = {
+  policy_version_id: string
+  policy_name: string | null
+  policy_version: number | null
+  policy_index: number
+  score: number | null
+}
+
+export type SeasonMatchSummary = {
+  id: string
+  pool_name: string
+  status: MatchStatus
+  assignments: number[]
+  players: SeasonMatchPlayerSummary[]
+  episode_id: string | null
+  created_at: string
 }
 
 export type JobRequest = {
@@ -649,21 +680,25 @@ export class Repo {
     return this.apiCall<SeasonDetail>(`/tournament/seasons/${encodeURIComponent(seasonName)}`)
   }
 
-  async getSeasonLeaderboard(seasonName: string): Promise<LeaderboardResponse> {
-    return this.apiCall<LeaderboardResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`)
+  async getSeasonLeaderboard(seasonName: string): Promise<LeaderboardEntry[]> {
+    return this.apiCall<LeaderboardEntry[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`)
   }
 
-  async getPoolMatches(
+  async getSeasonPolicies(seasonName: string): Promise<PolicySummary[]> {
+    return this.apiCall<PolicySummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/policies`)
+  }
+
+  async getSeasonMatches(
     seasonName: string,
-    poolName: string,
-    params?: { limit?: number; offset?: number }
-  ): Promise<MatchSummary[]> {
+    params?: { pool_name?: string; policy_version_id?: string; limit?: number }
+  ): Promise<SeasonMatchSummary[]> {
     const searchParams = new URLSearchParams()
+    if (params?.pool_name) searchParams.append('pool_name', params.pool_name)
+    if (params?.policy_version_id) searchParams.append('policy_version_id', params.policy_version_id)
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
-    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<MatchSummary[]>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/pools/${encodeURIComponent(poolName)}/matches${query ? `?${query}` : ''}`
+    return this.apiCall<SeasonMatchSummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`
     )
   }
 
@@ -671,11 +706,5 @@ export class Repo {
     return this.apiCallWithBody<SubmissionResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/submit`, {
       policy_version_id: policyVersionId,
     })
-  }
-
-  async getPoolMembers(seasonName: string, poolName: string): Promise<PoolMember[]> {
-    return this.apiCall<PoolMember[]>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/pools/${encodeURIComponent(poolName)}/members`
-    )
   }
 }
