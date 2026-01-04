@@ -9,7 +9,7 @@ from fastapi import HTTPException, Request
 
 # Logger for route performance
 route_logger = logging.getLogger("route_performance")
-route_logger.setLevel(logging.WARNING)
+route_logger.setLevel(logging.INFO)
 
 # Threshold for slow route warnings (2 seconds)
 SLOW_ROUTE_THRESHOLD_SECONDS = 2.0
@@ -29,7 +29,7 @@ def timed_http_handler(func):
             raise
         except Exception as e:
             operation = func.__name__.replace("_", " ")
-            route_logger.debug(f"Failed to {operation}", exc_info=True)
+            route_logger.error(f"Failed to {operation}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to {operation}: {str(e)}") from e
 
     return wrapper
@@ -75,7 +75,7 @@ def timed_route(route_name: str = ""):
 
             except Exception as e:
                 execution_time = time.time() - start_time
-                route_logger.debug(f"ROUTE FAILED: {name} after {execution_time:.3f}s - {e}")
+                route_logger.error(f"ROUTE FAILED: {name} after {execution_time:.3f}s - {e}")
                 raise
 
         return wrapper
