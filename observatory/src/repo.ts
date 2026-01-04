@@ -319,6 +319,7 @@ export type SeasonMatchSummary = {
   status: MatchStatus
   assignments: number[]
   players: SeasonMatchPlayerSummary[]
+  job_id: string | null
   episode_id: string | null
   created_at: string
 }
@@ -641,11 +642,13 @@ export class Repo {
   async getJobs(params?: {
     job_type?: string
     statuses?: JobStatus[]
+    job_id?: string
     limit?: number
     offset?: number
   }): Promise<JobRequest[]> {
     const searchParams = new URLSearchParams()
     if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.job_id) searchParams.append('job_id', params.job_id)
     if (params?.statuses) {
       for (const status of params.statuses) {
         searchParams.append('statuses', status)

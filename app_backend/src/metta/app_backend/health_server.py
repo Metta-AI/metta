@@ -5,7 +5,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 logger = logging.getLogger(__name__)
 
-HEALTH_PORT = 8080
 HEALTH_TIMEOUT_SECONDS = 120
 
 _last_heartbeat: float = 0.0
@@ -38,8 +37,8 @@ class HealthHandler(BaseHTTPRequestHandler):
         pass
 
 
-def start_health_server():
-    server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
+def start_health_server(port: int = 8080):
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    logger.info(f"Health server started on port {HEALTH_PORT}")
+    logger.info(f"Health server started on port {port}")
     update_heartbeat()

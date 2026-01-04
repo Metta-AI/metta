@@ -27,7 +27,7 @@ spec:
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["uv", "run", "--no-sync", "python", "-m", "metta.app_backend.tournament.cli"]
         ports:
-        - containerPort: 8080
+        - containerPort: 8081
           name: health
         livenessProbe:
           httpGet:

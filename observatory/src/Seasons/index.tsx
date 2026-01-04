@@ -588,16 +588,26 @@ export const SeasonsPage: FC = () => {
                       <TR key={match.id}>
                         <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
                         <TD>
-                          {match.status === 'completed' && match.episode_id ? (
-                            <Link
-                              to={`/episodes/${match.episode_id}`}
-                              className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
-                            >
-                              Results
-                            </Link>
-                          ) : (
-                            <MatchStatusBadge status={match.status} />
-                          )}
+                          <div className="flex gap-1">
+                            {match.status === 'completed' && match.episode_id ? (
+                              <Link
+                                to={`/episodes/${match.episode_id}`}
+                                className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                              >
+                                Results
+                              </Link>
+                            ) : (
+                              <MatchStatusBadge status={match.status} />
+                            )}
+                            {match.job_id && (
+                              <Link
+                                to={`/episode-jobs?jobId=${match.job_id}`}
+                                className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                              >
+                                Job
+                              </Link>
+                            )}
+                          </div>
                         </TD>
                         <TD className="capitalize">{match.pool_name}</TD>
                         <TD className="text-right">

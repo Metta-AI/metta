@@ -80,11 +80,14 @@ def create_job_router() -> APIRouter:
         _user: UserOrToken,
         job_type: JobType | None = Query(default=None),
         statuses: list[JobStatus] | None = Query(default=None),
+        job_id: UUID | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
         offset: int = Query(default=0, ge=0),
     ) -> list[JobRequest]:
         async with db_session() as session:
             query = select(JobRequest).order_by(col(JobRequest.created_at).desc()).offset(offset).limit(limit)
+            if job_id:
+                query = query.where(JobRequest.id == job_id)
             if statuses:
                 query = query.where(col(JobRequest.status).in_(statuses))
             if job_type:

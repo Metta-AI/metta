@@ -78,6 +78,7 @@ class MatchSummary(BaseModel):
     status: str
     assignments: list[int]
     players: list[MatchPlayerSummary]
+    job_id: UUID | None
     episode_id: str | None
     created_at: str
 
@@ -281,6 +282,7 @@ def create_tournament_router() -> APIRouter:
                     )
                     for mp in sorted(m.players, key=lambda p: p.policy_index)
                 ],
+                job_id=m.job_id,
                 episode_id=episode_id,
                 created_at=m.created_at.isoformat() if m.created_at else "",
             )

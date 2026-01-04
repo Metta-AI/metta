@@ -6,7 +6,7 @@ from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 
 def run_commissioner():
-    start_health_server()
+    start_health_server(port=8081)
 
     async def run_all() -> None:
         commissioners = [cls() for cls in SEASONS.values()]
