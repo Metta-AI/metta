@@ -444,6 +444,11 @@ class CommissionerBase(ABC):
         )
         pv_ids = {row[0]: row[1] for row in pv_result.all()}
 
+        missing = set(request.pool_player_ids) - set(pv_ids.keys())
+        if missing:
+            logger.error(f"PoolPlayers not found when creating match: {missing}")
+            return
+
         match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
         session.add(match)
         await session.flush()
