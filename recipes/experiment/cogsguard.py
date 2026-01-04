@@ -297,15 +297,16 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             inventory=InventoryConfig(
                 limits={
                     "gear": ResourceLimitsConfig(limit=1, resources=gear),
-                    "hp": ResourceLimitsConfig(limit=10, resources=["hp"], modifiers={"scout": 100}),
-                    "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
+                    "hp": ResourceLimitsConfig(limit=100, resources=["hp"], modifiers={"scout": 400, "scrambler": 200}),
+                    "heart": ResourceLimitsConfig(limit=10, resources=["heart"]),
                     "energy": ResourceLimitsConfig(limit=10, resources=["energy"], modifiers={"scout": 100}),
-                    "cargo": ResourceLimitsConfig(limit=3, resources=elements, modifiers={"miner": 10}),
+                    "cargo": ResourceLimitsConfig(limit=4, resources=elements, modifiers={"miner": 40}),
                     "influence": ResourceLimitsConfig(limit=0, resources=["influence"], modifiers={"aligner": 20}),
                 },
                 initial={
                     "energy": 100,
                     "heart": 5,
+                    "hp": 50,
                 },
                 regen_amounts={
                     "default": {
