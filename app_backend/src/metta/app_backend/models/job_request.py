@@ -7,6 +7,18 @@ from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+# SQLModel + Pydantic multiple-models pattern for FastAPI.
+# See: https://sqlmodel.tiangolo.com/tutorial/fastapi/multiple-models/
+#
+# A convention to stick to for our codebase:
+#   - _<Name>Base: shared fields (no table=True). Not to be exposed to other files
+#   - <Name>Create: fields needed for creation, extends Base
+#   - <Name>Update: fields needed for updates
+#   - <Name>: defines columns of the db table (table=True). Extends Base and possibly others, adds other fields
+#   - <Name>Public (optional): model for api responses. Note that FastAPI will both:
+#         - auto-marshall between <Name> and <Name>Public based on the return type annotation on the endpoint.
+#         - exclude Fields with `exclude=True` from the API response.
+
 
 class JobType(str, Enum):
     episode = "episode"
