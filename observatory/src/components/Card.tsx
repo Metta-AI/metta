@@ -1,8 +1,8 @@
-import { FC, PropsWithChildren } from 'react'
+import { FC, PropsWithChildren, ReactNode } from 'react'
 
 export const Card: FC<
   PropsWithChildren<{
-    title?: string
+    title?: ReactNode
   }>
 > = ({ children, title }) => {
   return (

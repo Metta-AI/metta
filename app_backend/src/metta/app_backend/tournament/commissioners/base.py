@@ -192,6 +192,21 @@ class CommissionerBase(ABC):
         matches = list((await session.execute(select(Match).where(col(Match.id).in_(match_ids)))).scalars().all())
         matches_by_id = {m.id: m for m in matches}
 
+        # Debug: query episode_policies to see num_agents per policy
+        episode_policies_query = """
+            SELECT e.id AS episode_id, ep.policy_version_id, ep.num_agents
+            FROM episodes e
+            JOIN episode_policies ep ON ep.episode_id = e.id
+            WHERE e.id = ANY(:episode_ids)
+            ORDER BY e.id, ep.policy_version_id
+        """
+        ep_result = await session.execute(text(episode_policies_query), {"episode_ids": episode_ids})
+        ep_rows = ep_result.all()
+        if ep_rows:
+            logger.info("Episode policies for score sync:")
+            for row in ep_rows:
+                logger.info(f"  episode={row[0]}, pv={row[1]}, num_agents={row[2]}")
+
         scores_query = """
             SELECT e.id AS episode_id, pv.id AS policy_version_id, epm.value AS reward
             FROM episodes e
@@ -208,6 +223,7 @@ class CommissionerBase(ABC):
             pv_id = row[1]
             if ep_id and pv_id:
                 scores_by_episode[ep_id][pv_id] = row[2]
+                logger.info(f"Policy reward: episode={ep_id}, pv={pv_id}, total_reward={row[2]}")
 
         if not scores_by_episode:
             return
@@ -225,8 +241,12 @@ class CommissionerBase(ABC):
             if mp.policy_version_id in episode_scores:
                 total_reward = episode_scores[mp.policy_version_id]
                 match = matches_by_id.get(mp.match_id)
-                agent_count = match.assignments.count(mp.policy_index) if match else 1
+                agent_count = match.assignments.count(mp.policy_index) if match and match.assignments else 1
                 mp.score = total_reward / max(agent_count, 1)
+                logger.info(
+                    f"Score calc: match={mp.match_id}, pv={mp.policy_version_id}, "
+                    f"total_reward={total_reward}, agent_count={agent_count}, score={mp.score}"
+                )
                 updated += 1
 
         if updated > 0:
