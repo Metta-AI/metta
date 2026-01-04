@@ -41,7 +41,7 @@ Agent::Agent(GridCoord r,
     }
   }
   populate_initial_inventory(config.initial_inventory);
-  GridObject::init(config.type_id, config.type_name, GridLocation(r, c), config.tag_ids, config.initial_vibe);
+  GridObject::init(config, GridLocation(r, c));
 }
 
 void Agent::init(RewardType* reward_ptr) {

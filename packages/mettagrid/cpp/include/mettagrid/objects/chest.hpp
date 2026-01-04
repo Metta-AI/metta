@@ -78,7 +78,7 @@ public:
         vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
         grid(nullptr) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg, GridLocation(r, c));
     // Set initial inventory for all configured resources (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
