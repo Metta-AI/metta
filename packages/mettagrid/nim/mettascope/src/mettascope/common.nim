@@ -1,5 +1,5 @@
 import
-  std/[times, tables, os],
+  std/[times, tables, os, sets],
   boxy, windy, vmath, silky,
   replays
 
@@ -20,6 +20,7 @@ type
     showResources* = true
     showObservations* = -1
     lockFocus* = false
+    aoeEnabledCommons*: HashSet[int]  ## Set of commons IDs to show AOE for. -1 = unaligned.
 
   PlayMode* = enum
     Historical

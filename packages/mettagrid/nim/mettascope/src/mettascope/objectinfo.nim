@@ -1,9 +1,7 @@
 import
-  std/[os, json, algorithm, tables, sets, strutils, strformat],
+  std/[json, algorithm, tables, sets, strutils, strformat],
   vmath, silky, windy,
   common, panels, replays
-
-const InventoryScale = 0.5f
 
 type
   ResourceLimitGroup* = object
@@ -12,18 +10,21 @@ type
     resources*: seq[string]
     modifiers*: Table[string, int]
 
-proc parseResourceLimits(mgConfig: JsonNode): seq[ResourceLimitGroup] =
-  ## Parse resource_limits from the agent config.
+proc parseInventoryLimits(mgConfig: JsonNode): seq[ResourceLimitGroup] =
+  ## Parse inventory.limits from the agent config.
   result = @[]
   if mgConfig.isNil:
     return
   if "game" notin mgConfig or "agent" notin mgConfig["game"]:
     return
   let agentConfig = mgConfig["game"]["agent"]
-  if "resource_limits" notin agentConfig:
+  if "inventory" notin agentConfig:
     return
-  let resourceLimits = agentConfig["resource_limits"]
-  for groupName, groupConfig in resourceLimits.pairs:
+  let invConfig = agentConfig["inventory"]
+  if "limits" notin invConfig:
+    return
+  let limits = invConfig["limits"]
+  for groupName, groupConfig in limits.pairs:
     var group = ResourceLimitGroup(name: groupName)
     if "limit" in groupConfig:
       group.limit = groupConfig["limit"].getInt
@@ -55,13 +56,9 @@ proc getItemName(itemAmount: ItemAmount): string =
     "item#" & $itemAmount.itemId
 
 proc formatItem(itemAmount: ItemAmount): string =
-  ## Render a compact "name x count" string.
+  ## Render "name: count" string for an inventory item.
   let name = getItemName(itemAmount)
-  name & " x" & $itemAmount.count
-
-proc showItem(itemAmount: ItemAmount) =
-  icon("resources/" & replay.config.game.resourceNames[itemAmount.itemId])
-  text("x" & $itemAmount.count)
+  name & ": " & $itemAmount.count
 
 proc getHeartCount(outputs: seq[ItemAmount]): int =
   ## Returns total hearts produced by this protocol.
@@ -83,6 +80,104 @@ proc protocolCmp(a, b: Protocol): int =
   if aHearts == 0 and bHearts > 0:
     return 1
   cmp(bHearts, aHearts)
+
+proc getCommonsName(commonsId: int): string =
+  ## Get the commons name by ID from the mg_config.
+  if replay.isNil or replay.mgConfig.isNil:
+    return ""
+  if "game" notin replay.mgConfig or "commons" notin replay.mgConfig["game"]:
+    return ""
+  let commonsArr = replay.mgConfig["game"]["commons"]
+  if commonsArr.kind != JArray or commonsId < 0 or commonsId >= commonsArr.len:
+    return ""
+  let commonsConfig = commonsArr[commonsId]
+  if commonsConfig.kind == JObject and "name" in commonsConfig:
+    return commonsConfig["name"].getStr
+  return ""
+
+proc getAoeConfigs(typeName: string): JsonNode =
+  ## Get the AOE configs array for an object type. Returns nil if no AOEs.
+  if replay.isNil or replay.mgConfig.isNil:
+    return nil
+  if "game" notin replay.mgConfig:
+    return nil
+  let game = replay.mgConfig["game"]
+  if "objects" notin game:
+    return nil
+  let objects = game["objects"]
+  if typeName notin objects:
+    return nil
+  let objConfig = objects[typeName]
+  if "aoes" notin objConfig or objConfig["aoes"].kind != JArray or objConfig["aoes"].len == 0:
+    return nil
+  return objConfig["aoes"]
+
+proc isAgentAffectedByAoe(agentCommonsId: int, sourceCommonsId: int, membersOnly: bool, ignoreMembers: bool): bool =
+  ## Check if an agent is affected by an AOE based on commons filtering.
+  if membersOnly:
+    # Only affect agents with matching commons
+    return agentCommonsId >= 0 and agentCommonsId == sourceCommonsId
+  if ignoreMembers:
+    # Ignore agents with matching commons
+    return agentCommonsId < 0 or agentCommonsId != sourceCommonsId
+  # No filter, affect all agents
+  return true
+
+type
+  AoeSourceEffect* = object
+    source*: Entity
+    aoeConfig*: JsonNode
+    aoeRange*: int
+    membersOnly*: bool
+    ignoreMembers*: bool
+
+proc getAoeSourcesAffectingAgent(agent: Entity): seq[AoeSourceEffect] =
+  ## Find all AOE sources that affect this agent.
+  result = @[]
+  if replay.isNil:
+    return
+  let agentPos = agent.location.at(step).xy
+  for obj in replay.objects:
+    if obj.isAgent:
+      continue
+    let aoeConfigs = getAoeConfigs(obj.typeName)
+    if aoeConfigs.isNil:
+      continue
+    # Check distance once for this object (Chebyshev/square)
+    let sourcePos = obj.location.at(step).xy
+    let dx = abs(agentPos.x - sourcePos.x)
+    let dy = abs(agentPos.y - sourcePos.y)
+    let distance = max(dx, dy)
+    # Check each AOE config from this source
+    for aoeConfig in aoeConfigs:
+      # Get AOE range
+      var aoeRange = 0
+      if "range" in aoeConfig:
+        if aoeConfig["range"].kind == JInt:
+          aoeRange = aoeConfig["range"].getInt
+        elif aoeConfig["range"].kind == JFloat:
+          aoeRange = aoeConfig["range"].getFloat.int
+      if aoeRange <= 0:
+        continue
+      if distance > aoeRange:
+        continue
+      # Get filter settings
+      var membersOnly = false
+      var ignoreMembers = false
+      if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
+        membersOnly = aoeConfig["members_only"].getBool
+      if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
+        ignoreMembers = aoeConfig["ignore_members"].getBool
+      # Check if agent is affected by this source
+      if not isAgentAffectedByAoe(agent.commonsId, obj.commonsId, membersOnly, ignoreMembers):
+        continue
+      result.add(AoeSourceEffect(
+        source: obj,
+        aoeConfig: aoeConfig,
+        aoeRange: aoeRange,
+        membersOnly: membersOnly,
+        ignoreMembers: ignoreMembers
+      ))
 
 proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSize: Vec2) =
   ## Draws the object info panel using silky widgets.
@@ -122,6 +217,14 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
     h1text(cur.typeName)
     text(&"  Object ID: {cur.id}")
 
+    # Display alignment (commons) for alignable objects.
+    if cur.commonsId >= 0:
+      let commonsName = getCommonsName(cur.commonsId)
+      if commonsName.len > 0:
+        text(&"  Alignment: {commonsName} ({cur.commonsId})")
+      else:
+        text(&"  Alignment: ({cur.commonsId})")
+
     if cur.isAgent:
       # Agent-specific info.
       let reward = cur.totalReward.at
@@ -153,48 +256,47 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
     sk.advance(vec2(0, theme.spacing.float32))
 
     let currentInventory = cur.inventory.at
-    text("Inventory")
-    if currentInventory.len == 0:
-      text("  Empty")
+    if cur.isAgent:
+      let resourceLimitGroups = parseInventoryLimits(replay.mgConfig)
+
+      var itemByName = initTable[string, ItemAmount]()
+      for itemAmount in currentInventory:
+        if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
+          itemByName[replay.itemNames[itemAmount.itemId]] = itemAmount
+
+      var shownItems = initOrderedSet[string]()
+
+      for group in resourceLimitGroups:
+        var usedAmount = 0
+        var groupItems: seq[ItemAmount] = @[]
+        for resourceName in group.resources:
+          if resourceName in itemByName:
+            let itemAmount = itemByName[resourceName]
+            usedAmount += itemAmount.count
+            groupItems.add(itemAmount)
+            shownItems.incl(resourceName)
+
+        let effectiveLimit = computeEffectiveLimit(group, currentInventory, replay.itemNames)
+        text(&"{group.name}: {usedAmount} / {effectiveLimit}")
+        for itemAmount in groupItems:
+          let itemName = getItemName(itemAmount)
+          text(&"  {itemName}: {itemAmount.count}")
+
+      var ungroupedItems: seq[ItemAmount] = @[]
+      for itemAmount in currentInventory:
+        if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
+          let itemName = replay.itemNames[itemAmount.itemId]
+          if itemName notin shownItems:
+            ungroupedItems.add(itemAmount)
+
+      if ungroupedItems.len > 0:
+        text("Other:")
+        for itemAmount in ungroupedItems:
+          text("  " & formatItem(itemAmount))
     else:
-      if cur.isAgent:
-        let resourceLimitGroups = parseResourceLimits(replay.mgConfig)
-
-        var itemByName = initTable[string, ItemAmount]()
-        for itemAmount in currentInventory:
-          if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
-            itemByName[replay.itemNames[itemAmount.itemId]] = itemAmount
-
-        var shownItems = initOrderedSet[string]()
-
-        for group in resourceLimitGroups:
-          var usedAmount = 0
-          var groupItems: seq[ItemAmount] = @[]
-          for resourceName in group.resources:
-            if resourceName in itemByName:
-              let itemAmount = itemByName[resourceName]
-              usedAmount += itemAmount.count
-              groupItems.add(itemAmount)
-              shownItems.incl(resourceName)
-
-          if groupItems.len > 0:
-            let effectiveLimit = computeEffectiveLimit(group, currentInventory, replay.itemNames)
-            text(&"  {group.name}: {usedAmount}/{effectiveLimit}")
-            for itemAmount in groupItems:
-              if itemAmount.itemId != replay.itemNames.find("energy"):
-                text("    " & formatItem(itemAmount))
-
-        var ungroupedItems: seq[ItemAmount] = @[]
-        for itemAmount in currentInventory:
-          if itemAmount.itemId >= 0 and itemAmount.itemId < replay.itemNames.len:
-            let itemName = replay.itemNames[itemAmount.itemId]
-            if itemName notin shownItems:
-              ungroupedItems.add(itemAmount)
-
-        if ungroupedItems.len > 0:
-          text("  Other:")
-          for itemAmount in ungroupedItems:
-            text("    " & formatItem(itemAmount))
+      text("Inventory")
+      if currentInventory.len == 0:
+        text("  Empty")
       else:
         for itemAmount in currentInventory:
           text("  " & formatItem(itemAmount))
@@ -237,6 +339,92 @@ proc drawObjectInfo*(panel: Panel, frameId: string, contentPos: Vec2, contentSiz
             for i, resource in protocol.outputs:
               icon("resources/" & replay.config.game.resourceNames[resource.itemId])
               text("x" & $resource.count)
+
+    # AOE Effects - show on source objects
+    let aoeConfigs = getAoeConfigs(cur.typeName)
+    if aoeConfigs != nil:
+      sk.advance(vec2(0, theme.spacing.float32))
+      text("AOE Source")
+      var aoeIdx = 0
+      for aoeConfig in aoeConfigs:
+        if aoeIdx > 0:
+          sk.advance(vec2(0, theme.spacing.float32 / 2))
+        aoeIdx += 1
+        # Get AOE range
+        var aoeRange = 0
+        if "range" in aoeConfig:
+          if aoeConfig["range"].kind == JInt:
+            aoeRange = aoeConfig["range"].getInt
+          elif aoeConfig["range"].kind == JFloat:
+            aoeRange = aoeConfig["range"].getFloat.int
+        text(&"  Range: {aoeRange}")
+        # Get resource deltas
+        if "resource_deltas" in aoeConfig and aoeConfig["resource_deltas"].kind == JObject:
+          text("  Per-tick effects:")
+          for key, value in aoeConfig["resource_deltas"].pairs:
+            var delta = 0
+            if value.kind == JInt:
+              delta = value.getInt
+            elif value.kind == JFloat:
+              delta = value.getFloat.int
+            let sign = if delta >= 0: "+" else: ""
+            text(&"    {key}: {sign}{delta}")
+        # Get filter settings
+        var membersOnly = false
+        var ignoreMembers = false
+        if "members_only" in aoeConfig and aoeConfig["members_only"].kind == JBool:
+          membersOnly = aoeConfig["members_only"].getBool
+        if "ignore_members" in aoeConfig and aoeConfig["ignore_members"].kind == JBool:
+          ignoreMembers = aoeConfig["ignore_members"].getBool
+        if membersOnly:
+          text("  Filter: Members only")
+        elif ignoreMembers:
+          text("  Filter: Ignore members")
+
+    # AOE Effects - show incoming effects on agents
+    if cur.isAgent:
+      let aoeSources = getAoeSourcesAffectingAgent(cur)
+      if aoeSources.len > 0:
+        sk.advance(vec2(0, theme.spacing.float32))
+        text("Incoming AOE Effects")
+
+        # Aggregate all resource deltas from all sources
+        var totalDeltas = initTable[string, int]()
+        for effect in aoeSources:
+          let aoeConfig = effect.aoeConfig
+          if "resource_deltas" in aoeConfig and aoeConfig["resource_deltas"].kind == JObject:
+            for key, value in aoeConfig["resource_deltas"].pairs:
+              var delta = 0
+              if value.kind == JInt:
+                delta = value.getInt
+              elif value.kind == JFloat:
+                delta = value.getFloat.int
+              if key notin totalDeltas:
+                totalDeltas[key] = 0
+              totalDeltas[key] = totalDeltas[key] + delta
+
+        # Show totals with current -> new values
+        let inv = cur.inventory.at(step)
+        for resourceName, delta in totalDeltas.pairs:
+          let resourceIdx = replay.itemNames.find(resourceName)
+          var currentAmount = 0
+          if resourceIdx >= 0:
+            for item in inv:
+              if item.itemId == resourceIdx:
+                currentAmount = item.count
+                break
+          let newAmount = currentAmount + delta
+          let sign = if delta >= 0: "+" else: ""
+          text(&"  {resourceName}: {currentAmount} → {newAmount} ({sign}{delta})")
+
+        # List sources
+        sk.advance(vec2(0, theme.spacing.float32 / 2))
+        text("  Sources:")
+        for effect in aoeSources:
+          let sourcePos = effect.source.location.at(step).xy
+          let commonsName = getCommonsName(effect.source.commonsId)
+          let commonsInfo = if commonsName.len > 0: " [" & commonsName & "]" else: ""
+          text(&"    {effect.source.typeName}{commonsInfo} @ ({sourcePos.x}, {sourcePos.y})")
 
 
 proc selectObject*(obj: Entity) =
