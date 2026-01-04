@@ -70,7 +70,7 @@ class PoolPlayer(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     pool_id: UUID = Field(foreign_key="pools.id", index=True)
-    policy_version_id: UUID = Field(index=True)
+    policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
     retired: bool = Field(default=False)
 
     pool: "Pool" = Relationship(back_populates="players")
