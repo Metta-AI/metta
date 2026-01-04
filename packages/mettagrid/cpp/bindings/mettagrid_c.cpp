@@ -871,6 +871,11 @@ void MettaGrid::_step() {
     _clipper->maybe_clip_new_assembler();
   }
 
+  // Update commons held duration stats (increment by count of aligned objects per type)
+  for (const auto& commons : _commons) {
+    commons->update_held_stats();
+  }
+
   // Compute observations for next step
   _compute_observations(executed_actions);
 
@@ -1177,6 +1182,7 @@ py::dict MettaGrid::get_episode_stats() {
   // {
   //   "game": dict[str, float],  // Global game statistics
   //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "commons": dict[str, dict[str, float]],  // Per-commons statistics
   // }
 
   py::dict stats;
@@ -1187,6 +1193,15 @@ py::dict MettaGrid::get_episode_stats() {
     agent_stats.append(py::cast(agent->stats.to_dict()));
   }
   stats["agent"] = agent_stats;
+
+  // Add commons stats
+  py::dict commons_stats;
+  for (const auto& commons : _commons) {
+    // Update inventory stats before returning
+    commons->update_inventory_stats();
+    commons_stats[py::str(commons->name)] = py::cast(commons->stats.to_dict());
+  }
+  stats["commons"] = commons_stats;
 
   return stats;
 }

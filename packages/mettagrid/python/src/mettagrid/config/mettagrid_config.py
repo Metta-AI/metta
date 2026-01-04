@@ -42,6 +42,9 @@ class AgentRewards(Config):
     # commons_inventory rewards agents based on the inventory of the commons they belong to
     commons_inventory: dict[str, float] = Field(default_factory=dict)
     commons_inventory_max: dict[str, float] = Field(default_factory=dict)
+    # commons_stats rewards agents based on stats of the commons they belong to (e.g., aligned.charger.held)
+    commons_stats: dict[str, float] = Field(default_factory=dict)
+    commons_stats_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 

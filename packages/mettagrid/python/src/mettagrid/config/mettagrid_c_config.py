@@ -382,6 +382,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             stat_name = "commons." + k + ".amount"
             assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
             stat_reward_max[stat_name] = v
+        # Commons stats rewards use "commons_stats.{stat_name}" stat names (e.g., aligned.charger.held)
+        for k, v in rewards_config.get("commons_stats", {}).items():
+            stat_name = "commons_stats." + k
+            assert stat_name not in stat_rewards, f"Stat reward {stat_name} already exists"
+            stat_rewards[stat_name] = v
+        for k, v in rewards_config.get("commons_stats_max", {}).items():
+            stat_name = "commons_stats." + k
+            assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
+            stat_reward_max[stat_name] = v
 
         # Get inventory config
         inv_config = agent_props.get("inventory", {})
