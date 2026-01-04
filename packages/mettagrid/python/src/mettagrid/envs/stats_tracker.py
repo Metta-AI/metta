@@ -44,6 +44,10 @@ class StatsTracker(SimulatorEventHandler):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / num_agents
 
+        # Process commons stats (per-commons, not averaged)
+        if "commons" in stats:
+            infos["commons"] = stats["commons"]
+
         # If reward estimates are set, plot them compared to the mean reward
         if config.game.reward_estimates:
             infos["reward_estimates"] = {}

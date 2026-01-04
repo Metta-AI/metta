@@ -317,14 +317,14 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 },
             ),
             rewards=AgentRewards(
-                inventory={
-                    "heart": 1,
-                },
                 commons_inventory={
-                    "carbon": 0.01,
-                    "oxygen": 0.01,
-                    "germanium": 0.01,
-                    "silicon": 0.01,
+                    # "carbon": 0.001,
+                    # "oxygen": 0.001,
+                    # "germanium": 0.001,
+                    # "silicon": 0.001,
+                },
+                commons_stats={
+                    "aligned.charger.held": 0.001,
                 },
             ),
             health=HealthConfig(

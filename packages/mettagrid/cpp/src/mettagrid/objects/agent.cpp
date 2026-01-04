@@ -6,6 +6,7 @@
 
 #include "actions/activation_handler.hpp"
 #include "config/observation_features.hpp"
+#include "objects/commons.hpp"
 #include "systems/observation_encoder.hpp"
 
 Agent::Agent(GridCoord r,
@@ -109,12 +110,22 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
 
   float new_stat_reward = 0;
   const std::string commons_prefix = "commons.";
+  const std::string commons_stats_prefix = "commons_stats.";
 
   for (const auto& [stat_name, reward_per_unit] : this->stat_rewards) {
     float stat_value = 0;
 
+    // Check if this is a commons stats lookup (e.g., "commons_stats.aligned.charger.held")
+    if (stat_name.rfind(commons_stats_prefix, 0) == 0 && stat_name.size() > commons_stats_prefix.size()) {
+      // Look up the stat from the agent's commons stats tracker
+      Commons* commons = this->getCommons();
+      if (commons) {
+        std::string commons_stat_name = stat_name.substr(commons_stats_prefix.size());
+        stat_value = commons->stats.get(commons_stat_name);
+      }
+    }
     // Check if this is a commons inventory stat (e.g., "commons.carbon.amount")
-    if (stat_name.rfind(commons_prefix, 0) == 0 && stat_name.size() > commons_prefix.size()) {
+    else if (stat_name.rfind(commons_prefix, 0) == 0 && stat_name.size() > commons_prefix.size()) {
       // Parse: "commons.{resource}.amount" -> extract resource name
       std::string remainder = stat_name.substr(commons_prefix.size());
       size_t dot_pos = remainder.find('.');
