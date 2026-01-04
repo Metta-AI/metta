@@ -2,11 +2,10 @@ from collections import defaultdict
 from typing import Tuple
 from uuid import UUID
 
-from cogames.cogs_vs_clips.missions import Machina1OpenWorldSharedRewardsMission
+from cogames.cogs_vs_clips.missions import Machina1OpenWorldSharedRewardsMission, MettaGridConfig
 from metta.app_backend.models.tournament import PoolPlayer
 from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase, ScorerInterface
 from metta.app_backend.tournament.scorers.weighted import WeightedScorer
-from mettagrid.config.mettagrid_config import MettaGridConfig
 
 NUM_AGENTS = 4
 

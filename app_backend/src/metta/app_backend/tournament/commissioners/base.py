@@ -33,7 +33,6 @@ from metta.app_backend.tournament.settings import (
     POLL_INTERVAL_SECONDS,
     settings,
 )
-from metta.sim.single_episode_runner import SingleEpisodeJob
 
 logger = logging.getLogger(__name__)
 
@@ -465,10 +464,11 @@ class CommissionerBase(ABC):
         policy_version_ids = [pool_players[pp_id].policy_version_id for pp_id in request.pool_player_ids]
         policy_uris = [f"metta://policy/{pv}" for pv in policy_version_ids]
         episode_tags = {"match_id": str(match_id), "pool_id": str(match_pool_id), **request.episode_tags}
-        job_spec = SingleEpisodeJob(
+        # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
+        job_spec = dict(
             policy_uris=policy_uris,
             assignments=request.assignments,
-            env=request.env,
+            env=request.env.model_dump(),
             replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
             seed=hash(str(match_id)) % (2**31),
             episode_tags=episode_tags,
@@ -476,7 +476,7 @@ class CommissionerBase(ABC):
 
         stats_client = StatsClient(settings.STATS_SERVER_URI)
         try:
-            job_ids = stats_client.create_jobs([JobRequestCreate(job_type=JobType.episode, job=job_spec.model_dump())])
+            job_ids = stats_client.create_jobs([JobRequestCreate(job_type=JobType.episode, job=job_spec)])
             job_id = job_ids[0] if job_ids else None
         finally:
             stats_client.close()

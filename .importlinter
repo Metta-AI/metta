@@ -87,7 +87,6 @@ forbidden_modules =
     metta
 ignore_imports =
     metta.app_backend.** -> metta.common.**
-    metta.app_backend.** -> metta.sim.**
 
 
 [importlinter:contract:common-independence]
