@@ -336,7 +336,7 @@ export const SeasonsPage: FC = () => {
       }
       if (matchFilter.policy_version_ids.length > 0) {
         const matchPvIds = m.players.map((p) => p.policy.id)
-        if (!matchFilter.policy_version_ids.some((id) => matchPvIds.includes(id))) {
+        if (!matchFilter.policy_version_ids.every((id) => matchPvIds.includes(id))) {
           return false
         }
       }
@@ -475,6 +475,7 @@ export const SeasonsPage: FC = () => {
               <Table>
                 <Table.Header>
                   <TH>Player</TH>
+                  <TH>Entered</TH>
                   {poolNames.map((poolName) => (
                     <TH key={poolName} className="capitalize">
                       {poolName}
@@ -491,6 +492,7 @@ export const SeasonsPage: FC = () => {
                             {formatPolicyDisplay(policy)}
                           </StyledLink>
                         </TD>
+                        <TD className="text-gray-500 text-sm">{formatRelativeTime(policy.entered_at)}</TD>
                         {poolNames.map((poolName) => {
                           const pool = poolStatusMap[poolName]
                           if (!pool) {

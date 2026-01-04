@@ -220,4 +220,11 @@ MIGRATIONS = [
             """CREATE INDEX idx_membership_changes_created_at ON membership_changes (created_at DESC)""",
         ],
     ),
+    SqlMigration(
+        version=5,
+        description="Add created_at to pool_players",
+        sql_statements=[
+            """ALTER TABLE pool_players ADD COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
+        ],
+    ),
 ]

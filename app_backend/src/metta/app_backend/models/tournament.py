@@ -72,6 +72,9 @@ class PoolPlayer(SQLModel, table=True):
     pool_id: UUID = Field(foreign_key="pools.id", index=True)
     policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
     retired: bool = Field(default=False)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
+    )
 
     pool: "Pool" = Relationship(back_populates="players")
     policy_version: PolicyVersion = Relationship(back_populates="pool_players")

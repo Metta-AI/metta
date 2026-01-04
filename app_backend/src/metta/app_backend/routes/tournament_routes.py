@@ -55,6 +55,7 @@ class PoolMembership(BaseModel):
 class PolicySummary(BaseModel):
     policy: PolicyVersionSummary
     pools: list[PoolMembership]
+    entered_at: str
 
 
 class SubmitRequest(BaseModel):
@@ -202,15 +203,18 @@ def create_tournament_router() -> APIRouter:
         if not policy_versions:
             return []
 
-        return [
+        results = [
             PolicySummary(
                 policy=PolicyVersionSummary.from_model(pv),
                 pools=[
                     PoolMembership(pool_name=pp.pool.name or "unknown", active=not pp.retired) for pp in pv.pool_players
                 ],
+                entered_at=min(pp.created_at for pp in pv.pool_players).isoformat() if pv.pool_players else "",
             )
             for pv in policy_versions
         ]
+
+        return sorted(results, key=lambda x: x.entered_at, reverse=True)
 
     @router.get("/seasons/{season_name}/matches")
     @timed_http_handler

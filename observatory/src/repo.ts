@@ -304,6 +304,7 @@ export type PoolMembership = {
 export type PolicySummary = {
   policy: PolicyVersionSummary
   pools: PoolMembership[]
+  entered_at: string
 }
 
 export type SeasonMatchPlayerSummary = {
