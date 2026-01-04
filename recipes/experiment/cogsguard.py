@@ -94,6 +94,10 @@ resources = [
 vibes = [
     Vibe("😐", "default"),
     Vibe("❤️", "heart"),
+    Vibe("🌀", "scrambler"),
+    Vibe("🔗", "aligner"),
+    Vibe("⛏️", "miner"),
+    Vibe("🔭", "scout"),
 ]
 
 
@@ -305,7 +309,6 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 },
                 initial={
                     "energy": 100,
-                    "heart": 5,
                     "hp": 50,
                 },
                 regen_amounts={
