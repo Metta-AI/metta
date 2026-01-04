@@ -257,9 +257,8 @@ export const SeasonsPage: FC = () => {
   const navigate = useNavigate()
   const { repo } = useContext(AppContext)
 
-  const [seasons, setSeasons] = useState<string[]>([])
-  const [selectedSeason, setSelectedSeason] = useState<string | null>(urlSeasonName || null)
-  const [season, setSeason] = useState<SeasonDetail | null>(null)
+  const [seasons, setSeasons] = useState<SeasonDetail[]>([])
+  const [selectedSeasonName, setSelectedSeasonName] = useState<string | null>(urlSeasonName || null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [policies, setPolicies] = useState<PolicySummary[]>([])
   const [allMatches, setAllMatches] = useState<SeasonMatchSummary[]>([])
@@ -273,8 +272,9 @@ export const SeasonsPage: FC = () => {
     repo.getSeasons().then((data) => {
       if (!ignore) {
         setSeasons(data)
-        if (!selectedSeason && data.length > 0) {
-          setSelectedSeason(data[0])
+        setLoading(false)
+        if (!selectedSeasonName && data.length > 0) {
+          setSelectedSeasonName(data[0].name)
         }
       }
     })
@@ -284,61 +284,36 @@ export const SeasonsPage: FC = () => {
   }, [repo])
 
   useEffect(() => {
-    if (urlSeasonName && urlSeasonName !== selectedSeason) {
-      setSelectedSeason(urlSeasonName)
+    if (urlSeasonName && urlSeasonName !== selectedSeasonName) {
+      setSelectedSeasonName(urlSeasonName)
     }
   }, [urlSeasonName])
 
-  useEffect(() => {
-    let ignore = false
-    const load = async () => {
-      if (!selectedSeason) return
-      setLoading(true)
-      try {
-        const data = await repo.getSeason(selectedSeason)
-        if (!ignore) {
-          setSeason(data)
-          setError(null)
-        }
-      } catch (err: any) {
-        if (!ignore) {
-          setError(err.message)
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false)
-        }
-      }
-    }
-    load()
-    return () => {
-      ignore = true
-    }
-  }, [repo, selectedSeason])
+  const season = seasons.find((s) => s.name === selectedSeasonName) || null
 
   const loadData = useCallback(async () => {
-    if (!selectedSeason) return
+    if (!selectedSeasonName) return
     try {
       const [lb, pol] = await Promise.all([
-        repo.getSeasonLeaderboard(selectedSeason),
-        repo.getSeasonPolicies(selectedSeason),
+        repo.getSeasonLeaderboard(selectedSeasonName),
+        repo.getSeasonPolicies(selectedSeasonName),
       ])
       setLeaderboard(lb)
       setPolicies(pol)
     } catch (err: any) {
       setError(err.message)
     }
-  }, [repo, selectedSeason, refreshKey])
+  }, [repo, selectedSeasonName, refreshKey])
 
   const loadMatches = useCallback(async () => {
-    if (!selectedSeason) return
+    if (!selectedSeasonName) return
     try {
-      const m = await repo.getSeasonMatches(selectedSeason, { limit: 100 })
+      const m = await repo.getSeasonMatches(selectedSeasonName, { limit: 100 })
       setAllMatches(m)
     } catch (err: any) {
       setError(err.message)
     }
-  }, [repo, selectedSeason])
+  }, [repo, selectedSeasonName])
 
   useEffect(() => {
     loadData()
@@ -385,27 +360,20 @@ export const SeasonsPage: FC = () => {
     return counts
   }, [allMatches])
 
-  const leaderboardScoreByPolicy = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const entry of leaderboard) {
-      map[entry.policy.id] = entry.score
-    }
-    return map
-  }, [leaderboard])
-
   const handleMatchFilterClick = (poolName: string, policyVersionId: string) => {
     setMatchFilter({ pool_names: [poolName], policy_version_ids: [policyVersionId] })
   }
 
   const handleSeasonChange = (option: { value: string; label: string } | null) => {
     if (option) {
-      setSelectedSeason(option.value)
-      navigate(`/seasons/${option.value}`)
+      setSelectedSeasonName(option.value)
+      navigate(`/tournament/${option.value}`)
     }
   }
 
-  const seasonOptions = seasons.map((s) => ({ value: s, label: s }))
-  const poolOptions = (season?.pools || []).map((p) => ({ value: p, label: p }))
+  const seasonOptions = seasons.map((s) => ({ value: s.name, label: s.name }))
+  const poolNames = season?.pools || []
+  const poolOptions = poolNames.map((p) => ({ value: p, label: p }))
   const playerOptions = policies.map((p) => ({
     value: p.policy.id,
     label: formatPolicyDisplay(p),
@@ -431,16 +399,32 @@ export const SeasonsPage: FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <span className="text-gray-600 font-medium">Season:</span>
-        <Select
-          options={seasonOptions}
-          value={seasonOptions.find((o) => o.value === selectedSeason) || null}
-          onChange={handleSeasonChange}
-          styles={seasonSelectStyles}
-          isSearchable={false}
-          placeholder="Select season..."
-        />
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <span className="text-gray-600 font-medium">Season:</span>
+          <Select
+            options={seasonOptions}
+            value={seasonOptions.find((o) => o.value === selectedSeasonName) || null}
+            onChange={handleSeasonChange}
+            styles={seasonSelectStyles}
+            isSearchable={false}
+            placeholder="Select season..."
+          />
+        </div>
+        {season?.description && (
+          <div className="text-gray-500 text-sm">
+            {season.description.summary && <div>{season.description.summary}</div>}
+            {season.description.pools.length > 0 && (
+              <div className="mt-1 ml-4 space-y-0.5">
+                {season.description.pools.map((pool) => (
+                  <div key={pool.name}>
+                    <span className="font-medium text-gray-600">{pool.name}:</span> {pool.description}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {!season ? (
@@ -491,9 +475,9 @@ export const SeasonsPage: FC = () => {
               <Table>
                 <Table.Header>
                   <TH>Player</TH>
-                  {season.pools.map((pool) => (
-                    <TH key={pool} className="capitalize">
-                      {pool}
+                  {poolNames.map((poolName) => (
+                    <TH key={poolName} className="capitalize">
+                      {poolName}
                     </TH>
                   ))}
                 </Table.Header>
@@ -507,7 +491,7 @@ export const SeasonsPage: FC = () => {
                             {formatPolicyDisplay(policy)}
                           </StyledLink>
                         </TD>
-                        {season.pools.map((poolName) => {
+                        {poolNames.map((poolName) => {
                           const pool = poolStatusMap[poolName]
                           if (!pool) {
                             return (
@@ -520,12 +504,10 @@ export const SeasonsPage: FC = () => {
                             scored: 0,
                             pending: 0,
                           }
-                          const avgScore =
-                            poolName === 'competition' ? leaderboardScoreByPolicy[policy.policy.id] : undefined
                           return (
                             <TD key={poolName}>
                               <div className="flex flex-col gap-1.5 items-start">
-                                <Link to={`/seasons/${selectedSeason}/players/${policy.policy.id}`}>
+                                <Link to={`/tournament/${selectedSeasonName}/players/${policy.policy.id}`}>
                                   <span
                                     className={`inline-block px-2 py-1 rounded text-xs font-medium transition-colors ${
                                       pool.active
@@ -536,15 +518,12 @@ export const SeasonsPage: FC = () => {
                                     {pool.active ? 'active' : 'retired'}
                                   </span>
                                 </Link>
-                                <div className="text-sm">
-                                  {avgScore !== undefined ? avgScore.toPrecision(4) : '-'}{' '}
-                                  <span
-                                    onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
-                                    className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
-                                  >
-                                    ({counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`})
-                                  </span>
-                                </div>
+                                <span
+                                  onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
+                                  className="text-sm text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
+                                >
+                                  ({counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`})
+                                </span>
                               </div>
                             </TD>
                           )
@@ -556,7 +535,7 @@ export const SeasonsPage: FC = () => {
               </Table>
             )}
             <SubmitForm
-              seasonName={selectedSeason!}
+              seasonName={selectedSeasonName!}
               existingPolicyVersionIds={existingPolicyVersionIds}
               onSubmitted={() => setRefreshKey((k) => k + 1)}
             />

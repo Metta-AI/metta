@@ -45,6 +45,7 @@ class ScorerInterface(ABC):
 
 class RefereeBase(ABC):
     scorer: ScorerInterface
+    description: str = ""
 
     @abstractmethod
     def get_matches_to_schedule(

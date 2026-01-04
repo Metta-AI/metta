@@ -74,7 +74,7 @@ class PoolPlayer(SQLModel, table=True):
     retired: bool = Field(default=False)
 
     pool: "Pool" = Relationship(back_populates="players")
-    policy_version: PolicyVersion = Relationship()
+    policy_version: PolicyVersion = Relationship(back_populates="pool_players")
     membership_changes: list["MembershipChange"] = Relationship(back_populates="pool_player")
 
 

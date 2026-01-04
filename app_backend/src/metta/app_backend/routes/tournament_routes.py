@@ -93,21 +93,49 @@ class PlayerDetail(BaseModel):
     membership_history: list[MembershipHistoryEntry]
 
 
+class PoolDescriptionResponse(BaseModel):
+    name: str
+    description: str
+
+
+class SeasonDescriptionResponse(BaseModel):
+    summary: str
+    pools: list[PoolDescriptionResponse]
+
+
+class SeasonResponse(BaseModel):
+    name: str
+    description: SeasonDescriptionResponse
+    pools: list[str]
+
+    @classmethod
+    def from_commissioner(cls, season_name: str) -> "SeasonResponse":
+        commissioner = SEASONS[season_name]()
+        desc = commissioner.description
+        return cls(
+            name=season_name,
+            description=SeasonDescriptionResponse(
+                summary=desc.summary,
+                pools=[PoolDescriptionResponse(name=p.name, description=p.description) for p in desc.pools],
+            ),
+            pools=[p.name for p in desc.pools],
+        )
+
+
 def create_tournament_router() -> APIRouter:
     router = APIRouter(prefix="/tournament", tags=["tournament"])
 
     @router.get("/seasons")
     @timed_http_handler
-    async def list_seasons(_user: UserOrToken) -> list[str]:
-        return list(SEASONS.keys())
+    async def list_seasons(_user: UserOrToken) -> list[SeasonResponse]:
+        return [SeasonResponse.from_commissioner(name) for name in SEASONS.keys()]
 
     @router.get("/seasons/{season_name}")
     @timed_http_handler
-    async def get_season(_user: UserOrToken, season_name: str) -> dict:
+    async def get_season(_user: UserOrToken, season_name: str) -> SeasonResponse:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
-        commissioner = SEASONS[season_name]()
-        return {"name": season_name, "pools": list(commissioner.referees.keys())}
+        return SeasonResponse.from_commissioner(season_name)
 
     @router.get("/seasons/{season_name}/leaderboard")
     @timed_http_handler
@@ -156,35 +184,36 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
-        pool_players = (
+        policy_versions = (
             (
                 await session.execute(
-                    select(PoolPlayer)
+                    select(PolicyVersion)
+                    .join(PolicyVersion.pool_players)
                     .join(PoolPlayer.pool)
                     .join(Pool.season)
                     .where(Season.name == season_name)
                     .options(
-                        selectinload(PoolPlayer.policy_version).selectinload(PolicyVersion.policy),
-                        selectinload(PoolPlayer.pool),
+                        selectinload(PolicyVersion.policy),
+                        selectinload(PolicyVersion.pool_players).selectinload(PoolPlayer.pool),
                     )
+                    .distinct()
                 )
             )
             .scalars()
             .all()
         )
-        if not pool_players:
+
+        if not policy_versions:
             return []
 
-        policies_by_pv: dict[UUID, tuple[PolicyVersion, list[PoolMembership]]] = {}
-        for pp in pool_players:
-            membership = PoolMembership(pool_name=pp.pool.name or "unknown", active=not pp.retired)
-            if pp.policy_version_id not in policies_by_pv:
-                policies_by_pv[pp.policy_version_id] = (pp.policy_version, [])
-            policies_by_pv[pp.policy_version_id][1].append(membership)
-
         return [
-            PolicySummary(policy=PolicyVersionSummary.from_model(pv), pools=memberships)
-            for pv, memberships in policies_by_pv.values()
+            PolicySummary(
+                policy=PolicyVersionSummary.from_model(pv),
+                pools=[
+                    PoolMembership(pool_name=pp.pool.name or "unknown", active=not pp.retired) for pp in pv.pool_players
+                ],
+            )
+            for pv in policy_versions
         ]
 
     @router.get("/seasons/{season_name}/matches")

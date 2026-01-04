@@ -42,9 +42,9 @@ function App() {
             <Route path="/eval-tasks" element={<EvalTasks />} />
             <Route path="/episode-jobs" element={<EpisodeJobs />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/seasons" element={<SeasonsPage />} />
-            <Route path="/seasons/:seasonName" element={<SeasonsPage />} />
-            <Route path="/seasons/:seasonName/players/:policyVersionId" element={<PlayerPage />} />
+            <Route path="/tournament" element={<SeasonsPage />} />
+            <Route path="/tournament/:seasonName" element={<SeasonsPage />} />
+            <Route path="/tournament/:seasonName/players/:policyVersionId" element={<PlayerPage />} />
             <Route path="/episodes/:episodeId" element={<EpisodeDetailPage />} />
             <Route path="/sql-query" element={<SQLQuery />} />
           </Routes>

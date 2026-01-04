@@ -26,6 +26,7 @@ class SelfPlayReferee(RefereeBase):
 
     scorer: ScorerInterface = WeightedScorer()
     matches_per_player: int = 2
+    description: str = "Self-play matches on Machina 1 Open World"
 
     def get_matches_to_schedule(
         self,

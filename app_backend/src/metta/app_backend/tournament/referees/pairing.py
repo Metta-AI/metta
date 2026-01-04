@@ -26,13 +26,18 @@ MATCH_CONFIGURATIONS: list[list[int]] = [
 class PairingReferee(RefereeBase):
     """Schedules matches between pairs of policies with varying agent splits.
 
-    Each unique pair of policies plays multiple matches with different configurations:
-    1v3, 3v1, and 2v2. Matches are scheduled to maximize coverage first (one of each
-    config per pair) before adding replications for statistical confidence.
+    Each unique pair of policies plays multiple matches with different configurations
+    (1+3, 3+1, 2+2 agent splits). Matches are scheduled to maximize coverage first
+    (one of each config per pair) before adding replications for statistical confidence.
+    Multiple configurations enable value-over-replacement calculation via participation-weighted scoring.
     """
 
     scorer: ScorerInterface = WeightedScorer()
     matches_per_config: int = 5
+    description: str = (
+        "Pairwise matchups on Machina 1 Open World with varied agent splits (1+3, 3+1, 2+2) "
+        "and shared rewards; scored by participation-weighted average"
+    )
 
     def get_matches_to_schedule(
         self,

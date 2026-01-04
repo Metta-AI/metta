@@ -2,12 +2,15 @@
 # Currently only used by tournament code. Migrate other raw SQL queries to use these models.
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Column, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from metta.app_backend.models.tournament import PoolPlayer
 
 
 class Policy(SQLModel, table=True):
@@ -38,3 +41,4 @@ class PolicyVersion(SQLModel, table=True):
     )
 
     policy: Policy = Relationship(back_populates="versions")
+    pool_players: list["PoolPlayer"] = Relationship(back_populates="policy_version")

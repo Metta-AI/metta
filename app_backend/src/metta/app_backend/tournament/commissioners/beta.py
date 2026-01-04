@@ -21,6 +21,7 @@ class BetaCommissioner(CommissionerBase):
         "qualifying": SelfPlayReferee(),
         "competition": PairingReferee(),
     }
+    summary = "Policies start in qualifying; promoted to competition if score meets threshold"
 
     def get_new_submission_membership_changes(self, policy_version_id: UUID) -> list[MembershipChangeRequest]:
         return [

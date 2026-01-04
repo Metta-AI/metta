@@ -48,10 +48,28 @@ class MembershipChangeRequest(BaseModel):
     notes: str | None = None
 
 
+class PoolDescription(BaseModel):
+    name: str
+    description: str
+
+
+class SeasonDescription(BaseModel):
+    summary: str
+    pools: list[PoolDescription]
+
+
 class CommissionerBase(ABC):
     season_name: str
     referees: dict[str, RefereeBase]
     leaderboard_pool: str
+    summary: str = ""
+
+    @property
+    def description(self) -> SeasonDescription:
+        return SeasonDescription(
+            summary=self.summary,
+            pools=[PoolDescription(name=name, description=ref.description) for name, ref in self.referees.items()],
+        )
 
     @abstractmethod
     def get_new_submission_membership_changes(self, policy_version_id: UUID) -> list[MembershipChangeRequest]:
@@ -421,22 +439,16 @@ class CommissionerBase(ABC):
     async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> None:
         session = get_db()
 
-        match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
-        session.add(match)
-        await session.flush()
-        session.add_all(
-            [
-                MatchPlayer(match_id=match.id, pool_player_id=pp_id, policy_index=idx)
-                for idx, pp_id in enumerate(request.pool_player_ids)
-            ]
-        )
-        await session.commit()
-        match_id = match.id
-
         pv_result = await session.execute(
             select(PoolPlayer.id, PoolPlayer.policy_version_id).where(col(PoolPlayer.id).in_(request.pool_player_ids))
         )
         pv_ids = {row[0]: row[1] for row in pv_result.all()}
+
+        match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
+        session.add(match)
+        await session.flush()
+        match_id = match.id
+
         # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
         job_spec = dict(
             policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
@@ -451,14 +463,24 @@ class CommissionerBase(ABC):
         try:
             job_ids = stats_client.create_jobs([JobRequestCreate(job_type=JobType.episode, job=job_spec)])
             job_id = job_ids[0] if job_ids else None
+        except Exception as e:
+            logger.error(f"Failed to create job for match {match_id}: {e}")
+            await session.rollback()
+            return
         finally:
             stats_client.close()
 
         if not job_id:
             logger.error(f"Failed to create job for match {match_id}")
+            await session.rollback()
             return
 
-        match = (await session.execute(select(Match).filter_by(id=match_id))).scalar_one()
+        session.add_all(
+            [
+                MatchPlayer(match_id=match.id, pool_player_id=pp_id, policy_index=idx)
+                for idx, pp_id in enumerate(request.pool_player_ids)
+            ]
+        )
         match.job_id = job_id
         match.status = MatchStatus.scheduled
         await session.commit()

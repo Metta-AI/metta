@@ -263,8 +263,19 @@ export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'fa
 
 export type MatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed'
 
+export type PoolDescription = {
+  name: string
+  description: string
+}
+
+export type SeasonDescription = {
+  summary: string
+  pools: PoolDescription[]
+}
+
 export type SeasonDetail = {
   name: string
+  description: SeasonDescription
   pools: string[]
 }
 
@@ -650,12 +661,8 @@ export class Repo {
   }
 
   // Tournament methods
-  async getSeasons(): Promise<string[]> {
-    return this.apiCall<string[]>('/tournament/seasons')
-  }
-
-  async getSeason(seasonName: string): Promise<SeasonDetail> {
-    return this.apiCall<SeasonDetail>(`/tournament/seasons/${encodeURIComponent(seasonName)}`)
+  async getSeasons(): Promise<SeasonDetail[]> {
+    return this.apiCall<SeasonDetail[]>('/tournament/seasons')
   }
 
   async getSeasonLeaderboard(seasonName: string): Promise<LeaderboardEntry[]> {

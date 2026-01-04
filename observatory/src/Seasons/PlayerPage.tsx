@@ -87,11 +87,11 @@ export const PlayerPage: FC = () => {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/seasons" className="text-blue-500 hover:text-blue-700">
-          Seasons
+        <Link to="/tournament" className="text-blue-500 hover:text-blue-700">
+          Tournament
         </Link>
         <span className="text-gray-400">/</span>
-        <Link to={`/seasons/${seasonName}`} className="text-blue-500 hover:text-blue-700">
+        <Link to={`/tournament/${seasonName}`} className="text-blue-500 hover:text-blue-700">
           {seasonName}
         </Link>
         <span className="text-gray-400">/</span>
