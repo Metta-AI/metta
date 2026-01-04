@@ -32,6 +32,8 @@ from mettagrid.config.mettagrid_config import (
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
+    TransferActionConfig,
+    VibeTransfer,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
@@ -180,6 +182,10 @@ class Mission(Config):
                         else (self.vibes if self.vibes is not None else list(vibes.VIBES))
                     )
                 ),
+                transfer=TransferActionConfig(
+                    enabled=True,
+                    vibe_transfers=[VibeTransfer(vibe="charger", target={"energy": 20}, actor={"energy": -20})],
+                ),
             ),
             agent=AgentConfig(
                 inventory=InventoryConfig(
@@ -200,7 +206,6 @@ class Mission(Config):
                     # Reward only the agent that deposits a heart.
                     stats={"chest.heart.deposited_by_agent": 1.0},
                 ),
-                vibe_transfers={"charger": {"energy": 20}},
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,
