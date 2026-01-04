@@ -518,7 +518,7 @@ export const SeasonsPage: FC = () => {
                                   onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
                                   className="text-sm text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                                 >
-                                  ({counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`})
+                                  ({counts.scored} matches{counts.pending > 0 && `, ${counts.pending} pending`})
                                 </span>
                               </div>
                             </TD>
