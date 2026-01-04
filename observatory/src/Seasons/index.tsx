@@ -588,7 +588,7 @@ export const SeasonsPage: FC = () => {
                       <TR key={match.id}>
                         <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
                         <TD>
-                          <div className="flex gap-1">
+                          <div className="flex justify-between gap-1">
                             {match.status === 'completed' && match.episode_id ? (
                               <Link
                                 to={`/episodes/${match.episode_id}`}
