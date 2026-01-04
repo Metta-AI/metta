@@ -263,6 +263,8 @@ def get_checkpoint_metadata(uri: str) -> CheckpointMetadata:
 def policy_spec_from_uri(
     uri: str, *, device: str = "cpu", strict: bool = True, remove_downloaded_copy_on_exit: bool = False
 ):
+    from urllib.parse import parse_qs, urlparse
+
     from mettagrid.policy.policy import PolicySpec
     from mettagrid.policy.prepare_policy_spec import (
         download_policy_spec_from_s3_as_zip,
@@ -271,20 +273,36 @@ def policy_spec_from_uri(
     )
 
     # Handle metta://policy/<builtin> URIs for built-in policies
+    # Supports query parameters: metta://policy/name?key=value&key2=value2
     if uri.startswith("metta://policy/"):
         from mettagrid.policy.loader import discover_and_register_policies
         from mettagrid.policy.policy_registry import get_policy_registry
 
-        identifier = uri[len("metta://policy/") :]
+        # Parse the URI to extract identifier and query parameters
+        parsed = urlparse(uri)
+        identifier = parsed.path.lstrip("/")  # Remove leading slash from path
+
+        # Parse query parameters into init_kwargs
+        init_kwargs: dict[str, str | int] = {}
+        if parsed.query:
+            query_params = parse_qs(parsed.query)
+            for key, values in query_params.items():
+                # parse_qs returns lists; take first value and try to parse as int
+                value = values[0] if values else ""
+                try:
+                    init_kwargs[key] = int(value)
+                except ValueError:
+                    init_kwargs[key] = value
+
         discover_and_register_policies()
         registry = get_policy_registry()
 
         # Check if it's a registered short name
         if identifier in registry:
-            return PolicySpec(class_path=registry[identifier])
+            return PolicySpec(class_path=registry[identifier], init_kwargs=init_kwargs)
         # Check if it looks like a full class path
         if "." in identifier:
-            return PolicySpec(class_path=identifier)
+            return PolicySpec(class_path=identifier, init_kwargs=init_kwargs)
 
     parsed = resolve_uri(uri)
 
