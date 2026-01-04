@@ -8,7 +8,15 @@ from sqlmodel import col, func, select
 
 from metta.app_backend.auth import UserOrToken
 from metta.app_backend.database import db_session
-from metta.app_backend.models.tournament import Match, MatchPlayer, MatchStatus, Pool, PoolPlayer, Season
+from metta.app_backend.models.tournament import (
+    Match,
+    MatchPlayer,
+    MatchStatus,
+    MembershipChangeRecord,
+    Pool,
+    PoolPlayer,
+    Season,
+)
 from metta.app_backend.route_logger import timed_http_handler
 from metta.app_backend.tournament.registry import SEASONS
 
@@ -29,6 +37,7 @@ class LeaderboardEntry(BaseModel):
     policy_name: str | None
     policy_version: int | None
     score: float
+    matches: int
 
 
 class PolicyPoolStatus(BaseModel):
@@ -72,6 +81,21 @@ class MatchSummary(BaseModel):
     created_at: str
 
 
+class MembershipHistoryEntry(BaseModel):
+    id: UUID
+    pool_name: str
+    action: str
+    notes: str | None
+    created_at: str
+
+
+class PlayerDetail(BaseModel):
+    policy_version_id: UUID
+    policy_name: str | None
+    policy_version: int | None
+    membership_history: list[MembershipHistoryEntry]
+
+
 def create_tournament_router() -> APIRouter:
     router = APIRouter(prefix="/tournament", tags=["tournament"])
 
@@ -99,12 +123,12 @@ def create_tournament_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Season not found")
 
         commissioner = SEASONS[season_name]()
-        scores = await commissioner.get_leaderboard()
+        leaderboard = await commissioner.get_leaderboard()
 
-        if not scores:
+        if not leaderboard:
             return []
 
-        pv_ids = [pv_id for pv_id, _ in scores]
+        pv_ids = [pv_id for pv_id, _, _ in leaderboard]
         result = await session.execute(
             text("""
                 SELECT pv.id, p.name, pv.version
@@ -123,8 +147,9 @@ def create_tournament_router() -> APIRouter:
                 policy_name=pv_info.get(pv_id, (None, None))[0],
                 policy_version=pv_info.get(pv_id, (None, None))[1],
                 score=score,
+                matches=match_count,
             )
-            for i, (pv_id, score) in enumerate(scores)
+            for i, (pv_id, score, match_count) in enumerate(leaderboard)
         ]
 
     @router.get("/seasons/{season_name}/policies")
@@ -332,5 +357,65 @@ def create_tournament_router() -> APIRouter:
             return SubmitResponse(pools=pool_names)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @router.get("/seasons/{season_name}/players/{policy_version_id}")
+    @timed_http_handler
+    async def get_player(
+        season_name: str, policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+    ) -> PlayerDetail:
+        season = (await session.execute(select(Season).filter_by(name=season_name))).scalar_one_or_none()
+        if not season:
+            raise HTTPException(status_code=404, detail="Season not found")
+
+        pools = {
+            p.id: p.name
+            for p in (await session.execute(select(Pool).filter_by(season_id=season.id))).scalars().all()
+            if p.name is not None
+        }
+        pool_ids = list(pools.keys())
+
+        pv_result = await session.execute(
+            text("""
+                SELECT pv.id, p.name, pv.version
+                FROM policy_versions pv
+                JOIN policies p ON p.id = pv.policy_id
+                WHERE pv.id = :pv_id
+            """),
+            {"pv_id": policy_version_id},
+        )
+        pv_row = pv_result.one_or_none()
+        if not pv_row:
+            raise HTTPException(status_code=404, detail="Policy version not found")
+
+        changes = list(
+            (
+                await session.execute(
+                    select(MembershipChangeRecord)
+                    .where(col(MembershipChangeRecord.policy_version_id) == policy_version_id)
+                    .where(col(MembershipChangeRecord.pool_id).in_(pool_ids))
+                    .order_by(col(MembershipChangeRecord.created_at).desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        history = [
+            MembershipHistoryEntry(
+                id=c.id,
+                pool_name=pools.get(c.pool_id, "unknown"),
+                action=c.action.value,
+                notes=c.notes,
+                created_at=c.created_at.isoformat() if c.created_at else "",
+            )
+            for c in changes
+        ]
+
+        return PlayerDetail(
+            policy_version_id=policy_version_id,
+            policy_name=pv_row[1],
+            policy_version=pv_row[2],
+            membership_history=history,
+        )
 
     return router

@@ -146,14 +146,6 @@ export const EpisodeDetailPage: FC = () => {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {episode?.primary_pv_id ? (
-            <LinkButton to={`/policies/versions/${episode.primary_pv_id}`}>View Primary Policy</LinkButton>
-          ) : null}
-          <LinkButton to="/leaderboard" theme="tertiary">
-            ← Back to Leaderboard
-          </LinkButton>
-        </div>
       </div>
 
       <Card title="Policies & Scores">
@@ -181,17 +173,11 @@ export const EpisodeDetailPage: FC = () => {
                   .map(([policyId, reward]) => {
                     const info = policyInfoState.data[policyId]
                     const policyLabel = formatPolicyVersion(info)
-                    const isPrimary = episode.primary_pv_id === policyId
                     return (
                       <TR key={policyId}>
                         <TD>
                           <div className="flex items-center gap-2">
                             <StyledLink to={`/policies/versions/${policyId}`}>{policyLabel}</StyledLink>
-                            {isPrimary ? (
-                              <span className="text-[10px] uppercase tracking-wide text-blue-600 border border-blue-200 rounded px-1 py-0.5">
-                                Primary
-                              </span>
-                            ) : null}
                             {policyInfoState.loading && !info ? (
                               <span className="text-xs text-gray-400">(loading details)</span>
                             ) : null}

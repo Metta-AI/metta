@@ -274,6 +274,7 @@ export type LeaderboardEntry = {
   policy_name: string | null
   policy_version: number | null
   score: number
+  matches: number
 }
 
 export type LeaderboardResponse = {
@@ -344,6 +345,21 @@ export type SeasonMatchSummary = {
   episode_id: string | null
   episode_tags: Record<string, string>
   created_at: string
+}
+
+export type MembershipHistoryEntry = {
+  id: string
+  pool_name: string
+  action: string
+  notes: string | null
+  created_at: string
+}
+
+export type PlayerDetail = {
+  policy_version_id: string
+  policy_name: string | null
+  policy_version: number | null
+  membership_history: MembershipHistoryEntry[]
 }
 
 export type JobRequest = {
@@ -707,5 +723,11 @@ export class Repo {
     return this.apiCallWithBody<SubmissionResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/submit`, {
       policy_version_id: policyVersionId,
     })
+  }
+
+  async getSeasonPlayer(seasonName: string, policyVersionId: string): Promise<PlayerDetail> {
+    return this.apiCall<PlayerDetail>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/players/${encodeURIComponent(policyVersionId)}`
+    )
   }
 }

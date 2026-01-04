@@ -16,29 +16,36 @@ def _make_env() -> MettaGridConfig:
     return mission.make_env()
 
 
-class PairingReferee(RefereeBase):
-    """Schedules matches between pairs of policies to find optimal teammates.
+MATCH_CONFIGURATIONS: list[list[int]] = [
+    [0, 1, 1, 1],  # 1v3
+    [0, 0, 0, 1],  # 3v1
+    [0, 0, 1, 1],  # 2v2
+]
 
-    Each unique pair of policies plays up to `matches_per_pair` matches together,
-    with agents split evenly between the two policies (2v2 configuration).
+
+class PairingReferee(RefereeBase):
+    """Schedules matches between pairs of policies with varying agent splits.
+
+    Each unique pair of policies plays three matches with different configurations:
+    1v3, 3v1, and 2v2. This tests whether policies can cooperate effectively
+    regardless of team size.
     """
 
     scorer: ScorerInterface = WeightedScorer()
-    matches_per_pair: int = 3
 
     def get_matches_to_schedule(
         self,
         players: list[PoolPlayer],
         matches: list[MatchData],
     ) -> list[MatchRequest]:
-        pair_counts: dict[Tuple[UUID, UUID], int] = {}
+        existing_configs: set[Tuple[UUID, UUID, tuple[int, ...]]] = set()
 
         for md in matches:
             pv_set = set(md.player_pv_ids)
-            if len(pv_set) == 2:
+            if len(pv_set) == 2 and md.assignments:
                 pv_list = sorted(pv_set)
                 pair: Tuple[UUID, UUID] = (pv_list[0], pv_list[1])
-                pair_counts[pair] = pair_counts.get(pair, 0) + 1
+                existing_configs.add((pair[0], pair[1], tuple(md.assignments)))
 
         requests: list[MatchRequest] = []
         player_pvs = [p.policy_version_id for p in players]
@@ -47,15 +54,21 @@ class PairingReferee(RefereeBase):
             for pv2 in player_pvs[i + 1 :]:
                 pv_list = sorted([pv1, pv2])
                 pair = (pv_list[0], pv_list[1])
-                needed = self.matches_per_pair - pair_counts.get(pair, 0)
-                for _ in range(needed):
-                    requests.append(
-                        MatchRequest(
-                            policy_version_ids=[pv1, pv2],
-                            assignments=[0, 0, 1, 1],
-                            env=_make_env(),
-                            episode_tags={"match_type": "pairing"},
+
+                for config in MATCH_CONFIGURATIONS:
+                    key = (pair[0], pair[1], tuple(config))
+                    if key not in existing_configs:
+                        requests.append(
+                            MatchRequest(
+                                policy_version_ids=[pv1, pv2],
+                                assignments=config,
+                                env=_make_env(),
+                                episode_tags={
+                                    "match_type": "pairing",
+                                    "assignments": str(config),
+                                    "env": "machina1_open_world",
+                                },
+                            )
                         )
-                    )
 
         return requests
