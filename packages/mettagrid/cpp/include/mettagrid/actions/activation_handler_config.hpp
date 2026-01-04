@@ -13,47 +13,90 @@
 
 namespace py = pybind11;
 
+// ===== Enums for Activation Handlers =====
+// These provide type-safe comparisons instead of string comparisons
+
+// Target type for filters and mutations
+enum class TargetType : uint8_t {
+  Actor = 0,
+  Target = 1,
+  ActorCommons = 2,
+  TargetCommons = 3,
+};
+
+// Filter types
+enum class FilterType : uint8_t {
+  Vibe = 0,
+  Resource = 1,
+  Alignment = 2,
+};
+
+// Mutation types
+enum class MutationType : uint8_t {
+  ResourceDelta = 0,
+  ResourceTransfer = 1,
+  Alignment = 2,
+  Freeze = 3,
+  Attack = 4,
+  ClearInventory = 5,
+};
+
+// Alignment check types
+enum class AlignmentType : uint8_t {
+  Aligned = 0,
+  Unaligned = 1,
+  SameCommons = 2,
+  DifferentCommons = 3,
+  NotSameCommons = 4,
+};
+
+// Align-to mutation targets
+enum class AlignToType : uint8_t {
+  None = 0,
+  ActorCommons = 1,
+};
+
 // ===== Config Structures for Activation Handlers =====
 // These are POD types for pybind11 conversion from Python
 // They don't depend on runtime types like Agent, Grid, etc.
 
 struct VibeFilterConfig {
-  std::string target = "actor";  // "actor" or "target"
+  TargetType target = TargetType::Actor;
   ObservationType vibe = 0;
 };
 
 struct ResourceFilterConfig {
-  std::string target = "actor";
+  TargetType target = TargetType::Actor;
   std::unordered_map<InventoryItem, InventoryQuantity> resources;
 };
 
 struct AlignmentFilterConfig {
-  std::string target = "target";
-  std::string alignment;  // "aligned", "unaligned", "same_commons", "different_commons"
+  TargetType target = TargetType::Target;
+  AlignmentType alignment = AlignmentType::Aligned;
 };
 
 struct ResourceDeltaMutationConfig {
-  std::string target;
+  TargetType target = TargetType::Actor;
   std::unordered_map<InventoryItem, InventoryDelta> deltas;
 };
 
 struct ResourceTransferMutationConfig {
-  std::string from_target;
-  std::string to_target;
+  TargetType from_target = TargetType::Actor;
+  TargetType to_target = TargetType::Target;
   std::unordered_map<InventoryItem, int> resources;
 };
 
 struct AlignmentMutationConfig {
-  std::string align_to;
+  AlignToType align_to = AlignToType::None;
 };
 
 struct FreezeMutationConfig {
-  std::string target;
+  TargetType target = TargetType::Target;
   int duration = 0;
 };
 
 struct ClearInventoryMutationConfig {
-  std::string target;
+  TargetType target = TargetType::Target;
   std::string limit_name;  // Name of the resource limit group to clear (e.g., "gear")
 };
 
@@ -69,7 +112,7 @@ struct AttackMutationConfig {
 };
 
 struct ActivationMutationConfig {
-  std::string type;  // "resource_delta", "resource_transfer", "alignment", "freeze", "attack", "clear_inventory"
+  MutationType type = MutationType::ResourceDelta;
   // Only one of these will be set based on type
   ResourceDeltaMutationConfig resource_delta;
   ResourceTransferMutationConfig resource_transfer;
@@ -80,7 +123,7 @@ struct ActivationMutationConfig {
 };
 
 struct ActivationFilterConfig {
-  std::string type;  // "vibe", "resource", "alignment"
+  FilterType type = FilterType::Vibe;
   VibeFilterConfig vibe;
   ResourceFilterConfig resource;
   AlignmentFilterConfig alignment;
@@ -95,6 +138,37 @@ struct ActivationHandlerConfig {
 // ===== Pybind11 Bindings =====
 
 inline void bind_activation_handler_configs(py::module& m) {
+  // Bind enums first
+  py::enum_<TargetType>(m, "TargetType")
+      .value("Actor", TargetType::Actor)
+      .value("Target", TargetType::Target)
+      .value("ActorCommons", TargetType::ActorCommons)
+      .value("TargetCommons", TargetType::TargetCommons);
+
+  py::enum_<FilterType>(m, "FilterType")
+      .value("Vibe", FilterType::Vibe)
+      .value("Resource", FilterType::Resource)
+      .value("Alignment", FilterType::Alignment);
+
+  py::enum_<MutationType>(m, "MutationType")
+      .value("ResourceDelta", MutationType::ResourceDelta)
+      .value("ResourceTransfer", MutationType::ResourceTransfer)
+      .value("Alignment", MutationType::Alignment)
+      .value("Freeze", MutationType::Freeze)
+      .value("Attack", MutationType::Attack)
+      .value("ClearInventory", MutationType::ClearInventory);
+
+  py::enum_<AlignmentType>(m, "AlignmentType")
+      .value("Aligned", AlignmentType::Aligned)
+      .value("Unaligned", AlignmentType::Unaligned)
+      .value("SameCommons", AlignmentType::SameCommons)
+      .value("DifferentCommons", AlignmentType::DifferentCommons)
+      .value("NotSameCommons", AlignmentType::NotSameCommons);
+
+  py::enum_<AlignToType>(m, "AlignToType")
+      .value("None_", AlignToType::None)
+      .value("ActorCommons", AlignToType::ActorCommons);
+
   py::class_<VibeFilterConfig>(m, "VibeFilterConfig")
       .def(py::init<>())
       .def_readwrite("target", &VibeFilterConfig::target)
