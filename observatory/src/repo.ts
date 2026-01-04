@@ -342,6 +342,7 @@ export type SeasonMatchSummary = {
   assignments: number[]
   players: SeasonMatchPlayerSummary[]
   episode_id: string | null
+  episode_tags: Record<string, string>
   created_at: string
 }
 

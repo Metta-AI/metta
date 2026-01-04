@@ -68,6 +68,7 @@ class MatchSummary(BaseModel):
     assignments: list[int]
     players: list[MatchPlayerSummary]
     episode_id: str | None
+    episode_tags: dict[str, str]
     created_at: str
 
 
@@ -280,19 +281,23 @@ def create_tournament_router() -> APIRouter:
 
         job_ids = [m.job_id for m in matches if m.job_id]
         episode_by_job: dict[UUID, str | None] = {}
+        tags_by_job: dict[UUID, dict[str, str]] = {}
         if job_ids:
             jobs_result = await session.execute(
-                select(JobRequest.id, JobRequest.result).where(col(JobRequest.id).in_(job_ids))
+                select(JobRequest.id, JobRequest.job, JobRequest.result).where(col(JobRequest.id).in_(job_ids))
             )
             for row in jobs_result.all():
-                result = row[1]
+                job_id, job_spec, result = row[0], row[1], row[2]
                 if result and isinstance(result, dict):
-                    episode_by_job[row[0]] = result.get("episode_id")
+                    episode_by_job[job_id] = result.get("episode_id")
+                if job_spec and isinstance(job_spec, dict):
+                    tags_by_job[job_id] = job_spec.get("episode_tags", {})
 
         summaries = []
         for m in matches:
             match_players = sorted(players_by_match.get(m.id, []), key=lambda p: p.policy_index)
             episode_id = episode_by_job.get(m.job_id) if m.job_id else None
+            episode_tags = tags_by_job.get(m.job_id, {}) if m.job_id else {}
             summaries.append(
                 MatchSummary(
                     id=m.id,
@@ -310,6 +315,7 @@ def create_tournament_router() -> APIRouter:
                         for p in match_players
                     ],
                     episode_id=episode_id,
+                    episode_tags=episode_tags,
                     created_at=m.created_at.isoformat() if m.created_at else "",
                 )
             )
