@@ -7,7 +7,7 @@ from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, 
 from metta.app_backend.tournament.scorers.weighted import WeightedScorer
 
 NUM_AGENTS = 4
-MAX_FAILED_ATTEMPTS = 5
+MAX_FAILED_ATTEMPTS = 3
 
 
 def _make_env() -> MettaGridConfig:
