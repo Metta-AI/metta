@@ -25,7 +25,12 @@ from metta.app_backend.models.tournament import (
     Season,
 )
 from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase
-from metta.app_backend.tournament.settings import MAX_MATCHES_PER_CYCLE, POLL_INTERVAL_SECONDS, settings
+from metta.app_backend.tournament.settings import (
+    MAX_MATCHES_PER_CYCLE,
+    POLL_INTERVAL_FAST_SECONDS,
+    POLL_INTERVAL_SECONDS,
+    settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +60,13 @@ class CommissionerBase(ABC):
         await self._ensure_season_exists()
         logger.info(f"Starting commissioner for season '{self.season_name}' ({self.season_id})")
         while True:
+            had_activity = False
             try:
-                await self._run_cycle()
+                had_activity = await self._run_cycle()
             except Exception as e:
                 logger.error(f"Commissioner cycle error: {e}", exc_info=True)
-            await asyncio.sleep(POLL_INTERVAL_SECONDS)
+            interval = POLL_INTERVAL_FAST_SECONDS if had_activity else POLL_INTERVAL_SECONDS
+            await asyncio.sleep(interval)
 
     @with_db
     async def _ensure_season_exists(self) -> None:
@@ -76,10 +83,11 @@ class CommissionerBase(ABC):
             logger.info(f"Created season '{self.season_name}' with id {self.season_id}")
 
     @with_db
-    async def _run_cycle(self) -> None:
+    async def _run_cycle(self) -> bool:
+        """Run one cycle of the commissioner. Returns True if there was activity."""
         pools = await self._ensure_pools_exist(list(self.referees.keys()))
 
-        await self._sync_match_statuses()
+        status_changed = await self._sync_match_statuses()
 
         total_scheduled = 0
         for pool_name, pool in pools.items():
@@ -98,6 +106,8 @@ class CommissionerBase(ABC):
 
         changes = await self.get_membership_changes(pools)
         await self._apply_membership_changes(changes, pools)
+
+        return status_changed or total_scheduled > 0 or len(changes) > 0
 
     async def _ensure_pools_exist(self, pool_names: list[str]) -> dict[str, Pool]:
         session = get_db()
@@ -119,7 +129,8 @@ class CommissionerBase(ABC):
         await session.commit()
         return pools
 
-    async def _sync_match_statuses(self) -> None:
+    async def _sync_match_statuses(self) -> bool:
+        """Sync match statuses from job statuses. Returns True if any changed."""
         session = get_db()
         pending = list(
             (
@@ -134,6 +145,7 @@ class CommissionerBase(ABC):
             .all()
         )
 
+        updated = 0
         job_ids = [m.job_id for m in pending if m.job_id]
         if job_ids:
             jobs_by_id = {
@@ -141,7 +153,6 @@ class CommissionerBase(ABC):
                 for j in (await session.execute(select(JobRequest).where(col(JobRequest.id).in_(job_ids)))).scalars()
             }
 
-            updated = 0
             for match in pending:
                 if not match.job_id or match.job_id not in jobs_by_id:
                     continue
@@ -161,9 +172,11 @@ class CommissionerBase(ABC):
                 logger.info(f"Updated {updated} match statuses")
             await session.commit()
 
-        await self._sync_match_scores()
+        scores_updated = await self._sync_match_scores()
+        return updated > 0 or scores_updated
 
-    async def _sync_match_scores(self) -> None:
+    async def _sync_match_scores(self) -> bool:
+        """Sync match scores from episode metrics. Returns True if any updated."""
         session = get_db()
 
         # Find completed matches with missing scores and their episode IDs
@@ -182,7 +195,7 @@ class CommissionerBase(ABC):
         rows = result.all()
 
         if not rows:
-            return
+            return False
 
         match_ids = [row[0] for row in rows]
         episode_ids = [row[1] for row in rows]
@@ -226,7 +239,7 @@ class CommissionerBase(ABC):
                 logger.info(f"Policy reward: episode={ep_id}, pv={pv_id}, total_reward={row[2]}")
 
         if not scores_by_episode:
-            return
+            return False
 
         match_players = list(
             (await session.execute(select(MatchPlayer).where(col(MatchPlayer.match_id).in_(match_ids)))).scalars().all()
@@ -252,6 +265,7 @@ class CommissionerBase(ABC):
         if updated > 0:
             logger.info(f"Updated {updated} match player scores")
         await session.commit()
+        return updated > 0
 
     async def _get_pool_players(self, pool_id: UUID) -> list[PoolPlayer]:
         session = get_db()

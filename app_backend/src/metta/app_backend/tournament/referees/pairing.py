@@ -1,7 +1,7 @@
 from typing import Tuple
 from uuid import UUID
 
-from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
+from cogames.cogs_vs_clips.missions import Machina1OpenWorldSharedRewardsMission
 from metta.app_backend.models.tournament import PoolPlayer
 from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase, ScorerInterface
 from metta.app_backend.tournament.scorers.weighted import WeightedScorer
@@ -11,7 +11,7 @@ NUM_AGENTS = 4
 
 
 def _make_env() -> MettaGridConfig:
-    mission = Machina1OpenWorldMission.model_copy(deep=True)
+    mission = Machina1OpenWorldSharedRewardsMission.model_copy(deep=True)
     mission.num_cogs = NUM_AGENTS
     return mission.make_env()
 

@@ -1,5 +1,6 @@
-import { FC, useCallback, useContext, useEffect, useState } from 'react'
+import { FC, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import Select from 'react-select'
 
 import { AppContext } from '../AppContext'
 import { Button } from '../components/Button'
@@ -37,6 +38,45 @@ const MatchStatusBadge: FC<{ status: MatchStatus }> = ({ status }) => {
     failed: 'bg-red-100 text-red-800',
   }
   return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[status]}`}>{status}</span>
+}
+
+const selectStyles = {
+  control: (base: any) => ({
+    ...base,
+    minHeight: '32px',
+    fontSize: '0.75rem',
+  }),
+  valueContainer: (base: any) => ({
+    ...base,
+    padding: '0 6px',
+  }),
+  multiValue: (base: any) => ({
+    ...base,
+    backgroundColor: '#dbeafe',
+  }),
+  multiValueLabel: (base: any) => ({
+    ...base,
+    color: '#1e40af',
+    fontSize: '0.75rem',
+    padding: '1px 4px',
+  }),
+  multiValueRemove: (base: any) => ({
+    ...base,
+    color: '#1e40af',
+    ':hover': {
+      backgroundColor: '#bfdbfe',
+      color: '#1e3a8a',
+    },
+  }),
+  option: (base: any) => ({
+    ...base,
+    fontSize: '0.75rem',
+    padding: '6px 10px',
+  }),
+  placeholder: (base: any) => ({
+    ...base,
+    fontSize: '0.75rem',
+  }),
 }
 
 const SubmitForm: FC<{
@@ -112,22 +152,24 @@ const SubmitForm: FC<{
   const isAlreadySubmitted = selectedVersion && existingPolicyVersionIds.has(selectedVersion.id)
 
   return (
-    <div className="space-y-3">
+    <div className="border-t border-gray-200 pt-4 mt-4">
+      <div className="text-xs text-gray-500 mb-2">Submit new player</div>
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <label className="block text-xs text-gray-500 mb-1">Policy</label>
           {selectedPolicy ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{selectedPolicy.name}</span>
-              <button
-                onClick={() => {
-                  setSelectedPolicy(null)
-                  setPolicySearch('')
-                }}
-                className="text-xs text-gray-400 hover:text-gray-600"
-              >
-                (change)
-              </button>
+            <div className="flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                {selectedPolicy.name}
+                <button
+                  onClick={() => {
+                    setSelectedPolicy(null)
+                    setPolicySearch('')
+                  }}
+                  className="hover:text-blue-600 font-medium"
+                >
+                  x
+                </button>
+              </span>
             </div>
           ) : (
             <div className="relative">
@@ -153,8 +195,7 @@ const SubmitForm: FC<{
         </div>
 
         {selectedPolicy && versions.length > 0 && (
-          <div className="w-32">
-            <label className="block text-xs text-gray-500 mb-1">Version</label>
+          <div className="w-24">
             <select
               value={selectedVersion?.id || ''}
               onChange={(e) => {
@@ -178,13 +219,13 @@ const SubmitForm: FC<{
           size="sm"
           disabled={!selectedVersion || submitting || !!isAlreadySubmitted}
         >
-          {submitting ? 'Submitting...' : 'Submit'}
+          {submitting ? '...' : 'Submit'}
         </Button>
       </div>
 
-      {isAlreadySubmitted && <div className="text-xs text-amber-600">This version is already in the season</div>}
-      {submitError && <div className="text-xs text-red-600">{submitError}</div>}
-      {submitSuccess && <div className="text-xs text-green-600">{submitSuccess}</div>}
+      {isAlreadySubmitted && <div className="text-xs text-amber-600 mt-1">Already in season</div>}
+      {submitError && <div className="text-xs text-red-600 mt-1">{submitError}</div>}
+      {submitSuccess && <div className="text-xs text-green-600 mt-1">{submitSuccess}</div>}
     </div>
   )
 }
@@ -201,9 +242,8 @@ const formatPolicyDisplay = (p: {
 }
 
 type MatchFilter = {
-  pool_name?: string
-  policy_version_id?: string
-  policy_display?: string
+  pool_names: string[]
+  policy_version_ids: string[]
 }
 
 export const SeasonPage: FC = () => {
@@ -213,8 +253,8 @@ export const SeasonPage: FC = () => {
   const [season, setSeason] = useState<SeasonDetail | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [policies, setPolicies] = useState<PolicySummary[]>([])
-  const [matches, setMatches] = useState<SeasonMatchSummary[]>([])
-  const [matchFilter, setMatchFilter] = useState<MatchFilter>({})
+  const [allMatches, setAllMatches] = useState<SeasonMatchSummary[]>([])
+  const [matchFilter, setMatchFilter] = useState<MatchFilter>({ pool_names: [], policy_version_ids: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -259,16 +299,12 @@ export const SeasonPage: FC = () => {
   const loadMatches = useCallback(async () => {
     if (!seasonName) return
     try {
-      const m = await repo.getSeasonMatches(seasonName, {
-        pool_name: matchFilter.pool_name,
-        policy_version_id: matchFilter.policy_version_id,
-        limit: 50,
-      })
-      setMatches(m)
+      const m = await repo.getSeasonMatches(seasonName, { limit: 100 })
+      setAllMatches(m)
     } catch (err: any) {
       setError(err.message)
     }
-  }, [repo, seasonName, matchFilter])
+  }, [repo, seasonName])
 
   useEffect(() => {
     loadData()
@@ -284,13 +320,46 @@ export const SeasonPage: FC = () => {
 
   const existingPolicyVersionIds = new Set(policies.map((p) => p.policy_version_id))
 
-  const handleMatchFilterClick = (poolName: string, policyVersionId: string, policyDisplay: string) => {
-    setMatchFilter({ pool_name: poolName, policy_version_id: policyVersionId, policy_display: policyDisplay })
+  const filteredMatches = useMemo(() => {
+    return allMatches.filter((m) => {
+      if (matchFilter.pool_names.length > 0 && !matchFilter.pool_names.includes(m.pool_name)) {
+        return false
+      }
+      if (matchFilter.policy_version_ids.length > 0) {
+        const matchPvIds = m.players.map((p) => p.policy_version_id)
+        if (!matchFilter.policy_version_ids.some((id) => matchPvIds.includes(id))) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [allMatches, matchFilter])
+
+  const matchCountsByPolicyPool = useMemo(() => {
+    const counts: Record<string, { scored: number; pending: number }> = {}
+    for (const m of allMatches) {
+      for (const p of m.players) {
+        const key = `${p.policy_version_id}:${m.pool_name}`
+        if (!counts[key]) counts[key] = { scored: 0, pending: 0 }
+        if (m.status === 'completed' && p.score !== null) {
+          counts[key].scored++
+        } else if (m.status !== 'failed') {
+          counts[key].pending++
+        }
+      }
+    }
+    return counts
+  }, [allMatches])
+
+  const handleMatchFilterClick = (poolName: string, policyVersionId: string) => {
+    setMatchFilter({ pool_names: [poolName], policy_version_ids: [policyVersionId] })
   }
 
-  const clearMatchFilter = () => {
-    setMatchFilter({})
-  }
+  const poolOptions = (season?.pools || []).map((p) => ({ value: p, label: p }))
+  const playerOptions = policies.map((p) => ({
+    value: p.policy_version_id,
+    label: formatPolicyDisplay(p),
+  }))
 
   if (loading) {
     return (
@@ -319,11 +388,6 @@ export const SeasonPage: FC = () => {
       </div>
     )
   }
-
-  const matchFilterLabel =
-    matchFilter.pool_name || matchFilter.policy_version_id
-      ? `${matchFilter.pool_name || 'all pools'}${matchFilter.policy_display ? ` / ${matchFilter.policy_display}` : ''}`
-      : null
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -362,21 +426,13 @@ export const SeasonPage: FC = () => {
         )}
       </Card>
 
-      <Card title="Submit Policy">
-        <SubmitForm
-          seasonName={seasonName!}
-          existingPolicyVersionIds={existingPolicyVersionIds}
-          onSubmitted={() => setRefreshKey((k) => k + 1)}
-        />
-      </Card>
-
-      <Card title="Policies">
+      <Card title="Players">
         {policies.length === 0 ? (
-          <div className="text-gray-500 py-4">No policies submitted yet</div>
+          <div className="text-gray-500 py-4">No players submitted yet</div>
         ) : (
           <Table>
             <Table.Header>
-              <TH>Policy</TH>
+              <TH>Player</TH>
               {season.pools.map((pool) => (
                 <TH key={pool} className="capitalize">
                   {pool}
@@ -402,17 +458,19 @@ export const SeasonPage: FC = () => {
                           </TD>
                         )
                       }
+                      const counts = matchCountsByPolicyPool[`${policy.policy_version_id}:${poolName}`] || {
+                        scored: 0,
+                        pending: 0,
+                      }
                       return (
                         <TD key={poolName}>
                           <div className="flex flex-col gap-1">
                             <StatusBadge status={status.status} />
                             <button
-                              onClick={() =>
-                                handleMatchFilterClick(poolName, policy.policy_version_id, formatPolicyDisplay(policy))
-                              }
+                              onClick={() => handleMatchFilterClick(poolName, policy.policy_version_id)}
                               className="text-xs text-blue-600 hover:text-blue-800 hover:underline text-left"
                             >
-                              {status.matches_completed} matches
+                              {counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`}
                             </button>
                             {status.avg_score !== null && (
                               <span className="text-xs text-gray-500">{status.avg_score.toPrecision(3)} avg</span>
@@ -427,28 +485,44 @@ export const SeasonPage: FC = () => {
             </Table.Body>
           </Table>
         )}
+        <SubmitForm
+          seasonName={seasonName!}
+          existingPolicyVersionIds={existingPolicyVersionIds}
+          onSubmitted={() => setRefreshKey((k) => k + 1)}
+        />
       </Card>
 
-      <Card
-        title={
-          <div className="flex items-center gap-2">
-            <span>Matches</span>
-            {matchFilterLabel && (
-              <>
-                <span className="text-sm font-normal text-gray-500">({matchFilterLabel})</span>
-                <button
-                  onClick={clearMatchFilter}
-                  className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  clear
-                </button>
-              </>
-            )}
+      <Card title="Matches">
+        <div className="flex gap-4 mb-4 pb-4 border-b border-gray-100">
+          <div className="flex-1">
+            <div className="text-xs text-gray-500 mb-1">Pool</div>
+            <Select
+              isMulti
+              options={poolOptions}
+              value={poolOptions.filter((o) => matchFilter.pool_names.includes(o.value))}
+              onChange={(selected) => setMatchFilter((f) => ({ ...f, pool_names: selected.map((s) => s.value) }))}
+              placeholder="All pools"
+              styles={selectStyles}
+              isClearable
+            />
           </div>
-        }
-      >
-        {matches.length === 0 ? (
-          <div className="text-gray-500 py-4">No matches yet</div>
+          <div className="flex-1">
+            <div className="text-xs text-gray-500 mb-1">Players</div>
+            <Select
+              isMulti
+              options={playerOptions}
+              value={playerOptions.filter((o) => matchFilter.policy_version_ids.includes(o.value))}
+              onChange={(selected) =>
+                setMatchFilter((f) => ({ ...f, policy_version_ids: selected.map((s) => s.value) }))
+              }
+              placeholder="All players"
+              styles={selectStyles}
+              isClearable
+            />
+          </div>
+        </div>
+        {filteredMatches.length === 0 ? (
+          <div className="text-gray-500 py-4">No matches</div>
         ) : (
           <Table>
             <Table.Header>
@@ -456,46 +530,65 @@ export const SeasonPage: FC = () => {
               <TH>Pool</TH>
               <TH>Players</TH>
               <TH>Scores</TH>
+              <TH>Tags</TH>
               <TH>Created</TH>
               <TH>Episode</TH>
             </Table.Header>
             <Table.Body>
-              {matches.map((match) => (
-                <TR key={match.id}>
-                  <TD>
-                    <MatchStatusBadge status={match.status} />
-                  </TD>
-                  <TD className="capitalize">{match.pool_name}</TD>
-                  <TD>
-                    <div className="flex flex-col gap-1">
-                      {match.players.map((p, i) => (
-                        <StyledLink
-                          key={i}
-                          to={`/policies/versions/${p.policy_version_id}`}
-                          className="font-mono text-xs"
-                        >
-                          {formatPolicyDisplay(p)}
-                        </StyledLink>
-                      ))}
-                    </div>
-                  </TD>
-                  <TD>
-                    <div className="flex flex-col gap-1 font-mono text-xs">
-                      {match.players.map((p, i) => (
-                        <span key={i}>{p.score !== null ? p.score.toPrecision(3) : '-'}</span>
-                      ))}
-                    </div>
-                  </TD>
-                  <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
-                  <TD>
-                    {match.episode_id ? (
-                      <StyledLink to={`/episodes/${match.episode_id}`}>View</StyledLink>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </TD>
-                </TR>
-              ))}
+              {filteredMatches.map((match) => {
+                const tagEntries = Object.entries(match.episode_tags || {}).filter(
+                  ([k]) => !['match_id', 'pool_id'].includes(k)
+                )
+                return (
+                  <TR key={match.id}>
+                    <TD>
+                      <MatchStatusBadge status={match.status} />
+                    </TD>
+                    <TD className="capitalize">{match.pool_name}</TD>
+                    <TD>
+                      <div className="flex flex-col gap-1">
+                        {match.players.map((p, i) => (
+                          <StyledLink
+                            key={i}
+                            to={`/policies/versions/${p.policy_version_id}`}
+                            className="font-mono text-xs"
+                          >
+                            {formatPolicyDisplay(p)}
+                          </StyledLink>
+                        ))}
+                      </div>
+                    </TD>
+                    <TD>
+                      <div className="flex flex-col gap-1 font-mono text-xs">
+                        {match.players.map((p, i) => (
+                          <span key={i}>{p.score !== null ? p.score.toPrecision(3) : '-'}</span>
+                        ))}
+                      </div>
+                    </TD>
+                    <TD>
+                      {tagEntries.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {tagEntries.map(([k, v]) => (
+                            <span key={k} className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                              {k}={v}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TD>
+                    <TD className="text-gray-500 text-sm">{formatRelativeTime(match.created_at)}</TD>
+                    <TD>
+                      {match.episode_id ? (
+                        <StyledLink to={`/episodes/${match.episode_id}`}>View</StyledLink>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TD>
+                  </TR>
+                )
+              })}
             </Table.Body>
           </Table>
         )}
