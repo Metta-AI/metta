@@ -65,6 +65,7 @@ def multi_episode_rollout(
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
     render_mode: Optional[RenderMode] = None,
+    autostart: bool = False,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -111,6 +112,7 @@ def multi_episode_rollout(
             render_mode=render_mode,
             seed=seed + episode_idx,
             event_handlers=handlers,
+            autostart=autostart,
         )
 
         rollout.run_until_done()

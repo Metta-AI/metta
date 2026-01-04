@@ -84,12 +84,13 @@ proc ctrlCHandler() {.noconv.} =
     window.close()
   quit(0)
 
-proc init(dataDir: string, replay: string): RenderResponse =
+proc init(dataDir: string, replay: string, autostart: bool): RenderResponse =
   try:
     echo "Initializing Mettascope..."
     setControlCHook(ctrlCHandler)
     result = RenderResponse(shouldClose: false, actions: @[])
     playMode = Realtime
+    play = autostart
     common.replay = loadReplayString(replay, "MettaScope")
     savedMettascopeState = loadMettascopeState()
     window = newWindow(

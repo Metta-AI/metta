@@ -53,7 +53,7 @@ class NoRenderer(Renderer):
         pass
 
 
-def create_renderer(render_mode: RenderMode) -> Renderer:
+def create_renderer(render_mode: RenderMode, autostart: bool = False) -> Renderer:
     """Create the appropriate renderer based on render_mode."""
     if render_mode == "unicode":
         # Text-based interactive rendering
@@ -64,7 +64,7 @@ def create_renderer(render_mode: RenderMode) -> Renderer:
         # GUI-based interactive rendering
         from mettagrid.renderer.mettascope import MettascopeRenderer
 
-        return MettascopeRenderer()
+        return MettascopeRenderer(autostart=autostart)
     elif render_mode == "log":
         # Logger-based rendering for debugging
         from mettagrid.renderer.log_renderer import LogRenderer
