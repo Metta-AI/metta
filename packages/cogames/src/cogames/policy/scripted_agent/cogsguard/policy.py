@@ -1,9 +1,11 @@
 """
-CoGsGuard Scripted Agent - Role-based multi-agent policy.
+CoGsGuard Scripted Agent - Vibe-based multi-agent policy.
 
-Agents are randomly assigned roles (Miner, Scout, Aligner, Scrambler) and:
-1. Find their gear station and equip role-specific gear
-2. Execute role-specific behavior
+Agents use vibes to determine their behavior:
+- default: do nothing (noop)
+- gear: pick a role at random, change vibe to that role
+- miner/scout/aligner/scrambler: get gear if needed, then execute role behavior
+- heart: do nothing (noop)
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ from cogames.policy.scripted_agent.pathfinding import compute_goal_cells, shorte
 from cogames.policy.scripted_agent.pathfinding import is_traversable as path_is_traversable
 from cogames.policy.scripted_agent.pathfinding import is_within_bounds as path_is_within_bounds
 from cogames.policy.scripted_agent.types import CellType, ObjectState, ParsedObservation
-from cogames.policy.scripted_agent.utils import is_adjacent, is_station, is_wall
+from cogames.policy.scripted_agent.utils import change_vibe_action, is_adjacent, is_station, is_wall
 from cogames.policy.scripted_agent.utils import parse_observation as utils_parse_observation
 from mettagrid.config.mettagrid_config import CardinalDirection
 from mettagrid.policy.policy import MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
@@ -31,11 +33,20 @@ from .types import (
     StructureType,
 )
 
+# Vibe names for role selection
+ROLE_VIBES = ["scout", "miner", "aligner", "scrambler"]
+VIBE_TO_ROLE = {
+    "miner": Role.MINER,
+    "scout": Role.SCOUT,
+    "aligner": Role.ALIGNER,
+    "scrambler": Role.SCRAMBLER,
+}
+
 if TYPE_CHECKING:
     from mettagrid.simulator.interface import AgentObservation
 
 # Debug flag - set to True to see detailed agent behavior
-DEBUG = False
+DEBUG = True
 
 
 class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
@@ -81,20 +92,32 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         self._tag_names: dict[int, str] = {}
 
     def initial_agent_state(self) -> CogsguardAgentState:
-        """Initialize state for this agent."""
+        """Initialize state for this agent.
+
+        IMPORTANT: Positions are tracked RELATIVE to the agent's starting position.
+        - Agent starts at (0, 0) in internal coordinates
+        - All discovered object positions are relative to this origin
+        - The actual map size doesn't matter - we only use relative offsets
+        - Occupancy grid is centered at (grid_size/2, grid_size/2) to allow negative relative positions
+        """
         self._tag_names = self._policy_env_info.tag_id_to_name
 
-        map_size = 200
-        center = map_size // 2
+        # Use a grid large enough for typical exploration range
+        # Grid center is the agent's starting position (0, 0) in relative coords
+        # But stored at grid_center to allow negative relative positions
+        grid_size = 200
+        grid_center = grid_size // 2
 
         return CogsguardAgentState(
             agent_id=self._agent_id,
             role=self._role,
-            map_height=map_size,
-            map_width=map_size,
-            occupancy=[[CellType.FREE.value] * map_size for _ in range(map_size)],
-            row=center,
-            col=center,
+            map_height=grid_size,
+            map_width=grid_size,
+            occupancy=[[CellType.FREE.value] * grid_size for _ in range(grid_size)],
+            explored=[[False] * grid_size for _ in range(grid_size)],
+            # Start at (0, 0) relative - stored at grid center for negative offset support
+            row=grid_center,
+            col=grid_center,
             stations={},
         )
 
@@ -127,7 +150,7 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
             gear_status = "HAS_GEAR" if s.has_gear() else "NO_GEAR"
             nexus_pos = s.stations.get("assembler", "NOT_FOUND")
             print(
-                f"[A{s.agent_id}] Step {s.step_count}: {s.role.value} | "
+                f"[A{s.agent_id}] Step {s.step_count}: vibe={s.current_vibe} role={s.role.value} | "
                 f"Phase={s.phase.value} | {gear_status} | "
                 f"Energy={s.energy} | "
                 f"Pos=({s.row},{s.col}) | "
@@ -139,8 +162,10 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         return action, s
 
     def _read_inventory(self, s: CogsguardAgentState, obs: AgentObservation) -> None:
-        """Read inventory from observation."""
+        """Read inventory, vibe, and last executed action from observation."""
         inv = {}
+        vibe_id = 0  # Default vibe ID
+        last_action_id: Optional[int] = None
         center_r, center_c = self._obs_hr, self._obs_wr
         for tok in obs.tokens:
             if tok.location == (center_r, center_c):
@@ -148,6 +173,10 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
                 if feature_name.startswith("inv:"):
                     resource_name = feature_name[4:]
                     inv[resource_name] = tok.value
+                elif feature_name == "vibe":
+                    vibe_id = tok.value
+                elif feature_name == "last_action":
+                    last_action_id = tok.value
 
         s.energy = inv.get("energy", 0)
         s.carbon = inv.get("carbon", 0)
@@ -164,15 +193,70 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         s.aligner = inv.get("aligner", 0)
         s.scrambler = inv.get("scrambler", 0)
 
+        # Read vibe name from vibe ID using policy_env_info
+        s.current_vibe = self._get_vibe_name(vibe_id)
+
+        # Read last executed action from observation
+        # This tells us what the simulator actually did, not what we intended
+        if last_action_id is not None:
+            action_names = self._policy_env_info.action_names
+            if 0 <= last_action_id < len(action_names):
+                s.last_action_executed = action_names[last_action_id]
+            else:
+                s.last_action_executed = None
+        else:
+            s.last_action_executed = None
+
+    def _get_vibe_name(self, vibe_id: int) -> str:
+        """Convert vibe ID to vibe name."""
+        # Get vibe names from the change_vibe action config
+        change_vibe_cfg = getattr(self._actions, "change_vibe", None)
+        if change_vibe_cfg is not None:
+            vibes = getattr(change_vibe_cfg, "vibes", [])
+            if 0 <= vibe_id < len(vibes):
+                return vibes[vibe_id].name
+        return "default"
+
     def _update_agent_position(self, s: CogsguardAgentState) -> None:
-        """Update position based on last action."""
-        # Update position if last action was a move and we weren't using an object
-        if s.last_action and s.last_action.name.startswith("move_") and not s.using_object_this_step:
-            direction = s.last_action.name[5:]  # Remove "move_" prefix
+        """Update position based on last action that was ACTUALLY EXECUTED.
+
+        IMPORTANT: Position is ONLY updated when OUR intended action matches
+        the executed action. This ensures:
+        1. Position doesn't update when moves fail (executed=noop, intended=move_X)
+        2. Position doesn't update when a human takes over and moves the cog
+           (the human's moves are not what we intended)
+
+        This keeps internal position consistent even during human control,
+        so when control returns to the agent, its internal map remains valid.
+        """
+        # Use last_action_executed from observation, NOT last_action (our intent)
+        executed_action = s.last_action_executed
+        intended_action = s.last_action.name if s.last_action else None
+
+        # Debug: Log when intended != executed (action failed, delayed, or human control)
+        if DEBUG and s.step_count <= 100:
+            if intended_action and executed_action and intended_action != executed_action:
+                print(
+                    f"[A{s.agent_id}] ACTION_MISMATCH: intended={intended_action}, "
+                    f"executed={executed_action} (action failed/delayed or human control)"
+                )
+
+        # ONLY update position when:
+        # 1. The executed action is a move
+        # 2. The executed action matches what WE intended (not human control)
+        # 3. We're not interacting with an object this step
+        if (
+            executed_action
+            and executed_action.startswith("move_")
+            and intended_action == executed_action  # Only if WE intended this move
+            and not s.using_object_this_step
+        ):
+            direction = executed_action[5:]  # Remove "move_" prefix
             if direction in self._move_deltas:
                 dr, dc = self._move_deltas[direction]
                 s.row += dr
                 s.col += dc
+
         s.using_object_this_step = False
 
         # Track position history
@@ -200,12 +284,13 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         if s.row < 0:
             return
 
-        # Mark all observed cells as FREE initially
+        # Mark all observed cells as FREE and explored
         for obs_r in range(2 * self._obs_hr + 1):
             for obs_c in range(2 * self._obs_wr + 1):
                 r, c = obs_r - self._obs_hr + s.row, obs_c - self._obs_wr + s.col
                 if 0 <= r < s.map_height and 0 <= c < s.map_width:
                     s.occupancy[r][c] = CellType.FREE.value
+                    s.explored[r][c] = True
 
         # Process discovered objects
         if DEBUG and s.step_count == 1:
@@ -250,15 +335,29 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
                         print(f"[A{s.agent_id}] DISCOVERED charger/supply_depot at {pos}")
                 self._discover_supply_depot(s, pos, obj_state)
 
-            # Discover assembler/nexus
-            if "assembler" in obj_name or "nexus" in obj_name:
+            # Discover assembler (the resource deposit point)
+            # In cogsguard, the assembler object has tag name "main_nexus"
+            if "assembler" in obj_name or obj_name == "main_nexus":
                 s.occupancy[r][c] = CellType.OBSTACLE.value
                 self._update_structure(s, pos, obj_name, StructureType.ASSEMBLER, obj_state)
                 # Legacy: update stations dict
                 if "assembler" not in s.stations or s.stations["assembler"] is None:
                     s.stations["assembler"] = pos
                     if DEBUG:
-                        print(f"[A{s.agent_id}] DISCOVERED assembler/nexus at {pos}")
+                        print(f"[A{s.agent_id}] DISCOVERED assembler at {pos}")
+
+            # Discover chest (for hearts) - NOT resource extractors, just "chest"
+            # Must check this isn't a resource extractor (carbon_chest, etc)
+            resources = ["carbon", "oxygen", "germanium", "silicon"]
+            is_resource_chest = any(f"{res}_" in obj_name or f"{res}chest" in obj_name for res in resources)
+            if obj_name == "chest" or ("chest" in obj_name and not is_resource_chest):
+                s.occupancy[r][c] = CellType.OBSTACLE.value
+                self._update_structure(s, pos, obj_name, StructureType.CHEST, obj_state)
+                # Track chest for heart acquisition
+                if "chest" not in s.stations or s.stations["chest"] is None:
+                    s.stations["chest"] = pos
+                    if DEBUG:
+                        print(f"[A{s.agent_id}] DISCOVERED chest at {pos}")
 
             # Discover extractors (in cogsguard they're named {resource}_chest)
             for resource in ["carbon", "oxygen", "germanium", "silicon"]:
@@ -292,14 +391,40 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         resource_type: Optional[str] = None,
     ) -> None:
         """Update or create a structure in the structures map."""
+        # Derive alignment from clipped field, object name, and structure type
+        clipped = obj_state.clipped > 0
+        alignment = self._derive_alignment(obj_name, clipped, structure_type)
+
+        # Calculate inventory amount for extractors
+        # Key insight: empty dict {} on FIRST observation = no info yet (assume full)
+        # Empty dict {} on SUBSEQUENT observation = depleted (0 resources)
+        inventory_amount = 999  # Default: unknown/full
+        is_new_structure = pos not in s.structures
+
+        if structure_type == StructureType.EXTRACTOR:
+            if resource_type and resource_type in obj_state.inventory:
+                # We have actual inventory info
+                inventory_amount = obj_state.inventory[resource_type]
+            elif obj_state.inventory:
+                # Sum all inventory if resource type not specified
+                inventory_amount = sum(obj_state.inventory.values())
+            elif not is_new_structure:
+                # Empty dict for KNOWN extractor = depleted
+                # (For new extractors, keep default 999)
+                inventory_amount = 0
+        elif obj_state.inventory:
+            # Non-extractors: use inventory if present
+            inventory_amount = sum(obj_state.inventory.values())
+
         if pos in s.structures:
             # Update existing structure
             struct = s.structures[pos]
             struct.last_seen_step = s.step_count
             struct.cooldown_remaining = obj_state.cooldown_remaining
             struct.remaining_uses = obj_state.remaining_uses
-            struct.clipped = obj_state.clipped > 0
-            # TODO: Parse alignment from obj_state when available
+            struct.clipped = clipped
+            struct.alignment = alignment
+            struct.inventory_amount = inventory_amount
         else:
             # Create new structure
             s.structures[pos] = StructureInfo(
@@ -310,21 +435,58 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
                 resource_type=resource_type,
                 cooldown_remaining=obj_state.cooldown_remaining,
                 remaining_uses=obj_state.remaining_uses,
-                clipped=obj_state.clipped > 0,
+                clipped=clipped,
+                alignment=alignment,
+                inventory_amount=inventory_amount,
             )
             if DEBUG:
-                print(f"[A{s.agent_id}] STRUCTURE: Added {structure_type.value} at {pos}")
+                print(
+                    f"[A{s.agent_id}] STRUCTURE: Added {structure_type.value} at {pos} "
+                    f"(alignment={alignment}, inv={inventory_amount})"
+                )
+
+    def _derive_alignment(
+        self, obj_name: str, clipped: bool, structure_type: Optional[StructureType] = None
+    ) -> Optional[str]:
+        """Derive alignment from object name, clipped status, and structure type.
+
+        In CoGsGuard:
+        - Assembler/nexus = cogs-aligned
+        - Charger/supply_depot = clips-aligned (unless converted)
+        """
+        obj_lower = obj_name.lower()
+        # Check if name contains alignment info
+        if "cogs" in obj_lower or "cogs_" in obj_lower:
+            return "cogs"
+        if "clips" in obj_lower or "clips_" in obj_lower:
+            return "clips"
+        # Clipped field indicates clips alignment
+        if clipped:
+            return "clips"
+        # Structure type defaults:
+        # - Assembler/nexus defaults to cogs (main cogs building)
+        # - Charger/supply_depot defaults to clips (enemy buildings to scramble)
+        if structure_type == StructureType.ASSEMBLER:
+            if "nexus" in obj_lower or "assembler" in obj_lower:
+                return "cogs"
+        if structure_type == StructureType.CHARGER:
+            # Chargers start as clips-aligned (enemy), scrambler converts them
+            return "clips"
+        return None  # Unknown/neutral
 
     def _discover_supply_depot(self, s: CogsguardAgentState, pos: tuple[int, int], obj_state: ObjectState) -> None:
         """Track a supply depot with its alignment (legacy)."""
+        # Derive alignment from clipped status
+        alignment = "clips" if obj_state.clipped > 0 else None
+
         # Check if already tracked
-        for _i, (depot_pos, _) in enumerate(s.supply_depots):
+        for i, (depot_pos, _) in enumerate(s.supply_depots):
             if depot_pos == pos:
-                # Update alignment if known
-                # TODO: Parse alignment from obj_state when available
+                # Update alignment
+                s.supply_depots[i] = (pos, alignment)
                 return
         # Add new depot
-        s.supply_depots.append((pos, None))
+        s.supply_depots.append((pos, alignment))
 
     def _discover_extractor(
         self,
@@ -356,30 +518,74 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         )
 
     def _update_phase(self, s: CogsguardAgentState) -> None:
-        """Update agent phase based on current state."""
-        # Energy auto-regens near cogs nexus/chargers, so don't worry about it
-        # Low energy just makes you slower, not a critical issue
-        if s.has_gear():
-            s.phase = CogsguardPhase.EXECUTE_ROLE
-        elif s.role == Role.MINER and s.step_count > 30:
-            # Miners can work without gear (with reduced cargo capacity of 4 vs 44)
-            # This prevents them from getting stuck forever waiting for gear
-            # when the commons doesn't have enough resources
-            # After 30 steps, start mining with base capacity to bootstrap the economy
-            s.phase = CogsguardPhase.EXECUTE_ROLE
+        """Update agent phase based on current vibe.
+
+        Vibe-based state machine:
+        - default/heart: do nothing
+        - gear: pick random role, change vibe to that role
+        - role vibe (scout/miner/aligner/scrambler): get gear first, then execute role
+        """
+        vibe = s.current_vibe
+
+        # Role vibes: scout, miner, aligner, scrambler
+        if vibe in VIBE_TO_ROLE:
+            # Update role based on vibe
+            s.role = VIBE_TO_ROLE[vibe]
+            # Always try to get gear first, then execute role
+            if s.has_gear():
+                s.phase = CogsguardPhase.EXECUTE_ROLE
+            elif s.step_count > 30:
+                # After 30 steps, proceed without gear to bootstrap economy
+                # Miners can mine with reduced capacity, others can still contribute
+                s.phase = CogsguardPhase.EXECUTE_ROLE
+            else:
+                s.phase = CogsguardPhase.GET_GEAR
         else:
-            s.phase = CogsguardPhase.GET_GEAR
+            # For default, heart, gear vibes - handled in _execute_phase
+            s.phase = CogsguardPhase.GET_GEAR  # Will be overridden
 
     def _execute_phase(self, s: CogsguardAgentState) -> Action:
-        """Execute action for current phase."""
-        if s.phase == CogsguardPhase.GET_GEAR:
-            return self._do_get_gear(s)
-        elif s.phase == CogsguardPhase.EXECUTE_ROLE:
-            return self.execute_role(s)
+        """Execute action for current phase based on vibe.
+
+        Vibe-based behavior:
+        - default: do nothing (noop)
+        - gear: pick random role, change vibe to that role
+        - role vibe: get gear then execute role
+        - heart: do nothing (noop)
+        """
+        vibe = s.current_vibe
+
+        # Default vibe: do nothing (wait for external vibe change)
+        if vibe == "default":
+            return self._actions.noop.Noop()
+
+        # Heart vibe: do nothing
+        if vibe == "heart":
+            return self._actions.noop.Noop()
+
+        # Gear vibe: pick a role and change vibe to it
+        if vibe == "gear":
+            selected_role = random.choice(ROLE_VIBES)
+            if DEBUG:
+                print(f"[A{s.agent_id}] GEAR_VIBE: Picking role vibe: {selected_role}")
+            return change_vibe_action(selected_role, actions=self._actions)
+
+        # Role vibes: execute the role behavior
+        if vibe in VIBE_TO_ROLE:
+            if s.phase == CogsguardPhase.GET_GEAR:
+                return self._do_get_gear(s)
+            elif s.phase == CogsguardPhase.EXECUTE_ROLE:
+                return self.execute_role(s)
+
         return self._actions.noop.Noop()
 
     def _do_recharge(self, s: CogsguardAgentState) -> Action:
-        """Recharge by standing near the main nexus (cogs-aligned, has energy AOE)."""
+        """Recharge by standing near the main nexus (cogs-aligned, has energy AOE).
+
+        IMPORTANT: If energy is very low, we can't even move to the nexus!
+        In that case, just wait (noop) and hope AOE regeneration eventually helps,
+        or try a single step towards the nexus if we can afford it.
+        """
         # The main_nexus is cogs-aligned and has AOE that gives energy to cogs agents
         # The supply_depot is clips-aligned and won't give energy to cogs agents
         nexus_pos = s.stations.get("assembler")
@@ -390,19 +596,58 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
 
         # Just need to be near the nexus (within AOE range), not adjacent
         dist = abs(s.row - nexus_pos[0]) + abs(s.col - nexus_pos[1])
-        if dist <= 5:  # Within AOE range
-            if DEBUG:
-                print(f"[A{s.agent_id}] RECHARGE: Near nexus (dist={dist}), waiting for AOE")
+        aoe_range = 10  # AOE range from recipe
+
+        if dist <= aoe_range:
+            if DEBUG and s.step_count % 20 == 0:
+                print(f"[A{s.agent_id}] RECHARGE: Near nexus (dist={dist}), waiting for AOE (energy={s.energy})")
             return self._actions.noop.Noop()
 
-        if DEBUG:
-            print(f"[A{s.agent_id}] RECHARGE: Moving to nexus at {nexus_pos} from ({s.row},{s.col})")
+        # Check if we have enough energy to move at all
+        # If energy is too low, just wait and hope for passive regen or AOE
+        if s.energy < s.MOVE_ENERGY_COST:
+            if DEBUG and s.step_count % 20 == 0:
+                print(
+                    f"[A{s.agent_id}] RECHARGE: Energy critically low ({s.energy}), "
+                    f"can't move to nexus at dist={dist}, waiting for regen"
+                )
+            return self._actions.noop.Noop()
+
+        # If we have some energy but not much, try to move one step at a time towards nexus
+        # This is more conservative - don't commit to a long path if we might not make it
+        if s.energy < s.MOVE_ENERGY_COST * 3:
+            if DEBUG and s.step_count % 10 == 0:
+                print(
+                    f"[A{s.agent_id}] RECHARGE: Low energy ({s.energy}), "
+                    f"taking single step towards nexus at {nexus_pos}"
+                )
+            # Simple single-step movement towards nexus
+            dr = nexus_pos[0] - s.row
+            dc = nexus_pos[1] - s.col
+            if abs(dr) >= abs(dc):
+                # Move vertically
+                if dr > 0:
+                    return self._actions.move.Move("south")
+                else:
+                    return self._actions.move.Move("north")
+            else:
+                # Move horizontally
+                if dc > 0:
+                    return self._actions.move.Move("east")
+                else:
+                    return self._actions.move.Move("west")
+
+        if DEBUG and s.step_count % 20 == 0:
+            print(f"[A{s.agent_id}] RECHARGE: Moving to nexus at {nexus_pos} from ({s.row},{s.col}), dist={dist}")
         return self._move_towards(s, nexus_pos, reach_adjacent=True)
 
     def _do_get_gear(self, s: CogsguardAgentState) -> Action:
         """Find gear station and equip gear."""
         station_name = s.get_gear_station_name()
         station_pos = s.stations.get(station_name)
+
+        if DEBUG and s.step_count <= 10:
+            print(f"[A{s.agent_id}] GET_GEAR: station={station_name} pos={station_pos} all={list(s.stations.keys())}")
 
         # Explore until we find the station
         if station_pos is None:
@@ -461,6 +706,13 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
 
     def _explore(self, s: CogsguardAgentState) -> Action:
         """Explore systematically - cycle through cardinal directions."""
+        # Check for location loop (agents blocking each other back and forth)
+        if self._is_in_location_loop(s):
+            action = self._break_location_loop(s)
+            if action:
+                return action
+            # If can't break loop, fall through to normal exploration
+
         # Start with east since gear stations are typically east of hub
         direction_cycle: list[CardinalDirection] = ["east", "south", "west", "north"]
 
@@ -489,11 +741,22 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
             direction = direction_cycle[(next_idx + i) % 4]
             dr, dc = self._move_deltas[direction]
             next_r, next_c = s.row + dr, s.col + dc
-            if path_is_traversable(s, next_r, next_c, CellType):  # type: ignore[arg-type]
+            traversable = path_is_traversable(s, next_r, next_c, CellType)  # type: ignore[arg-type]
+            if DEBUG and s.step_count <= 10:
+                in_bounds = 0 <= next_r < s.map_height and 0 <= next_c < s.map_width
+                cell_val = s.occupancy[next_r][next_c] if in_bounds else -1
+                agent_occ = (next_r, next_c) in s.agent_occupancy
+                print(
+                    f"[A{s.agent_id}] EXPLORE_DIR: {direction} -> ({next_r},{next_c}) "
+                    f"trav={traversable} cell={cell_val} agent={agent_occ}"
+                )
+            if traversable:
                 s.exploration_target = direction
                 s.exploration_target_step = s.step_count
                 return self._actions.move.Move(direction)
 
+        if DEBUG and s.step_count <= 10:
+            print(f"[A{s.agent_id}] EXPLORE: All directions blocked, returning noop")
         return self._actions.noop.Noop()
 
     def _move_towards(
@@ -504,6 +767,13 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
         reach_adjacent: bool = False,
     ) -> Action:
         """Pathfind toward a target."""
+        # Check for location loop (agents blocking each other back and forth)
+        if self._is_in_location_loop(s):
+            action = self._break_location_loop(s)
+            if action:
+                return action
+            # If can't break loop, fall through to normal pathfinding
+
         start = (s.row, s.col)
         if start == target and not reach_adjacent:
             return self._actions.noop.Noop()
@@ -573,6 +843,48 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
                     return self._actions.move.Move(direction)
         return None
 
+    def _is_in_location_loop(self, s: CogsguardAgentState) -> bool:
+        """Detect if agent is stuck in a back-and-forth location loop.
+
+        Detects patterns like A→B→A→B→A (oscillating between 2 positions 3+ times).
+        Returns True if such a loop is detected.
+        """
+        history = s.position_history
+        # Need at least 5 positions to detect A→B→A→B→A pattern
+        if len(history) < 5:
+            return False
+
+        # Check last 6 positions for oscillation pattern
+        recent = history[-6:] if len(history) >= 6 else history
+
+        # Count unique positions in recent history
+        unique_positions = set(recent)
+
+        # If only 2 unique positions in last 6 moves, we're oscillating
+        if len(unique_positions) <= 2 and len(recent) >= 5:
+            if DEBUG:
+                print(f"[A{s.agent_id}] LOOP_DETECTED: Oscillating between {unique_positions}")
+            return True
+
+        return False
+
+    def _break_location_loop(self, s: CogsguardAgentState) -> Optional[Action]:
+        """Try to break out of a location loop by moving in a random direction.
+
+        Clears cached path to force re-pathing after breaking the loop.
+        """
+        if DEBUG:
+            print(f"[A{s.agent_id}] BREAKING_LOOP: Attempting random move to escape")
+
+        # Clear cached path to force fresh pathfinding
+        s.cached_path = None
+        s.cached_path_target = None
+
+        # Clear position history to reset loop detection
+        s.position_history.clear()
+
+        return self._try_random_direction(s)
+
 
 # =============================================================================
 # Policy wrapper
@@ -580,7 +892,20 @@ class CogsguardAgentPolicyImpl(StatefulPolicyImpl[CogsguardAgentState]):
 
 
 class CogsguardPolicy(MultiAgentPolicy):
-    """Multi-agent policy for CoGsGuard with random role assignment."""
+    """Multi-agent policy for CoGsGuard with vibe-based role selection.
+
+    Agents use vibes to determine their behavior:
+    - default: do nothing
+    - gear: pick a random role, change vibe to that role
+    - miner/scout/aligner/scrambler: get gear then execute role
+    - heart: do nothing
+
+    Initial vibe counts can be specified via URI query parameters:
+        metta://policy/cogsguard?miner=4&scrambler=2&gear=1
+
+    Vibes are assigned to agents in order. If counts don't sum to num_agents,
+    remaining agents get "gear" vibe (which picks a random role).
+    """
 
     short_names = ["cogsguard"]
 
@@ -588,27 +913,120 @@ class CogsguardPolicy(MultiAgentPolicy):
         self,
         policy_env_info: PolicyEnvInterface,
         device: str = "cpu",
+        **vibe_counts: int,
     ):
         super().__init__(policy_env_info, device=device)
         self._agent_policies: dict[int, StatefulAgentPolicy[CogsguardAgentState]] = {}
 
-        # Randomly assign roles to agents
-        self._agent_roles: dict[int, Role] = {}
-        roles = list(Role)
-        for i in range(policy_env_info.num_agents):
-            self._agent_roles[i] = roles[i % len(roles)]
+        # Build initial vibe assignment from URI params (e.g., ?scrambler=1&miner=4)
+        counts = {k: v for k, v in vibe_counts.items() if isinstance(v, int)}
+
+        # Build list of vibes to assign to agents
+        self._initial_vibes: list[str] = []
+        for vibe_name in ["scrambler", "aligner", "miner", "scout"]:  # Role vibes first
+            self._initial_vibes.extend([vibe_name] * counts.get(vibe_name, 0))
+        # Add gear vibes (agents will pick random role)
+        self._initial_vibes.extend(["gear"] * counts.get("gear", 0))
+
+        if DEBUG:
+            print(f"[CogsguardPolicy] Initial vibe assignment: {self._initial_vibes}")
 
     def agent_policy(self, agent_id: int) -> StatefulAgentPolicy[CogsguardAgentState]:
         if agent_id not in self._agent_policies:
-            role = self._agent_roles.get(agent_id, Role.MINER)
+            # Create a multi-role implementation that can handle any role
+            # The actual role is determined by vibe at runtime
+            # Assign initial target vibe based on agent_id and configured counts
+            target_vibe: Optional[str] = None
+            if agent_id < len(self._initial_vibes):
+                target_vibe = self._initial_vibes[agent_id]
+            # Agents without assigned vibes stay on "default" (noop)
 
-            # Import role implementations
+            impl = CogsguardMultiRoleImpl(self._policy_env_info, agent_id, initial_target_vibe=target_vibe)
+            self._agent_policies[agent_id] = StatefulAgentPolicy(impl, self._policy_env_info, agent_id=agent_id)
+
+        return self._agent_policies[agent_id]
+
+
+class CogsguardMultiRoleImpl(CogsguardAgentPolicyImpl):
+    """Multi-role implementation that delegates to role-specific behavior based on vibe."""
+
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        agent_id: int,
+        initial_target_vibe: Optional[str] = None,
+    ):
+        # Initialize with MINER as default, but role will be updated based on vibe
+        super().__init__(policy_env_info, agent_id, Role.MINER)
+
+        # Target vibe to switch to at start (if specified)
+        self._initial_target_vibe = initial_target_vibe
+        self._initial_vibe_set = False
+
+        # Lazy-load role implementations
+        self._role_impls: dict[Role, CogsguardAgentPolicyImpl] = {}
+
+    def _execute_phase(self, s: CogsguardAgentState) -> Action:
+        """Execute action for current phase, handling initial vibe assignment.
+
+        Overrides base class to:
+        1. Handle initial vibe assignment from URI params
+        2. Skip the hardcoded "agent 0 = scrambler" logic when initial vibe is configured
+        """
+        # If we have a target vibe and haven't switched yet, do it first
+        if self._initial_target_vibe and not self._initial_vibe_set:
+            if s.current_vibe != self._initial_target_vibe:
+                if DEBUG:
+                    print(
+                        f"[A{s.agent_id}] INITIAL_VIBE: Switching from {s.current_vibe} to {self._initial_target_vibe}"
+                    )
+                return change_vibe_action(self._initial_target_vibe, actions=self._actions)
+            self._initial_vibe_set = True
+
+        # If initial target vibe was configured, skip the hardcoded agent 0 scrambler logic
+        # by directly handling the vibe-based behavior here
+        if self._initial_target_vibe:
+            return self._execute_vibe_behavior(s)
+
+        # Continue with normal phase execution (includes agent 0 scrambler logic)
+        return super()._execute_phase(s)
+
+    def _execute_vibe_behavior(self, s: CogsguardAgentState) -> Action:
+        """Execute vibe-based behavior without the hardcoded agent 0 scrambler override."""
+        vibe = s.current_vibe
+
+        # Default vibe: do nothing (wait for external vibe change)
+        if vibe == "default":
+            return self._actions.noop.Noop()
+
+        # Heart vibe: do nothing
+        if vibe == "heart":
+            return self._actions.noop.Noop()
+
+        # Gear vibe: pick a role and change vibe to it
+        if vibe == "gear":
+            selected_role = random.choice(ROLE_VIBES)
+            if DEBUG:
+                print(f"[A{s.agent_id}] GEAR_VIBE: Picking role vibe: {selected_role}")
+            return change_vibe_action(selected_role, actions=self._actions)
+
+        # Role vibes: execute the role behavior
+        if vibe in VIBE_TO_ROLE:
+            if s.phase == CogsguardPhase.GET_GEAR:
+                return self._do_get_gear(s)
+            elif s.phase == CogsguardPhase.EXECUTE_ROLE:
+                return self.execute_role(s)
+
+        return self._actions.noop.Noop()
+
+    def _get_role_impl(self, role: Role) -> CogsguardAgentPolicyImpl:
+        """Get or create role-specific implementation."""
+        if role not in self._role_impls:
             from .aligner import AlignerAgentPolicyImpl
             from .miner import MinerAgentPolicyImpl
             from .scout import ScoutAgentPolicyImpl
             from .scrambler import ScramblerAgentPolicyImpl
 
-            # Create role-specific implementation
             impl_class = {
                 Role.MINER: MinerAgentPolicyImpl,
                 Role.SCOUT: ScoutAgentPolicyImpl,
@@ -616,7 +1034,11 @@ class CogsguardPolicy(MultiAgentPolicy):
                 Role.SCRAMBLER: ScramblerAgentPolicyImpl,
             }[role]
 
-            impl = impl_class(self._policy_env_info, agent_id, role)
-            self._agent_policies[agent_id] = StatefulAgentPolicy(impl, self._policy_env_info, agent_id=agent_id)
+            self._role_impls[role] = impl_class(self._policy_env_info, self._agent_id, role)
 
-        return self._agent_policies[agent_id]
+        return self._role_impls[role]
+
+    def execute_role(self, s: CogsguardAgentState) -> Action:
+        """Delegate to role-specific implementation based on current role (set from vibe)."""
+        role_impl = self._get_role_impl(s.role)
+        return role_impl.execute_role(s)
