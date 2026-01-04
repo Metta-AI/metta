@@ -77,9 +77,11 @@ class DamageConfig:
     def enabled(self) -> bool: ...
 
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str): ...
+    def __init__(self, type_id: int, type_name: str, initial_vibe: int = 0): ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
+    initial_vibe: int
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -96,6 +98,7 @@ class AgentConfig(GridObjectConfig):
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
+        initial_vibe: int = 0,
         damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
@@ -111,6 +114,7 @@ class AgentConfig(GridObjectConfig):
     initial_inventory: dict[int, int]
     inventory_regen_amounts: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
+    initial_vibe: int
     damage_config: DamageConfig
 
 class ActionConfig:
@@ -130,6 +134,46 @@ class Protocol:
     output_resources: dict[int, int]
     cooldown: int
 
+class InventoryConfig:
+    def __init__(
+        self,
+        limits: list[tuple[list[int], int]] = [],
+    ) -> None: ...
+    limits: list[tuple[list[int], int]]
+
+class AssemblerConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    protocols: list[Protocol]
+    allow_partial_usage: bool
+    max_uses: int
+    clip_immune: bool
+    start_clipped: bool
+    chest_search_distance: int
+    initial_vibe: int
+
+class ChestConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
+    initial_inventory: dict[int, int]
+    inventory_config: InventoryConfig
+    initial_vibe: int
+
 class ClipperConfig:
     def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]
@@ -144,9 +188,20 @@ class AttackActionConfig(ActionConfig):
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
         enabled: bool = True,
+        vibes: list[int] = [],
     ) -> None: ...
     defense_resources: dict[int, int]
     enabled: bool
+    vibes: list[int]
+
+class MoveActionConfig(ActionConfig):
+    def __init__(
+        self,
+        allowed_directions: list[str] = ["north", "south", "west", "east"],
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+    ) -> None: ...
+    allowed_directions: list[str]
 
 class VibeTransferEffect:
     def __init__(
@@ -183,11 +238,13 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         compass: bool = False,
+        goal_obs: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     compass: bool
+    goal_obs: bool
 
 class GameConfig:
     def __init__(

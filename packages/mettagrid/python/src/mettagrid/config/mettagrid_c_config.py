@@ -258,8 +258,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             seen_vibes_and_min_agents = []
 
             for protocol_config in reversed(object_config.protocols):
-                # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes if vibe in vibe_name_to_id])
+                # Convert vibe names to IDs (validate all vibe names exist)
+                for vibe in protocol_config.vibes:
+                    if vibe not in vibe_name_to_id:
+                        raise ValueError(f"Unknown vibe name '{vibe}' in assembler '{object_type}' protocol")
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
                 if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
                     raise ValueError(
@@ -449,6 +452,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     else:
         action_params["defense_resources"] = {}
     action_params["enabled"] = actions_config.attack.enabled
+    # Convert vibes from names to IDs (validate all vibe names exist)
+    for vibe in actions_config.attack.vibes:
+        if vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
+    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in actions_config.attack.vibes]
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
 
     # Process transfer - vibes are derived from vibe_transfers keys in C++
@@ -490,6 +498,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for protocol_config in clipper.unclipping_protocols:
             cpp_protocol = CppProtocol()
             cpp_protocol.min_agents = protocol_config.min_agents
+            # Validate all vibe names exist
+            for vibe in protocol_config.vibes:
+                if vibe not in vibe_name_to_id:
+                    raise ValueError(f"Unknown vibe name '{vibe}' in clipper unclipping_protocols")
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
             # Ensure keys and values are explicitly Python ints for C++ binding
             # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]
