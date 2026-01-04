@@ -80,9 +80,9 @@ export const PlayerPage: FC = () => {
   }
 
   const playerName =
-    player.policy_name && player.policy_version !== null
-      ? `${player.policy_name}:v${player.policy_version}`
-      : player.policy_version_id.slice(0, 8)
+    player.policy.name && player.policy.version !== null
+      ? `${player.policy.name}:v${player.policy.version}`
+      : player.policy.id.slice(0, 8)
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -102,7 +102,7 @@ export const PlayerPage: FC = () => {
         <div className="space-y-2">
           <div>
             <span className="text-gray-500 text-sm">Policy version: </span>
-            <StyledLink to={`/policies/versions/${player.policy_version_id}`} className="font-mono text-sm">
+            <StyledLink to={`/policies/versions/${player.policy.id}`} className="font-mono text-sm">
               {playerName}
             </StyledLink>
           </div>

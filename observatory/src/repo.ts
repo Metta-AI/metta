@@ -268,17 +268,17 @@ export type SeasonDetail = {
   pools: string[]
 }
 
-export type LeaderboardEntry = {
-  rank: number
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
-  score: number
-  matches: number
+export type PolicyVersionSummary = {
+  id: string
+  name: string | null
+  version: number | null
 }
 
-export type LeaderboardResponse = {
-  entries: LeaderboardEntry[]
+export type LeaderboardEntry = {
+  rank: number
+  policy: PolicyVersionSummary
+  score: number
+  matches: number
 }
 
 export type SubmissionResponse = {
@@ -291,16 +291,12 @@ export type PoolMembership = {
 }
 
 export type PolicySummary = {
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
+  policy: PolicyVersionSummary
   pools: PoolMembership[]
 }
 
 export type SeasonMatchPlayerSummary = {
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
+  policy: PolicyVersionSummary
   policy_index: number
   score: number | null
 }
@@ -323,9 +319,7 @@ export type MembershipHistoryEntry = {
 }
 
 export type PlayerDetail = {
-  policy_version_id: string
-  policy_name: string | null
-  policy_version: number | null
+  policy: PolicyVersionSummary
   membership_history: MembershipHistoryEntry[]
 }
 

@@ -221,15 +221,11 @@ const SubmitForm: FC<{
   )
 }
 
-const formatPolicyDisplay = (p: {
-  policy_name: string | null
-  policy_version: number | null
-  policy_version_id: string
-}) => {
-  if (p.policy_name && p.policy_version !== null) {
-    return `${p.policy_name}:v${p.policy_version}`
+const formatPolicyDisplay = (p: { policy: { id: string; name: string | null; version: number | null } }) => {
+  if (p.policy.name && p.policy.version !== null) {
+    return `${p.policy.name}:v${p.policy.version}`
   }
-  return p.policy_version_id.slice(0, 8)
+  return p.policy.id.slice(0, 8)
 }
 
 type MatchFilter = {
@@ -309,7 +305,7 @@ export const SeasonPage: FC = () => {
     return () => clearInterval(interval)
   }, [loadMatches])
 
-  const existingPolicyVersionIds = new Set(policies.map((p) => p.policy_version_id))
+  const existingPolicyVersionIds = new Set(policies.map((p) => p.policy.id))
 
   const filteredMatches = useMemo(() => {
     return allMatches.filter((m) => {
@@ -317,7 +313,7 @@ export const SeasonPage: FC = () => {
         return false
       }
       if (matchFilter.policy_version_ids.length > 0) {
-        const matchPvIds = m.players.map((p) => p.policy_version_id)
+        const matchPvIds = m.players.map((p) => p.policy.id)
         if (!matchFilter.policy_version_ids.some((id) => matchPvIds.includes(id))) {
           return false
         }
@@ -330,7 +326,7 @@ export const SeasonPage: FC = () => {
     const counts: Record<string, { scored: number; pending: number }> = {}
     for (const m of allMatches) {
       for (const p of m.players) {
-        const key = `${p.policy_version_id}:${m.pool_name}`
+        const key = `${p.policy.id}:${m.pool_name}`
         if (!counts[key]) counts[key] = { scored: 0, pending: 0 }
         if (m.status === 'completed' && p.score !== null) {
           counts[key].scored++
@@ -345,7 +341,7 @@ export const SeasonPage: FC = () => {
   const leaderboardScoreByPolicy = useMemo(() => {
     const map: Record<string, number> = {}
     for (const entry of leaderboard) {
-      map[entry.policy_version_id] = entry.score
+      map[entry.policy.id] = entry.score
     }
     return map
   }, [leaderboard])
@@ -356,7 +352,7 @@ export const SeasonPage: FC = () => {
 
   const poolOptions = (season?.pools || []).map((p) => ({ value: p, label: p }))
   const playerOptions = policies.map((p) => ({
-    value: p.policy_version_id,
+    value: p.policy.id,
     label: formatPolicyDisplay(p),
   }))
 
@@ -410,17 +406,17 @@ export const SeasonPage: FC = () => {
             </Table.Header>
             <Table.Body>
               {leaderboard.map((entry) => (
-                <TR key={entry.policy_version_id}>
+                <TR key={entry.policy.id}>
                   <TD>{entry.rank}</TD>
                   <TD>
-                    <StyledLink to={`/policies/versions/${entry.policy_version_id}`} className="font-mono text-sm">
+                    <StyledLink to={`/policies/versions/${entry.policy.id}`} className="font-mono text-sm">
                       {formatPolicyDisplay(entry)}
                     </StyledLink>
                   </TD>
                   <TD>
                     {entry.score.toPrecision(4)}{' '}
                     <span
-                      onClick={() => handleMatchFilterClick('competition', entry.policy_version_id)}
+                      onClick={() => handleMatchFilterClick('competition', entry.policy.id)}
                       className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                     >
                       ({entry.matches} matches)
@@ -450,9 +446,9 @@ export const SeasonPage: FC = () => {
               {policies.map((policy) => {
                 const poolStatusMap = Object.fromEntries(policy.pools.map((p) => [p.pool_name, p]))
                 return (
-                  <TR key={policy.policy_version_id}>
+                  <TR key={policy.policy.id}>
                     <TD>
-                      <StyledLink to={`/policies/versions/${policy.policy_version_id}`} className="font-mono text-sm">
+                      <StyledLink to={`/policies/versions/${policy.policy.id}`} className="font-mono text-sm">
                         {formatPolicyDisplay(policy)}
                       </StyledLink>
                     </TD>
@@ -465,16 +461,16 @@ export const SeasonPage: FC = () => {
                           </TD>
                         )
                       }
-                      const counts = matchCountsByPolicyPool[`${policy.policy_version_id}:${poolName}`] || {
+                      const counts = matchCountsByPolicyPool[`${policy.policy.id}:${poolName}`] || {
                         scored: 0,
                         pending: 0,
                       }
                       const avgScore =
-                        poolName === 'competition' ? leaderboardScoreByPolicy[policy.policy_version_id] : undefined
+                        poolName === 'competition' ? leaderboardScoreByPolicy[policy.policy.id] : undefined
                       return (
                         <TD key={poolName}>
                           <div className="flex flex-col gap-1.5 items-start">
-                            <Link to={`/seasons/${seasonName}/players/${policy.policy_version_id}`}>
+                            <Link to={`/seasons/${seasonName}/players/${policy.policy.id}`}>
                               <span
                                 className={`inline-block px-2 py-1 rounded text-xs font-medium transition-colors ${
                                   pool.active
@@ -488,7 +484,7 @@ export const SeasonPage: FC = () => {
                             <div className="text-sm">
                               {avgScore !== undefined ? avgScore.toPrecision(4) : '-'}{' '}
                               <span
-                                onClick={() => handleMatchFilterClick(poolName, policy.policy_version_id)}
+                                onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
                                 className="text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                               >
                                 ({counts.scored} scored{counts.pending > 0 && `, ${counts.pending} pending`})
@@ -576,11 +572,7 @@ export const SeasonPage: FC = () => {
                     <TD className="text-right">
                       <div className="flex flex-col gap-1 items-end">
                         {match.players.map((p, i) => (
-                          <StyledLink
-                            key={i}
-                            to={`/policies/versions/${p.policy_version_id}`}
-                            className="font-mono text-xs"
-                          >
+                          <StyledLink key={i} to={`/policies/versions/${p.policy.id}`} className="font-mono text-xs">
                             {formatPolicyDisplay(p)}
                           </StyledLink>
                         ))}
