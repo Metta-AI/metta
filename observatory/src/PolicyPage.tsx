@@ -110,11 +110,9 @@ export const PolicyPage: FC = () => {
           <div className="overflow-x-auto">
             <Table>
               <Table.Header>
-                <TR>
-                  <TH>Version</TH>
-                  <TH>Version ID</TH>
-                  <TH>Created</TH>
-                </TR>
+                <TH>Version</TH>
+                <TH>Version ID</TH>
+                <TH>Created</TH>
               </Table.Header>
               <Table.Body>
                 {versionsState.data.map((pv) => (

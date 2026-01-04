@@ -507,17 +507,13 @@ export const SeasonsPage: FC = () => {
                           return (
                             <TD key={poolName}>
                               <div className="flex flex-col gap-1.5 items-start">
-                                <Link to={`/tournament/${selectedSeasonName}/players/${policy.policy.id}`}>
-                                  <span
-                                    className={`inline-block px-2 py-1 rounded text-xs font-medium transition-colors ${
-                                      pool.active
-                                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
-                                  >
-                                    {pool.active ? 'active' : 'retired'}
-                                  </span>
-                                </Link>
+                                <span
+                                  className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                    pool.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {pool.active ? 'active' : 'retired'}
+                                </span>
                                 <span
                                   onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
                                   className="text-sm text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"

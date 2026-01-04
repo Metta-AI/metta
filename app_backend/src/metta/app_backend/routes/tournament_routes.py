@@ -82,15 +82,11 @@ class MatchSummary(BaseModel):
 
 
 class MembershipHistoryEntry(BaseModel):
+    season_name: str
     pool_name: str
     action: str
     notes: str | None
     created_at: str
-
-
-class PlayerDetail(BaseModel):
-    policy: PolicyVersionSummary
-    membership_history: list[MembershipHistoryEntry]
 
 
 class PoolDescriptionResponse(BaseModel):
@@ -277,24 +273,11 @@ def create_tournament_router() -> APIRouter:
         pool_names = await commissioner.submit(request.policy_version_id)
         return SubmitResponse(pools=pool_names)
 
-    @router.get("/seasons/{season_name}/players/{policy_version_id}")
+    @router.get("/players/{policy_version_id}/memberships")
     @timed_http_handler
-    async def get_player(
-        season_name: str, policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
-    ) -> PlayerDetail:
-        if season_name not in SEASONS:
-            raise HTTPException(status_code=404, detail="Season not found")
-
-        pv = (
-            await session.execute(
-                select(PolicyVersion)
-                .where(PolicyVersion.id == policy_version_id)
-                .options(selectinload(PolicyVersion.policy))
-            )
-        ).scalar_one_or_none()
-        if not pv:
-            raise HTTPException(status_code=404, detail="Policy version not found")
-
+    async def get_player_memberships(
+        policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+    ) -> list[MembershipHistoryEntry]:
         changes = (
             (
                 await session.execute(
@@ -303,26 +286,27 @@ def create_tournament_router() -> APIRouter:
                     .join(PoolPlayer.pool)
                     .join(Pool.season)
                     .where(PoolPlayer.policy_version_id == policy_version_id)
-                    .where(Season.name == season_name)
                     .order_by(col(MembershipChange.created_at).desc())
-                    .options(selectinload(MembershipChange.pool_player).selectinload(PoolPlayer.pool))
+                    .options(
+                        selectinload(MembershipChange.pool_player)
+                        .selectinload(PoolPlayer.pool)
+                        .selectinload(Pool.season)
+                    )
                 )
             )
             .scalars()
             .all()
         )
 
-        return PlayerDetail(
-            policy=PolicyVersionSummary.from_model(pv),
-            membership_history=[
-                MembershipHistoryEntry(
-                    pool_name=c.pool_player.pool.name or "unknown",
-                    action=c.action.value,
-                    notes=c.notes,
-                    created_at=c.created_at.isoformat(),
-                )
-                for c in changes
-            ],
-        )
+        return [
+            MembershipHistoryEntry(
+                season_name=c.pool_player.pool.season.name if c.pool_player.pool.season else "unknown",
+                pool_name=c.pool_player.pool.name or "unknown",
+                action=c.action.value,
+                notes=c.notes,
+                created_at=c.created_at.isoformat(),
+            )
+            for c in changes
+        ]
 
     return router

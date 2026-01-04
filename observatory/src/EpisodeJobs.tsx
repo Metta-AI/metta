@@ -214,14 +214,12 @@ export const EpisodeJobs: FC = () => {
           <div className="overflow-x-auto">
             <Table>
               <Table.Header>
-                <TR>
-                  <TH style={{ width: 100 }}>Job ID</TH>
-                  <TH style={{ width: 100 }}>Status</TH>
-                  <TH>Policy URIs</TH>
-                  <TH style={{ width: 200 }}>Tags</TH>
-                  <TH style={{ width: 280 }}>Timeline</TH>
-                  <TH style={{ width: 100 }}>Result</TH>
-                </TR>
+                <TH style={{ width: 100 }}>Job ID</TH>
+                <TH style={{ width: 100 }}>Status</TH>
+                <TH>Policy URIs</TH>
+                <TH style={{ width: 200 }}>Tags</TH>
+                <TH style={{ width: 280 }}>Timeline</TH>
+                <TH style={{ width: 100 }}>Result</TH>
               </Table.Header>
               <Table.Body>
                 {jobs.map((job) => (

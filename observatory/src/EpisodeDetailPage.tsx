@@ -160,11 +160,9 @@ export const EpisodeDetailPage: FC = () => {
           <div className="overflow-x-auto">
             <Table>
               <Table.Header>
-                <TR>
-                  <TH>Policy</TH>
-                  <TH>Policy ID</TH>
-                  <TH>Avg Reward</TH>
-                </TR>
+                <TH>Policy</TH>
+                <TH>Policy ID</TH>
+                <TH>Avg Reward</TH>
               </Table.Header>
               <Table.Body>
                 {Object.entries(episode.avg_rewards || {})

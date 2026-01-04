@@ -323,15 +323,11 @@ export type SeasonMatchSummary = {
 }
 
 export type MembershipHistoryEntry = {
+  season_name: string
   pool_name: string
   action: string
   notes: string | null
   created_at: string
-}
-
-export type PlayerDetail = {
-  policy: PolicyVersionSummary
-  membership_history: MembershipHistoryEntry[]
 }
 
 export type JobRequest = {
@@ -684,9 +680,9 @@ export class Repo {
     })
   }
 
-  async getSeasonPlayer(seasonName: string, policyVersionId: string): Promise<PlayerDetail> {
-    return this.apiCall<PlayerDetail>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/players/${encodeURIComponent(policyVersionId)}`
+  async getPlayerMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
+    return this.apiCall<MembershipHistoryEntry[]>(
+      `/tournament/players/${encodeURIComponent(policyVersionId)}/memberships`
     )
   }
 }
