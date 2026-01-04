@@ -48,7 +48,7 @@ Observatory local development.
 
 [bold]Quick start:[/bold]
   metta observatory local-k8s setup  # One-time: build image and create jobs namespace
-  metta observatory up               # Start all services (postgres, server, frontend, watcher)
+  metta observatory up               # Start all services (postgres, server, frontend, watcher, tournament)
 
 [bold]Start specific services:[/bold]
   metta observatory up server frontend  # Only server and frontend
@@ -58,6 +58,7 @@ Observatory local development.
   metta observatory server           # API server
   metta observatory frontend         # Observatory frontend
   metta observatory watcher          # Watches k8s jobs and updates status via api server
+  metta observatory tournament       # Tournament commissioner (creates matches, updates scores)
 
 [bold]Upload policy:[/bold]
   uv run cogames submit -p class=scripted_baseline --server {LOCAL_BACKEND_URL} --skip-validation -n <your-policy-name>
@@ -192,6 +193,18 @@ def frontend(
     info(f"API URL: {env.get('VITE_API_URL')}")
 
     subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=get_repo_root() / "observatory")
+
+
+@app.command(name="tournament", help="Run the tournament commissioner")
+@handle_errors
+def tournament():
+    env = os.environ.copy()
+    _update_env_with_local_dev_settings(env)
+    subprocess.run(
+        ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/tournament/cli.py")],
+        env=env,
+        check=True,
+    )
 
 
 app.add_typer(local_k8s_app, name="local-k8s")

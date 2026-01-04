@@ -1,10 +1,9 @@
-"""Self-play referee for qualifying pools."""
-
 from uuid import UUID
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.models.tournament import PoolPlayer
-from metta.app_backend.tournament.interfaces import MatchData, MatchRequest, RefereeInterface
+from metta.app_backend.tournament.referees.base import MatchData, MatchRequest, RefereeBase, ScorerInterface
+from metta.app_backend.tournament.scorers.weighted import WeightedScorer
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 NUM_AGENTS = 4
@@ -16,13 +15,14 @@ def _make_env() -> MettaGridConfig:
     return mission.make_env()
 
 
-class SelfPlayReferee(RefereeInterface):
+class SelfPlayReferee(RefereeBase):
     """Schedules self-play matches where a single policy controls all agents.
 
     Each player gets up to `matches_per_player` self-play matches to establish
     a baseline score before being considered for promotion to competition pools.
     """
 
+    scorer: ScorerInterface = WeightedScorer()
     matches_per_player: int = 1
 
     def get_matches_to_schedule(

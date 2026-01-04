@@ -67,7 +67,8 @@ class Pool(_PoolBase, table=True):
 
 class _PoolPlayerBase(SQLModel):
     pool_id: UUID = Field(foreign_key="pools.id", index=True)
-    policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
+    # FK exists in DB (migrations.py) but can't declare here - no SQLModel class for policy_versions
+    policy_version_id: UUID = Field(index=True)
 
 
 class PoolPlayerCreate(_PoolPlayerBase):
@@ -119,7 +120,8 @@ class Match(_MatchBase, table=True):
 
 class _MatchPlayerBase(SQLModel):
     match_id: UUID = Field(foreign_key="matches.id", index=True)
-    policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
+    # FK exists in DB (migrations.py) but can't declare here - no SQLModel class for policy_versions
+    policy_version_id: UUID = Field(index=True)
     policy_index: int = Field(default=0)
 
 
@@ -145,7 +147,8 @@ class MembershipChangeRecord(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     pool_id: UUID = Field(foreign_key="pools.id", index=True)
-    policy_version_id: UUID = Field(foreign_key="policy_versions.id", index=True)
+    # FK exists in DB (migrations.py) but can't declare here - no SQLModel class for policy_versions
+    policy_version_id: UUID = Field(index=True)
     action: MembershipAction
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC), sa_column_kwargs={"server_default": text("now()")}
