@@ -62,7 +62,7 @@ class CommissionerBase(ABC):
 
     async def run(self) -> None:
         await self._ensure_season_exists()
-        logger.info(f"Starting commissioner for season '{self.season_name}' ({self.season_id})")
+        logger.info(f"Starting commissioner for season '{self.season_name}'")
         while True:
             had_activity = False
             try:
@@ -76,15 +76,11 @@ class CommissionerBase(ABC):
     async def _ensure_season_exists(self) -> None:
         session = get_db()
         season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
-        if season:
-            self.season_id = season.id
-        else:
+        if not season:
             season = Season(name=self.season_name)
             session.add(season)
             await session.commit()
-            await session.refresh(season)
-            self.season_id = season.id
-            logger.info(f"Created season '{self.season_name}' with id {self.season_id}")
+            logger.info(f"Created season '{self.season_name}'")
 
     @with_db
     async def _run_cycle(self) -> bool:
@@ -129,20 +125,27 @@ class CommissionerBase(ABC):
     async def _ensure_pools_exist(self, pool_names: list[str]) -> dict[str, Pool]:
         session = get_db()
 
-        existing = list((await session.execute(select(Pool).filter_by(season_id=self.season_id))).scalars().all())
+        season = (await session.execute(select(Season).filter_by(name=self.season_name))).scalar_one_or_none()
+        if not season:
+            raise ValueError(f"Season '{self.season_name}' not found - is the tournament running?")
+
+        existing = list((await session.execute(select(Pool).filter_by(season_id=season.id))).scalars().all())
         existing_names = {p.name for p in existing if p.name}
 
         for name in pool_names:
             if name not in existing_names:
-                session.add(Pool(season_id=self.season_id, name=name))
-                logger.info(f"Created pool '{name}' for season {self.season_id}")
+                session.add(Pool(season_id=season.id, name=name))
+                logger.info(f"Created pool '{name}' for season '{self.season_name}'")
 
         await session.commit()
 
         all_pools = (
             (
                 await session.execute(
-                    select(Pool).filter_by(season_id=self.season_id).options(selectinload(Pool.players))
+                    select(Pool)
+                    .join(Pool.season)
+                    .where(Season.name == self.season_name)
+                    .options(selectinload(Pool.players))
                 )
             )
             .scalars()
@@ -158,7 +161,8 @@ class CommissionerBase(ABC):
                 await session.execute(
                     select(Match)
                     .join(Match.pool)
-                    .where(Pool.season_id == self.season_id)
+                    .join(Pool.season)
+                    .where(Season.name == self.season_name)
                     .where(col(Match.status).in_([MatchStatus.scheduled, MatchStatus.running]))
                     .options(selectinload(Match.job))
                 )
@@ -199,8 +203,9 @@ class CommissionerBase(ABC):
             await session.execute(
                 select(Match, JobRequest.episode_id)
                 .join(Match.pool)
+                .join(Pool.season)
                 .join(Match.job)
-                .where(Pool.season_id == self.season_id)
+                .where(Season.name == self.season_name)
                 .where(Match.status == MatchStatus.completed)
                 .where(JobRequest.episode_id.is_not(None))
                 .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))
@@ -276,7 +281,8 @@ class CommissionerBase(ABC):
                 await session.execute(
                     select(Match)
                     .join(Match.pool)
-                    .where(Pool.season_id == self.season_id)
+                    .join(Pool.season)
+                    .where(Season.name == self.season_name)
                     .options(selectinload(Match.players))
                 )
             )
