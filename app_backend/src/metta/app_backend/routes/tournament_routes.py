@@ -249,7 +249,7 @@ def create_tournament_router() -> APIRouter:
                     .join(MatchPlayer.pool_player)
                     .where(PoolPlayer.policy_version_id == pv_id)
                 )
-                query = query.where(Match.id.in_(subq))
+                query = query.where(col(Match.id).in_(subq))
 
         query = (
             query.order_by(col(Match.created_at).desc())
