@@ -133,9 +133,10 @@ class CommissionerBase(ABC):
 
             requests = referee.get_matches_to_schedule(players, matches)
             for req in requests[:slots_available]:
-                await self._create_and_dispatch_match(pool.id, req)
-                total_scheduled += 1
-                slots_available -= 1
+                success = await self._create_and_dispatch_match(pool.id, req)
+                if success:
+                    total_scheduled += 1
+                    slots_available -= 1
 
         if total_scheduled > 0:
             logger.info(f"Scheduled {total_scheduled} new matches")
@@ -438,7 +439,7 @@ class CommissionerBase(ABC):
 
         await session.commit()
 
-    async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> None:
+    async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> bool:
         session = get_db()
 
         pv_result = await session.execute(
@@ -449,7 +450,7 @@ class CommissionerBase(ABC):
         missing = set(request.pool_player_ids) - set(pv_ids.keys())
         if missing:
             logger.error(f"PoolPlayers not found when creating match: {missing}")
-            return
+            return False
 
         match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
         session.add(match)
@@ -473,14 +474,14 @@ class CommissionerBase(ABC):
         except Exception as e:
             logger.error(f"Failed to create job for match {match_id}: {e}")
             await session.rollback()
-            return
+            return False
         finally:
             stats_client.close()
 
         if not job_id:
             logger.error(f"Failed to create job for match {match_id}")
             await session.rollback()
-            return
+            return False
 
         session.add_all(
             [
@@ -493,3 +494,4 @@ class CommissionerBase(ABC):
         await session.commit()
 
         logger.debug(f"Match {match_id} -> job {job_id}")
+        return True
