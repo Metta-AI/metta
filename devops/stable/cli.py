@@ -15,7 +15,7 @@ from devops.datadog.datadog_client import DatadogMetricsClient
 from devops.stable.asana_bugs import check_blockers
 from devops.stable.datadog_metrics import jobs_to_metrics
 from devops.stable.registry import Suite, discover_jobs, specs_to_jobs
-from devops.stable.runner import Job, Runner
+from devops.stable.runner import Job, JobStatus, Runner
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,32 @@ def _print_failed_logs(runner: Runner, tail_lines: int = 50) -> None:
             print("(no logs available)")
 
 
+def _exit_details(runner: Runner, has_blockers: bool) -> tuple[int, list[str]]:
+    jobs = list(runner.jobs.values())
+    job_failures = [j for j in jobs if j.status == JobStatus.FAILED]
+    acceptance_failures = [
+        j for j in jobs if j.status == JobStatus.SUCCEEDED and j.acceptance_passed is False
+    ]
+
+    exit_code = 0
+    if job_failures:
+        exit_code |= 1
+    if acceptance_failures:
+        exit_code |= 2
+    if has_blockers:
+        exit_code |= 4
+
+    details: list[str] = []
+    if job_failures:
+        details.append(f"Job failures: {', '.join(j.name for j in job_failures)}")
+    if acceptance_failures:
+        details.append(f"Acceptance failures: {', '.join(j.name for j in acceptance_failures)}")
+    if has_blockers:
+        details.append("Blocking bugs found in Asana")
+
+    return exit_code, details
+
+
 @app.callback()
 def main(
     suite: Annotated[Suite | None, typer.Option(help="Which jobs to run: ci, stable, or all")] = None,
@@ -159,11 +185,16 @@ def main(
     _print_failed_logs(runner)
     _write_summary(runner, state_dir)
 
-    if has_blockers:
-        print("\nFAILED: Blocking bugs found in Asana")
-        sys.exit(1)
+    exit_code, details = _exit_details(runner, has_blockers)
+    if exit_code == 0:
+        sys.exit(0)
 
-    sys.exit(0 if not failed else 1)
+    print("\nFAILED: Stable release validation did not pass")
+    if details:
+        for detail in details:
+            print(f"- {detail}")
+    print("Exit code meanings: 1=job failures, 2=acceptance failures, 4=blocking bugs")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
