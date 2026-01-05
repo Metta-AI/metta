@@ -26,7 +26,11 @@ export const Table: FC<PropsWithChildren<{ theme?: TableTheme }>> & {
 }
 
 export const TableHeader: FC<PropsWithChildren> = ({ children }) => {
-  return <thead className="bg-gray-50">{children}</thead>
+  return (
+    <thead className="bg-gray-50">
+      <tr>{children}</tr>
+    </thead>
+  )
 }
 
 export const TableBody: FC<PropsWithChildren> = ({ children }) => {

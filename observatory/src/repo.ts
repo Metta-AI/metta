@@ -261,6 +261,80 @@ export type AIQueryResponse = {
 
 export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed'
 
+export type MatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed'
+
+export type PoolDescription = {
+  name: string
+  description: string
+}
+
+export type SeasonDescription = {
+  summary: string
+  pools: PoolDescription[]
+}
+
+export type SeasonDetail = {
+  name: string
+  description: SeasonDescription
+  pools: string[]
+}
+
+export type PolicyVersionSummary = {
+  id: string
+  name: string | null
+  version: number | null
+}
+
+export type LeaderboardEntry = {
+  rank: number
+  policy: PolicyVersionSummary
+  score: number
+  matches: number
+}
+
+export type SubmissionResponse = {
+  pools: string[]
+}
+
+export type PoolMembership = {
+  pool_name: string
+  active: boolean
+  completed: number
+  failed: number
+  pending: number
+}
+
+export type PolicySummary = {
+  policy: PolicyVersionSummary
+  pools: PoolMembership[]
+  entered_at: string
+}
+
+export type SeasonMatchPlayerSummary = {
+  policy: PolicyVersionSummary
+  policy_index: number
+  score: number | null
+}
+
+export type SeasonMatchSummary = {
+  id: string
+  pool_name: string
+  status: MatchStatus
+  assignments: number[]
+  players: SeasonMatchPlayerSummary[]
+  job_id: string | null
+  episode_id: string | null
+  created_at: string
+}
+
+export type MembershipHistoryEntry = {
+  season_name: string
+  pool_name: string
+  action: string
+  notes: string | null
+  created_at: string
+}
+
 export type JobRequest = {
   id: string
   job_type: string
@@ -269,6 +343,7 @@ export type JobRequest = {
   user_id: string
   worker: string | null
   result: Record<string, any> | null
+  error: string | null
   created_at: string
   dispatched_at: string | null
   running_at: string | null
@@ -312,17 +387,29 @@ export class Repo {
     return headers
   }
 
+  private async handleErrorResponse(response: Response): Promise<never> {
+    if (response.status === 401) {
+      initiateLogin()
+      throw new Error('Unauthorized - redirecting to login')
+    }
+    // Try to extract error detail from response body
+    try {
+      const body = await response.json()
+      if (body.detail) {
+        throw new Error(body.detail)
+      }
+    } catch {
+      // Ignore JSON parse errors, fall through to default
+    }
+    throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+  }
+
   private async apiCall<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
     return response.json()
   }
@@ -334,12 +421,7 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
     return response.json()
   }
@@ -351,12 +433,7 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
     return response.json()
   }
@@ -367,12 +444,7 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
   }
 
@@ -574,11 +646,13 @@ export class Repo {
   async getJobs(params?: {
     job_type?: string
     statuses?: JobStatus[]
+    job_id?: string
     limit?: number
     offset?: number
   }): Promise<JobRequest[]> {
     const searchParams = new URLSearchParams()
     if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.job_id) searchParams.append('job_id', params.job_id)
     if (params?.statuses) {
       for (const status of params.statuses) {
         searchParams.append('statuses', status)
@@ -588,5 +662,53 @@ export class Repo {
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
     return this.apiCall<JobRequest[]>(`/jobs${query ? `?${query}` : ''}`)
+  }
+
+  // Tournament methods
+  async getSeasons(): Promise<SeasonDetail[]> {
+    return this.apiCall<SeasonDetail[]>('/tournament/seasons')
+  }
+
+  async getSeasonLeaderboard(seasonName: string): Promise<LeaderboardEntry[]> {
+    return this.apiCall<LeaderboardEntry[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`)
+  }
+
+  async getSeasonPolicies(seasonName: string): Promise<PolicySummary[]> {
+    return this.apiCall<PolicySummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/policies`)
+  }
+
+  async getSeasonMatches(
+    seasonName: string,
+    params?: { limit?: number; offset?: number; pool_names?: string[]; policy_version_ids?: string[] }
+  ): Promise<SeasonMatchSummary[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    if (params?.pool_names) {
+      for (const name of params.pool_names) {
+        searchParams.append('pool_names', name)
+      }
+    }
+    if (params?.policy_version_ids) {
+      for (const id of params.policy_version_ids) {
+        searchParams.append('policy_version_ids', id)
+      }
+    }
+    const query = searchParams.toString()
+    return this.apiCall<SeasonMatchSummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`
+    )
+  }
+
+  async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {
+    return this.apiCallWithBody<SubmissionResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/submit`, {
+      policy_version_id: policyVersionId,
+    })
+  }
+
+  async getPlayerMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
+    return this.apiCall<MembershipHistoryEntry[]>(
+      `/tournament/players/${encodeURIComponent(policyVersionId)}/memberships`
+    )
   }
 }
