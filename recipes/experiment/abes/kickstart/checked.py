@@ -111,7 +111,7 @@ def train(
         "ppo_critic": PPOCriticConfig(enabled=True),
         "sl_checkpointed_kickstarter": SLCheckpointedKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016",
             checkpointed_interval=24,
             epochs_per_checkpoint=1,
             terminating_epoch=334,

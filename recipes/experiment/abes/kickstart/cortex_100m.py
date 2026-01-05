@@ -150,7 +150,7 @@ def train(
     nodes = default_nodes()
     default_teacher_steps = 600_000_000
     teacher = teacher or TeacherConfig(
-        policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt",
+        policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340",
         mode="sliced_kickstarter",
         steps=default_teacher_steps,
         teacher_led_proportion=0.2,
@@ -192,11 +192,11 @@ def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
+    checkpoints = [p for p in dir_path.iterdir() if p.is_dir() and (p / "policy_spec.json").exists()]
+    checkpoints = sorted(checkpoints, key=lambda x: x.stat().st_mtime)
+    if not checkpoints:
         raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
+    policy_uri = checkpoints[-1].as_posix()
     sim = mettagrid(num_agents=6)
     return EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
