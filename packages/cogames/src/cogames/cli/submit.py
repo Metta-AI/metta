@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import uuid
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
@@ -20,7 +21,13 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
-SUBMISSION_TAGS = {"cogames-submitted": "true"}
+
+
+@dataclass
+class UploadResult:
+    policy_version_id: uuid.UUID
+    name: str
+    version: int
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
@@ -367,35 +374,28 @@ def upload_submission(
         return None
 
 
-def update_submission_tags(policy_version_id: uuid.UUID, token: str, submit_server_url: str, console: Console) -> bool:
-    """Upsert submission tags on the policy version."""
-    console.print(f"[yellow]Updating submission tags for {policy_version_id}...[/yellow]")
-
+def fetch_policy_version_info(
+    policy_version_id: uuid.UUID,
+    token: str,
+    server_url: str,
+    console: Console,
+) -> tuple[str, int] | None:
+    """Fetch policy name and version from the backend."""
     try:
-        response = httpx.put(
-            f"{submit_server_url}/stats/policies/versions/{policy_version_id}/tags",
-            json=SUBMISSION_TAGS,
+        response = httpx.get(
+            f"{server_url}/stats/policy-versions/{policy_version_id}",
             headers={"X-Auth-Token": token},
-            timeout=60.0,
+            timeout=30.0,
         )
-
         if response.status_code == 200:
-            console.print("[green]✓ Tags updated successfully[/green]")
-            return True
-
-        console.print(f"[red]✗ Failed to update tags ({response.status_code})[/red]")
-        console.print(f"[red]Response: {response.text}[/red]")
-        return False
-
-    except httpx.TimeoutException:
-        console.print("[red]✗ Tag update timed out[/red]")
-        return False
-    except Exception as e:
-        console.print(f"[red]✗ Tag update error: {e}[/red]")
-        return False
+            data = response.json()
+            return data.get("name", "unknown"), data.get("version", 0)
+        return None
+    except Exception:
+        return None
 
 
-def submit_command(
+def upload_policy(
     ctx: typer.Context,
     policy: str,
     name: str,
@@ -406,55 +406,38 @@ def submit_command(
     dry_run: bool = False,
     skip_validation: bool = False,
     setup_script: str | None = None,
-) -> None:
-    """Submit a policy to CoGames competitions.
+) -> UploadResult | None:
+    """Upload a policy to CoGames (without submitting to a tournament).
 
-    This command:
-    1. Validates authentication
-    2. Tests the policy in an isolated environment (unless --skip-validation)
-    3. Creates a submission zip with included files
-    4. Uploads to the backend API
-
-    Args:
-        ctx: Typer context
-        policy: Policy specification as comma-separated key=value pairs
-        name: Optional name for the submission
-        include_files: List of files/directories to include in submission
-        login_server: Login/authentication server URL
-        server: Submission server URL
-        dry_run: If True, run validation only without submitting
-        skip_validation: If True, skip policy validation in isolated environment
-        setup_script: Optional path to a Python setup script to run before loading the policy
+    Returns UploadResult with policy_version_id, name, and version on success.
+    Returns None on failure.
     """
     if dry_run:
-        console.print("[bold]CoGames Policy Submission (DRY RUN)[/bold]\n")
-        console.print("[yellow]Running in dry-run mode - validation only, no submission[/yellow]\n")
+        console.print("[bold]CoGames Policy Upload (DRY RUN)[/bold]\n")
+        console.print("[yellow]Running in dry-run mode - validation only, no upload[/yellow]\n")
     else:
-        console.print("[bold]CoGames Policy Submission[/bold]\n")
+        console.print("[bold]CoGames Policy Upload[/bold]\n")
 
     if skip_validation:
-        console.print("[yellow]⚠ Skipping policy validation (--skip-validation)[/yellow]\n")
+        console.print("[yellow]Skipping policy validation (--skip-validation)[/yellow]\n")
 
-    # Check authentication first
     authenticator = CoGamesAuthenticator()
     if not authenticator.has_saved_token(login_server):
         console.print("[red]Error:[/red] Not authenticated.")
         console.print("Please run: [cyan]cogames login[/cyan]")
-        return
+        return None
 
     token = authenticator.load_token(login_server)
     if not token:
         console.print(f"[red]Error:[/red] Token not found for {login_server}")
-        return
+        return None
 
-    # Parse policy spec
     try:
         policy_spec = get_policy_spec(ctx, policy)
     except Exception as e:
         console.print(f"[red]Error parsing policy:[/red] {e}")
-        return
+        return None
 
-    # Merge init_kwargs into policy_spec
     if init_kwargs:
         merged_kwargs = {**policy_spec.init_kwargs, **init_kwargs}
         policy_spec = PolicySpec(
@@ -467,74 +450,68 @@ def submit_command(
             console.print(f"  {key}: {value}")
         console.print()
 
-    # Validate and collect all files to include
     files_to_include = []
-
-    # Always include policy data file if specified
     if policy_spec.data_path:
         files_to_include.append(policy_spec.data_path)
-
-    # Include setup script if specified
     if setup_script:
         files_to_include.append(setup_script)
-
-    # Add user-specified include files
     if include_files:
         files_to_include.extend(include_files)
 
-    # Validate all paths
     validated_paths: list[Path] = []
     if files_to_include:
         try:
             validated_paths = validate_paths(files_to_include, console)
         except (ValueError, FileNotFoundError):
-            return
+            return None
 
         console.print("\n[bold]Files to include:[/bold]")
         for path in validated_paths:
-            console.print(f"  • {path}")
+            console.print(f"  - {path}")
         console.print()
 
-    # Validate policy in isolated environment (unless skipped)
     if not skip_validation:
         if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
-            console.print("\n[red]Submission aborted due to validation failure.[/red]")
-            return
+            console.print("\n[red]Upload aborted due to validation failure.[/red]")
+            return None
     else:
-        console.print("[yellow]⚠ Policy validation skipped[/yellow]")
+        console.print("[yellow]Policy validation skipped[/yellow]")
 
-    # Create submission zip
     try:
         zip_path = create_submission_zip(validated_paths, policy_spec, console, setup_script=setup_script)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
-        return
+        return None
 
-    # If dry-run, skip upload and clean up
     if dry_run:
         if skip_validation:
-            console.print("\n[green]✓ Dry run complete - validation skipped, zip created![/green]")
+            console.print("\n[green]Dry run complete - validation skipped, zip created![/green]")
         else:
-            console.print("\n[green]✓ Dry run complete - validation passed, zip created![/green]")
+            console.print("\n[green]Dry run complete - validation passed, zip created![/green]")
         console.print("[dim]Skipping upload (dry-run mode)[/dim]")
-        # Clean up zip file in dry-run mode
         if zip_path.exists():
             zip_path.unlink()
             console.print("[dim]Cleaned up temporary zip file[/dim]")
-        return
+        return None
 
-    # Upload submission
     try:
         policy_version_id = upload_submission(zip_path, name, token, server, console)
         if not policy_version_id:
-            console.print("\n[red]Submission failed.[/red]")
-            return
+            console.print("\n[red]Upload failed.[/red]")
+            return None
 
-        tag_success = update_submission_tags(policy_version_id, token, server, console)
-        if not tag_success:
-            console.print("\n[red]Submission succeeded, but updating tags failed.[/red]")
+        version_info = fetch_policy_version_info(policy_version_id, token, server, console)
+        if version_info:
+            policy_name, version = version_info
+        else:
+            policy_name, version = name, 0
+
+        return UploadResult(
+            policy_version_id=policy_version_id,
+            name=policy_name,
+            version=version,
+        )
     finally:
-        # Clean up zip file
         if zip_path.exists():
             zip_path.unlink()
             console.print("[dim]Cleaned up temporary zip file[/dim]")
