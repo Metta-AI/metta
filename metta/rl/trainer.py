@@ -6,7 +6,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
-from metta.rl.slot_config import LossProfileConfig, PolicySlotConfig
+from metta.rl.slot_config import LossProfileConfig, resolve_policy_slots
 from metta.rl.slot_controller import SlotControllerPolicy
 from metta.rl.slot_registry import SlotRegistry
 from metta.rl.system_config import SystemConfig
@@ -76,7 +76,6 @@ class Trainer:
         slot_state = self._build_slot_state(self._policy)
         if len(slot_state["slots"]) > 1 or not slot_state["slots"][0].use_trainer_policy:
             self._policy = SlotControllerPolicy(
-                slot_lookup=slot_state["slot_lookup"],
                 slots=slot_state["slots"],
                 slot_policies=slot_state["slot_policies"],
                 policy_env_info=self._env.policy_env_info,
@@ -311,30 +310,23 @@ class Trainer:
         component.register(self._context)
 
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
-        slots_cfg = list(self._cfg.policy_slots or [])
-        trainer_slot_idx = next((idx for idx, slot in enumerate(slots_cfg) if slot.use_trainer_policy), None)
-        if not slots_cfg or trainer_slot_idx is None:
-            slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
-        elif trainer_slot_idx != 0:
-            slots_cfg.insert(0, slots_cfg.pop(trainer_slot_idx))
+        num_agents = self._env.policy_env_info.num_agents
+        slots_cfg, slot_lookup, _, slot_ids = resolve_policy_slots(
+            self._cfg.policy_slots,
+            num_agents=num_agents,
+            agent_slot_map=self._cfg.agent_slot_map,
+            ensure_trainer_slot=True,
+        )
 
-        trainer_slot_count = sum(1 for b in slots_cfg if b.use_trainer_policy)
-        if trainer_slot_count > 1:
-            raise ValueError("Only one slot may set use_trainer_policy=True")
-
-        slot_lookup: dict[str, int] = {}
         slot_policies: dict[int, Policy] = {}
-        for slot in slots_cfg:
-            if slot.id in slot_lookup:
-                raise ValueError(f"Duplicate policy slot id '{slot.id}'")
-            slot_lookup[slot.id] = len(slot_lookup)
+        for idx, slot in enumerate(slots_cfg):
             if slot.use_trainer_policy:
                 self._set_trainable_flag(trainer_policy, slot.trainable)
-                slot_policies[slot_lookup[slot.id]] = trainer_policy
+                slot_policies[idx] = trainer_policy
             else:
                 loaded_policy = self._slot_registry.get(slot, self._env.policy_env_info, self._device)
                 self._set_trainable_flag(loaded_policy, slot.trainable)
-                slot_policies[slot_lookup[slot.id]] = loaded_policy
+                slot_policies[idx] = loaded_policy
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)
@@ -344,23 +336,10 @@ class Trainer:
 
         default_slot_profile = next(iter(loss_profiles))
 
-        num_agents = self._env.policy_env_info.num_agents
-        agent_slot_map = self._cfg.agent_slot_map
-        if agent_slot_map is None:
-            agent_slot_map = [slots_cfg[0].id for _ in range(num_agents)]
-        if len(agent_slot_map) != num_agents:
-            raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(agent_slot_map)}")
-
-        slot_ids = []
         loss_profile_ids = []
         trainable_mask = []
-        for idx, slot_id_str in enumerate(agent_slot_map):
-            if slot_id_str not in slot_lookup:
-                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id_str}'")
-            b_idx = slot_lookup[slot_id_str]
-            slot = slots_cfg[b_idx]
-            slot_ids.append(b_idx)
-
+        for slot_idx in slot_ids:
+            slot = slots_cfg[slot_idx]
             profile_name = slot.loss_profile or default_slot_profile
             if profile_name not in loss_profile_lookup:
                 # Auto-register profile if referenced but not defined

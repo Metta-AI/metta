@@ -20,11 +20,12 @@ class SlotRegistry:
     def __init__(self) -> None:
         self._cache: Dict[Tuple[str, str], Policy] = {}
 
-    def _cache_key(self, slot: PolicySlotConfig) -> Tuple[str, str]:
+    def _cache_key(self, slot: PolicySlotConfig, device: torch.device) -> Tuple[str, str]:
         key_dict = {
             "uri": slot.policy_uri,
             "class_path": slot.class_path,
             "kwargs": slot.policy_kwargs,
+            "device": str(device),
         }
         return (slot.id, json.dumps(key_dict, sort_keys=True))
 
@@ -34,7 +35,7 @@ class SlotRegistry:
         if slot.use_trainer_policy:
             raise ValueError("use_trainer_policy slots must be supplied externally, not loaded via registry")
 
-        key = self._cache_key(slot)
+        key = self._cache_key(slot, device)
         cached = self._cache.get(key)
         if cached is not None:
             return cached

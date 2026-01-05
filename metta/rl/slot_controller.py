@@ -17,7 +17,6 @@ class SlotControllerPolicy(Policy):
 
     def __init__(
         self,
-        slot_lookup: Dict[str, int],
         slots: list[Any],
         slot_policies: Dict[int, Policy],
         policy_env_info,
@@ -25,7 +24,6 @@ class SlotControllerPolicy(Policy):
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
         super().__init__(policy_env_info)  # type: ignore[arg-type]
-        self._slot_lookup = slot_lookup
         self._slots = slots
         self._slot_policies = slot_policies
         self._policy_env_info = policy_env_info

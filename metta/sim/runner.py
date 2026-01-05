@@ -6,7 +6,7 @@ from typing import Any, Callable, Sequence
 import torch
 from pydantic import BaseModel, ConfigDict, Field
 
-from metta.rl.slot_config import PolicySlotConfig
+from metta.rl.slot_config import PolicySlotConfig, resolve_policy_slots
 from metta.rl.slot_controller import SlotControllerPolicy
 from metta.rl.slot_registry import SlotRegistry
 from mettagrid import MettaGridConfig
@@ -32,22 +32,21 @@ def _run_single_simulation(
 
     if sim_cfg.policy_slots:
         registry = SlotRegistry()
-        slots_cfg = list(sim_cfg.policy_slots)
-        slot_lookup = {slot.id: idx for idx, slot in enumerate(slots_cfg)}
         controller_device = torch.device(device_override or "cpu")
 
         num_agents = env_interface.num_agents
-        agent_map = sim_cfg.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
-        if len(agent_map) != num_agents:
-            raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
-        slot_ids = [slot_lookup[slot_id] for slot_id in agent_map]
+        slots_cfg, _, agent_map, slot_ids = resolve_policy_slots(
+            sim_cfg.policy_slots,
+            num_agents=num_agents,
+            agent_slot_map=sim_cfg.agent_slot_map,
+            ensure_trainer_slot=False,
+        )
         agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long, device=controller_device)
 
         slot_policies = {
             idx: registry.get(slot, env_interface, device=controller_device) for idx, slot in enumerate(slots_cfg)
         }
         controller = SlotControllerPolicy(
-            slot_lookup=slot_lookup,
             slots=slots_cfg,
             slot_policies=slot_policies,
             policy_env_info=env_interface,

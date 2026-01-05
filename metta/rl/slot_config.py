@@ -1,6 +1,6 @@
 """Configuration helpers for policy slots and loss profiles."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from pydantic import Field, model_validator
 
@@ -34,3 +34,42 @@ class PolicySlotConfig(Config):
         if self.use_trainer_policy and (self.policy_uri or self.class_path):
             raise ValueError("use_trainer_policy=True is mutually exclusive with policy_uri/class_path")
         return self
+
+
+def resolve_policy_slots(
+    slots_cfg: Sequence[PolicySlotConfig] | None,
+    *,
+    num_agents: int,
+    agent_slot_map: Sequence[str] | None,
+    ensure_trainer_slot: bool,
+) -> tuple[list[PolicySlotConfig], dict[str, int], list[str], list[int]]:
+    slots = list(slots_cfg or [])
+
+    trainer_slot_idx = next((idx for idx, slot in enumerate(slots) if slot.use_trainer_policy), None)
+    if ensure_trainer_slot and (not slots or trainer_slot_idx is None):
+        slots.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+    elif ensure_trainer_slot and trainer_slot_idx != 0:
+        slots.insert(0, slots.pop(trainer_slot_idx))
+    elif not slots:
+        raise ValueError("policy_slots must be provided when ensure_trainer_slot=False")
+
+    if ensure_trainer_slot and sum(1 for slot in slots if slot.use_trainer_policy) > 1:
+        raise ValueError("Only one slot may set use_trainer_policy=True")
+
+    slot_lookup: dict[str, int] = {}
+    for slot in slots:
+        if slot.id in slot_lookup:
+            raise ValueError(f"Duplicate policy slot id '{slot.id}'")
+        slot_lookup[slot.id] = len(slot_lookup)
+
+    resolved_agent_map = list(agent_slot_map) if agent_slot_map is not None else [slots[0].id for _ in range(num_agents)]
+    if len(resolved_agent_map) != num_agents:
+        raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(resolved_agent_map)}")
+
+    slot_ids: list[int] = []
+    for idx, slot_id in enumerate(resolved_agent_map):
+        if slot_id not in slot_lookup:
+            raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id}'")
+        slot_ids.append(slot_lookup[slot_id])
+
+    return slots, slot_lookup, resolved_agent_map, slot_ids
