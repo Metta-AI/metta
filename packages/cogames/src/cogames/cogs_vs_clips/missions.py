@@ -14,6 +14,7 @@ from cogames.cogs_vs_clips.variants import (
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     PackRatVariant,
+    SharedRewardsVariant,
     VibeCheckMin2Variant,
 )
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -108,6 +109,13 @@ Machina1BalancedCornersMission = Mission(
     variants=[EmptyBaseVariant(), BalancedCornersVariant()],
 )
 
+Machina1OpenWorldSharedRewardsMission = Mission(
+    name="open_world_shared_rewards",
+    description="Collect resources and assemble HEARTs. Rewards for deposited hearts are shared among all agents.",
+    site=MACHINA_1,
+    variants=[EmptyBaseVariant(), SharedRewardsVariant()],
+)
+
 
 HelloWorldUnclipMission = Mission(
     name="hello_world_unclip",
@@ -129,6 +137,7 @@ _CORE_MISSIONS: list[Mission] = [
     Machina1OpenWorldMission,
     Machina1OpenWorldWithChestsMission,
     Machina1BalancedCornersMission,
+    Machina1OpenWorldSharedRewardsMission,
 ]
 
 

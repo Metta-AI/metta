@@ -92,11 +92,9 @@ export const PoliciesPage: FC = () => {
             <div className="overflow-x-auto">
               <Table>
                 <Table.Header>
-                  <TR>
-                    <TH>Name</TH>
-                    <TH>Versions</TH>
-                    <TH>Created</TH>
-                  </TR>
+                  <TH>Name</TH>
+                  <TH>Versions</TH>
+                  <TH>Created</TH>
                 </Table.Header>
                 <Table.Body>
                   {filteredPolicies.map((policy) => (

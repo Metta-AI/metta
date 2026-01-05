@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { FC, Fragment, useCallback, useContext, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
 import { Button } from './components/Button'
@@ -71,14 +72,40 @@ const Timeline: FC<{ job: JobRequest }> = ({ job }) => {
   )
 }
 
+const parsePolicyUri = (uri: string): { name: string; version: string } | null => {
+  const match = uri.match(/^metta:\/\/policy\/(.+):v(\d+)$/)
+  if (match) {
+    return { name: match[1], version: `v${match[2]}` }
+  }
+  return null
+}
+
+const PolicyLink: FC<{ uri: string }> = ({ uri }) => {
+  const parsed = parsePolicyUri(uri)
+  if (parsed) {
+    return (
+      <StyledLink to={`/policies?name=${encodeURIComponent(parsed.name)}`} className="font-mono text-xs">
+        {parsed.name}:{parsed.version}
+      </StyledLink>
+    )
+  }
+  return (
+    <span className="font-mono text-xs truncate max-w-[400px]" title={uri}>
+      {uri}
+    </span>
+  )
+}
+
 const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
   const [expanded, setExpanded] = useState(false)
   const policyUris = job.job?.policy_uris as string[] | undefined
   const episodeTags = job.job?.episode_tags as Record<string, string> | undefined
   const episodeId = job.result?.episode_id as string | undefined
-  const error = job.result?.error as string | undefined
+  const resultError = job.result?.error as string | undefined
+  const lifecycleError = job.error
 
-  const hasExpandableContent = !episodeId && (error || job.result)
+  const hasError = resultError || lifecycleError
+  const hasExpandableContent = !episodeId && (hasError || job.result)
 
   return (
     <Fragment>
@@ -88,12 +115,14 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
       >
         <TD className="font-mono text-xs">{job.id.slice(0, 8)}</TD>
         <TD>
-          <StatusBadge status={job.status} />
+          <div className="flex flex-col gap-1">
+            <StatusBadge status={job.status} />
+          </div>
         </TD>
         <TD>
           {policyUris?.map((uri, i) => (
-            <div key={i} className="font-mono text-xs truncate max-w-[400px]" title={uri}>
-              {uri}
+            <div key={i}>
+              <PolicyLink uri={uri} />
             </div>
           ))}
         </TD>
@@ -116,7 +145,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
         <TD>
           {episodeId ? (
             <StyledLink to={`/episodes/${episodeId}`}>View</StyledLink>
-          ) : error ? (
+          ) : resultError ? (
             <span className="text-red-600 text-xs">{expanded ? '[-] Error' : '[+] Error'}</span>
           ) : job.result ? (
             <span className="text-gray-600 text-xs">{expanded ? '[-] Result' : '[+] Result'}</span>
@@ -127,10 +156,25 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
       </TR>
       {expanded && hasExpandableContent && (
         <tr className="bg-gray-50">
-          <td colSpan={6} className="px-3 py-2">
-            <pre className={clsx('text-xs whitespace-pre-wrap', error ? 'text-red-600' : 'text-gray-600')}>
-              {error || JSON.stringify(job.result, null, 2)}
-            </pre>
+          <td colSpan={6} className="px-3 py-2 space-y-2">
+            {lifecycleError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Job lifecycle error:</div>
+                <pre className="text-xs text-red-600">{lifecycleError}</pre>
+              </div>
+            )}
+            {resultError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Episode-runner error:</div>
+                <pre className="text-xs whitespace-pre-wrap text-red-600">{resultError}</pre>
+              </div>
+            )}
+            {job.result && !resultError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Result:</div>
+                <pre className="text-xs whitespace-pre-wrap text-gray-600">{JSON.stringify(job.result, null, 2)}</pre>
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -160,6 +204,7 @@ const StatusDropdown: FC<{ value: JobStatus | ''; onChange: (value: JobStatus | 
 
 export const EpisodeJobs: FC = () => {
   const { repo } = useContext(AppContext)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [jobs, setJobs] = useState<JobRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -167,12 +212,24 @@ export const EpisodeJobs: FC = () => {
   const [page, setPage] = useState(0)
   const pageSize = 50
 
+  const jobIdFilter = searchParams.get('jobId') || ''
+
+  const handleJobIdChange = (value: string) => {
+    if (value) {
+      setSearchParams({ jobId: value })
+    } else {
+      setSearchParams({})
+    }
+    setPage(0)
+  }
+
   const loadJobs = useCallback(async () => {
     try {
       const statuses = statusFilter ? [statusFilter] : undefined
       const result = await repo.getJobs({
         job_type: 'episode',
         statuses,
+        job_id: jobIdFilter || undefined,
         limit: pageSize,
         offset: page * pageSize,
       })
@@ -183,7 +240,7 @@ export const EpisodeJobs: FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [repo, statusFilter, page])
+  }, [repo, statusFilter, jobIdFilter, page])
 
   useEffect(() => {
     loadJobs()
@@ -202,10 +259,22 @@ export const EpisodeJobs: FC = () => {
         )}
 
         <div className="mb-4 flex gap-4 items-center">
+          <input
+            type="text"
+            value={jobIdFilter}
+            onChange={(e) => handleJobIdChange(e.target.value)}
+            placeholder="Filter by Job ID..."
+            className="rounded border h-8 border-gray-300 bg-white text-gray-800 text-sm py-1 px-2 w-80 font-mono"
+          />
           <StatusDropdown value={statusFilter} onChange={setStatusFilter} />
           <Button onClick={loadJobs} disabled={loading}>
             Refresh
           </Button>
+          {jobIdFilter && (
+            <Button onClick={() => handleJobIdChange('')} theme="secondary">
+              Clear Filter
+            </Button>
+          )}
         </div>
 
         {loading && jobs.length === 0 ? (
@@ -214,14 +283,12 @@ export const EpisodeJobs: FC = () => {
           <div className="overflow-x-auto">
             <Table>
               <Table.Header>
-                <TR>
-                  <TH style={{ width: 100 }}>Job ID</TH>
-                  <TH style={{ width: 100 }}>Status</TH>
-                  <TH>Policy URIs</TH>
-                  <TH style={{ width: 200 }}>Tags</TH>
-                  <TH style={{ width: 280 }}>Timeline</TH>
-                  <TH style={{ width: 100 }}>Result</TH>
-                </TR>
+                <TH style={{ width: 100 }}>Job ID</TH>
+                <TH style={{ width: 100 }}>Status</TH>
+                <TH>Policy URIs</TH>
+                <TH style={{ width: 200 }}>Tags</TH>
+                <TH style={{ width: 280 }}>Timeline</TH>
+                <TH style={{ width: 100 }}>Result</TH>
               </Table.Header>
               <Table.Body>
                 {jobs.map((job) => (

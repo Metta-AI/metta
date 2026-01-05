@@ -10,6 +10,7 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
+from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
@@ -20,6 +21,8 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
+from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
+from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -156,14 +159,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             }
             inventory_regen_amounts[vibe_id] = resource_amounts_cpp
 
-        # Convert vibe_transfers: vibe -> resource -> delta
-        vibe_transfers_map = {}
-        for vibe_name, resource_deltas in agent_props.get("vibe_transfers", {}).items():
-            vibe_id = vibe_name_to_id[vibe_name]
-            resource_deltas_cpp = {resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()}
-            vibe_transfers_map[vibe_id] = resource_deltas_cpp
-
-        # Convert diversity_tracked_resources to IDs
         diversity_tracked_resources = [
             resource_name_to_id[resource_name]
             for resource_name in agent_props.get("diversity_tracked_resources", [])
@@ -226,12 +221,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             group_id=team_id,
             group_name=group_name,
             freeze_duration=agent_props["freeze_duration"],
+            initial_vibe=agent_props["initial_vibe"],
             inventory_config=inventory_config,
             stat_rewards=stat_rewards,
             stat_reward_max=stat_reward_max,
             initial_inventory=initial_inventory,
             inventory_regen_amounts=inventory_regen_amounts,
-            vibe_transfers=vibe_transfers_map,
             diversity_tracked_resources=diversity_tracked_resources,
             damage_config=cpp_damage_config,
         )
@@ -264,8 +259,11 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             seen_vibes_and_min_agents = []
 
             for protocol_config in reversed(object_config.protocols):
-                # Convert vibe names to IDs
-                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes if vibe in vibe_name_to_id])
+                # Convert vibe names to IDs (validate all vibe names exist)
+                for vibe in protocol_config.vibes:
+                    if vibe not in vibe_name_to_id:
+                        raise ValueError(f"Unknown vibe name '{vibe}' in assembler '{object_type}' protocol")
+                vibe_ids = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
                 # Check for duplicate vibes
                 if (vibe_ids, protocol_config.min_agents) in seen_vibes_and_min_agents:
                     raise ValueError(
@@ -315,6 +313,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             # Convert vibe_transfers: vibe -> resource -> delta
             vibe_transfers_map = {}
             for vibe_name, resource_deltas in object_config.vibe_transfers.items():
+                if vibe_name not in vibe_name_to_id:
+                    raise ValueError(f"Unknown vibe name '{vibe_name}' in chest '{object_type}' vibe_transfers")
                 vibe_id = vibe_name_to_id[vibe_name]
                 resource_deltas_cpp = {
                     resource_name_to_id[resource]: delta for resource, delta in resource_deltas.items()
@@ -446,14 +446,53 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
-    if actions_config.attack.enabled:
-        action_params["defense_resources"] = {
-            resource_name_to_id[k]: v for k, v in actions_config.attack.defense_resources.items()
-        }
-    else:
-        action_params["defense_resources"] = {}
-    action_params["enabled"] = actions_config.attack.enabled
+    attack_cfg = actions_config.attack
+    # Always convert full attack config (enabled only controls standalone actions, not vibe-triggered)
+    action_params["defense_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()}
+    action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
+    action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
+    # Convert success outcome
+    success_actor = {resource_name_to_id[k]: v for k, v in attack_cfg.success.actor_inv_delta.items()}
+    success_target = {resource_name_to_id[k]: v for k, v in attack_cfg.success.target_inv_delta.items()}
+    success_loot = [resource_name_to_id[name] for name in attack_cfg.success.loot]
+    action_params["success"] = CppAttackOutcome(
+        success_actor,
+        success_target,
+        success_loot,
+        attack_cfg.success.freeze,
+    )
+    action_params["enabled"] = attack_cfg.enabled
+    # Convert vibes from names to IDs (validate all vibe names exist)
+    for vibe in attack_cfg.vibes:
+        if vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
+    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes]
+    # Convert vibe_bonus from names to IDs
+    for vibe in attack_cfg.vibe_bonus:
+        if vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibe_bonus")
+    action_params["vibe_bonus"] = {vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items()}
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
+
+    # Process transfer - vibes are derived from vibe_transfers keys in C++
+    transfer_cfg = actions_config.transfer
+    vibe_transfers_cpp = {}
+    seen_vibes: set[str] = set()
+    for vt in transfer_cfg.vibe_transfers:
+        if vt.vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        if vt.vibe in seen_vibes:
+            raise ValueError(f"Duplicate vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        seen_vibes.add(vt.vibe)
+        vibe_id = vibe_name_to_id[vt.vibe]
+        target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
+        actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
+        vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
+    actions_cpp_params["transfer"] = CppTransferActionConfig(
+        required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
+        vibe_transfers=vibe_transfers_cpp,
+        enabled=transfer_cfg.enabled,
+    )
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)
@@ -474,6 +513,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for protocol_config in clipper.unclipping_protocols:
             cpp_protocol = CppProtocol()
             cpp_protocol.min_agents = protocol_config.min_agents
+            # Validate all vibe names exist
+            for vibe in protocol_config.vibes:
+                if vibe not in vibe_name_to_id:
+                    raise ValueError(f"Unknown vibe name '{vibe}' in clipper unclipping_protocols")
             cpp_protocol.vibes = sorted([vibe_name_to_id[vibe] for vibe in protocol_config.vibes])
             # Ensure keys and values are explicitly Python ints for C++ binding
             # Build dict item-by-item to ensure pybind11 recognizes it as dict[int, int]

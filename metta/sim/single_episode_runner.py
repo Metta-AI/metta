@@ -7,7 +7,7 @@ import tempfile
 import uuid
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
@@ -17,10 +17,8 @@ from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
 from mettagrid import MettaGridConfig
-from mettagrid.policy.mpt_policy import parse_uri
 from mettagrid.util.file import copy_data, read
-
-logger = logging.getLogger(__name__)
+from mettagrid.util.uri_resolvers.schemes import parse_uri
 
 
 class SingleEpisodeJob(BaseModel):
@@ -31,7 +29,10 @@ class SingleEpisodeJob(BaseModel):
     replay_uri: str | None = None
     seed: int = 0
     max_action_time_ms: int = 10000
-    episode_tags: dict[str, str] = Field(default_factory=dict)
+    episode_tags: dict[str, str] = {}
+
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -81,9 +82,13 @@ def main():
                 text=True,
             )
             if result.returncode != 0:
+                if result.returncode < 0:
+                    # Killed by signal (e.g., OOMKilled sends SIGKILL=-9)
+                    signal_num = -result.returncode
+                    raise RuntimeError(f"Killed by signal {signal_num}")
                 error_output = result.stderr or result.stdout or "No output"
-                if len(error_output) > 2000:
-                    error_output = error_output[:2000] + "\n... (truncated)"
+                if len(error_output) > 200000:
+                    error_output = error_output[:200000] + "\n... (truncated)"
                 raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
 
         for src, dest, content_type in [
