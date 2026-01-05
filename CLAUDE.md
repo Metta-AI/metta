@@ -27,9 +27,6 @@ uv run ./tools/run.py arena --list
 
 # Testing (only when specifically needed)
 metta pytest tests/path/to/test.py -v
-
-# Linting (only when specifically needed)
-metta lint path/to/file.py --fix
 ```
 
 ## Repository Structure

@@ -272,6 +272,9 @@ importers:
       react-router-dom:
         specifier: ^7.6.2
         version: 7.11.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-select:
+        specifier: ^5.10.2
+        version: 5.10.2(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.18
