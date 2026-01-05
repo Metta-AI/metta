@@ -1,6 +1,5 @@
 import tempfile
 import uuid
-from collections import Counter
 from typing import Annotated, Any, Optional
 
 import aioboto3
@@ -302,69 +301,80 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         async with session.client("s3") as s3_client:  # type: ignore
             await s3_client.download_file(OBSERVATORY_S3_BUCKET, s3_key, temp_file_path)
 
-        with duckdb.connect(temp_file_path, read_only=True) as conn:
-            episodes = read_episodes(conn)
+        conn = duckdb.connect(temp_file_path, read_only=True)
 
-            episodes_created = 0
-            for episode_row in episodes:
-                episode_id = uuid.UUID(episode_row[0]) if isinstance(episode_row[0], str) else episode_row[0]
-                primary_pv_id = (
-                    uuid.UUID(episode_row[1]) if isinstance(episode_row[1], str) and episode_row[1] else None
-                )
-                replay_url = episode_row[2]
-                thumbnail_url = episode_row[3]
-                attributes = episode_row[4] or {}
-                eval_task_id = uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
+        episodes = read_episodes(conn)
 
-                tags = read_episode_tags(conn, str(episode_id))
+        episodes_created = 0
+        for episode_row in episodes:
+            episode_id = uuid.UUID(episode_row[0]) if isinstance(episode_row[0], str) else episode_row[0]
+            primary_pv_id = uuid.UUID(episode_row[1]) if isinstance(episode_row[1], str) and episode_row[1] else None
+            replay_url = episode_row[2]
+            thumbnail_url = episode_row[3]
+            attributes = episode_row[4] or {}
+            eval_task_id = uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
 
-                agent_policy_map_str = read_agent_policies(conn, str(episode_id))
-                agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
-                policy_agent_counts = Counter(agent_policy_map.values())
+            tags = read_episode_tags(conn, str(episode_id))
 
-                agent_metrics_result = read_agent_metrics(conn, str(episode_id))
+            agent_policy_map_str = read_agent_policies(conn, str(episode_id))
+            agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
 
-                policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
-                explicit_reward_policies: set[uuid.UUID] = set()
+            agent_metrics_result = read_agent_metrics(conn, str(episode_id))
 
-                for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
-                    pv_id = uuid.UUID(pv_id_str)
-                    policy_metrics.setdefault(pv_id, {})[metric_name] = float(metric_value)
-                    if metric_name == "reward":
-                        explicit_reward_policies.add(pv_id)
+            policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
+            explicit_reward_policies: set[uuid.UUID] = set()
 
-                for agent_id, metric_name, metric_value in agent_metrics_result:
-                    if metric_name != "reward":
-                        continue
+            for pv_id_str, metric_name, metric_value in read_policy_metrics(conn, str(episode_id)):
+                pv_id = uuid.UUID(pv_id_str)
+                if pv_id not in policy_metrics:
+                    policy_metrics[pv_id] = {}
+                policy_metrics[pv_id][metric_name] = float(metric_value)
+                if metric_name == "reward":
+                    explicit_reward_policies.add(pv_id)
 
-                    pv_id = agent_policy_map.get(int(agent_id))
-                    if pv_id is None or pv_id in explicit_reward_policies:
-                        continue
+            for agent_id, metric_name, metric_value in agent_metrics_result:
+                if metric_name != "reward":
+                    continue
 
-                    metrics = policy_metrics.setdefault(pv_id, {})
-                    metrics["reward"] = metrics.get("reward", 0.0) + float(metric_value)
+                pv_id = agent_policy_map.get(int(agent_id))
+                if pv_id is None or pv_id in explicit_reward_policies:
+                    continue
 
-                policy_versions = list(policy_agent_counts.items())
-                policy_metrics_list = [
-                    (pv_id, metric_name, value)
-                    for pv_id, metrics in policy_metrics.items()
-                    for metric_name, value in metrics.items()
-                ]
+                if pv_id not in policy_metrics:
+                    policy_metrics[pv_id] = {}
 
-                await stats_repo.record_episode(
-                    id=episode_id,
-                    data_uri=s3_uri,
-                    primary_pv_id=primary_pv_id,
-                    replay_url=replay_url,
-                    attributes=attributes,
-                    eval_task_id=eval_task_id,
-                    thumbnail_url=thumbnail_url,
-                    tags=tags,
-                    policy_versions=policy_versions,
-                    policy_metrics=policy_metrics_list,
-                )
+                if metric_name not in policy_metrics[pv_id]:
+                    policy_metrics[pv_id][metric_name] = 0.0
 
-                episodes_created += 1
+                policy_metrics[pv_id][metric_name] += float(metric_value)
+
+            policy_agent_counts: dict[uuid.UUID, int] = {}
+            for _agent_id, pv_id in agent_policy_map.items():
+                policy_agent_counts[pv_id] = policy_agent_counts.get(pv_id, 0) + 1
+
+            policy_versions = [(pv_id, count) for pv_id, count in policy_agent_counts.items()]
+            policy_metrics_list = [
+                (pv_id, metric_name, value)
+                for pv_id, metrics in policy_metrics.items()
+                for metric_name, value in metrics.items()
+            ]
+
+            await stats_repo.record_episode(
+                id=episode_id,
+                data_uri=s3_uri,
+                primary_pv_id=primary_pv_id,
+                replay_url=replay_url,
+                attributes=attributes,
+                eval_task_id=eval_task_id,
+                thumbnail_url=thumbnail_url,
+                tags=tags,
+                policy_versions=policy_versions,
+                policy_metrics=policy_metrics_list,
+            )
+
+            episodes_created += 1
+
+        conn.close()
 
         return BulkEpisodeUploadResponse(episodes_created=episodes_created, duckdb_s3_uri=s3_uri)
 
