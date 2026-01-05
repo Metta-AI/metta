@@ -79,7 +79,16 @@ def create_github_webhook_router() -> APIRouter:
         body = await request.body()
 
         # Verify webhook signature
-        if not verify_github_signature(body, x_hub_signature_256):
+        signature_valid = verify_github_signature(body, x_hub_signature_256)
+        if not signature_valid:
+            metrics.increment_counter(
+                "github_asana.signature_verification_failed",
+                {
+                    "delivery": x_github_delivery or "unknown",
+                    "secret_configured": str(settings.GITHUB_WEBHOOK_SECRET is not None),
+                    "signature_header_present": str(x_hub_signature_256 is not None),
+                },
+            )
             logger.warning(
                 f"Invalid webhook signature for delivery {x_github_delivery}. "
                 f"Secret configured: {settings.GITHUB_WEBHOOK_SECRET is not None}, "

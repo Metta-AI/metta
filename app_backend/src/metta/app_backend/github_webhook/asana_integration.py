@@ -1,7 +1,8 @@
 """Asana integration for creating tasks from GitHub PRs."""
 
+import asyncio
 import logging
-import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Optional
 
 import asana
@@ -105,13 +106,25 @@ def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
             "limit": 100,
         }
 
+        # Run blocking requests.get in executor to avoid blocking event loop
+        def _fetch_page(page_url: str, page_params: dict) -> tuple[dict, str | None]:
+            """Fetch a single page of roster tasks."""
+            resp = requests.get(page_url, headers=headers, params=page_params, timeout=30)
+            if resp.status_code != 200:
+                logger.warning(f"Failed to fetch roster tasks: {resp.status_code}")
+                return {}, None
+            data = resp.json()
+            next_page = data.get("next_page")
+            return data, next_page
+
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
+
         while url:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-            if response.status_code != 200:
-                logger.warning(f"Failed to fetch roster tasks: {response.status_code}")
+            data, next_page = await loop.run_in_executor(executor, _fetch_page, url, params)
+            if not data:
                 break
 
-            data = response.json()
             tasks = data.get("data", [])
 
             for task in tasks:
@@ -139,12 +152,13 @@ def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
                     break
 
             # Check for next page
-            next_page = data.get("next_page")
             if next_page:
                 url = f"https://app.asana.com/api/1.0/projects/{roster_project_gid}/tasks"
                 params["offset"] = next_page.get("offset")
             else:
                 break
+
+        executor.shutdown(wait=False)
 
     except Exception as e:
         logger.warning(f"Failed to fetch GitHub→Asana mapping from roster: {e}")
@@ -301,7 +315,8 @@ URL: {pr_url}
 Author: {author_login}"""
 
     # Build task data
-    github_url_field_gid = os.getenv("ASANA_GITHUB_URL_FIELD_GID")
+    # Use settings.ASANA_GITHUB_URL_FIELD_ID (supports both ID and GID formats)
+    github_url_field_gid = settings.ASANA_GITHUB_URL_FIELD_ID
     task_data = {
         "name": task_name,
         "notes": task_notes,
@@ -336,6 +351,7 @@ Author: {author_login}"""
             logger.info(f"Calling Asana API to create task: {task_name}")
 
             def _create_task():
+                """Blocking Asana API call - runs in executor."""
                 try:
                     return tasks_api.create_task({"data": task_data}, {})
                 except Exception as assignee_error:
@@ -348,14 +364,24 @@ Author: {author_login}"""
                     else:
                         raise
 
+            # Run blocking Asana SDK calls in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            executor = ThreadPoolExecutor(max_workers=1)
+
+            async def _create_task_async():
+                """Async wrapper to run blocking call in executor."""
+                return await loop.run_in_executor(executor, _create_task)
+
             try:
                 result = await retry_with_backoff(
-                    _create_task,
+                    _create_task_async,
                     max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
                     initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
                     max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"create_task_{external_id}",
                 )
+                
+                executor.shutdown(wait=False)
 
                 if isinstance(result, dict):
                     task_gid = result.get("gid")
@@ -398,39 +424,43 @@ async def find_task_by_github_url(pr_url: str) -> Optional[Dict[str, Any]]:
     if not settings.ASANA_PAT or not settings.ASANA_WORKSPACE_GID:
         return None
 
-    github_url_field_gid = os.getenv("ASANA_GITHUB_URL_FIELD_GID")
+    github_url_field_gid = settings.ASANA_GITHUB_URL_FIELD_ID
 
     try:
         api_client = _get_asana_client()
         tasks_api = asana.TasksApi(api_client)
 
-        if github_url_field_gid and settings.ASANA_PROJECT_GID:
-            opt_fields = (
-                "permalink_url,custom_fields,name,notes,modified_at,completed,"
-                "assignee.email,followers.email"
-            )
-            opts = {
-                "opt_fields": opt_fields,
-                "projects.any": settings.ASANA_PROJECT_GID,
-                f"custom_fields.{github_url_field_gid}.value": pr_url,
-            }
+        # Run blocking Asana SDK calls in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(max_workers=1)
 
-            results_generator = tasks_api.search_tasks_for_workspace(
-                settings.ASANA_WORKSPACE_GID, opts, item_limit=1
-            )
-            if results_generator:
-                try:
-                    results = [r for r in results_generator if isinstance(r, dict)]  # type: ignore
-                    if results:
-                        task = results[0]
-                        logger.info(f"Found Asana task via custom field search: {task.get('permalink_url')}")
-                        return task
-                except Exception as e:
-                    logger.warning(f"Error iterating search results: {e}")
+        def _search_by_custom_field():
+            """Blocking search by custom field."""
+            if github_url_field_gid and settings.ASANA_PROJECT_GID:
+                opt_fields = (
+                    "permalink_url,custom_fields,name,notes,modified_at,completed,"
+                    "assignee.email,followers.email"
+                )
+                opts = {
+                    "opt_fields": opt_fields,
+                    "projects.any": settings.ASANA_PROJECT_GID,
+                    f"custom_fields.{github_url_field_gid}.value": pr_url,
+                }
+                results_generator = tasks_api.search_tasks_for_workspace(
+                    settings.ASANA_WORKSPACE_GID, opts, item_limit=1
+                )
+                if results_generator:
+                    try:
+                        results = [r for r in results_generator if isinstance(r, dict)]  # type: ignore
+                        if results:
+                            return results[0]
+                    except Exception as e:
+                        logger.warning(f"Error iterating search results: {e}")
+            return None
 
-        # Fallback: Search in task notes if custom field search didn't work
-        if settings.ASANA_PROJECT_GID:
-            try:
+        def _search_by_notes():
+            """Blocking search by notes."""
+            if settings.ASANA_PROJECT_GID:
                 project_tasks_generator = tasks_api.get_tasks_for_project(
                     settings.ASANA_PROJECT_GID,
                     {"opt_fields": "permalink_url,name,notes", "limit": 100},
@@ -441,12 +471,26 @@ async def find_task_by_github_url(pr_url: str) -> Optional[Dict[str, Any]]:
                         for task in project_tasks:
                             notes = task.get("notes", "") or ""
                             if pr_url in notes:
-                                logger.info(f"Found Asana task via notes search: {task.get('permalink_url')}")
                                 return task
                     except Exception as e:
                         logger.warning(f"Error iterating project tasks: {e}")
-            except Exception as e:
-                logger.warning(f"Error searching tasks by notes: {e}")
+            return None
+
+        # Try custom field search first
+        task = await loop.run_in_executor(executor, _search_by_custom_field)
+        if task:
+            logger.info(f"Found Asana task via custom field search: {task.get('permalink_url')}")
+            executor.shutdown(wait=False)
+            return task
+
+        # Fallback to notes search
+        task = await loop.run_in_executor(executor, _search_by_notes)
+        if task:
+            logger.info(f"Found Asana task via notes search: {task.get('permalink_url')}")
+            executor.shutdown(wait=False)
+            return task
+
+        executor.shutdown(wait=False)
 
         logger.warning(f"Could not find Asana task for PR URL: {pr_url}")
         return None
@@ -483,16 +527,26 @@ async def update_task_assignee(task_gid: str, assignee_gid: Optional[str]) -> bo
                 task_data["assignee"] = None
 
             def _update_assignee():
+                """Blocking Asana API call - runs in executor."""
                 tasks_api.update_task({"data": task_data}, task_gid, {})
+
+            # Run blocking Asana SDK calls in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            executor = ThreadPoolExecutor(max_workers=1)
+
+            async def _update_assignee_async():
+                """Async wrapper to run blocking call in executor."""
+                return await loop.run_in_executor(executor, _update_assignee)
 
             try:
                 await retry_with_backoff(
-                    _update_assignee,
+                    _update_assignee_async,
                     max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
                     initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
                     max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"update_assignee_{task_gid}",
                 )
+                executor.shutdown(wait=False)
                 logger.info(f"Updated task {task_gid} assignee to user GID: {assignee_gid or 'unassigned'}")
                 return True
 
@@ -536,16 +590,26 @@ async def update_task_completed(task_gid: str, completed: bool) -> bool:
             task_data = {"completed": completed}
 
             def _update_completed():
+                """Blocking Asana API call - runs in executor."""
                 tasks_api.update_task({"data": task_data}, task_gid, {})
+
+            # Run blocking Asana SDK calls in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            executor = ThreadPoolExecutor(max_workers=1)
+
+            async def _update_completed_async():
+                """Async wrapper to run blocking call in executor."""
+                return await loop.run_in_executor(executor, _update_completed)
 
             try:
                 await retry_with_backoff(
-                    _update_completed,
+                    _update_completed_async,
                     max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
                     initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
                     max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
                     operation_name=f"update_completed_{task_gid}",
                 )
+                executor.shutdown(wait=False)
                 logger.info(f"Updated task {task_gid} completed status to: {completed}")
                 return True
 

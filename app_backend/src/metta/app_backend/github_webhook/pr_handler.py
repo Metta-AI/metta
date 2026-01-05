@@ -84,6 +84,18 @@ async def handle_pull_request_event(
         asana_task_gid = asana_task.get("gid") if asana_task else None
         asana_task_url = asana_task.get("permalink_url") if asana_task else None
 
+        # If task creation failed, return error plan
+        if not asana_task or not asana_task_gid:
+            metrics.increment_counter("github_asana.task_creation_failed", {"external_id": external_id})
+            plan = {
+                "kind": "error",
+                "externalId": external_id,
+                "reason": "task_creation_failed",
+                "assignedTo": assigned_to,
+            }
+            logger.error(f"Failed to create Asana task: {log_context | {'plan': plan}}")
+            return plan
+
         if asana_task_url:
             await update_pr_description_with_asana_task(
                 repo_full_name=repo_full_name,
@@ -98,8 +110,7 @@ async def handle_pull_request_event(
             "asanaTaskGid": asana_task_gid,
         }
 
-        if asana_task_gid:
-            metrics.increment_counter("github_asana.tasks_created")
+        metrics.increment_counter("github_asana.tasks_created")
         logger.info(f"Created Asana task: {log_context | {'plan': plan}}")
         return plan
 
