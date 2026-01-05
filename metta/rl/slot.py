@@ -11,8 +11,8 @@ from torchrl.data import Composite
 
 from metta.agent.policy import Policy
 from mettagrid.base_config import Config
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
@@ -123,7 +123,8 @@ class SlotControllerPolicy(Policy):
             self._device = torch.device(chosen)
         else:
             first_policy = next(iter(slot_policies.values()), None)
-            self._device = torch.device(first_policy.device) if first_policy is not None else torch.device("cpu")
+            policy_device = getattr(first_policy, "device", None) if first_policy is not None else None
+            self._device = torch.device(policy_device) if policy_device is not None else torch.device("cpu")
         if agent_slot_map is not None:
             self.register_buffer("_agent_slot_map", agent_slot_map)
         else:

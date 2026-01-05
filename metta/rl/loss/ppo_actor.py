@@ -27,6 +27,7 @@ class PPOActorConfig(LossConfig):
     target_kl: float | None = None
 
     profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
+
     def create(
         self,
         policy: Policy,

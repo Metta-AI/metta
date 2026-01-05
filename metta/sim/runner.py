@@ -5,6 +5,7 @@ from typing import Any, Callable, Sequence
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
+
 from metta.rl.slot import PolicySlotConfig, SlotControllerPolicy, SlotRegistry
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy

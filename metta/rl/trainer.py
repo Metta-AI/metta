@@ -340,7 +340,9 @@ class Trainer:
             else [slots_cfg[0].id for _ in range(num_agents)]
         )
         if len(resolved_agent_map) != num_agents:
-            raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(resolved_agent_map)}")
+            raise ValueError(
+                f"agent_slot_map must have length num_agents ({num_agents}); got {len(resolved_agent_map)}"
+            )
 
         slot_ids: list[int] = []
         for idx, slot_id in enumerate(resolved_agent_map):
@@ -390,6 +392,7 @@ class Trainer:
             "trainable_mask": trainable_tensor,
             "slot_policies": slot_policies,
         }
+
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.
 
