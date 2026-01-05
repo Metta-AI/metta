@@ -19,10 +19,6 @@ inputs:
   aws_role:
     description: "AWS role to assume"
     required: true
-  # bazelisk_version:
-  #   description: "Version of bazelisk to install"
-  #   required: false
-  #   default: ""
 
 outputs:
   tag:
@@ -64,5 +60,3 @@ runs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        # build-args: |
-        #  BAZELISK_VERSION=${{ inputs.bazelisk_version }}

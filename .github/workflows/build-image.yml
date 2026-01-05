@@ -22,16 +22,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # - name: Read Bazelisk version
-      #   id: read-bazelisk-version
-      #   run: |
-      #     BAZELISK_VERSION=$(cat .bazeliskversion)
-      #     echo "bazelisk_version=$BAZELISK_VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Build Docker image
         uses: ./.github/actions/docker-build
         with:
           image_name: metta
           dockerfile: devops/docker/Dockerfile
           aws_role: ${{ vars.AWS_ROLE }}
-          # bazelisk_version: ${{ steps.read-bazelisk-version.outputs.bazelisk_version }}
