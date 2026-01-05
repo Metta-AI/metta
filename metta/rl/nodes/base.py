@@ -261,10 +261,10 @@ class NodeBase:
     def _clone_state_value(self, value: Any) -> Any:
         if isinstance(value, Tensor):
             return value.detach().clone().cpu()
-        if isinstance(value, Mapping):
-            return {k: self._clone_state_value(v) for k, v in value.items()}
         if isinstance(value, defaultdict):
             return {k: copy.deepcopy(v) for k, v in value.items()}
+        if isinstance(value, Mapping):
+            return {k: self._clone_state_value(v) for k, v in value.items()}
         if hasattr(value, "clone") and callable(value.clone):
             return value.clone()
         return copy.deepcopy(value)

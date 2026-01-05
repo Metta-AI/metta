@@ -318,20 +318,8 @@ class Scheduler(TrainerComponent):
         # Keep optimizer learning rate in sync with TrainerConfig if it changed.
         self._sync_optimizer_from_config()
 
-        # 3) If the train phase is gated to false, restrict which experience keys
-        #    must be present based on which nodes are active for rollout.
-        #    Check if any node has train phase disabled (gated to False)
-        train_disabled = False
-        node_specs = getattr(self.context, "node_specs", {}) or {}
-        for node_name, _node in self.context.nodes.items():
-            spec = node_specs.get(node_name)
-            if spec is None or not spec.has_train:
-                continue
-            entry = gates.get(node_name)
-            if entry and entry.get("train") is False:
-                train_disabled = True
-                break
-        if train_disabled:
+        # 3) Restrict experience store keys to active rollout nodes.
+        if phase == "rollout":
             self._update_experience_store_keys_for_rollout()
 
     # ----------------- Trainer callbacks -----------------
