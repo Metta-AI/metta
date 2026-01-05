@@ -59,11 +59,9 @@ class Rollout:
         for i in range(len(self._policies)):
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
-            end_time = time.time()
-            if (end_time - start_time) > self._max_action_time_ms:
-                logger.warning(
-                    f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
-                )
+            elapsed_ms = (time.time() - start_time) * 1000
+            if elapsed_ms > self._max_action_time_ms:
+                logger.warning(f"Action took {elapsed_ms:.0f}ms, exceeding max of {self._max_action_time_ms}ms")
                 action = self._config.game.actions.noop.Noop()
                 self._timeout_counts[i] += 1
             self._agents[i].set_action(action)

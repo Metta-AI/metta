@@ -259,7 +259,7 @@ def gear_station(gear_type: str) -> AssemblerConfig:
     )
 
 
-def make_env(num_agents: int = 10, max_steps: int = 10000) -> MettaGridConfig:
+def make_env(num_agents: int = 10, max_steps: int = 1000) -> MettaGridConfig:
     # Configure hub with gear stations
     hub_config = BaseHubConfig(
         corner_bundle="extractors",
@@ -376,12 +376,12 @@ def make_env(num_agents: int = 10, max_steps: int = 10000) -> MettaGridConfig:
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    env: Optional[MettaGridConfig] = None,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or make_env()
+    env = env or make_env()
 
-    arena_tasks = cc.bucketed(arena_env)
+    tasks = cc.bucketed(env)
 
     # for item in ["ore_red", "battery_red", "laser", "armor"]:
     #     arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
@@ -389,15 +389,8 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    arena_tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.energy", [7, 8, 9, 10])
-    arena_tasks.add_bucket("game.actions.attack.weapon_resources.weapon", [9, 10, 11])
-    arena_tasks.add_bucket("game.actions.attack.armor_resources.shield", [12, 13, 14])
-    arena_tasks.add_bucket("game.agent.inventory.initial.weapon", [0, 1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.initial.shield", [0, 1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.initial.battery", [3, 4, 5, 6])
-    arena_tasks.add_bucket("game.agent.inventory.regen_amounts.default.damage", [1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.regen_amounts.default.energy", [1, 2, 3])
+    tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
+    tasks.add_bucket("game.agent.inventory.initial.heart", [0, 1, 2, 3])
 
     if algorithm_config is None:
         # algorithm_config = LearningProgressConfig(
@@ -410,14 +403,14 @@ def make_curriculum(
         # )
         algorithm_config = DiscreteRandomConfig()
 
-    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
+    return tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
-    basic_env = env or make_env()
+    env = env or make_env()
 
     return [
-        SimulationConfig(suite="cog_arena", name="basic", env=basic_env),
+        SimulationConfig(suite="cogsguard", name="basic", env=env),
     ]
 
 
