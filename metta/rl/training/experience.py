@@ -211,10 +211,13 @@ class Experience:
         looks for keys that are not in the tensor dict when calling store().
         """
         all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
-        missing = [k for k in keys if k not in all_keys]
+        normalized = list(keys)
+        if "reward_baseline" in all_keys and "reward_baseline" not in normalized:
+            normalized.append("reward_baseline")
+        missing = [k for k in normalized if k not in all_keys]
         if missing:
             raise KeyError(f"Attempted to set unknown experience keys: {missing}")
-        self._store_keys = list(keys)
+        self._store_keys = normalized
 
     def reset_store_keys(self) -> None:
         """Reset store keys so that all spec keys are written on store."""

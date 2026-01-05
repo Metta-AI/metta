@@ -369,8 +369,6 @@ class Scheduler(TrainerComponent):
             spec = node.get_experience_spec()
             active_keys.update(spec.keys(include_nested=True, leaves_only=True))
 
-        active_keys.add("reward_baseline")
-
         # If for some reason no keys were found, fall back to writing all keys.
         if not active_keys:
             experience.reset_store_keys()
