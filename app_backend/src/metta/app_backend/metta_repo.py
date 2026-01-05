@@ -12,8 +12,11 @@ from psycopg.rows import class_row, dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import case, func
+from sqlmodel import col, select
 
 from metta.app_backend.config import settings
+from metta.app_backend.database import db_session
 from metta.app_backend.leaderboard_constants import (
     LEADERBOARD_CANDIDATE_COUNT_KEY,
     LEADERBOARD_LADYBUG_COUNT_KEY,
@@ -22,6 +25,7 @@ from metta.app_backend.leaderboard_constants import (
     REPLACEMENT_BASELINE_MEAN,
 )
 from metta.app_backend.migrations import MIGRATIONS
+from metta.app_backend.models.policies import Policy, PolicyVersion
 from metta.app_backend.schema_manager import run_migrations
 from metta.app_backend.value_over_replacement import (
     RunningStats,
@@ -756,50 +760,59 @@ class MettaRepo:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PolicyRow], int]:
-        async with self.connect() as con:
-            where_conditions: list[str] = []
-            params: list[Any] = []
+        async with db_session() as session:
+            version_count_subq = (
+                select(PolicyVersion.policy_id, func.count().label("version_count"))
+                .group_by(PolicyVersion.policy_id)
+                .subquery()
+            )
+
+            query = select(
+                Policy.id,
+                Policy.name,
+                Policy.created_at,
+                Policy.user_id,
+                Policy.attributes,
+                func.coalesce(version_count_subq.c.version_count, 0).label("version_count"),
+            ).outerjoin(version_count_subq, Policy.id == version_count_subq.c.policy_id)
 
             if name_exact:
-                where_conditions.append("p.name = %s")
-                params.append(name_exact)
+                query = query.where(Policy.name == name_exact)
 
             if name_fuzzy:
-                where_conditions.append("p.name ILIKE %s")
-                params.append(f"%{name_fuzzy}%")
+                query = query.where(col(Policy.name).ilike(f"%{name_fuzzy}%"))
+                query = query.order_by(
+                    case((Policy.name == name_fuzzy, 0), else_=1),
+                    case((col(Policy.name).ilike(f"{name_fuzzy}%"), 0), else_=1),
+                    col(Policy.created_at).desc(),
+                )
+            else:
+                query = query.order_by(col(Policy.created_at).desc())
 
-            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+            count_query = select(func.count()).select_from(Policy)
+            if name_exact:
+                count_query = count_query.where(Policy.name == name_exact)
+            if name_fuzzy:
+                count_query = count_query.where(col(Policy.name).ilike(f"%{name_fuzzy}%"))
 
-            count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
-            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
-            result_row = await count_result.fetchone()
-            total_count: int = result_row[0] if result_row else 0
+            total_count = (await session.execute(count_query)).scalar() or 0
 
-            params.extend([limit, offset])
+            query = query.limit(limit).offset(offset)
+            rows = (await session.execute(query)).all()
 
-            policy_query = f"""
-                    SELECT
-                        p.id,
-                        p.name,
-                        p.created_at,
-                        p.user_id,
-                        p.attributes,
-                        COALESCE(vc.version_count, 0) AS version_count
-                    FROM policies p
-                    LEFT JOIN (
-                        SELECT policy_id, COUNT(*) AS version_count
-                        FROM policy_versions
-                        GROUP BY policy_id
-                    ) vc ON p.id = vc.policy_id
-                    {where_clause}
-                    ORDER BY p.created_at DESC
-                    LIMIT %s OFFSET %s
-                    """
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
-                await cur.execute(policy_query, params)  # type: ignore[arg-type]
-                rows = await cur.fetchall()
+            entries = [
+                PolicyRow(
+                    id=row.id,
+                    name=row.name,
+                    created_at=row.created_at,
+                    user_id=row.user_id,
+                    attributes=row.attributes or {},
+                    version_count=row.version_count,
+                )
+                for row in rows
+            ]
 
-            return rows, total_count
+            return entries, total_count
 
     async def get_policy_versions(
         self,
