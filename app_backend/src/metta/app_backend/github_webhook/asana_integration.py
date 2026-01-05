@@ -74,7 +74,7 @@ def _get_asana_client() -> asana.ApiClient:
     return asana.ApiClient(config)
 
 
-def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
+async def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
     """
     Get GitHub login to Asana email mapping from roster project.
 
@@ -119,46 +119,46 @@ def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
 
         loop = asyncio.get_event_loop()
         executor = ThreadPoolExecutor(max_workers=1)
-
-        while url:
-            data, next_page = await loop.run_in_executor(executor, _fetch_page, url, params)
-            if not data:
-                break
-
-            tasks = data.get("data", [])
-
-            for task in tasks:
-                custom_fields = task.get("custom_fields", [])
-                gh_login = None
-                asana_email = None
-
-                for field in custom_fields:
-                    if isinstance(field, dict):
-                        if field.get("gid") == gh_login_field_gid:
-                            value = field.get("text_value")
-                            gh_login = value.strip() if value else None
-                            if gh_login and gh_login not in github_logins:
-                                break
-                        if field.get("gid") == asana_email_field_gid:
-                            asana_email = field.get("text_value")
-                            if asana_email and "," in asana_email:
-                                asana_email = asana_email.split(",")[0].strip()
-
-                        if gh_login and asana_email and gh_login in github_logins:
-                            mapping[gh_login] = asana_email
-                            break
-
-                if len(mapping) == len(github_logins):
+        try:
+            while url:
+                data, next_page = await loop.run_in_executor(executor, _fetch_page, url, params)
+                if not data:
                     break
 
-            # Check for next page
-            if next_page:
-                url = f"https://app.asana.com/api/1.0/projects/{roster_project_gid}/tasks"
-                params["offset"] = next_page.get("offset")
-            else:
-                break
+                tasks = data.get("data", [])
 
-        executor.shutdown(wait=False)
+                for task in tasks:
+                    custom_fields = task.get("custom_fields", [])
+                    gh_login = None
+                    asana_email = None
+
+                    for field in custom_fields:
+                        if isinstance(field, dict):
+                            if field.get("gid") == gh_login_field_gid:
+                                value = field.get("text_value")
+                                gh_login = value.strip() if value else None
+                                if gh_login and gh_login not in github_logins:
+                                    break
+                            if field.get("gid") == asana_email_field_gid:
+                                asana_email = field.get("text_value")
+                                if asana_email and "," in asana_email:
+                                    asana_email = asana_email.split(",")[0].strip()
+
+                            if gh_login and asana_email and gh_login in github_logins:
+                                mapping[gh_login] = asana_email
+                                break
+
+                    if len(mapping) == len(github_logins):
+                        break
+
+                # Check for next page
+                if next_page:
+                    url = f"https://app.asana.com/api/1.0/projects/{roster_project_gid}/tasks"
+                    params["offset"] = next_page.get("offset")
+                else:
+                    break
+        finally:
+            executor.shutdown(wait=False)
 
     except Exception as e:
         logger.warning(f"Failed to fetch GitHub→Asana mapping from roster: {e}")
@@ -167,7 +167,7 @@ def _get_github_to_asana_mapping(github_logins: set[str]) -> dict[str, str]:
     return mapping
 
 
-def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
+async def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
     """
     Map GitHub login to Asana user GID using roster project and workspace users.
 
@@ -187,7 +187,7 @@ def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] =
 
     # Get email mapping from roster project
     logins_to_lookup = all_logins if all_logins else {github_login}
-    email_mapping = _get_github_to_asana_mapping(logins_to_lookup)
+    email_mapping = await _get_github_to_asana_mapping(logins_to_lookup)
     asana_email = email_mapping.get(github_login)
 
     if not asana_email:
@@ -245,13 +245,13 @@ def _resolve_assignee_to_gid(github_login: str, all_logins: Optional[set[str]] =
 
 
 # Keep old function name for backward compatibility during migration
-def _resolve_assignee(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
+async def _resolve_assignee(github_login: str, all_logins: Optional[set[str]] = None) -> Optional[str]:
     """
     Deprecated: Use _resolve_assignee_to_gid instead.
     
     This function now returns user GID instead of email to avoid stale email issues.
     """
-    return _resolve_assignee_to_gid(github_login, all_logins)
+    return await _resolve_assignee_to_gid(github_login, all_logins)
 
 
 async def create_task_from_pr(
@@ -299,7 +299,7 @@ async def create_task_from_pr(
     if assignee_login:
         all_logins.add(assignee_login)
 
-    assignee_gid = _resolve_assignee_to_gid(assigned_login, all_logins)
+    assignee_gid = await _resolve_assignee_to_gid(assigned_login, all_logins)
     if not assignee_gid:
         metrics.increment_counter("github_asana.mapping_failures", {"github_login": assigned_login})
         logger.warning(
@@ -367,42 +367,42 @@ Author: {author_login}"""
             # Run blocking Asana SDK calls in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
             executor = ThreadPoolExecutor(max_workers=1)
-
-            async def _create_task_async():
-                """Async wrapper to run blocking call in executor."""
-                return await loop.run_in_executor(executor, _create_task)
-
             try:
-                result = await retry_with_backoff(
-                    _create_task_async,
-                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
-                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
-                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
-                    operation_name=f"create_task_{external_id}",
-                )
-                
-                executor.shutdown(wait=False)
+                async def _create_task_async():
+                    """Async wrapper to run blocking call in executor."""
+                    return await loop.run_in_executor(executor, _create_task)
 
-                if isinstance(result, dict):
-                    task_gid = result.get("gid")
-                    task_url = result.get("permalink_url")
-                    logger.info(f"Successfully created Asana task {task_gid}: {task_url}")
-                    return result
-                else:
-                    logger.error(f"Unexpected result type from Asana API: {type(result)}")
+                try:
+                    result = await retry_with_backoff(
+                        _create_task_async,
+                        max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                        initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                        max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                        operation_name=f"create_task_{external_id}",
+                    )
+
+                    if isinstance(result, dict):
+                        task_gid = result.get("gid")
+                        task_url = result.get("permalink_url")
+                        logger.info(f"Successfully created Asana task {task_gid}: {task_url}")
+                        return result
+                    else:
+                        logger.error(f"Unexpected result type from Asana API: {type(result)}")
+                        return None
+
+                except RetryExhausted as e:
+                    logger.error(f"Failed to create Asana task for {external_id} after retries: {e.last_exception}")
+                    metrics.increment_counter(
+                        "github_asana.dead_letter.count",
+                        {"operation": "create_task", "external_id": external_id},
+                    )
+                    logger.error(
+                        f"DEAD_LETTER: {external_id} - max retry exceeded for task creation",
+                        extra={"kind": "dead_letter", "externalId": external_id, "reason": "max_retry_exceeded"},
+                    )
                     return None
-
-            except RetryExhausted as e:
-                logger.error(f"Failed to create Asana task for {external_id} after retries: {e.last_exception}")
-                metrics.increment_counter(
-                    "github_asana.dead_letter.count",
-                    {"operation": "create_task", "external_id": external_id},
-                )
-                logger.error(
-                    f"DEAD_LETTER: {external_id} - max retry exceeded for task creation",
-                    extra={"kind": "dead_letter", "externalId": external_id, "reason": "max_retry_exceeded"},
-                )
-                return None
+            finally:
+                executor.shutdown(wait=False)
 
     except Exception as e:
         logger.error(f"Failed to create Asana task for {external_id}: {e}", exc_info=True)
@@ -476,21 +476,20 @@ async def find_task_by_github_url(pr_url: str) -> Optional[Dict[str, Any]]:
                         logger.warning(f"Error iterating project tasks: {e}")
             return None
 
-        # Try custom field search first
-        task = await loop.run_in_executor(executor, _search_by_custom_field)
-        if task:
-            logger.info(f"Found Asana task via custom field search: {task.get('permalink_url')}")
-            executor.shutdown(wait=False)
-            return task
+        try:
+            # Try custom field search first
+            task = await loop.run_in_executor(executor, _search_by_custom_field)
+            if task:
+                logger.info(f"Found Asana task via custom field search: {task.get('permalink_url')}")
+                return task
 
-        # Fallback to notes search
-        task = await loop.run_in_executor(executor, _search_by_notes)
-        if task:
-            logger.info(f"Found Asana task via notes search: {task.get('permalink_url')}")
+            # Fallback to notes search
+            task = await loop.run_in_executor(executor, _search_by_notes)
+            if task:
+                logger.info(f"Found Asana task via notes search: {task.get('permalink_url')}")
+                return task
+        finally:
             executor.shutdown(wait=False)
-            return task
-
-        executor.shutdown(wait=False)
 
         logger.warning(f"Could not find Asana task for PR URL: {pr_url}")
         return None
@@ -533,34 +532,35 @@ async def update_task_assignee(task_gid: str, assignee_gid: Optional[str]) -> bo
             # Run blocking Asana SDK calls in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
             executor = ThreadPoolExecutor(max_workers=1)
-
-            async def _update_assignee_async():
-                """Async wrapper to run blocking call in executor."""
-                return await loop.run_in_executor(executor, _update_assignee)
-
             try:
-                await retry_with_backoff(
-                    _update_assignee_async,
-                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
-                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
-                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
-                    operation_name=f"update_assignee_{task_gid}",
-                )
-                executor.shutdown(wait=False)
-                logger.info(f"Updated task {task_gid} assignee to user GID: {assignee_gid or 'unassigned'}")
-                return True
+                async def _update_assignee_async():
+                    """Async wrapper to run blocking call in executor."""
+                    return await loop.run_in_executor(executor, _update_assignee)
 
-            except RetryExhausted as e:
-                logger.error(f"Failed to update task assignee after retries: {e.last_exception}")
-                metrics.increment_counter(
-                    "github_asana.dead_letter.count",
-                    {"operation": "update_assignee", "task_gid": task_gid},
-                )
-                logger.error(
-                    f"DEAD_LETTER: task {task_gid} - max retry exceeded for assignee update",
-                    extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
-                )
-                return False
+                try:
+                    await retry_with_backoff(
+                        _update_assignee_async,
+                        max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                        initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                        max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                        operation_name=f"update_assignee_{task_gid}",
+                    )
+                    logger.info(f"Updated task {task_gid} assignee to user GID: {assignee_gid or 'unassigned'}")
+                    return True
+
+                except RetryExhausted as e:
+                    logger.error(f"Failed to update task assignee after retries: {e.last_exception}")
+                    metrics.increment_counter(
+                        "github_asana.dead_letter.count",
+                        {"operation": "update_assignee", "task_gid": task_gid},
+                    )
+                    logger.error(
+                        f"DEAD_LETTER: task {task_gid} - max retry exceeded for assignee update",
+                        extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
+                    )
+                    return False
+            finally:
+                executor.shutdown(wait=False)
 
     except Exception as e:
         logger.error(f"Failed to update task assignee: {e}", exc_info=True)
@@ -596,34 +596,35 @@ async def update_task_completed(task_gid: str, completed: bool) -> bool:
             # Run blocking Asana SDK calls in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
             executor = ThreadPoolExecutor(max_workers=1)
-
-            async def _update_completed_async():
-                """Async wrapper to run blocking call in executor."""
-                return await loop.run_in_executor(executor, _update_completed)
-
             try:
-                await retry_with_backoff(
-                    _update_completed_async,
-                    max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
-                    initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
-                    max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
-                    operation_name=f"update_completed_{task_gid}",
-                )
-                executor.shutdown(wait=False)
-                logger.info(f"Updated task {task_gid} completed status to: {completed}")
-                return True
+                async def _update_completed_async():
+                    """Async wrapper to run blocking call in executor."""
+                    return await loop.run_in_executor(executor, _update_completed)
 
-            except RetryExhausted as e:
-                logger.error(f"Failed to update task completed status after retries: {e.last_exception}")
-                metrics.increment_counter(
-                    "github_asana.dead_letter.count",
-                    {"operation": "update_completed", "task_gid": task_gid},
-                )
-                logger.error(
-                    f"DEAD_LETTER: task {task_gid} - max retry exceeded for completed update",
-                    extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
-                )
-                return False
+                try:
+                    await retry_with_backoff(
+                        _update_completed_async,
+                        max_retries=settings.ASANA_RETRY_MAX_ATTEMPTS,
+                        initial_delay_ms=settings.ASANA_RETRY_INITIAL_DELAY_MS,
+                        max_delay_ms=settings.ASANA_RETRY_MAX_DELAY_MS,
+                        operation_name=f"update_completed_{task_gid}",
+                    )
+                    logger.info(f"Updated task {task_gid} completed status to: {completed}")
+                    return True
+
+                except RetryExhausted as e:
+                    logger.error(f"Failed to update task completed status after retries: {e.last_exception}")
+                    metrics.increment_counter(
+                        "github_asana.dead_letter.count",
+                        {"operation": "update_completed", "task_gid": task_gid},
+                    )
+                    logger.error(
+                        f"DEAD_LETTER: task {task_gid} - max retry exceeded for completed update",
+                        extra={"kind": "dead_letter", "taskGid": task_gid, "reason": "max_retry_exceeded"},
+                    )
+                    return False
+            finally:
+                executor.shutdown(wait=False)
 
     except Exception as e:
         logger.error(f"Failed to update task completed status: {e}", exc_info=True)

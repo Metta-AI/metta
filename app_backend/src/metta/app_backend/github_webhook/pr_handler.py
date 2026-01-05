@@ -129,7 +129,7 @@ async def handle_pull_request_event(
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
 
-        assignee_gid = _resolve_assignee_to_gid(assignee_login, {assignee_login})
+        assignee_gid = await _resolve_assignee_to_gid(assignee_login, {assignee_login})
         if not assignee_gid:
             plan = {
                 "kind": "noop",
@@ -167,7 +167,7 @@ async def handle_pull_request_event(
             logger.warning(f"Could not find Asana task for PR: {log_context}")
             return plan
 
-        assignee_gid = _resolve_assignee_to_gid(author_login, {author_login})
+        assignee_gid = await _resolve_assignee_to_gid(author_login, {author_login})
         if not assignee_gid:
             plan = {
                 "kind": "noop",
@@ -208,7 +208,7 @@ async def handle_pull_request_event(
         current_assignee_login = pr.get("assignee", {}).get("login") if pr.get("assignee") else None
         assignee_to_use = current_assignee_login if current_assignee_login else author_login
 
-        assignee_gid = _resolve_assignee_to_gid(assignee_to_use, {assignee_to_use})
+        assignee_gid = await _resolve_assignee_to_gid(assignee_to_use, {assignee_to_use})
         if not assignee_gid:
             plan = {
                 "kind": "noop",
