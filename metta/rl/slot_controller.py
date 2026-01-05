@@ -75,17 +75,22 @@ class SlotControllerPolicy(Policy):
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
-            for key in ("actions", "act_log_prob", "entropy", "values", "h_values", "full_log_probs", "logits"):
-                if key not in out_td.keys():
+            for key, value in out_td.items():
+                if not isinstance(value, torch.Tensor):
                     continue
-                value = out_td.get(key)
                 if key not in td.keys():
                     full_shape = td.batch_size + value.shape[1:]
-                    zeroed = value.new_zeros(full_shape)
-                    td.set(key, zeroed)
+                    td.set(key, value.new_zeros(full_shape))
                 td.set_at_(key, value, mask)
 
         return td
+
+    def train(self, mode: bool = True):  # noqa: D401
+        super().train(mode)
+        for idx, policy in self._slot_policies.items():
+            if not self._slots[idx].trainable:
+                policy.eval()
+        return self
 
     def reset_memory(self) -> None:  # noqa: D401
         for policy in self._slot_policies.values():

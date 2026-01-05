@@ -312,9 +312,11 @@ class Trainer:
 
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
         slots_cfg = list(self._cfg.policy_slots or [])
-        has_trainer_slot = any(b.use_trainer_policy for b in slots_cfg)
-        if not slots_cfg or not has_trainer_slot:
+        trainer_slot_idx = next((idx for idx, slot in enumerate(slots_cfg) if slot.use_trainer_policy), None)
+        if not slots_cfg or trainer_slot_idx is None:
             slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+        elif trainer_slot_idx != 0:
+            slots_cfg.insert(0, slots_cfg.pop(trainer_slot_idx))
 
         trainer_slot_count = sum(1 for b in slots_cfg if b.use_trainer_policy)
         if trainer_slot_count > 1:

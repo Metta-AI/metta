@@ -17,7 +17,6 @@ class SimpleNPCPolicy(Policy):
         super().__init__(policy_env_info)
         self._device = torch.device("cpu")
         self._default_action_name = default_action
-        self._num_actions = policy_env_info.action_space.n
         self._default_action_id = self._resolve_action_id(default_action)
 
     def _resolve_action_id(self, target: str) -> Optional[int]:
@@ -29,7 +28,6 @@ class SimpleNPCPolicy(Policy):
     def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device) -> None:
         self._policy_env_info = policy_env_info
         self._actions_by_id = self._policy_env_info.actions.actions()
-        self._num_actions = self._policy_env_info.action_space.n
         self._default_action_id = self._resolve_action_id(self._default_action_name)
         self._device = torch.device(device)
 
@@ -53,8 +51,7 @@ class SimpleNPCPolicy(Policy):
         if action is not None:
             actions = action.to(device=target_device, dtype=torch.int64).view(-1)
         else:
-            fallback_id = 0 if self._num_actions == 0 else min(self._num_actions - 1, 0)
-            action_id = self._default_action_id if self._default_action_id is not None else fallback_id
+            action_id = self._default_action_id if self._default_action_id is not None else 0
             actions = torch.full((batch,), action_id, device=target_device, dtype=torch.int64)
 
         td.set("actions", actions)
