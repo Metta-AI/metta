@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env (like HOST, PORT, STATS_DB_URI)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
