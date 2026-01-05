@@ -31,7 +31,7 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import default_nodes
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -232,7 +232,7 @@ def train(
     )
 
     trainer_cfg = TrainerConfig(
-        nodes=default_nodes(),
+        losses=LossesConfig(),
     )
 
     resolved_eval_variants = cogs_v_clips._resolve_eval_variants(None, eval_variants)

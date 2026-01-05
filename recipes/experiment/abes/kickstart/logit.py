@@ -14,10 +14,10 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import default_nodes
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -107,8 +107,8 @@ def train(
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
-    nodes = default_nodes()
-    trainer_cfg = TrainerConfig(nodes=nodes)
+    losses_config = LossesConfig()
+    trainer_cfg = TrainerConfig(losses=losses_config)
     teacher = teacher or TeacherConfig(
         policy_uri="s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900",
         mode="logit_kickstarter",
@@ -126,7 +126,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
-    scheduler_run_gates: list[RunGate] = []
+    scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,
@@ -139,7 +139,7 @@ def train(
     scheduler_rules.extend(
         [
             ScheduleRule(
-                target_path="nodes.logit_kickstarter.action_loss_coef",
+                target_path="losses.logit_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -148,7 +148,7 @@ def train(
                 end_agent_step=1_000_000_000,
             ),
             ScheduleRule(
-                target_path="nodes.logit_kickstarter.value_loss_coef",
+                target_path="losses.logit_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,

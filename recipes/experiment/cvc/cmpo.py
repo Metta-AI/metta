@@ -6,7 +6,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.training.teacher import TeacherConfig
 from metta.tools.train import TrainTool
 from recipes.experiment import cogs_v_clips
-from recipes.experiment.losses.cmpo import cmpo_nodes
+from recipes.experiment.losses.cmpo import cmpo_losses
 
 
 def train(
@@ -43,7 +43,7 @@ def train(
         dr_misc=dr_misc,
         maps_cache_size=maps_cache_size,
     )
-    tool.trainer.nodes = cmpo_nodes()
+    tool.trainer.losses = cmpo_losses()
     return tool
 
 

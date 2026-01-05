@@ -14,10 +14,10 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.nodes import default_nodes
+from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -111,8 +111,8 @@ def train(
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    nodes = default_nodes()
-    trainer_cfg = TrainerConfig(nodes=nodes)
+    losses_config = LossesConfig()
+    trainer_cfg = TrainerConfig(losses=losses_config)
     teacher = teacher or TeacherConfig(
         policy_uri="s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000",
         mode="sliced_kickstarter",
@@ -127,7 +127,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
-    scheduler_run_gates: list[RunGate] = []
+    scheduler_run_gates: list[LossRunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,

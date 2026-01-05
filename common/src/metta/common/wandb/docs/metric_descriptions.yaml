@@ -32,14 +32,9 @@ sections:
       Performance profiling metrics measured per epoch. Useful for identifying bottlenecks and
       optimizing environment execution speed.
 
-  ppo_actor:
+  losses:
     description: |
-      PPO actor node metrics that indicate learning progress and stability. Monitor these to
-      ensure healthy training dynamics.
-
-  ppo_critic:
-    description: |
-      PPO critic node metrics that indicate learning progress and stability. Monitor these to
+      Training loss components that indicate learning progress and stability. Monitor these to
       ensure healthy training dynamics.
 
 metrics:
@@ -83,23 +78,23 @@ metrics:
     interpretation: Compare with total_time to understand training vs rollout balance.
 
   # Loss metrics
-  ppo_actor/policy_loss:
+  losses/policy_loss:
     description: Actor network loss measuring action prediction quality.
     interpretation: Should decrease over time but not to zero. Sudden spikes may indicate instability.
 
-  ppo_critic/value_loss:
+  losses/value_loss:
     description: Critic network loss measuring value prediction accuracy.
     interpretation: Lower is better, but some noise is expected. High values suggest poor value estimates.
 
-  ppo_actor/entropy:
+  losses/entropy:
     description: Policy entropy measuring action distribution randomness.
     interpretation: Higher entropy encourages exploration. Should gradually decrease but not reach zero.
 
-  ppo_actor/approx_kl:
+  losses/approx_kl:
     description: Approximate KL divergence between old and new policies.
     interpretation: Should stay below target threshold (typically 0.01-0.02). High values trigger early stopping.
 
-  ppo_actor/clipfrac:
+  losses/clipfrac:
     description: Fraction of samples clipped by PPO's objective function.
     interpretation: Typically 0.1-0.3. Very high values suggest too large policy updates.
 
