@@ -24,7 +24,7 @@ var
 
 proc gridVert*(fragmentWorldPos: var Vec2) =
   ## Generate a full-rect in world units from (0,0) to (mapSize.x, mapSize.y).
-  let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
+  let corner = ivec2(gl_VertexID mod 2, gl_VertexID div 2)
   let worldPos = vec2(float(corner.x) * uMapSize.x, float(corner.y) * uMapSize.y)
   fragmentWorldPos = worldPos
   gl_Position = uMvp * vec4(worldPos.x, worldPos.y, 0.0f, 1.0f)
