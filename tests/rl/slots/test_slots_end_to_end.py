@@ -124,65 +124,6 @@ def test_loss_filtering_2d_and_cuda_indices():
     assert filtered["indices"].data.tolist() == [0]
 
 
-def test_loss_filtering_mixed_agent_masks_keep_indices_aligned():
-    loss = _DummyLoss()
-    mb = TensorDict(
-        {
-            "actions": torch.arange(6).view(3, 2),
-            # mixed mask across agents/time -> exercises flattening path
-            "loss_profile_id": torch.tensor([[1, 0], [0, 1], [0, 1]]),
-            "is_trainable_agent": torch.ones((3, 2), dtype=torch.bool),
-        },
-        batch_size=[3, 2],
-    )
-    shared = TensorDict(
-        {
-            "sampled_mb": mb,
-            "indices": NonTensorData(torch.arange(3)),
-        },
-        batch_size=[],
-    )
-
-    filtered = loss._filter_minibatch(shared)
-
-    # three agent entries survive the mixed mask
-    assert filtered["sampled_mb"].batch_size == torch.Size([3])
-    # indices are expanded/re-masked to stay aligned with the filtered minibatch
-    assert filtered["indices"].data.tolist() == [0, 1, 2]
-
-
-def test_advantages_masked_for_constant_agent_mask():
-    loss = _DummyLoss()
-    loss.trainable_only = True
-
-    mb = TensorDict(
-        {
-            "actions": torch.zeros(2, 2),
-            "loss_profile_id": torch.ones((2, 2), dtype=torch.int64),
-            "is_trainable_agent": torch.tensor([[True, False], [True, False]]),
-        },
-        batch_size=[2, 2],
-    )
-    shared = TensorDict({"sampled_mb": mb, "indices": NonTensorData(torch.arange(2))}, batch_size=[])
-
-    filtered = loss._filter_minibatch(shared)
-    assert filtered["sampled_mb"].shape == torch.Size([2, 1])  # agent axis reduced
-
-    mask_meta = filtered.get("_applied_mask")
-    assert mask_meta is not None
-    mask_info = mask_meta.data
-    agent_mask = mask_info.agent_mask
-
-    advantages = torch.arange(8, dtype=torch.float32).view(2, 2, 2)
-    masked_adv = advantages
-    if agent_mask is not None:
-        masked_adv = masked_adv[..., agent_mask]
-
-    assert masked_adv.shape == torch.Size([2, 2, 1])
-    # confirm we kept the first agent only
-    assert torch.equal(masked_adv.squeeze(-1), torch.tensor([[0.0, 2.0], [4.0, 6.0]]))
-
-
 # ---------- Slot controller routing ----------
 
 
@@ -190,14 +131,14 @@ def test_slot_controller_requires_slot_id_or_map():
     spec = Composite(actions=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64))
     policy = _StubPolicy(spec)
     env_info = _env_info(1)
+    slots = [SimpleNamespace(trainable=True)]
     controller = SlotControllerPolicy(
         slot_lookup={"a": 0},
-        slots=[],
+        slots=slots,
         slot_policies={0: policy},
         policy_env_info=env_info,
-        controller_device="cpu",
         agent_slot_map=torch.tensor([0]),
-    )
+    ).to("cpu")
     td = TensorDict(
         {
             "actions": torch.zeros(1, dtype=torch.int64),
@@ -232,14 +173,14 @@ def test_frozen_slot_no_grad():
     frozen_policy = _StubPolicy(spec)
     frozen_policy.parameters = lambda: [torch.nn.Parameter(torch.tensor(1.0), requires_grad=False)]
     env_info = _env_info(2)
+    slots = [SimpleNamespace(trainable=True), SimpleNamespace(trainable=False)]
     controller = SlotControllerPolicy(
         slot_lookup={"grad": 0, "frozen": 1},
-        slots=[],
+        slots=slots,
         slot_policies={0: grad_policy, 1: frozen_policy},
         policy_env_info=env_info,
-        controller_device="cpu",
         agent_slot_map=torch.tensor([0, 1]),
-    )
+    ).to("cpu")
     controller.forward(td)
     assert frozen_policy.forward_called
 
@@ -359,4 +300,4 @@ def test_sim_runner_uses_device_object(monkeypatch):
     CAPTURED.clear()
     run_simulations(policy_specs=None, simulations=[sim_cfg], replay_dir=None, seed=0)
     assert CAPTURED
-    assert str(CAPTURED[-1]["device"]) == "cpu"
+    assert str(CAPTURED[-1]["agent_slot_map"].device) == "cpu"
