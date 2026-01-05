@@ -1,4 +1,4 @@
-import { FC, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useContext, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import Select from 'react-select'
 
@@ -270,7 +270,7 @@ export const SeasonsPage: FC = () => {
   const [selectedSeasonName, setSelectedSeasonName] = useState<string | null>(urlSeasonName || null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [policies, setPolicies] = useState<PolicySummary[]>([])
-  const [allMatches, setAllMatches] = useState<SeasonMatchSummary[]>([])
+  const [filteredMatches, setFilteredMatches] = useState<SeasonMatchSummary[]>([])
   const [matchPage, setMatchPage] = useState(0)
   const [hasMoreMatches, setHasMoreMatches] = useState(true)
   const [matchFilter, setMatchFilter] = useState<MatchFilter>({ pool_names: [], policy_version_ids: [] })
@@ -322,7 +322,7 @@ export const SeasonsPage: FC = () => {
 
   const MATCHES_PAGE_SIZE = 50
 
-  const loadMatches = useCallback(async () => {
+  const loadFilteredMatches = useCallback(async () => {
     if (!selectedSeasonName) return
     try {
       const m = await repo.getSeasonMatches(selectedSeasonName, {
@@ -331,7 +331,7 @@ export const SeasonsPage: FC = () => {
         pool_names: matchFilter.pool_names.length > 0 ? matchFilter.pool_names : undefined,
         policy_version_ids: matchFilter.policy_version_ids.length > 0 ? matchFilter.policy_version_ids : undefined,
       })
-      setAllMatches(m)
+      setFilteredMatches(m)
       setHasMoreMatches(m.length === MATCHES_PAGE_SIZE)
     } catch (err: any) {
       setError(err.message)
@@ -345,30 +345,12 @@ export const SeasonsPage: FC = () => {
   }, [loadData])
 
   useEffect(() => {
-    loadMatches()
-    const interval = setInterval(loadMatches, 5000)
+    loadFilteredMatches()
+    const interval = setInterval(loadFilteredMatches, 5000)
     return () => clearInterval(interval)
-  }, [loadMatches])
+  }, [loadFilteredMatches])
 
   const existingPolicyVersionIds = new Set(policies.map((p) => p.policy.id))
-
-  const matchCountsByPolicyPool = useMemo(() => {
-    const counts: Record<string, { scored: number; pending: number; failed: number }> = {}
-    for (const m of allMatches) {
-      for (const p of m.players) {
-        const key = `${p.policy.id}:${m.pool_name}`
-        if (!counts[key]) counts[key] = { scored: 0, pending: 0, failed: 0 }
-        if (m.status === 'completed' && p.score !== null) {
-          counts[key].scored++
-        } else if (m.status === 'failed') {
-          counts[key].failed++
-        } else {
-          counts[key].pending++
-        }
-      }
-    }
-    return counts
-  }, [allMatches])
 
   const handleMatchFilterClick = (poolName: string, policyVersionId: string) => {
     setMatchFilter({ pool_names: [poolName], policy_version_ids: [policyVersionId] })
@@ -512,11 +494,6 @@ export const SeasonsPage: FC = () => {
                               </TD>
                             )
                           }
-                          const counts = matchCountsByPolicyPool[`${policy.policy.id}:${poolName}`] || {
-                            scored: 0,
-                            pending: 0,
-                            failed: 0,
-                          }
                           return (
                             <TD key={poolName}>
                               <div className="flex flex-col gap-1.5 items-start">
@@ -531,9 +508,9 @@ export const SeasonsPage: FC = () => {
                                   onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
                                   className="text-sm text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                                 >
-                                  ({counts.scored} matches
-                                  {counts.failed > 0 && `, ${counts.failed} failed`}
-                                  {counts.pending > 0 && `, ${counts.pending} pending`})
+                                  ({pool.completed} matches
+                                  {pool.failed > 0 && `, ${pool.failed} failed`}
+                                  {pool.pending > 0 && `, ${pool.pending} pending`})
                                 </span>
                               </div>
                             </TD>
@@ -581,7 +558,7 @@ export const SeasonsPage: FC = () => {
                 />
               </div>
             </div>
-            {allMatches.length === 0 ? (
+            {filteredMatches.length === 0 ? (
               <div className="text-gray-500 py-4">No matches</div>
             ) : (
               <Table>
@@ -594,7 +571,7 @@ export const SeasonsPage: FC = () => {
                   <TH className="w-20">Score</TH>
                 </Table.Header>
                 <Table.Body>
-                  {allMatches.map((match) => {
+                  {filteredMatches.map((match) => {
                     const agentCounts = match.players.map(
                       (p) => match.assignments.filter((a) => a === p.policy_index).length
                     )

@@ -299,6 +299,9 @@ export type SubmissionResponse = {
 export type PoolMembership = {
   pool_name: string
   active: boolean
+  completed: number
+  failed: number
+  pending: number
 }
 
 export type PolicySummary = {

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -50,6 +51,9 @@ class LeaderboardEntry(BaseModel):
 class PoolMembership(BaseModel):
     pool_name: str
     active: bool
+    completed: int
+    failed: int
+    pending: int
 
 
 class PolicySummary(BaseModel):
@@ -182,6 +186,8 @@ def create_tournament_router() -> APIRouter:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
+        from metta.app_backend.models.tournament import MatchStatus
+
         policy_versions = (
             (
                 await session.execute(
@@ -204,12 +210,49 @@ def create_tournament_router() -> APIRouter:
         if not policy_versions:
             return []
 
+        counts_query = (
+            select(
+                PoolPlayer.policy_version_id,
+                col(Pool.name).label("pool_name"),  # type: ignore
+                Match.status,
+                func.count().label("count"),
+            )
+            .join(MatchPlayer.match)
+            .join(MatchPlayer.pool_player)
+            .join(PoolPlayer.pool)
+            .join(Pool.season)
+            .where(Season.name == season_name)
+            .group_by(PoolPlayer.policy_version_id, Pool.name, Match.status)
+        )
+        counts_rows = (await session.execute(counts_query)).all()
+
+        match_counts: dict[tuple[UUID, str], dict[str, int]] = {}
+        for pv_id, pool_name, status, count in counts_rows:
+            key = (pv_id, pool_name)
+            if key not in match_counts:
+                match_counts[key] = {"completed": 0, "failed": 0, "pending": 0}
+            if status == MatchStatus.completed:
+                match_counts[key]["completed"] += count
+            elif status == MatchStatus.failed:
+                match_counts[key]["failed"] += count
+            else:
+                match_counts[key]["pending"] += count
+
+        def get_pool_membership(pv_id: UUID, pp: PoolPlayer) -> PoolMembership:
+            pool_name = pp.pool.name or "unknown"
+            counts = match_counts.get((pv_id, pool_name), {"completed": 0, "failed": 0, "pending": 0})
+            return PoolMembership(
+                pool_name=pool_name,
+                active=not pp.retired,
+                completed=counts["completed"],
+                failed=counts["failed"],
+                pending=counts["pending"],
+            )
+
         results = [
             PolicySummary(
                 policy=PolicyVersionSummary.from_model(pv),
-                pools=[
-                    PoolMembership(pool_name=pp.pool.name or "unknown", active=not pp.retired) for pp in pv.pool_players
-                ],
+                pools=[get_pool_membership(pv.id, pp) for pp in pv.pool_players],
                 entered_at=min(pp.created_at for pp in pv.pool_players).isoformat() if pv.pool_players else "",
             )
             for pv in policy_versions
