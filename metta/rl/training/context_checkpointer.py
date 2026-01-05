@@ -53,10 +53,10 @@ class ContextCheckpointer(TrainerComponent):
                     "agent_step": raw.get("agent_step", 0),
                     "epoch": raw.get("epoch", 0),
                     "avg_reward": raw.get("avg_reward"),
-                    "optimizer": raw.get("optimizer", raw.get("optimizer_state", {})),
+                    "optimizer": raw.get("optimizer", {}),
                     "stopwatch_state": raw.get("stopwatch_state"),
                     "curriculum_state": raw.get("curriculum_state"),
-                    "node_states": raw.get("node_states", raw.get("loss_states", {})),
+                    "node_states": raw.get("node_states", {}),
                 }
 
         payload = self._distributed.broadcast_from_master(payload)
@@ -137,13 +137,8 @@ class ContextCheckpointer(TrainerComponent):
         context = self.context
 
         context.state.stopwatch_state = context.stopwatch.save_state()
-
-        context.state.optimizer_state = context.optimizer.state_dict()
         nodes = getattr(context, "nodes", None)
-        if nodes:
-            context.state.node_states = {name: node.state_dict() for name, node in nodes.items()}
-        else:
-            context.state.node_states = {}
+        node_states = {name: node.state_dict() for name, node in nodes.items()} if nodes else {}
 
         # Capture curriculum state
         if context.curriculum is not None:
@@ -158,7 +153,7 @@ class ContextCheckpointer(TrainerComponent):
             avg_reward=context.state.avg_reward,
             stopwatch_state=context.state.stopwatch_state,
             curriculum_state=context.state.curriculum_state,
-            node_states=context.state.node_states,
+            node_states=node_states,
         )
 
         self._last_synced_policy_epoch = self.context.latest_saved_policy_epoch
