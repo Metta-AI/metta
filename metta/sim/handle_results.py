@@ -363,16 +363,18 @@ def write_eval_results_to_observatory(
                     for metric_name, metric_value in agent_metrics.items():
                         insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
-                failure_steps = e.failure_steps or []
                 policy_failure_steps: dict[int, int] = {}
-                for policy_idx, failure_step in zip(e.assignments, failure_steps, strict=False):
-                    if failure_step is None:
-                        continue
-                    policy_idx = int(policy_idx)
-                    failure_step_int = int(failure_step)
-                    policy_failure_steps[policy_idx] = min(
-                        failure_step_int, policy_failure_steps.get(policy_idx, failure_step_int)
-                    )
+                failure_steps = e.failure_steps
+                if failure_steps:
+                    for agent_id, policy_idx in enumerate(e.assignments):
+                        failure_step = failure_steps[agent_id]
+                        if failure_step is None:
+                            continue
+                        policy_idx = int(policy_idx)
+                        failure_step_int = int(failure_step)
+                        policy_failure_steps[policy_idx] = min(
+                            failure_step_int, policy_failure_steps.get(policy_idx, failure_step_int)
+                        )
 
                 assigned_policy_indices = {int(idx) for idx in e.assignments}
                 for policy_idx in assigned_policy_indices:

@@ -1274,7 +1274,7 @@ WITH episode_tags_agg AS (
     FROM episode_tags
     GROUP BY episode_id
 ),
-episode_policy_metrics AS (
+episode_policy_metrics_raw AS (
     SELECT
         e_sub.id AS episode_id,
         pv.id AS policy_version_id,
@@ -1305,7 +1305,7 @@ episode_policy_metrics_agg AS (
                     ELSE NULL
                 END
             ) AS avg_reward
-        FROM episode_policy_metrics
+        FROM episode_policy_metrics_raw
         GROUP BY episode_id, policy_version_id
     ) grouped
     GROUP BY episode_id
