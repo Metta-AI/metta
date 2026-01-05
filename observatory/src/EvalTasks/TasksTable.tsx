@@ -3,7 +3,7 @@ import { FC, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState 
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
 import { Spinner } from '../components/Spinner'
-import { Table, TH, TR } from '../components/Table'
+import { Table, TH } from '../components/Table'
 import { PaginatedEvalTasksResponse, PublicPolicyVersionRow, Repo, TaskFilters } from '../repo'
 import { TaskRow } from './TaskRow'
 
@@ -141,34 +141,32 @@ export const TasksTable: FC<{
       <div className="overflow-x-auto">
         <Table>
           <Table.Header>
-            <TR>
-              <TH>Policy</TH>
-              <TH>
-                <div className="flex flex-col gap-1">
-                  Recipe
-                  {!hideFilters && (
-                    <FilterInput
-                      value={filters.command || ''}
-                      onChange={(value) => setFilters({ ...filters, command: value })}
-                    />
-                  )}
-                </div>
-              </TH>
-              <TH>
-                <div className="flex flex-col gap-1">
-                  Status
-                  {!hideFilters && (
-                    <StatusDropdown
-                      value={filters.status || ''}
-                      onChange={(value) => setFilters({ ...filters, status: value })}
-                    />
-                  )}
-                </div>
-              </TH>
-              <TH>Created</TH>
-              <TH>Duration</TH>
-              <TH>Logs</TH>
-            </TR>
+            <TH>Policy</TH>
+            <TH>
+              <div className="flex flex-col gap-1">
+                Recipe
+                {!hideFilters && (
+                  <FilterInput
+                    value={filters.command || ''}
+                    onChange={(value) => setFilters({ ...filters, command: value })}
+                  />
+                )}
+              </div>
+            </TH>
+            <TH>
+              <div className="flex flex-col gap-1">
+                Status
+                {!hideFilters && (
+                  <StatusDropdown
+                    value={filters.status || ''}
+                    onChange={(value) => setFilters({ ...filters, status: value })}
+                  />
+                )}
+              </div>
+            </TH>
+            <TH>Created</TH>
+            <TH>Duration</TH>
+            <TH>Logs</TH>
           </Table.Header>
           <Table.Body>
             {tasksResponse.tasks.map((task) => (
