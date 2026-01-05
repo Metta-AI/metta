@@ -13,6 +13,7 @@ class Node:
     fn: Callable[[Any, Workspace], Mapping[str, Any] | None]
     deps: tuple[str, ...] = ()
     enabled: Callable[[Any, Workspace], bool] | None = None
+    requires: tuple[str, ...] = ()
 
 
 class TrainingGraph:
@@ -24,6 +25,10 @@ class TrainingGraph:
         for node in self._order:
             if node.enabled is not None and not node.enabled(context, workspace):
                 continue
+            if node.requires:
+                missing = [key for key in node.requires if key not in workspace]
+                if missing:
+                    raise KeyError(f"TrainingGraph node '{node.name}' missing workspace keys: {missing}")
             outputs = node.fn(context, workspace)
             if outputs:
                 workspace.update(outputs)
