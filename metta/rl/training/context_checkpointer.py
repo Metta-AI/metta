@@ -105,6 +105,13 @@ class ContextCheckpointer(TrainerComponent):
                 if stored is None:
                     continue
                 node.load_state_dict(stored, strict=False)
+            if node_states:
+                missing = sorted(set(nodes) - set(node_states))
+                extra = sorted(set(node_states) - set(nodes))
+                if missing:
+                    logger.debug("No checkpoint state for nodes: %s", missing)
+                if extra:
+                    logger.debug("Checkpoint state found for unknown nodes: %s", extra)
 
         context.timing_baseline = {
             "agent_step": context.agent_step,

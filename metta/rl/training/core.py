@@ -112,7 +112,6 @@ class CoreTrainingLoop:
             total_steps = workspace["total_steps"]
             last_env_id = workspace.get("last_env_id", last_env_id)
 
-        context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
     def training_phase(
@@ -765,11 +764,6 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
             return {}
 
         actual_max_grad_norm = float(workspace.get("max_grad_norm", 0.5))
-        max_grad_norms = [
-            float(node.cfg.max_grad_norm) for node in core.nodes.values() if hasattr(node.cfg, "max_grad_norm")
-        ]
-        if max_grad_norms:
-            actual_max_grad_norm = min(max_grad_norms)
 
         torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)
         core.optimizer.step()
