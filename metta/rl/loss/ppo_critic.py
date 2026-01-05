@@ -6,17 +6,21 @@ from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from typing_extensions import Literal
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.753832, ge=0)
+    vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
+    critic_update: Literal["mse", "gtd_lambda"] = "gtd_lambda"
+    aux_coef: float = Field(default=1.0, ge=0)
+    beta: float = Field(default=1.0, ge=0)
 
     def create(
         self,
@@ -80,12 +84,12 @@ class PPOCritic(Loss):
             self.burn_in_steps_iter += 1
             return
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        if self.cfg.critic_update == "gtd_lambda":
+            return {"values", "h_values"}
         return {"values"}
 
     def run_train(
@@ -98,8 +102,61 @@ class PPOCritic(Loss):
             return self._zero_tensor, shared_loss_data, False
 
         # Advantages are computed in the core loop and passed through shared_loss_data.
-        # Keep the full advantages around for explained variance logging.
+        # Keep the full advantages around for explained variance logging and prioritized sampling.
         old_values = minibatch["values"]
+        if self.cfg.critic_update == "gtd_lambda":
+            policy_td = shared_loss_data["policy_td"]
+            if "h_values" not in policy_td.keys():
+                raise RuntimeError("Policy must output 'h_values' for critic_update='gtd_lambda'")
+
+            new_values = policy_td["values"].reshape(old_values.shape)
+            h_values = policy_td["h_values"]
+            if h_values.dim() == 3 and h_values.shape[-1] == 1:
+                h_values = h_values.squeeze(-1)
+            h_values = h_values.reshape(old_values.shape)
+
+            delta_lambda = shared_loss_data["advantages_pg"]
+
+            # Use only valid transitions (t=0..TT-2). The last step is padding.
+            dl = delta_lambda[:, :-1]
+            v_t = new_values[:, :-1]
+            h_t = h_values[:, :-1]
+
+            critic_loss = (h_t.detach() * dl).mean() - ((dl.detach() - h_t.detach()) * v_t).mean()
+
+            l2_sum = torch.tensor(0.0, device=critic_loss.device, dtype=critic_loss.dtype)
+            l2_count = 0
+            if self.cfg.beta > 0:
+                aux_module = getattr(self.policy, "gtd_aux", None)
+                components = getattr(self.policy, "components", None)
+                if aux_module is None and components is not None:
+                    aux_module = components.get("gtd_aux", None)
+                if aux_module is not None:
+                    for param in aux_module.parameters():
+                        l2_sum = l2_sum + (param * param).sum()
+                        l2_count += int(param.numel())
+            l2 = l2_sum / max(l2_count, 1)
+            aux_loss = 0.5 * ((dl.detach() - h_t) ** 2).mean() + 0.5 * float(self.cfg.beta) * l2
+
+            total = float(self.cfg.vf_coef) * critic_loss + float(self.cfg.aux_coef) * aux_loss
+            self.loss_tracker["value_loss"].append(float(total.item()))
+            self.loss_tracker["gtd_critic_loss"].append(float(critic_loss.item()))
+            self.loss_tracker["gtd_aux_loss"].append(float(aux_loss.item()))
+            self.loss_tracker["gtd_h_mse"].append(float(((dl.detach() - h_t) ** 2).mean().item()))
+            self.loss_tracker["gtd_delta_lambda_abs"].append(float(dl.detach().abs().mean().item()))
+
+            # Update values in experience buffer for advantage_full recomputation + EV logging.
+            update_td = TensorDict(
+                {
+                    "values": new_values.reshape(minibatch["values"].shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            indices = shared_loss_data["indices"][:, 0]
+            self.replay.update(indices, update_td)
+
+            return total, shared_loss_data, False
+
         advantages_mb = shared_loss_data["advantages"]
         returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
@@ -120,9 +177,24 @@ class PPOCritic(Loss):
                     vf_clip_coef,
                 )
                 v_loss_clipped = (v_clipped - returns) ** 2
-                v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                v_loss_vec = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped)
             else:
-                v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
+                v_loss_vec = 0.5 * ((newvalue_reshaped - returns) ** 2)
+
+            v_loss = v_loss_vec.mean()
+
+            shared_loss_data["ppo_val_loss_vec"] = v_loss_vec
+
+            # 12-21-25 av experimental code. cute but delete later (compare with Kickstarter value loss if available)
+            if "ks_val_loss_vec" in shared_loss_data:
+                analyze_loss_alignment(
+                    shared_data=shared_loss_data,
+                    name1="ks_val",
+                    name2="ppo_val",
+                    params=list(self.policy.parameters()),
+                    tracker=self.loss_tracker,
+                )
+
             # Update values in experience buffer
             update_td = TensorDict(
                 {

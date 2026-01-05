@@ -1,4 +1,11 @@
-import { getToken, initiateLogin } from './auth'
+import { getToken, initiateLogin, isRedirecting } from './auth'
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
 
 export type TokenInfo = {
   id: string
@@ -259,6 +266,97 @@ export type AIQueryResponse = {
   query: string
 }
 
+export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed'
+
+export type MatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed'
+
+export type PoolDescription = {
+  name: string
+  description: string
+}
+
+export type SeasonDescription = {
+  summary: string
+  pools: PoolDescription[]
+}
+
+export type SeasonDetail = {
+  name: string
+  description: SeasonDescription
+  pools: string[]
+}
+
+export type PolicyVersionSummary = {
+  id: string
+  name: string | null
+  version: number | null
+}
+
+export type LeaderboardEntry = {
+  rank: number
+  policy: PolicyVersionSummary
+  score: number
+  matches: number
+}
+
+export type SubmissionResponse = {
+  pools: string[]
+}
+
+export type PoolMembership = {
+  pool_name: string
+  active: boolean
+  completed: number
+  failed: number
+  pending: number
+}
+
+export type PolicySummary = {
+  policy: PolicyVersionSummary
+  pools: PoolMembership[]
+  entered_at: string
+}
+
+export type SeasonMatchPlayerSummary = {
+  policy: PolicyVersionSummary
+  policy_index: number
+  score: number | null
+}
+
+export type SeasonMatchSummary = {
+  id: string
+  pool_name: string
+  status: MatchStatus
+  assignments: number[]
+  players: SeasonMatchPlayerSummary[]
+  job_id: string | null
+  episode_id: string | null
+  created_at: string
+}
+
+export type MembershipHistoryEntry = {
+  season_name: string
+  pool_name: string
+  action: string
+  notes: string | null
+  created_at: string
+}
+
+export type JobRequest = {
+  id: string
+  job_type: string
+  job: Record<string, any>
+  status: JobStatus
+  user_id: string
+  worker: string | null
+  result: Record<string, any> | null
+  error: string | null
+  created_at: string
+  dispatched_at: string | null
+  running_at: string | null
+  completed_at: string | null
+}
+
 export type PolicyRow = {
   id: string
   name: string
@@ -296,34 +394,41 @@ export class Repo {
     return headers
   }
 
-  private async apiCall<T>(endpoint: string): Promise<T> {
+  private async handleErrorResponse(response: Response, suppressAuthRedirect = false): Promise<never> {
+    if (response.status === 401) {
+      if (!suppressAuthRedirect && !isRedirecting()) {
+        initiateLogin()
+      }
+      throw new AuthError('Unauthorized')
+    }
+    let detail: string | undefined
+    try {
+      const body = await response.json()
+      detail = body.detail
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(detail || `API call failed: ${response.status} ${response.statusText}`)
+  }
+
+  private async apiCall<T>(endpoint: string, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
 
-  private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
+  private async apiCallWithBody<T>(endpoint: string, body: any, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
@@ -335,12 +440,7 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
     return response.json()
   }
@@ -351,12 +451,7 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
   }
 
@@ -553,5 +648,87 @@ export class Repo {
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
     return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
+  }
+
+  async getJobs(params?: {
+    job_type?: string
+    statuses?: JobStatus[]
+    job_id?: string
+    limit?: number
+    offset?: number
+  }): Promise<JobRequest[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.job_id) searchParams.append('job_id', params.job_id)
+    if (params?.statuses) {
+      for (const status of params.statuses) {
+        searchParams.append('statuses', status)
+      }
+    }
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<JobRequest[]>(`/jobs${query ? `?${query}` : ''}`)
+  }
+
+  // Tournament methods
+  async getSeasons(): Promise<SeasonDetail[]> {
+    return this.apiCall<SeasonDetail[]>('/tournament/seasons')
+  }
+
+  async getSeasonLeaderboard(seasonName: string, suppressAuthRedirect = false): Promise<LeaderboardEntry[]> {
+    return this.apiCall<LeaderboardEntry[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`,
+      suppressAuthRedirect
+    )
+  }
+
+  async getSeasonPolicies(seasonName: string, suppressAuthRedirect = false): Promise<PolicySummary[]> {
+    return this.apiCall<PolicySummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/policies`,
+      suppressAuthRedirect
+    )
+  }
+
+  async getSeasonMatches(
+    seasonName: string,
+    params?: {
+      limit?: number
+      offset?: number
+      pool_names?: string[]
+      policy_version_ids?: string[]
+      suppressAuthRedirect?: boolean
+    }
+  ): Promise<SeasonMatchSummary[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    if (params?.pool_names) {
+      for (const name of params.pool_names) {
+        searchParams.append('pool_names', name)
+      }
+    }
+    if (params?.policy_version_ids) {
+      for (const id of params.policy_version_ids) {
+        searchParams.append('policy_version_ids', id)
+      }
+    }
+    const query = searchParams.toString()
+    return this.apiCall<SeasonMatchSummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`,
+      params?.suppressAuthRedirect
+    )
+  }
+
+  async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {
+    return this.apiCallWithBody<SubmissionResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/submit`, {
+      policy_version_id: policyVersionId,
+    })
+  }
+
+  async getPlayerMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
+    return this.apiCall<MembershipHistoryEntry[]>(
+      `/tournament/players/${encodeURIComponent(policyVersionId)}/memberships`
+    )
   }
 }

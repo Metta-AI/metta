@@ -8,7 +8,7 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
+from metta.rl.advantage import normalize_advantage_distributed
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
@@ -16,9 +16,9 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 class PPOActorConfig(LossConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
-    clip_coef: float = Field(default=0.255736, gt=0, le=1.0)
-    # Entropy term weight tuned from CvC sweep winner
-    ent_coef: float = Field(default=0.027574, ge=0)
+    clip_coef: float = Field(default=0.22017136216163635, gt=0, le=1.0)
+    # Entropy term weight from sweep
+    ent_coef: float = Field(default=0.010000, ge=0)
 
     # Normalization and clipping
     # Advantage normalization toggle
@@ -79,8 +79,10 @@ class PPOActor(Loss):
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
 
-        logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
-        importance_sampling_ratio = logratio.exp()
+        importance_sampling_ratio = shared_loss_data.get("importance_sampling_ratio", None)
+        if importance_sampling_ratio is None:
+            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+            importance_sampling_ratio = logratio.exp()
 
         update_td = TensorDict(
             {
@@ -91,24 +93,10 @@ class PPOActor(Loss):
         indices = shared_loss_data["indices"][:, 0]
         self.replay.update(indices, update_td)
 
-        # Re-compute advantages with new ratios (V-trace)
-        values = minibatch["values"]
-        if hasattr(self.policy, "critic_quantiles"):
-            # If we are using a quantile critic in our policy
-            values = values.mean(dim=-1)
-
-        adv = compute_advantage(
-            values,
-            minibatch["rewards"],
-            minibatch["dones"],
-            importance_sampling_ratio,
-            shared_loss_data["advantages"],
-            self.trainer_cfg.advantage.gamma,
-            self.trainer_cfg.advantage.gae_lambda,
-            self.device,
-            self.trainer_cfg.advantage.vtrace_rho_clip,
-            self.trainer_cfg.advantage.vtrace_c_clip,
-        )
+        adv = shared_loss_data.get("advantages_pg", None)
+        if adv is None:
+            adv = shared_loss_data["advantages"]
+        adv = adv.detach()
 
         # Normalize advantages with distributed support, then apply prioritized weights
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)

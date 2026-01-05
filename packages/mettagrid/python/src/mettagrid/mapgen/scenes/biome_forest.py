@@ -5,9 +5,9 @@ from mettagrid.mapgen.scenes.dither import dither_edges
 
 
 class BiomeForestConfig(SceneConfig):
-    clumpiness: int = 3  # number of growth passes
-    seed_prob: float = 0.04  # initial random seeds density
-    growth_prob: float = 0.55  # probability to grow into empty if enough neighbors
+    clumpiness: int = 2  # number of growth passes
+    seed_prob: float = 0.03  # initial random seeds density
+    growth_prob: float = 0.5  # probability to grow into empty if enough neighbors
     neighbor_threshold: int = 3  # forest spreads when >= this many forest neighbors
     dither_edges: bool = True  # Add organic edge noise
     dither_prob: float = 0.15  # Probability to flip edge cells

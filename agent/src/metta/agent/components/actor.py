@@ -149,10 +149,7 @@ class ActionProbs(nn.Module):
         return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        if action is None:
-            return self.forward_inference(td)
-        else:
-            return self.forward_training(td, action)
+        return self.forward_inference(td) if action is None else self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
@@ -198,11 +195,6 @@ class ActionProbs(nn.Module):
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
-        if "batch" in td.keys() and "bptt" in td.keys():
-            batch_size = td["batch"][0].item()
-            bptt_size = td["bptt"][0].item()
-            td = td.reshape(batch_size, bptt_size)
-
         return td
 
 
@@ -213,9 +205,7 @@ class ActorHeadConfig(ComponentConfig):
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: PolicyEnvInterface | None = None):
-        if env is None:
-            raise ValueError("ActorHeadConfig requires PolicyEnvInterface to determine action dimensions")
+    def make_component(self, env: PolicyEnvInterface):
         return ActorHead(config=self, env=env)
 
 

@@ -12,6 +12,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal, Protocol
 
+import sky
+import sky.jobs.client.sdk as sky_jobs_sdk
 import wandb
 from pydantic import BaseModel, Field
 
@@ -304,14 +306,13 @@ class Runner:
         self._finish(job, status, exit_code, error=error)
 
     def _poll_remote_jobs(self) -> None:
-        import sky
-        import sky.jobs.client.sdk as sky_jobs_sdk
-
         running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not running:
             return
 
         now = _now()
+
+        # Check timeouts
         for job in running:
             if job.started_at and now - job.started_at > timedelta(seconds=job.timeout_s):
                 self._finish(job, JobStatus.FAILED, 124, f"Timeout after {job.timeout_s}s")
@@ -323,21 +324,19 @@ class Runner:
         if not job_ids:
             return
 
+        # Poll SkyPilot - if it fails, just log and retry next cycle
+        # Timeouts above are the safety net for stuck jobs
         try:
             request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
             queue_data = sky.get(request_id)
             if not isinstance(queue_data, list):
-                msg = f"Expected list from sky.get(), got {type(queue_data).__name__}: {str(queue_data)[:200]}"
-                raise TypeError(msg)
-            status_by_id = {}
-            for item in queue_data:
-                if not isinstance(item, dict):
-                    raise TypeError(f"Expected dict in queue_data, got {type(item).__name__}: {str(item)[:200]}")
-                status_by_id[str(item.get("job_id"))] = item
+                raise TypeError(f"Expected list, got {type(queue_data).__name__}")
+            status_by_id = {
+                str(item.get("job_id") if isinstance(item, dict) else getattr(item, "job_id", None)): item
+                for item in queue_data
+            }
         except Exception as e:
-            for job in running:
-                if job.status == JobStatus.RUNNING:
-                    self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {e}")
+            self._print(f"[WARN] SkyPilot poll failed (will retry): {e}")
             return
 
         for job in running:
@@ -351,7 +350,8 @@ class Runner:
                     self._finish(job, JobStatus.FAILED, 1, "Job not found in SkyPilot queue")
                 continue
 
-            sky_status = str(sky_job.get("status", "")).upper()
+            status = sky_job.get("status") if isinstance(sky_job, dict) else getattr(sky_job, "status", None)
+            sky_status = str(status or "").upper()
             if "SUCCEEDED" in sky_status:
                 self._finish(job, JobStatus.SUCCEEDED, 0)
             elif any(s in sky_status for s in ("FAILED", "CANCELLED")):

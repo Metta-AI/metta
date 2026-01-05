@@ -95,9 +95,18 @@ class Trainer:
         self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
 
         self._state = TrainerState()
+        reward_centering = self._cfg.advantage.reward_centering
+        self._state.avg_reward = torch.full(
+            (parallel_agents,),
+            float(reward_centering.initial_reward_mean),
+            device=self._device,
+            dtype=torch.float32,
+        )
 
         # Extract curriculum from environment if available
         curriculum = getattr(self._env, "_curriculum", None)
+
+        self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self._context = ComponentContext(
             state=self._state,
@@ -108,13 +117,11 @@ class Trainer:
             config=self._cfg,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
+            get_train_epoch_fn=lambda: self._train_epoch_callable,
+            set_train_epoch_fn=self._set_train_epoch_callable,
             run_name=self._run_name,
             curriculum=curriculum,
         )
-        self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
-        self._context.set_train_epoch_fn = self._set_train_epoch_callable
-
-        self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
@@ -182,9 +189,6 @@ class Trainer:
 
         # Training phase
         with self.timer("_train"):
-            if self._context.training_env_id is None:
-                raise RuntimeError("Training environment slice unavailable for training phase")
-
             # ScheduleFree optimizer is in train mode for training phase
             if self._is_schedulefree:
                 self.optimizer.train()

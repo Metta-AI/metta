@@ -5,14 +5,17 @@ from metta.common.util.log_config import suppress_noisy_logs
 suppress_noisy_logs()
 
 import os
+import re
 import subprocess
 import time
+from contextlib import contextmanager
 from typing import Annotated, Optional
 
 import sky
 import sky.exceptions
 import typer
 import yaml
+from sky import skypilot_config
 from sky.schemas.api.responses import StatusResponse
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 from typer import rich_utils
@@ -48,6 +51,21 @@ def get_next_sandbox_name(cluster_records):
         if name not in names:
             return name
     raise ValueError("No available sandbox name found")
+
+
+_CLUSTER_NAME_RE = re.compile(r"^[a-zA-Z]([-_.a-zA-Z0-9]*[a-zA-Z0-9])?$")
+
+
+def suggest_valid_cluster_name(name: str, username: str) -> str:
+    if name and not name[0].isalpha():
+        name = f"{username}-{name}"
+    name = re.sub(r"[^-_.a-zA-Z0-9]", "-", name)
+    name = name.strip("-_.")
+    if not name:
+        return f"{username}-sandbox"
+    if not name[0].isalpha():
+        name = f"{username}-{name}"
+    return name
 
 
 def load_sandbox_config(config_path: str):
@@ -184,6 +202,22 @@ def print_cost_info(hourly_cost: float | None, num_gpus: int):
         print(f"Approximate cost: {yellow(estimate)} (estimated for {num_gpus} L4 GPU{'s' if num_gpus > 1 else ''})")
 
 
+@contextmanager
+def maybe_set_capacity_reservation(cloud: str, capacity_reservation_id: str | None):
+    if capacity_reservation_id is None:
+        yield
+        return
+
+    if cloud.lower() != "aws":
+        print(f"{red('✗')} --capacity-reservation-id is only supported for AWS (cloud={cloud})")
+        raise typer.Exit(1)
+
+    new_configs = skypilot_config.to_dict()
+    new_configs.set_nested(("aws", "specific_reservations"), [capacity_reservation_id])
+    with skypilot_config.replace_skypilot_config(new_configs):
+        yield
+
+
 def check_cluster_status(cluster_name: str) -> Optional[str]:
     """Check the status of a specific cluster.
 
@@ -303,7 +337,22 @@ def new(
     git_ref: Annotated[
         Optional[str], typer.Option(help="Git branch or commit to deploy (default: current branch)")
     ] = None,
+    name: Annotated[
+        Optional[str],
+        typer.Option("--name", help="Sandbox/cluster name (default: next available <user>-sandbox-N)"),
+    ] = None,
+    config_path_override: Annotated[
+        Optional[str], typer.Option("--config", help="SkyPilot task YAML to launch (default: sandbox.yaml)")
+    ] = None,
     gpus: Annotated[Optional[int], typer.Option("--gpus", help="Number of GPUs to use")] = None,
+    image_id: Annotated[Optional[str], typer.Option("--image-id", help="Override AMI ID (AWS)")] = None,
+    capacity_reservation_id: Annotated[
+        Optional[str],
+        typer.Option(
+            "--capacity-reservation-id",
+            help="AWS EC2 capacity reservation ID to target (e.g. cr-01fc61d2a5e290e58)",
+        ),
+    ] = None,
     retry_until_up: Annotated[
         bool, typer.Option("--retry-until-up", help="Keep retrying until cluster is successfully launched")
     ] = False,
@@ -324,6 +373,8 @@ def new(
         [bold]sandbox.py[/bold]                               # Show existing sandboxes and management commands
         [bold]sandbox.py new --sweep-controller[/bold]        # Launch a CPU-only sandbox (uses config instance_type)
         [bold]sandbox.py new --git-ref feature-branch[/bold]  # Launch with specific git branch
+        [bold]sandbox.py new --name my-sandbox[/bold]
+        [bold]sandbox.py new --config ./devops/skypilot/config/sandbox_p5.yaml[/bold]
         [bold]sandbox.py new --wait-timeout 600[/bold]        # Wait up to 10 minutes for cluster to be ready
 
     Common management commands:
@@ -345,29 +396,51 @@ def new(
         raise typer.Exit(1) from None
 
     # Launch new sandbox
-    cluster_name = get_next_sandbox_name(existing_clusters)
+    if name is not None:
+        username = os.environ.get("USER", "unknown")
+        if _CLUSTER_NAME_RE.fullmatch(name) is None:
+            suggested = suggest_valid_cluster_name(name, username)
+            print(f"{red('✗')} Cluster name is invalid: {cyan(name)}")
+            print(f"  Try: {green(f'--name {suggested}')}")
+            raise typer.Exit(1)
 
-    # Determine configuration based on --sweep-controller flag
+        existing_names = {record["name"] for record in existing_clusters}
+        if name in existing_names:
+            print(f"{red('✗')} Cluster already exists: {cyan(name)}")
+            raise typer.Exit(1)
+        cluster_name = name
+    else:
+        cluster_name = get_next_sandbox_name(existing_clusters)
+
+    if config_path_override is not None and not os.path.exists(config_path_override):
+        print(f"{red('✗')} Config not found: {cyan(config_path_override)}")
+        raise typer.Exit(1)
+
+    if config_path_override is None:
+        if sweep_controller:
+            config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
+        else:
+            config_path = "./devops/skypilot/config/sandbox.yaml"
+    else:
+        config_path = config_path_override
+
     if sweep_controller:
         if gpus is not None:
             print(f"{red('✗')} Error: --sweep-controller mode is CPU-only and cannot use GPUs.")
             print(f"  Either use --sweep-controller without --gpus, or use regular mode with --gpus {gpus}")
             raise typer.Exit(1)
         print(f"\n🚀 Launching {blue(cluster_name)} in {bold('CPU-ONLY MODE')}")
-        config_path = "./devops/skypilot/config/sandbox_cheap.yaml"
     else:
-        if gpus is None:
+        if gpus is None and config_path_override is None:
             gpus = 1
-        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(gpus))} L4 GPU(s)")
-        config_path = "./devops/skypilot/config/sandbox.yaml"
 
     print(f"🔌 Git ref: {cyan(git_ref)}")
 
     # Load configuration
-    config = load_sandbox_config(config_path)
+    sandbox_config = load_sandbox_config(config_path)
 
     # Extract cloud configuration
-    resources = config.get("resources", {})
+    resources = sandbox_config.get("resources", {})
     cloud = resources.get("cloud", "aws")
     region = resources.get("region", "us-east-1")
 
@@ -393,20 +466,21 @@ def new(
             else:
                 print("Approximate cost: (unavailable) – check AWS pricing for your region.")
     else:
-        if gpus is None:
-            gpus = 1
-
-        # Parse GPU type from the config (e.g., "L4:1" -> "L4")
         accelerators_str = resources.get("accelerators", "L4:1")
-        gpu_type = accelerators_str.split(":")[0]
+        gpu_type, gpus_in_config_str = accelerators_str.split(":")
+        gpus_in_config = int(gpus_in_config_str)
+        gpus_to_use = gpus if gpus is not None else gpus_in_config
 
-        # Get instance type and calculate cost
-        instance_type, region, hourly_cost = get_gpu_instance_info(gpus, gpu_type, region, cloud)
+        print(f"\n🚀 Launching {blue(cluster_name)} with {bold(str(gpus_to_use))} {gpu_type} GPU(s)")
 
-        if instance_type:
-            print(f"Instance type: {bold(instance_type)} in {bold(region)}")
-
-        print_cost_info(hourly_cost, gpus)
+        instance_type_in_config = resources.get("instance_type")
+        if instance_type_in_config:
+            print(f"Instance type: {bold(instance_type_in_config)} in {bold(region)}")
+        else:
+            instance_type, region, hourly_cost = get_gpu_instance_info(gpus_to_use, gpu_type, region, cloud)
+            if instance_type:
+                print(f"Instance type: {bold(instance_type)} in {bold(region)}")
+            print_cost_info(hourly_cost, gpus_to_use)
 
     autostop_hours = 48
 
@@ -415,9 +489,11 @@ def new(
         task = sky.Task.from_yaml(config_path)
         set_task_secrets(task)
 
-        if not sweep_controller:
-            # Only override GPU resources for non-cheap mode
+        if not sweep_controller and gpus is not None:
             task.set_resources_override({"accelerators": f"{gpu_type}:{gpus}"})
+
+        if image_id is not None:
+            task.set_resources_override({"image_id": image_id})
 
         if git_ref:
             task.update_envs({"METTA_GIT_REF": git_ref})
@@ -434,16 +510,20 @@ def new(
             print("to authenticate before launching a sandbox.")
             raise typer.Exit(1) from None
 
-        # Launch cluster
-        request_id = sky.launch(
-            task,
-            cluster_name=cluster_name,
-            idle_minutes_to_autostop=autostop_hours * 60,
-            retry_until_up=retry_until_up,
-        )
+        if capacity_reservation_id is not None:
+            print(f"📌 Capacity reservation: {cyan(capacity_reservation_id)}")
+        if image_id is not None:
+            print(f"🖼️  Image ID override: {cyan(image_id)}")
 
-        # Stream the launch logs
-        _result = sky.stream_and_get(request_id)
+        with maybe_set_capacity_reservation(cloud, capacity_reservation_id):
+            request_id = sky.launch(
+                task,
+                cluster_name=cluster_name,
+                idle_minutes_to_autostop=autostop_hours * 60,
+                retry_until_up=retry_until_up,
+            )
+
+            _result = sky.stream_and_get(request_id)
     except typer.Exit as e:
         raise e from None
     except sky.exceptions.ResourcesUnavailableError as e:
@@ -540,6 +620,10 @@ def new(
     print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")
 
 
-if __name__ == "__main__":
+def cli_entry():
     init_logging()
     app()
+
+
+if __name__ == "__main__":
+    cli_entry()

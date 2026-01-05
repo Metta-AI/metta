@@ -32,17 +32,16 @@ FIRST_HEART_COST = _BASE_STATION.first_heart_cost
 ADDITIONAL_HEART_COST = _BASE_STATION.additional_heart_cost
 
 
-def _make_simulation() -> Simulation:
-    cfg = MettaGridConfig.EmptyRoom(num_agents=4, with_walls=True)
+def _make_simulation(num_agents: int = 4, ascii_map: list[list[str]] = ASCII_MAP) -> Simulation:
+    cfg = MettaGridConfig.EmptyRoom(num_agents=num_agents, with_walls=True)
     cfg.game.resource_names = RESOURCES
-    cfg.game.agent.default_resource_limit = 255
-    cfg.game.agent.resource_limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
-    cfg.game.agent.initial_inventory = {name: 0 for name in RESOURCES}
+    cfg.game.agent.inventory.default_limit = 255
+    cfg.game.agent.inventory.limits = {name: ResourceLimitsConfig(limit=255, resources=[name]) for name in RESOURCES}
+    cfg.game.agent.inventory.initial = {name: 0 for name in RESOURCES}
 
     cfg.game.actions.noop.enabled = True
     cfg.game.actions.move.enabled = True
     cfg.game.actions.change_vibe.enabled = True
-    cfg.game.actions.change_vibe.number_of_vibes = 32
 
     assembler_cfg = CvCAssemblerConfig(
         first_heart_cost=FIRST_HEART_COST, additional_heart_cost=ADDITIONAL_HEART_COST
@@ -50,7 +49,7 @@ def _make_simulation() -> Simulation:
     cfg.game.objects["assembler"] = assembler_cfg
 
     cfg = cfg.with_ascii_map(
-        ASCII_MAP,
+        ascii_map,
         char_to_map_name={"#": "wall", "@": "agent.agent", ".": "empty", "&": "assembler"},
     )
     return Simulation(cfg)
@@ -197,5 +196,39 @@ def test_multi_heart_recipe_uses_additional_cost_and_shared_inventories() -> Non
 
         silicon_consumers = sum(after[agent_id]["silicon"] < before[agent_id]["silicon"] for agent_id in (east, south))
         assert silicon_consumers == 2
+    finally:
+        sim.close()
+
+
+def test_two_agent_heart_chorus_map_outputs_two_hearts() -> None:
+    sim = _make_simulation(num_agents=2)
+    try:
+        positions, assembler_pos = _agent_positions(sim)
+        assert len(positions) == 2
+        (first_pos, first_id), (second_pos, second_id) = sorted(positions.items())
+
+        _assign_inventories(
+            sim,
+            {
+                first_id: {"carbon": 15, "oxygen": 5},
+                second_id: {"oxygen": 10, "germanium": 3, "silicon": 45},
+            },
+        )
+
+        _step(sim, {first_id: "change_vibe_heart_a", second_id: "change_vibe_heart_a"})
+        before = _capture_inventories(sim)
+        _step(sim, {first_id: _move_action(first_pos, assembler_pos)})
+        after = _capture_inventories(sim)
+
+        expected_inputs = _expected_inputs(2)
+        for resource, expected in expected_inputs.items():
+            assert _total(before, resource) - _total(after, resource) == expected, resource
+        assert _total(after, "heart") - _total(before, "heart") == 2
+        assert after[first_id]["heart"] - before[first_id]["heart"] == 1
+        assert after[second_id]["heart"] - before[second_id]["heart"] == 1
+
+        _step(sim, {})
+        after_noop = _capture_inventories(sim)
+        assert _total(after_noop, "heart") == _total(after, "heart")
     finally:
         sim.close()

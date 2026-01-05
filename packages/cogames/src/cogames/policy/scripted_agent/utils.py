@@ -291,7 +291,7 @@ def change_vibe_action(
         return actions.noop.Noop()
     if not getattr(change_vibe_cfg, "enabled", True):
         return actions.noop.Noop()
-    num_vibes = int(getattr(change_vibe_cfg, "number_of_vibes", 0))
+    num_vibes = len(getattr(change_vibe_cfg, "vibes", []))
     if num_vibes <= 1:
         return actions.noop.Noop()
     # Raise loudly if the requested vibe isn't registered instead of silently

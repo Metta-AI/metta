@@ -37,7 +37,7 @@ from recipes.experiment.cogs_v_clips import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_CURRICULUM_MISSIONS: list[str] = [
-    "easy_hearts",
+    "training_facility.harvest",
     "oxygen_bottleneck",
     "energy_starved",
 ]
@@ -52,7 +52,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"training_facility{MAP_MISSION_DELIMITER}harvest",
     f"training_facility{MAP_MISSION_DELIMITER}vibe_check",
     f"training_facility{MAP_MISSION_DELIMITER}repair",
-    f"training_facility{MAP_MISSION_DELIMITER}easy_hearts_training_facility",
     f"hello_world{MAP_MISSION_DELIMITER}open_world",
     f"hello_world{MAP_MISSION_DELIMITER}hello_world_unclip",
     f"hello_world{MAP_MISSION_DELIMITER}oxygen_bottleneck",
@@ -61,8 +60,6 @@ PROC_MAP_MISSIONS: tuple[str, ...] = (
     f"hello_world{MAP_MISSION_DELIMITER}quadrant_buildings",
     f"hello_world{MAP_MISSION_DELIMITER}single_use_swarm",
     f"hello_world{MAP_MISSION_DELIMITER}vibe_check",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts",
-    f"hello_world{MAP_MISSION_DELIMITER}easy_hearts_hello_world",
     # f"machina_1{MAP_MISSION_DELIMITER}open_world",
 )
 
@@ -112,7 +109,7 @@ def make_curriculum(
 # How to submit a policy trained here to the CoGames leaderboard:
 #
 # uv run cogames submit \
-#   -p class=mpt,kw.checkpoint_uri=s3://softmax-public/policies/...:v1.mpt \
+#   -p class=checkpoint,data=s3://softmax-public/policies/...:v1 \
 #   -n your-policy-name-for-leaderboard \
 #   --skip-validation
 #
@@ -245,7 +242,7 @@ def train_variants(
 
 
 def train_single_mission(
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
@@ -293,7 +290,7 @@ def evaluate(
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
 ) -> PlayTool:
@@ -319,7 +316,7 @@ def play_training_env(
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
-        mission="easy_hearts",
+        mission="training_facility.harvest",
         num_cogs=num_cogs,
         variants=variants,
     )

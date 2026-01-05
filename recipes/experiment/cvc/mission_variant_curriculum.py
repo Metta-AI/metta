@@ -212,15 +212,14 @@ def _deduplicate_assembler_protocols(env: MettaGridConfig) -> None:
 
 def _enforce_training_vibes(env: MettaGridConfig) -> None:
     """Enforce the training set of vibes and action space consistency."""
-    training_vibe_names = [v.name for v in vibes.VIBES]
-    env.game.vibe_names = training_vibe_names
+    env.game.vibe_names = [v.name for v in vibes.VIBES]
 
     if env.game.actions:
         # Configure vibe action
         if env.game.actions.change_vibe:
-            env.game.actions.change_vibe.number_of_vibes = len(training_vibe_names)
+            env.game.actions.change_vibe.vibes = list(vibes.VIBES)
             # Filter initial vibe
-            if env.game.agent.initial_vibe >= len(training_vibe_names):
+            if env.game.agent.initial_vibe >= len(vibes.VIBES):
                 env.game.agent.initial_vibe = 0
 
         # This ensures action space is 19 (1 noop + 4 move + 14 vibes)
@@ -555,12 +554,19 @@ def _get_policy_action_space(policy_uri: str) -> Optional[int]:
         return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
+        from pathlib import Path
 
-        artifact = load_mpt(policy_uri)
+        from safetensors.torch import load_file as load_safetensors_file
+
+        from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
+        spec = policy_spec_from_uri(policy_uri)
+        if not spec.data_path:
+            return None
+        state_dict = load_safetensors_file(str(Path(spec.data_path)))
 
         # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
+        for key, tensor in state_dict.items():
             if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
                 return tensor.shape[0]
         return None
@@ -590,7 +596,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
     if env.game.actions:
         if env.game.actions.change_vibe:
-            env.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            env.game.actions.change_vibe.vibes = [vibes.VIBE_BY_NAME[name] for name in vibe_names]
             if env.game.agent.initial_vibe >= len(vibe_names):
                 env.game.agent.initial_vibe = 0
         if env.game.actions.attack:
@@ -599,7 +605,7 @@ def _configure_env_for_action_space(env, num_actions: int) -> None:
 
 def play(
     policy_uri: Optional[str] = None,
-    mission: str = "easy_hearts",
+    mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
     num_vibes: Optional[int] = None,

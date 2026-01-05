@@ -5,6 +5,8 @@ import { config } from './config'
 
 const TOKEN_STORAGE_KEY = 'observatory_auth_token'
 
+let isRedirectingToLogin = false
+
 /**
  * Get the current auth token from localStorage
  */
@@ -33,20 +35,21 @@ export function hasToken(): boolean {
   return getToken() !== null
 }
 
-/**
- * Initiate the login flow by redirecting to the auth server
- */
-export function initiateLogin(): void {
-  const callbackUrl = `${window.location.origin}/auth/callback`
+export function isRedirecting(): boolean {
+  return isRedirectingToLogin
+}
 
-  // Build the authentication URL
+export function initiateLogin(): void {
+  if (isRedirectingToLogin) {
+    return
+  }
+  isRedirectingToLogin = true
+
+  const callbackUrl = `${window.location.origin}/auth/callback`
   const params = new URLSearchParams({
     callback: callbackUrl,
   })
-
   const authUrl = `${config.authServerUrl}/tokens/cli?${params.toString()}`
-
-  // Redirect to the auth server
   window.location.href = authUrl
 }
 
