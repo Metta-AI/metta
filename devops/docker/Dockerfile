@@ -30,6 +30,8 @@ RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
 # This ensures uv sync can build packages like mettagrid that require these tools
 # Copy bootstrap script to /tmp to avoid importing from metta package structure
 COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
+# Required so bootstrap.py can find the correct versions
+COPY .bazelversion .bazeliskversion /tmp/
 RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   cd /tmp && uv run --no-sync python bootstrap.py --non-interactive
 
