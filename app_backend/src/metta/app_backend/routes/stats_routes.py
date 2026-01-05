@@ -433,6 +433,19 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         policy_versions = await stats_repo.get_user_policy_versions(user)
         return MyPolicyVersionsResponse(entries=policy_versions)
 
+    @router.get("/policies/my-versions/lookup")
+    @timed_http_handler
+    async def lookup_my_policy_version(
+        user: UserOrToken,
+        name: str = Query(..., description="Policy name"),
+        version: Optional[int] = Query(None, description="Version number (latest if omitted)"),
+    ) -> PublicPolicyVersionRow:
+        result = await stats_repo.get_user_policy_version_by_name(user, name, version)
+        if result is None:
+            version_str = f" v{version}" if version else ""
+            raise HTTPException(status_code=404, detail=f"Policy '{name}'{version_str} not found")
+        return result
+
     @router.post("/episodes/query", response_model=EpisodeQueryResponse)
     @timed_http_handler
     async def query_episodes(request: EpisodeQueryRequest, user: UserOrToken) -> EpisodeQueryResponse:
