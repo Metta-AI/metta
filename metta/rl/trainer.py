@@ -314,28 +314,49 @@ class Trainer:
         component.register(self._context)
 
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
+        num_agents = self._env.policy_env_info.num_agents
         slots_cfg = list(self._cfg.policy_slots or [])
-        has_trainer_slot = any(b.use_trainer_policy for b in slots_cfg)
-        if not slots_cfg or not has_trainer_slot:
-            slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+        if not slots_cfg:
+            slots_cfg = [PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True)]
 
-        trainer_slot_count = sum(1 for b in slots_cfg if b.use_trainer_policy)
-        if trainer_slot_count > 1:
+        trainer_slot_idx = next((idx for idx, slot in enumerate(slots_cfg) if slot.use_trainer_policy), None)
+        if trainer_slot_idx is None:
+            slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+        elif trainer_slot_idx != 0:
+            slots_cfg.insert(0, slots_cfg.pop(trainer_slot_idx))
+
+        if sum(1 for slot in slots_cfg if slot.use_trainer_policy) > 1:
             raise ValueError("Only one slot may set use_trainer_policy=True")
 
         slot_lookup: dict[str, int] = {}
-        slot_policies: dict[int, Policy] = {}
         for slot in slots_cfg:
             if slot.id in slot_lookup:
                 raise ValueError(f"Duplicate policy slot id '{slot.id}'")
             slot_lookup[slot.id] = len(slot_lookup)
+
+        resolved_agent_map = (
+            list(self._cfg.agent_slot_map)
+            if self._cfg.agent_slot_map is not None
+            else [slots_cfg[0].id for _ in range(num_agents)]
+        )
+        if len(resolved_agent_map) != num_agents:
+            raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(resolved_agent_map)}")
+
+        slot_ids: list[int] = []
+        for idx, slot_id in enumerate(resolved_agent_map):
+            if slot_id not in slot_lookup:
+                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id}'")
+            slot_ids.append(slot_lookup[slot_id])
+
+        slot_policies: dict[int, Policy] = {}
+        for idx, slot in enumerate(slots_cfg):
             if slot.use_trainer_policy:
                 self._set_trainable_flag(trainer_policy, slot.trainable)
-                slot_policies[slot_lookup[slot.id]] = trainer_policy
+                slot_policies[idx] = trainer_policy
             else:
                 loaded_policy = self._slot_registry.get(slot, self._env.policy_env_info, self._device)
                 self._set_trainable_flag(loaded_policy, slot.trainable)
-                slot_policies[slot_lookup[slot.id]] = loaded_policy
+                slot_policies[idx] = loaded_policy
 
         # Loss profiles (config-only in Phase 0)
         loss_profiles = dict(self._cfg.loss_profiles)
@@ -345,23 +366,10 @@ class Trainer:
 
         default_slot_profile = next(iter(loss_profiles))
 
-        num_agents = self._env.policy_env_info.num_agents
-        agent_slot_map = self._cfg.agent_slot_map
-        if agent_slot_map is None:
-            agent_slot_map = [slots_cfg[0].id for _ in range(num_agents)]
-        if len(agent_slot_map) != num_agents:
-            raise ValueError(f"agent_slot_map must have length num_agents ({num_agents}); got {len(agent_slot_map)}")
-
-        slot_ids = []
         loss_profile_ids = []
         trainable_mask = []
-        for idx, slot_id_str in enumerate(agent_slot_map):
-            if slot_id_str not in slot_lookup:
-                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id_str}'")
-            b_idx = slot_lookup[slot_id_str]
-            slot = slots_cfg[b_idx]
-            slot_ids.append(b_idx)
-
+        for slot_idx in slot_ids:
+            slot = slots_cfg[slot_idx]
             profile_name = slot.loss_profile or default_slot_profile
             if profile_name not in loss_profile_lookup:
                 # Auto-register profile if referenced but not defined
@@ -382,25 +390,39 @@ class Trainer:
             "trainable_mask": trainable_tensor,
             "slot_policies": slot_policies,
         }
-
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
-        """Invoke all registered callbacks of the specified type."""
+        """Invoke all registered callbacks of the specified type.
+
+        Args:
+            callback_type: The type of callback to invoke
+            infos: Step information from environment (only used for STEP callback)
+        """
         current_step = self._context.agent_step
         previous_step = getattr(self, "_prev_agent_step_for_step_callbacks", current_step)
         current_epoch = self._context.epoch
 
         for component in self._components:
-            if callback_type == TrainerCallback.STEP:
-                if component.should_handle_step(current_step=current_step, previous_step=previous_step) and infos:
-                    component.on_step(infos)
-            elif callback_type == TrainerCallback.EPOCH_END and component.should_handle_epoch(current_epoch):
-                component.on_epoch_end(current_epoch)
-            elif callback_type == TrainerCallback.ROLLOUT_END:
-                component.on_rollout_end()
-            elif callback_type == TrainerCallback.TRAINING_COMPLETE:
-                component.on_training_complete()
-            elif callback_type == TrainerCallback.FAILURE:
-                component.on_failure()
+            try:
+                if callback_type == TrainerCallback.STEP:
+                    if (
+                        component.should_handle_step(current_step=current_step, previous_step=previous_step)
+                        and infos is not None
+                    ):
+                        component.on_step(infos)
+                elif callback_type == TrainerCallback.EPOCH_END:
+                    if component.should_handle_epoch(current_epoch):
+                        component.on_epoch_end(current_epoch)
+                elif callback_type == TrainerCallback.ROLLOUT_END:
+                    component.on_rollout_end()
+                elif callback_type == TrainerCallback.TRAINING_COMPLETE:
+                    component.on_training_complete()
+                elif callback_type == TrainerCallback.FAILURE:
+                    component.on_failure()
+            except Exception as e:
+                logger.error(
+                    f"Component {component.__class__.__name__} {callback_type.value} callback failed: {e}",
+                    exc_info=True,
+                )
 
     def restore(self) -> None:
         """Restore trainer state from checkpoints.

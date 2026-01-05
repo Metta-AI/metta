@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 from tensordict import TensorDict
@@ -24,6 +24,7 @@ class Experience:
         experience_spec: Composite,
         device: torch.device | str,
         sampling_config: Any,
+        policy_experience_spec: Optional[Composite] = None,
     ):
         """Initialize experience buffer with segmented storage."""
         self.experience_spec = experience_spec
@@ -48,6 +49,9 @@ class Experience:
                 f"But we need segments >= total_agents ({total_agents}).\n"
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
+
+        self.experience_spec = experience_spec
+        self.policy_experience_spec = policy_experience_spec or experience_spec
 
         spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
         self.buffer = spec.zero()
@@ -337,6 +341,7 @@ class Experience:
             experience_spec=Composite(merged_spec_dict),
             device=device,
             sampling_config=sampling_config,
+            policy_experience_spec=policy_experience_spec,
         )
         for loss in losses.values():
             loss.attach_replay_buffer(experience)

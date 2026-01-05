@@ -14,8 +14,6 @@ from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
 class PPOCriticConfig(LossConfig):
-    """Value-head tuning plus optional sampling control."""
-
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
@@ -57,7 +55,10 @@ class PPOCritic(Loss):
         self.trainable_only = True
         self.loss_profiles: set[int] | None = None
 
-        self.burn_in_steps = getattr(self.policy, "burn_in_steps", 0)
+        if hasattr(self.policy, "burn_in_steps"):
+            self.burn_in_steps = self.policy.burn_in_steps
+        else:
+            self.burn_in_steps = 0
         self.burn_in_steps_iter = 0
 
     def get_experience_spec(self) -> Composite:
@@ -97,10 +98,9 @@ class PPOCritic(Loss):
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
-        minibatch = shared_loss_data["sampled_mb"]
-
         shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch = shared_loss_data["sampled_mb"]
+
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
         indices = shared_loss_data["indices"]

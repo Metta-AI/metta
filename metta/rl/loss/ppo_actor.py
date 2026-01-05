@@ -26,6 +26,7 @@ class PPOActorConfig(LossConfig):
     # Target KL for early stopping (None disables)
     target_kl: float | None = None
 
+    profiles: list[str] | None = Field(default=None, description="Optional loss profiles this loss should run for.")
     def create(
         self,
         policy: Policy,
@@ -52,6 +53,8 @@ class PPOActor(Loss):
         cfg: "PPOActorConfig",
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))

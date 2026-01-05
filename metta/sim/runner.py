@@ -5,7 +5,6 @@ from typing import Any, Callable, Sequence
 
 import torch
 from pydantic import BaseModel, ConfigDict, Field
-
 from metta.rl.slot import PolicySlotConfig, SlotControllerPolicy, SlotRegistry
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
@@ -38,13 +37,13 @@ class SimulationRunResult(BaseModel):
 
 def _run_single_simulation(
     simulation: Any,
-    policy_data: Sequence[Any],
+    policy_data: Sequence[Any] | None,
     replay_dir: str | None,
     seed: int,
     device_override: str | None = None,
 ) -> SimulationRunResult:
     sim_cfg = SimulationRunConfig.model_validate(simulation)
-    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data] if policy_data else None
+    policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data] if policy_data else []
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
 
@@ -53,16 +52,27 @@ def _run_single_simulation(
 
     if sim_cfg.policy_slots:
         registry = SlotRegistry()
-        slots_cfg = sim_cfg.policy_slots
-        slot_lookup = {slot_cfg.id: idx for idx, slot_cfg in enumerate(slots_cfg)}
-        controller_device = torch.device(device_override) if device_override else torch.device("cpu")
+        slots_cfg = list(sim_cfg.policy_slots)
+        slot_lookup: dict[str, int] = {}
+        for slot_cfg in slots_cfg:
+            if slot_cfg.id in slot_lookup:
+                raise ValueError(f"Duplicate policy slot id '{slot_cfg.id}'")
+            slot_lookup[slot_cfg.id] = len(slot_lookup)
+        controller_device = torch.device(device_override or "cpu")
 
         num_agents = env_interface.num_agents
-        agent_map = sim_cfg.agent_slot_map or [slots_cfg[0].id for _ in range(num_agents)]
+        if sim_cfg.agent_slot_map is not None:
+            agent_map = list(sim_cfg.agent_slot_map)
+        else:
+            agent_map = [slots_cfg[0].id] * num_agents
         if len(agent_map) != num_agents:
             raise ValueError(f"agent_slot_map must match num_agents ({num_agents}); got {len(agent_map)}")
-        slot_ids = [slot_lookup[a] for a in agent_map]
-        agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long)
+        slot_ids = []
+        for idx, slot_id in enumerate(agent_map):
+            if slot_id not in slot_lookup:
+                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id}'")
+            slot_ids.append(slot_lookup[slot_id])
+        agent_slot_tensor = torch.tensor(slot_ids, dtype=torch.long, device=controller_device)
 
         slot_policies = {
             idx: registry.get(
@@ -77,7 +87,7 @@ def _run_single_simulation(
             slots=slots_cfg,
             slot_policies=slot_policies,
             policy_env_info=env_interface,
-            device=controller_device,
+            controller_device=controller_device,
             agent_slot_map=agent_slot_tensor,
         )
         multi_agent_policies = [controller]

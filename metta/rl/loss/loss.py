@@ -297,7 +297,6 @@ class Loss:
             mask = mb["is_trainable_agent"] if mask is None else mask & mb["is_trainable_agent"]
         if mask is None:
             return shared_loss_data
-
         mask_shape = mask.shape
 
         # If the agent mask is constant across env/time, keep the batch structure and
@@ -393,9 +392,26 @@ class Loss:
 
         masker = apply_agent if agent_mask is not None else apply_flat
 
+        def apply_tensordict(td: TensorDict) -> TensorDict:
+            if agent_mask is not None:
+                agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+                new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+                masked = TensorDict({}, batch_size=new_batch, device=td.device)
+                for key in td.keys(include_nested=True, leaves_only=True):
+                    item = td.get(key)
+                    if isinstance(item, torch.Tensor):
+                        masked.set(key, apply_agent(item))
+                    else:
+                        masked.set(key, item)
+                return masked
+            assert mask_flat is not None
+            return td.flatten()[mask_flat]
+
         if isinstance(value, NonTensorData):
             data = value.data
             return NonTensorData(masker(data)) if hasattr(data, "shape") else value
+        if isinstance(value, TensorDict):
+            return apply_tensordict(value)
         if isinstance(value, torch.Tensor):
             return masker(value)
         if hasattr(value, "batch_size"):

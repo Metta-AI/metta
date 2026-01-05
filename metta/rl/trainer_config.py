@@ -60,7 +60,7 @@ class InitialPolicyConfig(Config):
 
 
 class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=0, ge=0)
+    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
     profile_dir: str | None = Field(default=None)
 
     @property
@@ -78,6 +78,8 @@ class TrainerConfig(Config):
     total_timesteps: int = Field(default=10_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
     policy_slots: list[PolicySlotConfig] | None = Field(
         default=None, description="Optional list of policy slots; defaults to a single trainer policy slot."
     )
@@ -88,8 +90,6 @@ class TrainerConfig(Config):
     loss_profiles: dict[str, LossProfileConfig] = Field(
         default_factory=dict, description="Optional loss profiles keyed by name."
     )
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
-    advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True

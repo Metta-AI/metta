@@ -12,9 +12,12 @@ from metta.agent.policy import PolicyArchitecture
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_file
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -214,3 +217,16 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
+    @staticmethod
+    def load_from_uri(
+        uri: str,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device | str = "cpu",
+        *,
+        strict: bool = True,
+    ) -> MultiAgentPolicy:
+        """Load a policy checkpoint."""
+
+        policy_spec = policy_spec_from_uri(uri, device=str(device))
+        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
