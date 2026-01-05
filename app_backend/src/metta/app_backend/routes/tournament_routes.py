@@ -112,6 +112,8 @@ class SeasonResponse(BaseModel):
 
     @classmethod
     def from_commissioner(cls, season_name: str) -> "SeasonResponse":
+        if season_name not in SEASONS:
+            return cls(name=season_name, description=SeasonDescriptionResponse(summary="", pools=[]), pools=[])
         commissioner = SEASONS[season_name]()
         desc = commissioner.description
         return cls(
@@ -129,8 +131,10 @@ def create_tournament_router() -> APIRouter:
 
     @router.get("/seasons")
     @timed_http_handler
-    async def list_seasons(_user: UserOrToken) -> list[SeasonResponse]:
-        return [SeasonResponse.from_commissioner(name) for name in SEASONS.keys()]
+    async def list_seasons(_user: UserOrToken, session: AsyncSession = Depends(get_session)) -> list[SeasonResponse]:
+        seasons = (await session.execute(select(Season))).scalars().all()
+
+        return [SeasonResponse.from_commissioner(s.name) for s in seasons]
 
     @router.get("/seasons/{season_name}")
     @timed_http_handler
@@ -198,7 +202,9 @@ def create_tournament_router() -> APIRouter:
                     .where(Season.name == season_name)
                     .options(
                         selectinload(PolicyVersion.policy),
-                        selectinload(PolicyVersion.pool_players).selectinload(PoolPlayer.pool),
+                        selectinload(PolicyVersion.pool_players)
+                        .selectinload(PoolPlayer.pool)
+                        .selectinload(Pool.season),
                     )
                     .distinct()
                 )
@@ -249,14 +255,20 @@ def create_tournament_router() -> APIRouter:
                 pending=counts["pending"],
             )
 
-        results = [
-            PolicySummary(
-                policy=PolicyVersionSummary.from_model(pv),
-                pools=[get_pool_membership(pv.id, pp) for pp in pv.pool_players],
-                entered_at=min(pp.created_at for pp in pv.pool_players).isoformat() if pv.pool_players else "",
+        results = []
+        for pv in policy_versions:
+            season_pool_players = [
+                pp for pp in pv.pool_players if pp.pool.season and pp.pool.season.name == season_name
+            ]
+            if not season_pool_players:
+                continue
+            results.append(
+                PolicySummary(
+                    policy=PolicyVersionSummary.from_model(pv),
+                    pools=[get_pool_membership(pv.id, pp) for pp in season_pool_players],
+                    entered_at=min(pp.created_at for pp in season_pool_players).isoformat(),
+                )
             )
-            for pv in policy_versions
-        ]
 
         return sorted(results, key=lambda x: x.entered_at, reverse=True)
 

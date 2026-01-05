@@ -284,9 +284,6 @@ export const SeasonsPage: FC = () => {
       if (!ignore) {
         setSeasons(data)
         setLoading(false)
-        if (!selectedSeasonName && data.length > 0) {
-          setSelectedSeasonName(data[0].name)
-        }
       }
     })
     return () => {
@@ -295,10 +292,12 @@ export const SeasonsPage: FC = () => {
   }, [repo])
 
   useEffect(() => {
-    if (urlSeasonName && urlSeasonName !== selectedSeasonName) {
+    if (urlSeasonName) {
       setSelectedSeasonName(urlSeasonName)
+    } else if (seasons.length > 0 && !selectedSeasonName) {
+      setSelectedSeasonName(seasons[0].name)
     }
-  }, [urlSeasonName])
+  }, [urlSeasonName, seasons, selectedSeasonName])
 
   useEffect(() => {
     setMatchPage(0)

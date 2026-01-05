@@ -117,7 +117,6 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
         <TD>
           <div className="flex flex-col gap-1">
             <StatusBadge status={job.status} />
-            {lifecycleError && <span className="text-red-600 text-xs font-medium">{lifecycleError}</span>}
           </div>
         </TD>
         <TD>
@@ -160,13 +159,13 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
           <td colSpan={6} className="px-3 py-2 space-y-2">
             {lifecycleError && (
               <div>
-                <div className="text-xs font-medium text-gray-500 mb-1">Lifecycle Error:</div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Job lifecycle error:</div>
                 <pre className="text-xs text-red-600">{lifecycleError}</pre>
               </div>
             )}
             {resultError && (
               <div>
-                <div className="text-xs font-medium text-gray-500 mb-1">Result Error:</div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Episode-runner error:</div>
                 <pre className="text-xs whitespace-pre-wrap text-red-600">{resultError}</pre>
               </div>
             )}
