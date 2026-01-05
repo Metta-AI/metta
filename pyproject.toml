@@ -114,6 +114,7 @@ dev = [
   { include-group = "testing" },
   { include-group = "lint" },
   { include-group = "mcp-servers" },
+  "grpcio-tools>=1.76.0",
   "honcho>=2.0.0",
 ]
 
