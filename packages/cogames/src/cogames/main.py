@@ -36,7 +36,14 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.leaderboard import leaderboard_cmd, seasons_cmd, submissions_cmd
+from cogames.cli.leaderboard import (
+    leaderboard_cmd,
+    lookup_policy_version_id,
+    parse_policy_identifier,
+    seasons_cmd,
+    submissions_cmd,
+    submit_to_season,
+)
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -993,6 +1000,79 @@ def upload_cmd(
         console.print(f"[dim]Policy version ID: {result.policy_version_id}[/dim]")
         console.print("\n[yellow]To submit to a tournament:[/yellow]")
         console.print(f"  cogames submit {result.name} --season <season-name>")
+
+
+@app.command(name="submit", help="Submit an uploaded policy to a tournament season")
+def submit_cmd(
+    policy_name: str = typer.Argument(
+        ...,
+        help="Policy name (e.g., 'my-policy' or 'my-policy:v3' for specific version)",
+    ),
+    season: str = typer.Option(
+        ...,
+        "--season",
+        help="Tournament season name (required)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Server URL",
+    ),
+) -> None:
+    """Submit an uploaded policy to a tournament season.
+
+    First upload your policy with 'cogames upload', then submit it to
+    a tournament season with this command.
+
+    Examples:
+      cogames submit my-policy --season beta
+      cogames submit my-policy:v3 --season beta
+    """
+    from cogames.cli.login import CoGamesAuthenticator
+
+    authenticator = CoGamesAuthenticator()
+    if not authenticator.has_saved_token(login_server):
+        console.print("[red]Error:[/red] Not authenticated.")
+        console.print("Please run: [cyan]cogames login[/cyan]")
+        raise typer.Exit(1)
+
+    token = authenticator.load_token(login_server)
+    if not token:
+        console.print(f"[red]Error:[/red] Token not found for {login_server}")
+        raise typer.Exit(1)
+
+    try:
+        name, version = parse_policy_identifier(policy_name)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    version_str = f" v{version}" if version else " (latest)"
+    console.print(f"[bold]Submitting {name}{version_str} to season '{season}'[/bold]\n")
+
+    policy_version_id = lookup_policy_version_id(server, token, name, version)
+    if policy_version_id is None:
+        version_hint = f" v{version}" if version else ""
+        console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
+        console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Found policy version: {policy_version_id}[/dim]")
+
+    pools = submit_to_season(server, token, season, policy_version_id)
+    if pools is None:
+        console.print("\n[red]Submission failed.[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"\n[bold green]Submitted to season '{season}'[/bold green]")
+    if pools:
+        console.print(f"[dim]Pools: {', '.join(pools)}[/dim]")
 
 
 @app.command(name="docs", help="Print documentation")

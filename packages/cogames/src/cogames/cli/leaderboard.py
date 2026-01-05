@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import datetime
 from typing import Any, Literal, Optional
 
@@ -15,6 +16,86 @@ from cogames.cli.base import console
 from cogames.cli.client import TournamentServerClient
 from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER
+
+
+def parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+    """Parse 'name' or 'name:v3' into (name, version).
+
+    Accepts formats:
+    - 'my-policy' -> ('my-policy', None) - latest version
+    - 'my-policy:v3' -> ('my-policy', 3) - specific version
+    - 'my-policy:3' -> ('my-policy', 3) - specific version
+    """
+    if ":" in identifier:
+        name, version_str = identifier.rsplit(":", 1)
+        version_str = version_str.lstrip("v")
+        try:
+            version = int(version_str)
+        except ValueError:
+            raise ValueError(f"Invalid version format: {identifier}") from None
+        return name, version
+    return identifier, None
+
+
+def lookup_policy_version_id(
+    server: str,
+    token: str,
+    name: str,
+    version: int | None,
+) -> uuid.UUID | None:
+    """Look up a policy version ID by name and optional version."""
+    try:
+        params = {"name": name}
+        if version is not None:
+            params["version"] = str(version)
+
+        response = httpx.get(
+            f"{server}/stats/policies/my-versions/lookup",
+            params=params,
+            headers={"X-Auth-Token": token},
+            timeout=30.0,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return uuid.UUID(data["id"])
+        elif response.status_code == 404:
+            return None
+        else:
+            console.print(f"[red]Lookup failed with status {response.status_code}[/red]")
+            console.print(f"[dim]{response.text}[/dim]")
+            return None
+    except Exception as exc:
+        console.print(f"[red]Lookup failed:[/red] {exc}")
+        return None
+
+
+def submit_to_season(
+    server: str,
+    token: str,
+    season: str,
+    policy_version_id: uuid.UUID,
+) -> list[str] | None:
+    """Submit a policy version to a tournament season. Returns list of pool names on success."""
+    try:
+        response = httpx.post(
+            f"{server}/tournament/seasons/{season}/submissions",
+            json={"policy_version_id": str(policy_version_id)},
+            headers={"X-Auth-Token": token},
+            timeout=60.0,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("pools", [])
+        elif response.status_code == 404:
+            console.print(f"[red]Season '{season}' not found[/red]")
+            return None
+        else:
+            console.print(f"[red]Submit failed with status {response.status_code}[/red]")
+            console.print(f"[dim]{response.text}[/dim]")
+            return None
+    except Exception as exc:
+        console.print(f"[red]Submit failed:[/red] {exc}")
+        return None
 
 
 def _format_timestamp(value: Optional[str]) -> str:
