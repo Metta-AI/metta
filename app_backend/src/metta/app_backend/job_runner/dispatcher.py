@@ -12,8 +12,27 @@ from metta.app_backend.job_runner.config import (
     get_dispatch_config,
 )
 from metta.app_backend.models.job_request import JobRequest, JobType
+from metta.common.datadog.config import datadog_config
 
 logger = logging.getLogger(__name__)
+
+
+def _get_datadog_env_vars() -> list[client.V1EnvVar]:
+    dd_env = {
+        key: value
+        for key, value in datadog_config.to_env_dict().items()
+        if key in ("DD_ENV", "DD_TRACE_ENABLED", "DD_LOGS_INJECTION", "DD_VERSION", "DD_TAGS")
+    }
+    dd_env["DD_SERVICE"] = "episode-runner"
+
+    env_vars = [client.V1EnvVar(name=key, value=value) for key, value in dd_env.items()]
+    env_vars.append(
+        client.V1EnvVar(
+            name="DD_AGENT_HOST",
+            value_from=client.V1EnvVarSource(field_ref=client.V1ObjectFieldSelector(field_path="status.hostIP")),
+        )
+    )
+    return env_vars
 
 
 @functools.cache
@@ -106,6 +125,7 @@ def create_episode_job(job: JobRequest) -> str:
                                 client.V1EnvVar(name="STATS_SERVER_URI", value=cfg.STATS_SERVER_URI),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
                             ]
+                            + _get_datadog_env_vars()
                             + (
                                 [client.V1EnvVar(name="AWS_PROFILE", value=cfg.LOCAL_DEV_AWS_PROFILE)]
                                 if cfg.LOCAL_DEV and cfg.LOCAL_DEV_AWS_PROFILE

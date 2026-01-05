@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from ddtrace.trace import tracer
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -36,6 +37,7 @@ from metta.app_backend.tournament.settings import (
     POLL_INTERVAL_SECONDS,
     settings,
 )
+from metta.common.datadog.tracing import trace
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +107,14 @@ class CommissionerBase(ABC):
             await session.commit()
             logger.info(f"Created season '{self.season_name}'")
 
+    @trace("commissioner.run_cycle")
     @with_db
     async def _run_cycle(self) -> bool:
         """Run one cycle of the commissioner. Returns True if there was activity."""
+        span = tracer.current_span()
+        if span:
+            span.set_tags({"season": self.season_name})
+
         pools = await self._ensure_pools_exist(list(self.referees.keys()))
 
         status_changed = await self._sync_match_statuses()
@@ -177,6 +184,7 @@ class CommissionerBase(ABC):
         )
         return {p.name: p for p in all_pools if p.name}
 
+    @trace("commissioner.sync_match_statuses")
     async def _sync_match_statuses(self) -> bool:
         """Sync match statuses from job statuses. Returns True if any changed."""
         session = get_db()
@@ -442,6 +450,7 @@ class CommissionerBase(ABC):
 
         await session.commit()
 
+    @trace("commissioner.create_match")
     async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> bool:
         session = get_db()
 

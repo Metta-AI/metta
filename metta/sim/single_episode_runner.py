@@ -7,11 +7,13 @@ import tempfile
 import uuid
 from uuid import UUID
 
+from ddtrace.trace import tracer
 from pydantic import BaseModel
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
+from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
@@ -35,12 +37,12 @@ class SingleEpisodeJob(BaseModel):
 logger = logging.getLogger(__name__)
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python -m metta.sim.single_episode_runner <job_id>")
-        sys.exit(1)
-
-    job_id = UUID(sys.argv[1])
+@trace("episode_runner.run")
+def run_episode(job_id: UUID) -> None:
+    span = tracer.current_span()
+    if span:
+        span.set_tags({"job.id": str(job_id)})
+        span.resource = str(job_id)
 
     observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["STATS_SERVER_URI"])
 
@@ -131,7 +133,17 @@ def main():
         stats_client.close()
 
 
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python -m metta.sim.single_episode_runner <job_id>")
+        sys.exit(1)
+
+    job_id = UUID(sys.argv[1])
+    run_episode(job_id)
+
+
 if __name__ == "__main__":
     init_logging()
     suppress_noisy_logs()
+    init_tracing()
     main()
