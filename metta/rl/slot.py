@@ -47,15 +47,20 @@ class SlotRegistry:
     def __init__(self) -> None:
         self._cache: Dict[Tuple[str, str], Policy] = {}
 
-    def _cache_key(self, slot: PolicySlotConfig) -> Tuple[str, str]:
-        key_dict = {"uri": slot.policy_uri, "class_path": slot.class_path, "kwargs": slot.policy_kwargs}
+    def _cache_key(self, slot: PolicySlotConfig, device: torch.device) -> Tuple[str, str]:
+        key_dict = {
+            "uri": slot.policy_uri,
+            "class_path": slot.class_path,
+            "kwargs": slot.policy_kwargs,
+            "device": str(device),
+        }
         return (slot.id, json.dumps(key_dict, sort_keys=True))
 
     def get(self, slot: PolicySlotConfig, policy_env_info: PolicyEnvInterface, device: torch.device) -> Policy:
         if slot.use_trainer_policy:
             raise ValueError("use_trainer_policy slots must be supplied externally, not loaded via registry")
 
-        key = self._cache_key(slot)
+        key = self._cache_key(slot, device)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -119,7 +124,10 @@ class SlotControllerPolicy(Policy):
         else:
             first_policy = next(iter(slot_policies.values()), None)
             self._device = torch.device(first_policy.device) if first_policy is not None else torch.device("cpu")
-        self._agent_slot_map = agent_slot_map
+        if agent_slot_map is not None:
+            self.register_buffer("_agent_slot_map", agent_slot_map)
+        else:
+            self._agent_slot_map = None
         self._slot_specs = {idx: policy.get_agent_experience_spec() for idx, policy in slot_policies.items()}
         self._merged_spec = _merge_policy_specs(self._slot_specs.values())
 
@@ -148,7 +156,10 @@ class SlotControllerPolicy(Policy):
                     f"slot-aware routing requires batch size ({batch}) to be divisible by num_agents ({num_agents})"
                 )
             num_envs = batch // num_agents
-            td.set("slot_id", self._agent_slot_map.to(device=td.device).repeat(num_envs))
+            slot_map = self._agent_slot_map
+            if slot_map.device != td.device:
+                slot_map = slot_map.to(device=td.device)
+            td.set("slot_id", slot_map.repeat(num_envs))
 
         slot_ids = td.get("slot_id")
         assert isinstance(slot_ids, torch.Tensor), "slot_id must be a tensor"
@@ -185,6 +196,13 @@ class SlotControllerPolicy(Policy):
     def reset_memory(self) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
             policy.reset_memory()
+
+    def train(self, mode: bool = True):  # noqa: D401
+        super().train(mode)
+        for idx, policy in self._slot_policies.items():
+            if not getattr(self._slots[idx], "trainable", True):
+                policy.eval()
+        return self
 
     @property
     def device(self) -> torch.device:  # noqa: D401
