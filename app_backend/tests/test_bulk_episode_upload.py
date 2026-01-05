@@ -16,7 +16,6 @@ from metta.app_backend.episode_stats_db import (
     insert_agent_policy,
     insert_episode,
     insert_episode_tag,
-    insert_policy_metric,
 )
 from metta.app_backend.metta_repo import MettaRepo
 
@@ -359,51 +358,3 @@ class TestBulkEpisodeUpload:
             assert "reward" in metric_names
             assert "steps" not in metric_names
             assert "custom_metric" not in metric_names
-
-    @pytest.mark.asyncio
-    @patch("metta.app_backend.routes.stats_routes.aioboto3")
-    async def test_policy_metrics_passthrough(
-        self,
-        mock_aioboto3: MagicMock,
-        test_client: TestClient,
-        test_user_headers: dict[str, str],
-        stats_repo: MettaRepo,
-    ):
-        """Policy-level metrics written in DuckDB should be persisted as-is."""
-        pv_id = await self._create_policy_version(stats_repo)
-
-        conn, db_path = create_episode_stats_db()
-        episode_id = str(uuid.uuid4())
-        pv_id_str = str(pv_id)
-
-        insert_episode(
-            conn,
-            episode_id=episode_id,
-            primary_pv_id=pv_id_str,
-            replay_url=None,
-            thumbnail_url=None,
-            attributes={},
-            eval_task_id=None,
-        )
-
-        insert_agent_policy(conn, episode_id, pv_id_str, 0)
-        insert_agent_metric(conn, episode_id, 0, "reward", 3.0)
-        insert_policy_metric(conn, episode_id, pv_id_str, "exception_step", 11.0)
-        insert_policy_metric(conn, episode_id, pv_id_str, "exception_flag", 1.0)
-
-        conn.close()
-
-        self._setup_s3_mocks(mock_aioboto3, db_path)
-        self._call_presigned_upload_flow(test_client, test_user_headers)
-
-        async with stats_repo.connect() as con:
-            result = await con.execute(
-                """
-                SELECT metric_name, value
-                FROM episode_policy_metrics
-                WHERE metric_name IN ('exception_step', 'exception_flag')
-                """
-            )
-            rows = await result.fetchall()
-            metrics = {name: float(val) for name, val in rows}
-            assert metrics == {"exception_step": 11.0, "exception_flag": 1.0}

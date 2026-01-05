@@ -177,7 +177,10 @@ def send_eval_results_to_wandb(
     )
     metrics_to_log.update(get_replay_html_payload(eval_results.replay_urls))
     if not during_training:
-        setup_policy_evaluator_metrics(wandb_run)
+        try:
+            setup_policy_evaluator_metrics(wandb_run)
+        except Exception:
+            logger.error("Failed to set default axes for policy evaluator metrics. Continuing", exc_info=True)
         metrics_to_log.update({POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         wandb_run.log(metrics_to_log)
     else:
@@ -333,64 +336,67 @@ def write_eval_results_to_observatory(
     stats_client: StatsClient,
     primary_policy_version_id: str | None = None,
 ) -> None:
-    with episode_stats_db() as (conn, duckdb_path):
-        for sim_result in rollout_results:
-            sim_config = sim_result.run
-            results = sim_result.results
+    try:
+        with episode_stats_db() as (conn, duckdb_path):
+            for sim_result in rollout_results:
+                sim_config = sim_result.run
+                results = sim_result.results
 
-            for e in results.episodes:
-                episode_id = str(uuid.uuid4())
+                for e in results.episodes:
+                    episode_id = str(uuid.uuid4())
 
-                insert_episode(
-                    conn,
-                    episode_id=episode_id,
-                    primary_pv_id=primary_policy_version_id,
-                    replay_url=e.replay_path,
-                    thumbnail_url=None,
-                    eval_task_id=None,
-                )
+                    insert_episode(
+                        conn,
+                        episode_id=episode_id,
+                        primary_pv_id=primary_policy_version_id,
+                        replay_url=e.replay_path,
+                        thumbnail_url=None,
+                        eval_task_id=None,
+                    )
 
-                for key, value in sim_config.episode_tags.items():
-                    insert_episode_tag(conn, episode_id, key, value)
+                    for key, value in sim_config.episode_tags.items():
+                        insert_episode_tag(conn, episode_id, key, value)
 
-                for agent_id, policy_idx in enumerate(e.assignments):
-                    pv_id = policy_version_ids[policy_idx]
-
-                    insert_agent_policy(conn, episode_id, pv_id, agent_id)
-
-                    insert_agent_metric(conn, episode_id, agent_id, "reward", float(e.rewards[agent_id]))
-                    agent_metrics = e.stats["agent"][agent_id]
-                    for metric_name, metric_value in agent_metrics.items():
-                        insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
-
-                policy_failure_steps: dict[int, int] = {}
-                failure_steps = e.failure_steps
-                if failure_steps:
                     for agent_id, policy_idx in enumerate(e.assignments):
-                        failure_step = failure_steps[agent_id]
-                        if failure_step is None:
-                            continue
-                        policy_idx = int(policy_idx)
-                        failure_step_int = int(failure_step)
-                        policy_failure_steps[policy_idx] = min(
-                            failure_step_int, policy_failure_steps.get(policy_idx, failure_step_int)
-                        )
+                        pv_id = policy_version_ids[policy_idx]
 
-                assigned_policy_indices = {int(idx) for idx in e.assignments}
-                for policy_idx in assigned_policy_indices:
-                    pv_id = policy_version_ids[policy_idx]
-                    failure_step = policy_failure_steps.get(policy_idx)
-                    exception_flag = 1.0 if failure_step is not None else 0.0
-                    insert_policy_metric(conn, episode_id, pv_id, "exception_flag", exception_flag)
-                    if failure_step is not None:
-                        insert_policy_metric(conn, episode_id, pv_id, "exception_step", float(failure_step))
+                        insert_agent_policy(conn, episode_id, pv_id, agent_id)
 
-        conn.execute("CHECKPOINT")
-        logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
-        response = stats_client.bulk_upload_episodes(str(duckdb_path))
-        logger.info(
-            f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
-        )
+                        insert_agent_metric(conn, episode_id, agent_id, "reward", float(e.rewards[agent_id]))
+                        agent_metrics = e.stats["agent"][agent_id]
+                        for metric_name, metric_value in agent_metrics.items():
+                            insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
+
+                    policy_failure_steps: dict[int, int] = {}
+                    failure_steps = e.failure_steps
+                    if failure_steps:
+                        for agent_id, policy_idx in enumerate(e.assignments):
+                            failure_step = failure_steps[agent_id]
+                            if failure_step is None:
+                                continue
+                            policy_idx = int(policy_idx)
+                            failure_step_int = int(failure_step)
+                            policy_failure_steps[policy_idx] = min(
+                                failure_step_int, policy_failure_steps.get(policy_idx, failure_step_int)
+                            )
+
+                    assigned_policy_indices = {int(idx) for idx in e.assignments}
+                    for policy_idx in assigned_policy_indices:
+                        pv_id = policy_version_ids[policy_idx]
+                        failure_step = policy_failure_steps.get(policy_idx)
+                        exception_flag = 1.0 if failure_step is not None else 0.0
+                        insert_policy_metric(conn, episode_id, pv_id, "exception_flag", exception_flag)
+                        if failure_step is not None:
+                            insert_policy_metric(conn, episode_id, pv_id, "exception_step", float(failure_step))
+
+            conn.execute("CHECKPOINT")
+            logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
+            response = stats_client.bulk_upload_episodes(str(duckdb_path))
+            logger.info(
+                f"Successfully uploaded {response.episodes_created} episodes to observatory at {response.duckdb_s3_uri}"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
 
 
 def populate_single_episode_duckdb(

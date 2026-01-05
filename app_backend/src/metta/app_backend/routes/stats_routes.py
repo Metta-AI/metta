@@ -128,7 +128,10 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies")
     @timed_http_handler
     async def upsert_policy(policy: PolicyCreate, user: UserOrToken) -> UUIDResponse:
-        user_id = "system" if policy.is_system_policy else user
+        if policy.is_system_policy:
+            user_id = "system"
+        else:
+            user_id = user
 
         policy_id = await stats_repo.upsert_policy(name=policy.name, user_id=user_id, attributes=policy.attributes)
         return UUIDResponse(id=policy_id)
@@ -241,19 +244,14 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies/submit/complete")
     @timed_http_handler
     async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> UUIDResponse:
-        from botocore.exceptions import ClientError
-
         s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
 
-        session = aioboto3.Session()
-        async with session.client("s3") as s3_client:  # type: ignore
-            try:
+        try:
+            session = aioboto3.Session()
+            async with session.client("s3") as s3_client:  # type: ignore
                 await s3_client.head_object(Bucket=OBSERVATORY_S3_BUCKET, Key=s3_key)
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code")
-                if error_code in {"404", "NoSuchKey", "NotFound"}:
-                    raise HTTPException(status_code=400, detail="Uploaded submission not found in S3.") from exc
-                raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
 
         return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
 

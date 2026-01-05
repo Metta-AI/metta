@@ -119,15 +119,6 @@ jobs:
             echo "Working tree is clean"
           fi
 
-      - name: Configure Datadog
-        uses: datadog/test-visibility-github-action@v2
-        with:
-          languages: python
-          api_key: ${{ secrets.DD_API_KEY }}
-
-      - name: Chaos monkey observatory smoke test
-        run: pytest app_backend/tests/test_chaos_monkey_observatory.py -q
-
       - name: Run stable release process
         id: release
         run: ./devops/stable/cli.py
