@@ -711,7 +711,7 @@ class SharedRewardsVariant(MissionVariant):
     def modify_env(self, mission, env):
         num_cogs = mission.num_cogs if mission.num_cogs is not None else mission.site.min_cogs
         rewards = dict(env.game.agent.rewards.stats)
-        rewards.pop("chest.heart.deposited_by_agent", None)
+        rewards["chest.heart.deposited_by_agent"] = 0
         rewards["chest.heart.amount"] = 1 / num_cogs
         env.game.agent.rewards.stats = rewards
 
