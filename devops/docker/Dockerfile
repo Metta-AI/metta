@@ -5,7 +5,7 @@ ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
 ENV READTHEDOCS=True
 ENV UV_LINK_MODE=copy
 
-ARG BAZELISK_VERSION=1.19.0
+# ARG BAZELISK_VERSION=1.19.0
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -13,9 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libgomp1 \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel
+    && rm -rf /var/lib/apt/lists/*
+    # && curl -L https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
+    # && chmod +x /usr/local/bin/bazel
 
 WORKDIR /workspace/metta
 
