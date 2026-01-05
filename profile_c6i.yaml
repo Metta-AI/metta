@@ -1,0 +1,8 @@
+name: profile-c6i
+
+resources:
+  cloud: aws
+  instance_type: c6i.xlarge
+  disk_size: 50
+
+workdir: .

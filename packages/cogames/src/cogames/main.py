@@ -857,7 +857,7 @@ def login_cmd(
         raise typer.Exit(1)
 
 
-app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+app.command(name="submissions", help="Show your uploaded policies and tournament submissions")(submissions_cmd)
 
 app.command(name="seasons", help="List available tournament seasons")(seasons_cmd)
 

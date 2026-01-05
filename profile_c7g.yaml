@@ -1,0 +1,8 @@
+name: profile-c7g
+
+resources:
+  cloud: aws
+  instance_type: c7g.xlarge
+  disk_size: 50
+
+workdir: .
