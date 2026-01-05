@@ -229,10 +229,13 @@ class CommissionerBase(ABC):
                 .join(Match.pool)
                 .join(Pool.season)
                 .join(Match.job)
+                .join(Match.players)
                 .where(Season.name == self.season_name)
                 .where(Match.status == MatchStatus.completed)
                 .where(JobRequest.episode_id.is_not(None))
+                .where(col(MatchPlayer.score).is_(None))
                 .options(selectinload(Match.players).selectinload(MatchPlayer.pool_player))
+                .distinct()
             )
         ).all()
 
