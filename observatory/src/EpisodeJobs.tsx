@@ -117,9 +117,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
         <TD>
           <div className="flex flex-col gap-1">
             <StatusBadge status={job.status} />
-            {lifecycleError && (
-              <span className="text-red-600 text-xs font-medium">{lifecycleError}</span>
-            )}
+            {lifecycleError && <span className="text-red-600 text-xs font-medium">{lifecycleError}</span>}
           </div>
         </TD>
         <TD>
@@ -175,9 +173,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
             {job.result && !resultError && (
               <div>
                 <div className="text-xs font-medium text-gray-500 mb-1">Result:</div>
-                <pre className="text-xs whitespace-pre-wrap text-gray-600">
-                  {JSON.stringify(job.result, null, 2)}
-                </pre>
+                <pre className="text-xs whitespace-pre-wrap text-gray-600">{JSON.stringify(job.result, null, 2)}</pre>
               </div>
             )}
           </td>

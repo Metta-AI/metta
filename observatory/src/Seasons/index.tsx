@@ -353,14 +353,16 @@ export const SeasonsPage: FC = () => {
   const existingPolicyVersionIds = new Set(policies.map((p) => p.policy.id))
 
   const matchCountsByPolicyPool = useMemo(() => {
-    const counts: Record<string, { scored: number; pending: number }> = {}
+    const counts: Record<string, { scored: number; pending: number; failed: number }> = {}
     for (const m of allMatches) {
       for (const p of m.players) {
         const key = `${p.policy.id}:${m.pool_name}`
-        if (!counts[key]) counts[key] = { scored: 0, pending: 0 }
+        if (!counts[key]) counts[key] = { scored: 0, pending: 0, failed: 0 }
         if (m.status === 'completed' && p.score !== null) {
           counts[key].scored++
-        } else if (m.status !== 'failed') {
+        } else if (m.status === 'failed') {
+          counts[key].failed++
+        } else {
           counts[key].pending++
         }
       }
@@ -513,6 +515,7 @@ export const SeasonsPage: FC = () => {
                           const counts = matchCountsByPolicyPool[`${policy.policy.id}:${poolName}`] || {
                             scored: 0,
                             pending: 0,
+                            failed: 0,
                           }
                           return (
                             <TD key={poolName}>
@@ -528,7 +531,9 @@ export const SeasonsPage: FC = () => {
                                   onClick={() => handleMatchFilterClick(poolName, policy.policy.id)}
                                   className="text-sm text-gray-400 hover:text-blue-600 cursor-pointer transition-colors"
                                 >
-                                  ({counts.scored} matches{counts.pending > 0 && `, ${counts.pending} pending`})
+                                  ({counts.scored} matches
+                                  {counts.failed > 0 && `, ${counts.failed} failed`}
+                                  {counts.pending > 0 && `, ${counts.pending} pending`})
                                 </span>
                               </div>
                             </TD>
