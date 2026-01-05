@@ -2,15 +2,15 @@ import functools
 import logging
 
 from kubernetes import client
-from kubernetes import config as kubernetes_config
-
 from metta.app_backend.job_runner.config import (
     JOB_NAMESPACE,
     LABEL_APP,
     LABEL_APP_VALUE,
     LABEL_JOB_ID,
+    JobDispatchConfig,
     get_dispatch_config,
 )
+from metta.app_backend.job_runner.k8s import load_k8s_config
 from metta.app_backend.models.job_request import JobRequest, JobType
 
 logger = logging.getLogger(__name__)
@@ -19,15 +19,7 @@ logger = logging.getLogger(__name__)
 @functools.cache
 def get_k8s_client() -> client.BatchV1Api:
     cfg = get_dispatch_config()
-
-    if cfg.LOCAL_DEV:
-        if not cfg.LOCAL_DEV_K8S_CONTEXT:
-            raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
-    else:
-        # Prod: require in-cluster config, no silent fallback
-        kubernetes_config.load_incluster_config()
-
+    load_k8s_config(cfg)
     return client.BatchV1Api()
 
 
@@ -49,24 +41,7 @@ def create_episode_job(job: JobRequest) -> str:
         # "compute": "fargate",
     }
 
-    volumes: list[client.V1Volume] = []
-    volume_mounts: list[client.V1VolumeMount] = []
-
-    if cfg.LOCAL_DEV and cfg.LOCAL_DEV_MOUNTS:
-        for i, mount in enumerate(cfg.LOCAL_DEV_MOUNTS.split(",")):
-            parts = mount.strip().split(":")
-            if len(parts) != 2:
-                logger.warning(f"Invalid mount format: {mount}, expected 'host:container'")
-                continue
-            host_path, container_path = parts
-            vol_name = f"local-mount-{i}"
-            volumes.append(
-                client.V1Volume(
-                    name=vol_name,
-                    host_path=client.V1HostPathVolumeSource(path=host_path),
-                )
-            )
-            volume_mounts.append(client.V1VolumeMount(name=vol_name, mount_path=container_path))
+    volumes, volume_mounts = _local_mounts(cfg)
 
     k8s_job = client.V1Job(
         metadata=client.V1ObjectMeta(
@@ -126,3 +101,25 @@ def create_episode_job(job: JobRequest) -> str:
     batch_v1.create_namespaced_job(namespace=JOB_NAMESPACE, body=k8s_job)
     logger.info(f"Created k8s Job {job_name} for job {job.id}")
     return job_name
+
+
+def _local_mounts(cfg: JobDispatchConfig) -> tuple[list[client.V1Volume], list[client.V1VolumeMount]]:
+    if not (cfg.LOCAL_DEV and cfg.LOCAL_DEV_MOUNTS):
+        return [], []
+    volumes: list[client.V1Volume] = []
+    volume_mounts: list[client.V1VolumeMount] = []
+    for i, mount in enumerate(cfg.LOCAL_DEV_MOUNTS.split(",")):
+        parts = mount.strip().split(":")
+        if len(parts) != 2:
+            logger.warning(f"Invalid mount format: {mount}, expected 'host:container'")
+            continue
+        host_path, container_path = parts
+        vol_name = f"local-mount-{i}"
+        volumes.append(
+            client.V1Volume(
+                name=vol_name,
+                host_path=client.V1HostPathVolumeSource(path=host_path),
+            )
+        )
+        volume_mounts.append(client.V1VolumeMount(name=vol_name, mount_path=container_path))
+    return volumes, volume_mounts

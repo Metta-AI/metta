@@ -434,43 +434,7 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         with context.stopwatch("_rollout.td_prep"):
             training_env_id = workspace["training_env_id"]
-            buffer_step = workspace["buffer_step"]
-            td = buffer_step[training_env_id].clone()
-            target_device = td.device
-            td["env_obs"] = workspace["obs"].to(device=target_device, non_blocking=True)
-
-            rewards = workspace["rewards"].to(device=target_device, non_blocking=True)
-            td["rewards"] = rewards
-            agent_ids = core._env_index_cache[training_env_id]
-            td["training_env_ids"] = agent_ids.unsqueeze(1)
-
-            avg_reward = context.state.avg_reward
-            baseline = avg_reward[agent_ids]
-            td["reward_baseline"] = baseline
-
-            if target_device.type == "mps":
-                td["dones"] = workspace["dones"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                td["truncateds"] = (
-                    workspace["truncateds"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
-                )
-            else:
-                td["dones"] = workspace["dones"].to(device=target_device, dtype=torch.float32, non_blocking=True)
-                td["truncateds"] = workspace["truncateds"].to(
-                    device=target_device,
-                    dtype=torch.float32,
-                    non_blocking=True,
-                )
-            td["teacher_actions"] = workspace["teacher_actions"].to(
-                device=target_device, dtype=torch.long, non_blocking=True
-            )
-
-            row_ids = core.experience.row_slot_ids[training_env_id]
-            t_in_row = core.experience.t_in_row[training_env_id]
-            td["row_id"] = row_ids
-            td["t_in_row"] = t_in_row
-            core.add_last_action_to_td(td)
-            ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
-
+            td, agent_ids, baseline = _prepare_rollout_td(core, context, workspace)
             context.training_env_id = training_env_id
             workspace["td"] = td
             workspace["agent_ids"] = agent_ids
@@ -483,6 +447,47 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
         fn=_fn,
         enabled=_phase_enabled("rollout"),
     )
+
+
+def _prepare_rollout_td(
+    core: CoreTrainingLoop,
+    context: ComponentContext,
+    workspace: dict[str, Any],
+) -> tuple[TensorDict, torch.Tensor, torch.Tensor]:
+    training_env_id = workspace["training_env_id"]
+    buffer_step = workspace["buffer_step"]
+    td = buffer_step[training_env_id].clone()
+    target_device = td.device
+    td["env_obs"] = workspace["obs"].to(device=target_device, non_blocking=True)
+
+    rewards = workspace["rewards"].to(device=target_device, non_blocking=True)
+    td["rewards"] = rewards
+    agent_ids = core._env_index_cache[training_env_id]
+    td["training_env_ids"] = agent_ids.unsqueeze(1)
+
+    avg_reward = context.state.avg_reward
+    baseline = avg_reward[agent_ids]
+    td["reward_baseline"] = baseline
+
+    if target_device.type == "mps":
+        td["dones"] = workspace["dones"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+        td["truncateds"] = workspace["truncateds"].to(dtype=torch.float32).to(device=target_device, non_blocking=False)
+    else:
+        td["dones"] = workspace["dones"].to(device=target_device, dtype=torch.float32, non_blocking=True)
+        td["truncateds"] = workspace["truncateds"].to(
+            device=target_device,
+            dtype=torch.float32,
+            non_blocking=True,
+        )
+    td["teacher_actions"] = workspace["teacher_actions"].to(device=target_device, dtype=torch.long, non_blocking=True)
+
+    row_ids = core.experience.row_slot_ids[training_env_id]
+    t_in_row = core.experience.t_in_row[training_env_id]
+    td["row_id"] = row_ids
+    td["t_in_row"] = t_in_row
+    core.add_last_action_to_td(td)
+    ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
+    return td, agent_ids, baseline
 
 
 def _node_rollout_fn(node: NodeBase):

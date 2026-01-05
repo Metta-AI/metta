@@ -33,6 +33,20 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     return "multiprocessing"
 
 
+def _resolve_worker_config(cfg: "TrainingEnvironmentConfig") -> tuple[int, int]:
+    if cfg.vectorization == "serial":
+        return 1, 1
+
+    num_workers = cfg.num_workers
+    async_factor = cfg.async_factor
+    if cfg.auto_workers:
+        num_gpus = torch.cuda.device_count() or 1
+        cpu_count = os.cpu_count() or 1
+        ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
+        num_workers = max(1, ideal_workers)
+    return num_workers, async_factor
+
+
 class TrainingEnvironmentConfig(Config):
     """Configuration for training environment."""
 
@@ -148,18 +162,7 @@ class VectorizedTrainingEnvironment(TrainingEnvironment):
             target_dir.mkdir(parents=True, exist_ok=True)
             self._replay_directory = target_dir
 
-        num_workers = cfg.num_workers
-        async_factor = cfg.async_factor
-
-        if cfg.vectorization == "serial":
-            num_workers = 1
-            async_factor = 1
-        else:
-            if cfg.auto_workers:
-                num_gpus = torch.cuda.device_count() or 1
-                cpu_count = os.cpu_count() or 1
-                ideal_workers = (cpu_count // 2) // max(num_gpus, 1)
-                num_workers = max(1, ideal_workers)
+        num_workers, async_factor = _resolve_worker_config(cfg)
 
         # Calculate batch sizes
         self._target_batch_size, self._batch_size, self._num_envs = calculate_batch_sizes(

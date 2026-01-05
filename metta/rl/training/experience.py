@@ -223,13 +223,6 @@ class Experience:
         """Reset store keys so that all spec keys are written on store."""
         self._store_keys = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
-    def give_me_empty_md_td(self) -> TensorDict:
-        return TensorDict(
-            {},
-            batch_size=(self.minibatch_segments, self.bptt_horizon),
-            device=self.device,
-        )
-
     def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
         """Sample a contiguous minibatch from the buffer in sequential order."""
         num_minibatches = max(self.num_minibatches, 1)
@@ -286,7 +279,11 @@ class Experience:
         batch_size: int,
         advantages: Tensor,
     ) -> TensorDict:
-        shared_loss_mb_data = self.give_me_empty_md_td()
+        shared_loss_mb_data = TensorDict(
+            {},
+            batch_size=(self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+        )
 
         if self.sampling_config.method == "sequential":
             minibatch, indices = self.sample_sequential(mb_idx)

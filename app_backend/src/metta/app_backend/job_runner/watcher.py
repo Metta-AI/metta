@@ -8,7 +8,6 @@ from kubernetes import (
     client,
     watch,  # type: ignore[attr-defined]
 )
-from kubernetes import config as kubernetes_config
 from kubernetes.client.rest import ApiException
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -20,6 +19,7 @@ from metta.app_backend.job_runner.config import (
     LABEL_JOB_ID,
     get_dispatch_config,
 )
+from metta.app_backend.job_runner.k8s import load_k8s_config
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
@@ -31,12 +31,7 @@ WATCH_TIMEOUT_SECONDS = 30
 @functools.cache
 def _get_k8s_clients() -> tuple[client.CoreV1Api, client.BatchV1Api]:
     cfg = get_dispatch_config()
-    if cfg.LOCAL_DEV:
-        if not cfg.LOCAL_DEV_K8S_CONTEXT:
-            raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
-    else:
-        kubernetes_config.load_incluster_config()
+    load_k8s_config(cfg)
     return client.CoreV1Api(), client.BatchV1Api()
 
 
