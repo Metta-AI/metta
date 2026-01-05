@@ -9,6 +9,7 @@ PROMOTION_MIN_SCORE: float = 0.1
 class CommissionerSettings(BaseSettings):
     STATS_SERVER_URI: str = "http://localhost:8000"
     STATS_DB_URI: str = "postgres://postgres:password@127.0.0.1:5432/metta"
+    MACHINE_TOKEN: str | None = None
 
 
 settings = CommissionerSettings()

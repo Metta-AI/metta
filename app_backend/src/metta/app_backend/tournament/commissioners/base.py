@@ -470,23 +470,20 @@ class CommissionerBase(ABC):
             episode_tags=request.episode_tags,
         )
 
-        stats_client = StatsClient(settings.STATS_SERVER_URI)
+        stats_client = StatsClient(settings.STATS_SERVER_URI, machine_token=settings.MACHINE_TOKEN)
         try:
-            loop = asyncio.get_event_loop()
-            job_ids = await loop.run_in_executor(
-                None, lambda: stats_client.create_jobs([JobRequestCreate(job_type=JobType.episode, job=job_spec)])
+            job_ids = await asyncio.to_thread(
+                stats_client.create_jobs, [JobRequestCreate(job_type=JobType.episode, job=job_spec)]
             )
             job_id = job_ids[0] if job_ids else None
         except Exception as e:
             logger.error(f"Failed to create job for match {match_id}: {e}")
-            await session.rollback()
             return False
         finally:
             stats_client.close()
 
         if not job_id:
             logger.error(f"Failed to create job for match {match_id}")
-            await session.rollback()
             return False
 
         session.add_all(
