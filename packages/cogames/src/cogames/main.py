@@ -36,7 +36,7 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
+from cogames.cli.leaderboard import leaderboard_cmd, seasons_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -851,6 +851,8 @@ def login_cmd(
 
 
 app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+
+app.command(name="seasons", help="List available tournament seasons")(seasons_cmd)
 
 app.command(
     name="leaderboard",
