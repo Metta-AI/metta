@@ -30,7 +30,7 @@ def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
         # "minibatch_size": 8192,
         # "bptt_horizon": 256,
         # "optimizer": OptimizerConfig(learning_rate=1e-4),
-        "update_epochs": 4,
+        "update_epochs": 2,
         "advantage": AdvantageConfig(gae_lambda=0.997),
     }
 

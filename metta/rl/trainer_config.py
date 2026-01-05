@@ -47,7 +47,7 @@ class AdvantageConfig(Config):
     reward_centering: RewardCenteringConfig = Field(default_factory=RewardCenteringConfig)
 
     gamma: float = Field(default=1.0, ge=0, le=1.0)
-    gae_lambda: float = Field(default=0.95, ge=0, le=1.0)
+    gae_lambda: float = Field(default=0.997, ge=0, le=1.0)
 
 
 class InitialPolicyConfig(Config):
