@@ -148,33 +148,33 @@ class CoreTrainingLoop:
 
         epochs_trained = 0
 
-        for _ in range(update_epochs):
-            if "values" in self.experience.buffer.keys():
-                values_for_adv = self.experience.buffer["values"]
-                if values_for_adv.dim() > 2:
-                    values_for_adv = values_for_adv.mean(dim=-1)
-                centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
-                advantages_full = compute_advantage(
-                    values_for_adv,
-                    centered_rewards,
-                    self.experience.buffer["dones"],
-                    torch.ones_like(values_for_adv),
-                    torch.zeros_like(values_for_adv, device=self.device),
-                    advantage_cfg.gamma,
-                    advantage_cfg.gae_lambda,
-                    self.device,
-                    advantage_cfg.vtrace_rho_clip,
-                    advantage_cfg.vtrace_c_clip,
-                )
-            else:
-                # Value-free setups still need a tensor shaped like the buffer for sampling.
-                advantages_full = torch.zeros(
-                    self.experience.buffer.batch_size,
-                    device=self.device,
-                    dtype=torch.float32,
-                )
-            self.experience.buffer["advantages_full"] = advantages_full
+        if "values" in self.experience.buffer.keys():
+            values_for_adv = self.experience.buffer["values"]
+            if values_for_adv.dim() > 2:
+                values_for_adv = values_for_adv.mean(dim=-1)
+            centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
+            advantages_full = compute_advantage(
+                values_for_adv,
+                centered_rewards,
+                self.experience.buffer["dones"],
+                torch.ones_like(values_for_adv),
+                torch.zeros_like(values_for_adv, device=self.device),
+                advantage_cfg.gamma,
+                advantage_cfg.gae_lambda,
+                self.device,
+                advantage_cfg.vtrace_rho_clip,
+                advantage_cfg.vtrace_c_clip,
+            )
+        else:
+            # Value-free setups still need a tensor shaped like the buffer for sampling.
+            advantages_full = torch.zeros(
+                self.experience.buffer.batch_size,
+                device=self.device,
+                dtype=torch.float32,
+            )
+        self.experience.buffer["advantages_full"] = advantages_full
 
+        for _ in range(update_epochs):
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
@@ -603,11 +603,12 @@ def _train_importance_ratio_fn():
         shared = workspace["shared_loss_data"]
         sampled_mb = shared["sampled_mb"]
         policy_td = shared["policy_td"]
-        if "act_log_prob" in sampled_mb.keys() and "act_log_prob" in policy_td.keys():
-            old_logprob = sampled_mb["act_log_prob"]
-            new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
-            logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
-            shared["importance_sampling_ratio"] = logratio.exp()
+        if "act_log_prob" not in sampled_mb.keys() or "act_log_prob" not in policy_td.keys():
+            return {}
+        old_logprob = sampled_mb["act_log_prob"]
+        new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
+        logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
+        shared["importance_sampling_ratio"] = logratio.exp()
         return {}
 
     return _fn
@@ -712,9 +713,10 @@ def _node_train_fn(node: NodeBase):
 
 def _train_loss_sum_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
-        total = torch.tensor(0.0, dtype=torch.float32, device=core.device)
-        for term in workspace["loss_values"].values():
-            total = total + term
+        total = sum(
+            workspace["loss_values"].values(),
+            torch.tensor(0.0, dtype=torch.float32, device=core.device),
+        )
         workspace["total_loss"] = total
         return {}
 
