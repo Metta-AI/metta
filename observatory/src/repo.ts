@@ -340,6 +340,7 @@ export type JobRequest = {
   user_id: string
   worker: string | null
   result: Record<string, any> | null
+  error: string | null
   created_at: string
   dispatched_at: string | null
   running_at: string | null

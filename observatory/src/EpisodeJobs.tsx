@@ -101,9 +101,11 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
   const policyUris = job.job?.policy_uris as string[] | undefined
   const episodeTags = job.job?.episode_tags as Record<string, string> | undefined
   const episodeId = job.result?.episode_id as string | undefined
-  const error = job.result?.error as string | undefined
+  const resultError = job.result?.error as string | undefined
+  const lifecycleError = job.error
 
-  const hasExpandableContent = !episodeId && (error || job.result)
+  const hasError = resultError || lifecycleError
+  const hasExpandableContent = !episodeId && (hasError || job.result)
 
   return (
     <Fragment>
@@ -113,7 +115,12 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
       >
         <TD className="font-mono text-xs">{job.id.slice(0, 8)}</TD>
         <TD>
-          <StatusBadge status={job.status} />
+          <div className="flex flex-col gap-1">
+            <StatusBadge status={job.status} />
+            {lifecycleError && (
+              <span className="text-red-600 text-xs font-medium">{lifecycleError}</span>
+            )}
+          </div>
         </TD>
         <TD>
           {policyUris?.map((uri, i) => (
@@ -141,7 +148,7 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
         <TD>
           {episodeId ? (
             <StyledLink to={`/episodes/${episodeId}`}>View</StyledLink>
-          ) : error ? (
+          ) : resultError ? (
             <span className="text-red-600 text-xs">{expanded ? '[-] Error' : '[+] Error'}</span>
           ) : job.result ? (
             <span className="text-gray-600 text-xs">{expanded ? '[-] Result' : '[+] Result'}</span>
@@ -152,10 +159,27 @@ const JobRow: FC<{ job: JobRequest }> = ({ job }) => {
       </TR>
       {expanded && hasExpandableContent && (
         <tr className="bg-gray-50">
-          <td colSpan={6} className="px-3 py-2">
-            <pre className={clsx('text-xs whitespace-pre-wrap', error ? 'text-red-600' : 'text-gray-600')}>
-              {error || JSON.stringify(job.result, null, 2)}
-            </pre>
+          <td colSpan={6} className="px-3 py-2 space-y-2">
+            {lifecycleError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Lifecycle Error:</div>
+                <pre className="text-xs text-red-600">{lifecycleError}</pre>
+              </div>
+            )}
+            {resultError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Result Error:</div>
+                <pre className="text-xs whitespace-pre-wrap text-red-600">{resultError}</pre>
+              </div>
+            )}
+            {job.result && !resultError && (
+              <div>
+                <div className="text-xs font-medium text-gray-500 mb-1">Result:</div>
+                <pre className="text-xs whitespace-pre-wrap text-gray-600">
+                  {JSON.stringify(job.result, null, 2)}
+                </pre>
+              </div>
+            )}
           </td>
         </tr>
       )}

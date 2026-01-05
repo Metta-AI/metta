@@ -197,7 +197,12 @@ def _update_job_status(
 ):
     try:
         current = stats_client.get_job(job_id)
-        if current.status == status or current.status in (JobStatus.completed, JobStatus.failed):
+        if current.status == status:
+            return
+        if current.status in (JobStatus.completed, JobStatus.failed):
+            # Job already in terminal state, but still update error if we have one (e.g., OOMKilled)
+            if error and not current.error:
+                stats_client.update_job(job_id, JobRequestUpdate(error=error))
             return
         stats_client.update_job(job_id, JobRequestUpdate(status=status, error=error, worker=worker))
     except Exception as e:

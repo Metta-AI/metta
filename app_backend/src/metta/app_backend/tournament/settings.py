@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 POLL_INTERVAL_SECONDS: float = 30.0
 POLL_INTERVAL_FAST_SECONDS: float = 2.0
-MAX_OUTSTANDING_MATCHES: int = 10
+MAX_OUTSTANDING_MATCHES: int = 5
 PROMOTION_MIN_SCORE: float = 0.1
 
 

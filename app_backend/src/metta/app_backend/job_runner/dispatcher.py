@@ -113,8 +113,8 @@ def create_episode_job(job: JobRequest) -> str:
                             ),
                             volume_mounts=volume_mounts if volume_mounts else None,
                             resources=client.V1ResourceRequirements(
-                                requests={"cpu": "3", "memory": "3Gi"},
-                                limits={"cpu": "4", "memory": "6Gi"},
+                                requests={"cpu": "3", "memory": "8Gi"},
+                                limits={"cpu": "4", "memory": "12Gi"},
                             ),
                         )
                     ],

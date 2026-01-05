@@ -48,9 +48,7 @@ class JobRequestUpdate(SQLModel):
     result: dict[str, Any] | None = Field(
         default=None, sa_column=Column(JSONB), description="Contains job-specific results, including possibly errors"
     )
-    error: str | None = Field(
-        default=None, exclude=True, description="Tracks k8s-lifecycle errors, not semantic job errors"
-    )
+    error: str | None = Field(default=None, description="Tracks k8s-lifecycle errors, not semantic job errors")
 
 
 class JobRequest(_JobRequestBase, JobRequestUpdate, table=True):
