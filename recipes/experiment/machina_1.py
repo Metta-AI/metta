@@ -2,21 +2,11 @@
 
 from typing import Optional, Sequence
 
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import make_sweep
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool
-from mettagrid.config import vibes
-from recipes.experiment.cogs_v_clips import (
-    _normalize_variant_names,
-    get_cvc_sweep_search_space,
-    make_training_env,
-    train_single_mission,
-)
 
 
 def train(
@@ -28,6 +18,15 @@ def train(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
+    from metta.agent.policies.vit import ViTDefaultConfig
+    from metta.sim.simulation_config import SimulationConfig
+    from mettagrid.config import vibes
+    from recipes.experiment.cogs_v_clips import (
+        _normalize_variant_names,
+        make_training_env,
+        train_single_mission,
+    )
+
     if eval_variants is None:
         eval_variants = variants
 
@@ -38,11 +37,14 @@ def train(
         eval_variants=eval_variants,
         eval_difficulty=eval_difficulty,
         teacher=teacher,
+        maps_cache_size=None,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
+    tt.system.torch_deterministic = False
 
     # Explicitly keep full vibe/action definitions so saved checkpoints remain compatible.
     env_cfg = tt.training_env.curriculum.task_generator.env
+    env_cfg.game.max_steps = 1000
     env_cfg.game.vibe_names = [v.name for v in vibes.VIBES]
     change_vibe = getattr(env_cfg.game.actions, "change_vibe", None)
     if change_vibe is not None:
@@ -59,6 +61,7 @@ def train(
         mission="machina_1.open_world",
         variants=eval_variant_names or None,
     )
+    eval_env.game.max_steps = 1000
     tt.evaluator.simulations = [
         SimulationConfig(
             suite="cogs_vs_clips",
@@ -80,12 +83,9 @@ def train_sweep(
     teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
+    from recipes.experiment.cogs_v_clips import _normalize_variant_names
 
-    base_variants = ["heart_chorus"]
-    if variants:
-        for v in variants:
-            if v not in base_variants:
-                base_variants.append(v)
+    base_variants = _normalize_variant_names(initial=["heart_chorus"], variants=variants)
 
     tt = train(
         num_cogs=num_cogs,
@@ -102,6 +102,7 @@ def train_sweep(
 
 def evaluate_stub(*args, **kwargs) -> StubTool:
     """No-op evaluator for sweeps."""
+    from metta.tools.stub import StubTool
 
     return StubTool()
 
@@ -114,6 +115,8 @@ def sweep(
     num_parallel_trials: int = 4,
 ) -> SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
+    from metta.sweep.core import make_sweep
+    from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space
 
     search_space = get_cvc_sweep_search_space()
 
@@ -128,11 +131,3 @@ def sweep(
         max_trials=max_trials,
         num_parallel_trials=num_parallel_trials,
     )
-
-
-__all__ = [
-    "train",
-    "train_sweep",
-    "evaluate_stub",
-    "sweep",
-]

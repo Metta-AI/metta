@@ -1,3 +1,6 @@
+orchestrator:
+  enabled: true
+
 replicaCount: 1
 
 image:
@@ -54,3 +57,24 @@ evalScheduler:
     enabled: true
     env: "production"
     service: "leaderboard-eval-scheduler"
+
+watcher:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: 500m
+      memory: 3Gi
+
+tournament:
+  enabled: true
+  dbSecret: "observatory-backend-env"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: 500m
+      memory: 3Gi

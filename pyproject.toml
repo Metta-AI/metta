@@ -110,14 +110,17 @@ interactive = [
   "widgetsnbextension>=4.0.14",
 ]
 mcp-servers = ["metta-pr-similarity-mcp"]
-dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
+dev = [
+  { include-group = "testing" },
+  { include-group = "lint" },
+  { include-group = "mcp-servers" },
+  "honcho>=2.0.0",
+]
 
 [project.scripts]
-metta = "metta.setup.metta_cli:main"
-skypilot = "devops.skypilot.launch:main"
-skypilot-sandbox = "devops.skypilot.sandbox:main"
-mapgen = "tools.map.gen:main"
-mapgen-scene = "tools.map.gen_scene:main"
+metta = "metta.setup.metta_cli:cli_entry"
+skypilot = "devops.skypilot.launch:cli_entry"
+skypilot-sandbox = "devops.skypilot.sandbox:cli_entry"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -136,12 +139,7 @@ norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 required-version = ">=0.9.0"
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "packages/mettagrid/BUILD" },
-  { file = "packages/mettagrid/MODULE.bazel" },
-  { file = "metta/**/*.{cpp,hpp}" },
-]
+cache-keys = [{ file = "pyproject.toml" }]
 default-groups = ["interactive", "dev"]
 
 [tool.uv.workspace]

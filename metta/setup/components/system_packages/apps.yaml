@@ -9,3 +9,7 @@ apps:
   cursor:
     cask: cursor
     alternate_app_path: /Applications/Cursor.app
+
+  orbstack:
+    cask: orbstack
+    alternate_app_path: /Applications/OrbStack.app
