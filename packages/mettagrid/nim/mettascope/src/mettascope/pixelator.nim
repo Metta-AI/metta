@@ -39,7 +39,7 @@ var
 proc pixelatorVert*(vertexPos: UVec2, uv: UVec4, fragmentUv: var Vec2) =
   # Compute the corner of the quad based on the vertex ID.
   # 0:(0,0), 1:(1,0), 2:(0,1), 3:(1,1)
-  let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
+  let corner = ivec2(gl_VertexID mod 2, gl_VertexID div 2)
 
   # Compute the position of the vertex in the atlas.
   let dx = float(vertexPos.x) + (float(corner.x) - 0.5) * float(uv.z)
