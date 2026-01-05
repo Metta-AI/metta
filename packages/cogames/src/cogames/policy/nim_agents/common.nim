@@ -1,6 +1,6 @@
 
 import
-  std/[strformat, strutils, tables, sets, options],
+  std/[algorithm, strformat, strutils, tables, sets, options],
   fidget2/measure,
   jsony
 

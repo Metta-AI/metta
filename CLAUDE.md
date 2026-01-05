@@ -10,6 +10,9 @@ metta status              # Check component status
 metta install             # Reinstall if imports fail
 ```
 
+Most of the time, you shouldn't need to run install.sh or metta install. Only run these if you're having trouble with
+imports or other setup issues.
+
 ## Commands
 
 ```bash
@@ -24,9 +27,6 @@ uv run ./tools/run.py arena --list
 
 # Testing (only when specifically needed)
 metta pytest tests/path/to/test.py -v
-
-# Linting (only when specifically needed)
-metta lint path/to/file.py --fix
 ```
 
 ## Repository Structure
@@ -46,6 +46,12 @@ Dependency direction: `metta` → `cogames` → `mettagrid`. Nothing depends on 
 Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv run lint-imports` to check. See
 `.importlinter` for the folder hierarchy.
 
+## Proto Files
+
+Files in `proto/` define schemas for cross-system boundaries (network APIs, files on disk). Do not modify proto schemas
+as part of other refactoring work. Schema changes require explicit discussion because they can break compatibility with
+files written using older schemas or services that haven't been redeployed.
+
 ## Recipe System
 
 ```bash
@@ -54,3 +60,7 @@ Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv r
 ```
 
 See `common/src/metta/common/tool/README.md` for details.
+
+## Git Hub Integration
+
+Use graphite ("gt") to create PRs. Name the branch $user-short-issue-name (5 words or less)
