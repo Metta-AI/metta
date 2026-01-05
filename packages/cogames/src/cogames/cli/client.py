@@ -23,10 +23,15 @@ class PolicyVersionInfo(BaseModel):
     version: int
 
 
+class PoolInfo(BaseModel):
+    name: str
+    description: str
+
+
 class SeasonInfo(BaseModel):
     name: str
-    description: dict[str, Any] | None = None
-    pools: list[str] = []
+    summary: str
+    pools: list[PoolInfo]
 
 
 class LeaderboardEntry(BaseModel):
@@ -131,7 +136,7 @@ class TournamentServerClient:
 
     def submit_to_season(self, season_name: str, policy_version_id: uuid.UUID) -> dict[str, Any]:
         return self._post(
-            f"/tournament/seasons/{season_name}/submit",
+            f"/tournament/seasons/{season_name}/submissions",
             json={"policy_version_id": str(policy_version_id)},
         )
 
