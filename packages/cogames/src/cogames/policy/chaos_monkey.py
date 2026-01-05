@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
 from typing import Optional
 
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
@@ -9,16 +8,11 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
 
 
-@dataclass
-class ChaosMonkeyConfig:
-    fail_step: int = 10
-    fail_probability: float = 1.0  # Probability of failure when the threshold is reached
-
-
 class _ChaosMonkeyAgent(AgentPolicy):
-    def __init__(self, policy_env_info: PolicyEnvInterface, cfg: ChaosMonkeyConfig):
+    def __init__(self, policy_env_info: PolicyEnvInterface, fail_step: int, fail_probability: float):
         super().__init__(policy_env_info)
-        self._cfg = cfg
+        self._fail_step = fail_step
+        self._fail_probability = fail_probability
         self._step = 0
         self._failed = False
         self._noop = policy_env_info.actions.noop.Noop()
@@ -31,7 +25,7 @@ class _ChaosMonkeyAgent(AgentPolicy):
         if self._failed:
             return self._noop
 
-        if self._step >= self._cfg.fail_step and random.random() < self._cfg.fail_probability:
+        if self._step >= self._fail_step and random.random() < self._fail_probability:
             self._failed = True
             raise RuntimeError(f"Chaos monkey triggered at step {self._step}")
 
@@ -53,7 +47,8 @@ class ChaosMonkeyPolicy(MultiAgentPolicy):
         **_: object,
     ):
         super().__init__(policy_env_info, device=device)
-        self._cfg = ChaosMonkeyConfig(fail_step=fail_step, fail_probability=fail_probability)
+        self._fail_step = fail_step
+        self._fail_probability = fail_probability
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
-        return _ChaosMonkeyAgent(self.policy_env_info, self._cfg)
+        return _ChaosMonkeyAgent(self.policy_env_info, self._fail_step, self._fail_probability)
