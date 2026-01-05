@@ -264,7 +264,6 @@ def _build_rollout_nodes(
                 deps=deps,
                 fn=_node_rollout_fn(node),
                 enabled=_node_phase_enabled("rollout", node),
-                requires=("td",),
             )
         )
         rollout_node_names.append(name)
@@ -277,21 +276,18 @@ def _build_rollout_nodes(
                 deps=deps,
                 fn=_rollout_reward_center_fn(core),
                 enabled=_phase_enabled("rollout"),
-                requires=("td", "agent_ids", "baseline"),
             ),
             Node(
                 name="rollout.actions_check",
                 deps=deps,
                 fn=_rollout_actions_check_fn(core),
                 enabled=_phase_enabled("rollout"),
-                requires=("td", "training_env_id"),
             ),
             Node(
                 name="rollout.send_actions",
                 deps=("rollout.actions_check",),
                 fn=_rollout_send_actions_fn(core),
                 enabled=_phase_enabled("rollout"),
-                requires=("td",),
             ),
             Node(
                 name="rollout.collect_infos",
@@ -304,7 +300,6 @@ def _build_rollout_nodes(
                 deps=("rollout.send_actions",),
                 fn=_rollout_step_count_fn(),
                 enabled=_phase_enabled("rollout"),
-                requires=("num_steps", "total_steps"),
             ),
         ]
     )
@@ -322,42 +317,36 @@ def _build_train_nodes(
             name="train.sample_mb",
             fn=_train_sample_mb_fn(core),
             enabled=_phase_enabled("train"),
-            requires=("advantages_full",),
         ),
         Node(
             name="train.returns",
             deps=("train.sample_mb",),
             fn=_train_returns_fn(),
             enabled=_phase_enabled("train"),
-            requires=("shared_loss_data",),
         ),
         Node(
             name="train.policy_forward",
             deps=("train.returns",),
             fn=_train_policy_forward_fn(core),
             enabled=_phase_enabled("train"),
-            requires=("shared_loss_data",),
         ),
         Node(
             name="train.importance_ratio",
             deps=("train.policy_forward",),
             fn=_train_importance_ratio_fn(),
             enabled=_phase_enabled("train"),
-            requires=("shared_loss_data",),
         ),
         Node(
             name="train.advantages_pg",
             deps=("train.importance_ratio",),
             fn=_train_advantages_pg_fn(core),
             enabled=_phase_enabled("train"),
-            requires=("shared_loss_data", "advantage_method"),
         ),
         Node(
             name="train.used_keys",
             deps=("train.policy_forward",),
             fn=_train_used_keys_fn(core),
             enabled=_phase_enabled("train"),
-            requires=("shared_loss_data",),
         ),
     ]
 
@@ -379,7 +368,6 @@ def _build_train_nodes(
                 deps=tuple(deps),
                 fn=_node_train_fn(node),
                 enabled=_node_phase_enabled("train", node),
-                requires=("shared_loss_data", "mb_idx"),
             )
         )
         train_node_names.append(name)
@@ -392,35 +380,30 @@ def _build_train_nodes(
                 deps=deps,
                 fn=_train_loss_sum_fn(core),
                 enabled=_train_continue_enabled,
-                requires=("loss_values",),
             ),
             Node(
                 name="train.dummy_loss",
                 deps=("train.loss_sum", "train.used_keys"),
                 fn=_train_dummy_loss_fn(core),
                 enabled=_train_continue_enabled,
-                requires=("total_loss", "shared_loss_data", "used_keys"),
             ),
             Node(
                 name="train.backward",
                 deps=("train.dummy_loss",),
                 fn=_train_backward_fn(),
                 enabled=_train_continue_enabled,
-                requires=("total_loss",),
             ),
             Node(
                 name="train.optimizer_step",
                 deps=("train.backward",),
                 fn=_train_optimizer_step_fn(core),
                 enabled=_train_continue_enabled,
-                requires=("mb_idx",),
             ),
             Node(
                 name="train.on_mb_end",
                 deps=("train.backward",),
                 fn=_train_on_mb_end_fn(core),
                 enabled=_train_continue_enabled,
-                requires=("mb_idx",),
             ),
         ]
     )
@@ -499,7 +482,6 @@ def _rollout_td_prep_node(core: CoreTrainingLoop) -> Node:
         deps=("rollout.env_wait",),
         fn=_fn,
         enabled=_phase_enabled("rollout"),
-        requires=("buffer_step", "training_env_id", "obs", "rewards", "dones", "truncateds", "teacher_actions"),
     )
 
 
@@ -789,8 +771,6 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
         torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)
         core.optimizer.step()
 
-        if core.device.type == "cuda":
-            torch.cuda.synchronize()
         return {}
 
     return _fn

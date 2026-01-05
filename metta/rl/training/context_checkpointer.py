@@ -98,7 +98,6 @@ class ContextCheckpointer(TrainerComponent):
             logger.info("Successfully restored curriculum state")
 
         node_states = payload.get("node_states") or {}
-        context.state.node_states = node_states
         nodes = getattr(context, "nodes", None)
         if nodes:
             for name, node in nodes.items():
@@ -106,7 +105,6 @@ class ContextCheckpointer(TrainerComponent):
                 if stored is None:
                     continue
                 node.load_state_dict(stored, strict=False)
-        context.state.node_states = {}
 
         context.timing_baseline = {
             "agent_step": context.agent_step,
@@ -160,4 +158,3 @@ class ContextCheckpointer(TrainerComponent):
 
         # Release references so we do not pin large GPU tensors between checkpoints
         context.state.optimizer_state = None
-        context.state.node_states = {}

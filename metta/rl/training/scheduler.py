@@ -278,12 +278,9 @@ class Scheduler(TrainerComponent):
         # downstream defaults (True) still apply when no gates exist for a phase.
         seen_node_phase: set[tuple[str, str]] = set()
 
-        node_specs = getattr(self.context, "node_specs", {}) or {}
         for gate in self.config.run_gates:
             if gate.phase != phase:
                 continue
-            if gate.node_name not in node_specs:
-                raise ValueError(f"RunGate targets unknown node '{gate.node_name}'")
             node_name = gate.node_name
             allowed = gate.is_active(epoch=epoch, agent_step=agent_step)
             entry = gates.get(node_name)
