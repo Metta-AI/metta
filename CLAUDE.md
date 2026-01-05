@@ -46,6 +46,12 @@ Dependency direction: `metta` → `cogames` → `mettagrid`. Nothing depends on 
 Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv run lint-imports` to check. See
 `.importlinter` for the folder hierarchy.
 
+## Proto Files
+
+Files in `proto/` define schemas for cross-system boundaries (network APIs, files on disk). Do not modify proto schemas
+as part of other refactoring work. Schema changes require explicit discussion because they can break compatibility with
+files written using older schemas or services that haven't been redeployed.
+
 ## Recipe System
 
 ```bash
