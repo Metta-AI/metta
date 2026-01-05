@@ -82,6 +82,10 @@ def main():
                 text=True,
             )
             if result.returncode != 0:
+                if result.returncode < 0:
+                    # Killed by signal (e.g., OOMKilled sends SIGKILL=-9)
+                    signal_num = -result.returncode
+                    raise RuntimeError(f"Killed by signal {signal_num}")
                 error_output = result.stderr or result.stdout or "No output"
                 if len(error_output) > 200000:
                     error_output = error_output[:200000] + "\n... (truncated)"
