@@ -4,7 +4,7 @@ import math
 from typing import Any, Callable, Iterable, Literal, Optional
 
 import numpy as np
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic.json_schema import SkipJsonSchema
 
 from metta.rl.training.component import TrainerComponent
@@ -155,7 +155,9 @@ class ScheduleRule(Config):
 class RunGate(Config):
     """Per-node, per-phase run gating over epochs/steps/cycles."""
 
-    node_name: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    node_name: str = Field(alias="loss_instance_name")
     phase: Literal["rollout", "train"]
 
     begin_at_epoch: Optional[int] = None
@@ -335,6 +337,7 @@ class Scheduler(TrainerComponent):
     def _active_rollout_node_names(self) -> Iterable[str]:
         """Return node names that are active for rollout in the current epoch."""
         gates = getattr(self.context, "node_run_gates", None) or {}
+        node_specs = getattr(self.context, "node_specs", {}) or {}
         for node_name, _node in self.context.nodes.items():
             spec = node_specs.get(node_name)
             if spec is None or not spec.has_rollout:
@@ -380,6 +383,10 @@ class Scheduler(TrainerComponent):
         lr = float(trainer_cfg.optimizer.learning_rate)
         for group in optimizer.param_groups:
             group["lr"] = lr
+
+
+LossRunGate = RunGate
+LossScheduler = Scheduler
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

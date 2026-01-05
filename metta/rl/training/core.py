@@ -766,9 +766,7 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
 
         actual_max_grad_norm = float(workspace.get("max_grad_norm", 0.5))
         max_grad_norms = [
-            float(node.cfg.max_grad_norm)
-            for node in core.nodes.values()
-            if hasattr(node.cfg, "max_grad_norm")
+            float(node.cfg.max_grad_norm) for node in core.nodes.values() if hasattr(node.cfg, "max_grad_norm")
         ]
         if max_grad_norms:
             actual_max_grad_norm = min(max_grad_norms)
