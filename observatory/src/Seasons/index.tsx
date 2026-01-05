@@ -140,6 +140,15 @@ const SubmitForm: FC<{
     }
   }, [repo, selectedPolicy])
 
+  useEffect(() => {
+    if (!submitSuccess && !submitError) return
+    const timer = setTimeout(() => {
+      setSubmitSuccess(null)
+      setSubmitError(null)
+    }, 10000)
+    return () => clearTimeout(timer)
+  }, [submitSuccess, submitError])
+
   const handleSubmit = async () => {
     if (!selectedVersion) return
     setSubmitting(true)
@@ -609,17 +618,24 @@ export const SeasonsPage: FC = () => {
                             )}
                           </div>
                         </TD>
-                        <TD className="capitalize">{match.pool_name}</TD>
+                        <TD>
+                          <span
+                            onClick={() => setMatchFilter((f) => ({ ...f, pool_names: [match.pool_name] }))}
+                            className="cursor-pointer hover:text-blue-600 transition-colors"
+                          >
+                            {match.pool_name}
+                          </span>
+                        </TD>
                         <TD className="text-right">
                           <div className="flex flex-col gap-1 items-end">
                             {match.players.map((p, i) => (
-                              <StyledLink
+                              <span
                                 key={i}
-                                to={`/policies/versions/${p.policy.id}`}
-                                className="font-mono text-xs"
+                                onClick={() => setMatchFilter((f) => ({ ...f, policy_version_ids: [p.policy.id] }))}
+                                className="font-mono text-xs cursor-pointer hover:text-blue-600 transition-colors"
                               >
                                 {formatPolicyDisplay(p)}
-                              </StyledLink>
+                              </span>
                             ))}
                           </div>
                         </TD>
