@@ -1,4 +1,11 @@
-import { getToken, initiateLogin } from './auth'
+import { getToken, initiateLogin, isRedirecting } from './auth'
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
 
 export type TokenInfo = {
   id: string
@@ -387,41 +394,41 @@ export class Repo {
     return headers
   }
 
-  private async handleErrorResponse(response: Response): Promise<never> {
+  private async handleErrorResponse(response: Response, suppressAuthRedirect = false): Promise<never> {
     if (response.status === 401) {
-      initiateLogin()
-      throw new Error('Unauthorized - redirecting to login')
+      if (!suppressAuthRedirect && !isRedirecting()) {
+        initiateLogin()
+      }
+      throw new AuthError('Unauthorized')
     }
-    // Try to extract error detail from response body
+    let detail: string | undefined
     try {
       const body = await response.json()
-      if (body.detail) {
-        throw new Error(body.detail)
-      }
+      detail = body.detail
     } catch {
-      // Ignore JSON parse errors, fall through to default
+      // Ignore JSON parse errors
     }
-    throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+    throw new Error(detail || `API call failed: ${response.status} ${response.statusText}`)
   }
 
-  private async apiCall<T>(endpoint: string): Promise<T> {
+  private async apiCall<T>(endpoint: string, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      await this.handleErrorResponse(response)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
 
-  private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
+  private async apiCallWithBody<T>(endpoint: string, body: any, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      await this.handleErrorResponse(response)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
@@ -669,17 +676,29 @@ export class Repo {
     return this.apiCall<SeasonDetail[]>('/tournament/seasons')
   }
 
-  async getSeasonLeaderboard(seasonName: string): Promise<LeaderboardEntry[]> {
-    return this.apiCall<LeaderboardEntry[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`)
+  async getSeasonLeaderboard(seasonName: string, suppressAuthRedirect = false): Promise<LeaderboardEntry[]> {
+    return this.apiCall<LeaderboardEntry[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`,
+      suppressAuthRedirect
+    )
   }
 
-  async getSeasonPolicies(seasonName: string): Promise<PolicySummary[]> {
-    return this.apiCall<PolicySummary[]>(`/tournament/seasons/${encodeURIComponent(seasonName)}/policies`)
+  async getSeasonPolicies(seasonName: string, suppressAuthRedirect = false): Promise<PolicySummary[]> {
+    return this.apiCall<PolicySummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/policies`,
+      suppressAuthRedirect
+    )
   }
 
   async getSeasonMatches(
     seasonName: string,
-    params?: { limit?: number; offset?: number; pool_names?: string[]; policy_version_ids?: string[] }
+    params?: {
+      limit?: number
+      offset?: number
+      pool_names?: string[]
+      policy_version_ids?: string[]
+      suppressAuthRedirect?: boolean
+    }
   ): Promise<SeasonMatchSummary[]> {
     const searchParams = new URLSearchParams()
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
@@ -696,7 +715,8 @@ export class Repo {
     }
     const query = searchParams.toString()
     return this.apiCall<SeasonMatchSummary[]>(
-      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`,
+      params?.suppressAuthRedirect
     )
   }
 

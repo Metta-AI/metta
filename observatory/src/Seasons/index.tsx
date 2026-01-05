@@ -11,6 +11,7 @@ import { StyledLink } from '../components/StyledLink'
 import { Table, TH, TR, TD } from '../components/Table'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import {
+  AuthError,
   LeaderboardEntry,
   PolicyRow,
   PolicySummary,
@@ -18,6 +19,7 @@ import {
   SeasonDetail,
   SeasonMatchSummary,
 } from '../repo'
+import { initiateLogin } from '../auth'
 import { formatRelativeTime } from '../utils/datetime'
 
 const MatchStatusBadge: FC<{ status: string }> = ({ status }) => {
@@ -276,6 +278,7 @@ export const SeasonsPage: FC = () => {
   const [matchFilter, setMatchFilter] = useState<MatchFilter>({ pool_names: [], policy_version_ids: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
@@ -305,47 +308,64 @@ export const SeasonsPage: FC = () => {
 
   const season = seasons.find((s) => s.name === selectedSeasonName) || null
 
-  const loadData = useCallback(async () => {
-    if (!selectedSeasonName) return
-    try {
-      const [lb, pol] = await Promise.all([
-        repo.getSeasonLeaderboard(selectedSeasonName),
-        repo.getSeasonPolicies(selectedSeasonName),
-      ])
-      setLeaderboard(lb)
-      setPolicies(pol)
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }, [repo, selectedSeasonName, refreshKey])
+  const loadData = useCallback(
+    async (isPolling = false) => {
+      if (!selectedSeasonName) return
+      try {
+        const [lb, pol] = await Promise.all([
+          repo.getSeasonLeaderboard(selectedSeasonName, isPolling),
+          repo.getSeasonPolicies(selectedSeasonName, isPolling),
+        ])
+        setLeaderboard(lb)
+        setPolicies(pol)
+        setAuthError(false)
+      } catch (err: any) {
+        if (err instanceof AuthError) {
+          setAuthError(true)
+        } else {
+          setError(err.message)
+        }
+      }
+    },
+    [repo, selectedSeasonName, refreshKey]
+  )
 
   const MATCHES_PAGE_SIZE = 50
 
-  const loadFilteredMatches = useCallback(async () => {
-    if (!selectedSeasonName) return
-    try {
-      const m = await repo.getSeasonMatches(selectedSeasonName, {
-        limit: MATCHES_PAGE_SIZE,
-        offset: matchPage * MATCHES_PAGE_SIZE,
-        pool_names: matchFilter.pool_names.length > 0 ? matchFilter.pool_names : undefined,
-        policy_version_ids: matchFilter.policy_version_ids.length > 0 ? matchFilter.policy_version_ids : undefined,
-      })
-      setFilteredMatches(m)
-      setHasMoreMatches(m.length === MATCHES_PAGE_SIZE)
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }, [repo, selectedSeasonName, matchPage, matchFilter])
+  const loadFilteredMatches = useCallback(
+    async (isPolling = false) => {
+      if (!selectedSeasonName) return
+      try {
+        const m = await repo.getSeasonMatches(selectedSeasonName, {
+          limit: MATCHES_PAGE_SIZE,
+          offset: matchPage * MATCHES_PAGE_SIZE,
+          pool_names: matchFilter.pool_names.length > 0 ? matchFilter.pool_names : undefined,
+          policy_version_ids: matchFilter.policy_version_ids.length > 0 ? matchFilter.policy_version_ids : undefined,
+          suppressAuthRedirect: isPolling,
+        })
+        setFilteredMatches(m)
+        setHasMoreMatches(m.length === MATCHES_PAGE_SIZE)
+        setAuthError(false)
+      } catch (err: any) {
+        if (err instanceof AuthError) {
+          setAuthError(true)
+        } else {
+          setError(err.message)
+        }
+      }
+    },
+    [repo, selectedSeasonName, matchPage, matchFilter]
+  )
 
   useEffect(() => {
-    loadData()
-    const interval = setInterval(loadData, 10000)
+    loadData(false)
+    const interval = setInterval(() => loadData(true), 10000)
     return () => clearInterval(interval)
   }, [loadData])
 
   useEffect(() => {
-    loadFilteredMatches()
-    const interval = setInterval(loadFilteredMatches, 5000)
+    loadFilteredMatches(false)
+    const interval = setInterval(() => loadFilteredMatches(true), 5000)
     return () => clearInterval(interval)
   }, [loadFilteredMatches])
 
@@ -390,6 +410,14 @@ export const SeasonsPage: FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {authError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-4 flex items-center justify-between">
+          <span className="text-amber-800 text-sm">Session expired. Data may be stale.</span>
+          <Button size="sm" theme="primary" onClick={() => initiateLogin()}>
+            Re-authenticate
+          </Button>
+        </div>
+      )}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <span className="text-gray-600 font-medium">Season:</span>
