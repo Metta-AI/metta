@@ -31,6 +31,7 @@ from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.util.file import http_url
 
@@ -367,6 +368,17 @@ def write_eval_results_to_observatory(
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
+            # Compute and store social fluidity metrics if we have multiple policies
+            if len(policy_version_ids) > 1:
+                try:
+                    _add_social_fluidity_metrics_to_observatory(
+                        conn=conn,
+                        rollout_results=rollout_results,
+                        policy_version_ids=policy_version_ids,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to compute social fluidity metrics: {e}", exc_info=True)
+
             conn.execute("CHECKPOINT")
             logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
             response = stats_client.bulk_upload_episodes(str(duckdb_path))
@@ -375,6 +387,91 @@ def write_eval_results_to_observatory(
             )
     except Exception as e:
         logger.warning(f"Failed to write evaluation results to observatory: {e}", exc_info=True)
+
+
+def _add_social_fluidity_metrics_to_observatory(
+    conn: duckdb.DuckDBPyConnection,
+    rollout_results: list[SimulationRunResult],
+    policy_version_ids: list[str],
+) -> None:
+    """Compute and store social fluidity metrics as a summary episode in the observatory.
+
+    This creates a special "summary" episode with tags containing social fluidity metrics
+    (robustness, specialization, team_synergy_sensitivity) for each policy, computed
+    across all episodes in the batch.
+
+    Args:
+        conn: DuckDB connection
+        rollout_results: List of simulation run results
+        policy_version_ids: List of policy version IDs (UUIDs as strings)
+    """
+    try:
+        from cogames.social_fluidity_analyzer import SocialFluidityAnalyzer
+    except ImportError:
+        logger.warning("cogames.social_fluidity_analyzer not available, skipping social fluidity metrics")
+        return
+
+    # Collect all MultiEpisodeRolloutResult objects
+    all_rollout_results: list[MultiEpisodeRolloutResult] = []
+    for sim_result in rollout_results:
+        all_rollout_results.append(sim_result.results)
+
+    if not all_rollout_results:
+        return
+
+    num_policies = len(policy_version_ids)
+
+    # Compute social fluidity metrics
+    analyzer = SocialFluidityAnalyzer(
+        rollout_results=all_rollout_results,
+        num_policies=num_policies,
+    )
+
+    metrics_df = analyzer.analyze_all_agents()
+
+    # Create a summary episode to store these metrics
+    summary_episode_id = str(uuid.uuid4())
+
+    insert_episode(
+        conn,
+        episode_id=summary_episode_id,
+        primary_pv_id=None,
+        replay_url=None,
+        thumbnail_url=None,
+        eval_task_id=None,
+    )
+
+    # Add tags indicating this is a summary episode
+    insert_episode_tag(conn, summary_episode_id, "episode_type", "social_fluidity_summary")
+    insert_episode_tag(conn, summary_episode_id, "global_mean_score", str(analyzer.global_mean))
+    insert_episode_tag(conn, summary_episode_id, "global_variance", str(analyzer.global_variance))
+    insert_episode_tag(conn, summary_episode_id, "total_episodes_analyzed", str(len(analyzer.df.groupby(["mission_idx", "episode_idx"]))))
+
+    # Store metrics for each policy as episode tags
+    for _, row in metrics_df.iterrows():
+        policy_idx = int(row["policy_idx"])
+        if policy_idx >= len(policy_version_ids):
+            continue
+
+        policy_id = policy_version_ids[policy_idx]
+        classification = analyzer.classify_agent(policy_idx)
+
+        # Store metrics with policy-specific prefixes
+        prefix = f"policy_{policy_idx}_{policy_id}"
+        insert_episode_tag(conn, summary_episode_id, f"{prefix}_robustness", str(row["robustness"]))
+        insert_episode_tag(conn, summary_episode_id, f"{prefix}_specialization", str(row["specialization"]))
+        insert_episode_tag(conn, summary_episode_id, f"{prefix}_team_synergy_sensitivity", str(row["team_synergy_sensitivity"]))
+        insert_episode_tag(conn, summary_episode_id, f"{prefix}_mean_score", str(row["mean_score"]))
+        insert_episode_tag(conn, summary_episode_id, f"{prefix}_classification", classification)
+
+        # Also store as agent metrics for easier querying (using agent_id = policy_idx)
+        # This allows the metrics to show up in policy-level aggregations
+        insert_agent_policy(conn, summary_episode_id, policy_id, policy_idx)
+        insert_agent_metric(conn, summary_episode_id, policy_idx, "social_fluidity_robustness", row["robustness"])
+        insert_agent_metric(conn, summary_episode_id, policy_idx, "social_fluidity_specialization", row["specialization"])
+        insert_agent_metric(conn, summary_episode_id, policy_idx, "social_fluidity_team_synergy", row["team_synergy_sensitivity"])
+
+    logger.info(f"Computed and stored social fluidity metrics for {num_policies} policies in summary episode {summary_episode_id}")
 
 
 def populate_single_episode_duckdb(

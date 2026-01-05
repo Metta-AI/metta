@@ -104,6 +104,47 @@ def evaluate(
     mission_names = [mission_name for mission_name, _ in missions]
     _output_results(console, policy_specs, mission_names, summaries, output_format)
 
+    # Calculate and display Social Fluid Intelligence metrics
+    if len(policy_specs) > 1:  # Only compute if multiple policies
+        try:
+            from cogames.social_fluidity_analyzer import SocialFluidityAnalyzer
+
+            analyzer = SocialFluidityAnalyzer(mission_results, num_policies=len(policy_specs))
+            social_metrics = analyzer.analyze_all_agents()
+
+            console.print("\n[bold cyan]Social Fluid Intelligence Metrics[/bold cyan]")
+            from rich.table import Table as RichTable
+
+            metrics_table = RichTable(show_header=True, header_style="bold magenta")
+            metrics_table.add_column("Policy")
+            metrics_table.add_column("Classification")
+            metrics_table.add_column("Robustness", justify="right")
+            metrics_table.add_column("Specialization", justify="right")
+            metrics_table.add_column("Team Synergy", justify="right")
+            metrics_table.add_column("Mean Score", justify="right")
+
+            for _, row in social_metrics.iterrows():
+                policy_idx = int(row["policy_idx"])
+                if policy_idx < len(policy_specs):
+                    policy_name = policy_specs[policy_idx].name
+                    classification = analyzer.classify_agent(policy_idx)
+                    metrics_table.add_row(
+                        policy_name,
+                        classification,
+                        f"{row['robustness']:.3f}",
+                        f"{row['specialization']:.3f}",
+                        f"{row['team_synergy_sensitivity']:.3f}",
+                        f"{row['mean_score']:.3f}",
+                    )
+
+            console.print(metrics_table)
+            console.print(f"\n[dim]Global mean score: {analyzer.global_mean:.3f}, variance: {analyzer.global_variance:.3f}[/dim]")
+        except ImportError:
+            # Social fluidity analyzer not available, skip
+            pass
+        except Exception as e:
+            console.print(f"[yellow]Warning: Failed to compute social fluidity metrics: {e}[/yellow]")
+
     # Print replay commands if replays were saved
     if all_replay_paths:
         console.print(f"\n[bold cyan]Replays saved ({len(all_replay_paths)} episodes)![/bold cyan]")
