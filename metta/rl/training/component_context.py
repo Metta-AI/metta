@@ -103,6 +103,8 @@ class ComponentContext:
         self.slot_id_lookup: Dict[str, int] = {}
         self.loss_profile_lookup: Dict[str, int] = {}
         self.policy_slots: list[Any] = []
+        self.slot_policies: Dict[int, Policy] = {}
+        self.latest_policy_uris: Dict[str, str] = {}
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None

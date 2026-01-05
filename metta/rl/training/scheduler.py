@@ -373,7 +373,7 @@ class LossScheduler(TrainerComponent):
             spec = loss.get_experience_spec()
             active_keys.update(spec.keys(include_nested=True, leaves_only=True))
 
-        active_keys.add("reward_baseline")
+        active_keys.update({"reward_baseline", "slot_id", "loss_profile_id", "is_trainable_agent"})
 
         # If for some reason no keys were found, fall back to writing all keys.
         if not active_keys:

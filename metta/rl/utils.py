@@ -88,6 +88,8 @@ def forward_policy_for_training(
     policy_td, B, TT = prepare_policy_forward_td(minibatch, policy_spec, clone=False)
 
     flat_actions = minibatch["actions"].reshape(B * TT, -1)
+    if "slot_id" in minibatch.keys():
+        policy_td.set("slot_id", minibatch["slot_id"].reshape(B * TT))
 
     policy.reset_memory()
     policy_td = policy.forward(policy_td, action=flat_actions)

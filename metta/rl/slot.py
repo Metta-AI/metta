@@ -12,7 +12,9 @@ from torchrl.data import Composite
 from metta.agent.policy import Policy
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.util.module import load_symbol
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 
 class LossProfileConfig(Config):
@@ -24,6 +26,10 @@ class PolicySlotConfig(Config):
     policy_uri: Optional[str] = Field(default=None, description="Checkpoint URI for neural policies")
     class_path: Optional[str] = Field(default=None, description="Import path for scripted policies")
     policy_kwargs: Dict[str, Any] = Field(default_factory=dict)
+    architecture_spec: Optional[str] = Field(
+        default=None,
+        description="Optional policy architecture spec for checkpoint bundles when class_path is used.",
+    )
     trainable: bool = Field(default=True, description="Whether gradients should flow for this slot")
     loss_profile: Optional[str] = Field(default=None, description="Optional loss profile name for this slot")
     use_trainer_policy: bool = Field(default=False, description="Reuse trainer-provided policy instance")
@@ -54,10 +60,9 @@ class SlotRegistry:
         if cached is not None:
             return cached
 
-        from metta.rl.checkpoint_manager import CheckpointManager
-
         if slot.policy_uri:
-            policy = CheckpointManager.load_from_uri(slot.policy_uri, policy_env_info, device)
+            policy_spec = policy_spec_from_uri(slot.policy_uri, device=str(device))
+            policy = initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
         elif slot.class_path:
             PolicyCls = load_symbol(slot.class_path)
             policy = PolicyCls(policy_env_info, **slot.policy_kwargs)
@@ -70,6 +75,26 @@ class SlotRegistry:
         policy.initialize_to_environment(policy_env_info, device)
         self._cache[key] = policy
         return policy
+
+
+def _merge_policy_specs(specs: Iterable[Composite]) -> Composite:
+    merged: dict[str, Any] = {}
+    for spec in specs:
+        for key in spec.keys(include_nested=True, leaves_only=True):
+            value = spec.get(key)
+            existing = merged.get(key)
+            if existing is not None:
+                if getattr(existing, "shape", None) != getattr(value, "shape", None) or getattr(
+                    existing, "dtype", None
+                ) != getattr(value, "dtype", None):
+                    raise ValueError(
+                        f"Slot policies disagree on spec for '{key}': "
+                        f"{getattr(existing, 'shape', None)}/{getattr(existing, 'dtype', None)} vs "
+                        f"{getattr(value, 'shape', None)}/{getattr(value, 'dtype', None)}"
+                    )
+                continue
+            merged[key] = value
+    return Composite(merged)
 
 
 class SlotControllerPolicy(Policy):
@@ -95,13 +120,15 @@ class SlotControllerPolicy(Policy):
             first_policy = next(iter(slot_policies.values()), None)
             self._device = torch.device(first_policy.device) if first_policy is not None else torch.device("cpu")
         self._agent_slot_map = agent_slot_map
+        self._slot_specs = {idx: policy.get_agent_experience_spec() for idx, policy in slot_policies.items()}
+        self._merged_spec = _merge_policy_specs(self._slot_specs.values())
 
         for idx, policy in slot_policies.items():
             if isinstance(policy, nn.Module):
                 self.add_module(f"slot_{idx}", policy)
 
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
-        return next(iter(self._slot_policies.values())).get_agent_experience_spec()
+        return self._merged_spec
 
     def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
@@ -136,16 +163,24 @@ class SlotControllerPolicy(Policy):
 
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
-            for key in ("actions", "act_log_prob", "entropy", "values", "full_log_probs", "logits"):
-                if key not in out_td.keys():
-                    continue
+            for key in out_td.keys(include_nested=True, leaves_only=True):
                 value = out_td.get(key)
+                if not isinstance(value, torch.Tensor):
+                    continue
                 if key not in td.keys():
                     full_shape = td.batch_size + value.shape[1:]
                     td.set(key, value.new_zeros(full_shape))
                 td.set_at_(key, value, mask)
 
         return td
+
+    @property
+    def slot_policies(self) -> Dict[int, Policy]:
+        return self._slot_policies
+
+    @property
+    def slot_specs(self) -> Dict[int, Composite]:
+        return self._slot_specs
 
     def reset_memory(self) -> None:  # noqa: D401
         for policy in self._slot_policies.values():

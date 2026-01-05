@@ -150,6 +150,7 @@ class Trainer:
         self._context.slot_id_lookup = slot_state["slot_lookup"]
         self._context.loss_profile_lookup = slot_state["loss_profile_lookup"]
         self._context.policy_slots = slot_state["slots"]
+        self._context.slot_policies = slot_state["slot_policies"]
         self._assign_loss_profiles(losses, slot_state["loss_profile_lookup"])
 
         self.core_loop = CoreTrainingLoop(

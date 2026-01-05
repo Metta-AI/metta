@@ -249,6 +249,10 @@ class CheckpointPolicy(Policy):
         architecture = PolicyArchitecture.from_spec(architecture_spec)
         self._policy = architecture.make_policy(policy_env_info).to(self._device)
 
+    @property
+    def architecture_spec(self) -> str:
+        return self._architecture_spec
+
     def __getattr__(self, name: str):
         try:
             return super().__getattr__(name)
