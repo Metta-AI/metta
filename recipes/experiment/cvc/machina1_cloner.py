@@ -46,12 +46,15 @@ def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
 
 def train(
     num_cogs: int = 4,
-    variants: Optional[Sequence[str]] = None,
+    variants: Optional[Sequence[str]] = ("heart_chorus",),
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = None,
     dtype: str = "float32",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
+    evaluate_local: bool = False,
+    teacher_led_proportion: float = 0.0,
+    student_led_proportion: float = 1.0,
     bc_steps: int = 2_500_000_000,
     anneal_steps: int = 3_000_000_000,
     cortex_d_hidden: int = 128,
@@ -68,15 +71,24 @@ def train(
         raise ValueError("anneal_steps must be > 0")
 
     teacher_total_steps = bc_steps + anneal_steps
-    teacher = teacher or TeacherConfig(
-        policy_uri="metta://policy/dinky:v15",
-        mode="sliced_cloner",
-        steps=teacher_total_steps,
-        teacher_led_proportion=0.35,
-        student_led_proportion=0.65,
-        # When PPO is enabled, let it train on all slices (teacher/student/ppo).
-        kwargs={"restrict_ppo_to_ppo_mask": False},
-    )
+    if teacher is None:
+        teacher = TeacherConfig(
+            policy_uri="metta://policy/dinky:v15",
+            mode="sliced_cloner",
+            steps=teacher_total_steps,
+            teacher_led_proportion=teacher_led_proportion,
+            student_led_proportion=student_led_proportion,
+            # When PPO is enabled, let it train on all slices (teacher/student/ppo).
+            kwargs={"restrict_ppo_to_ppo_mask": False},
+        )
+    else:
+        if teacher.steps is None:
+            teacher.steps = teacher_total_steps
+        if "teacher_led_proportion" not in teacher.model_fields_set:
+            teacher.teacher_led_proportion = teacher_led_proportion
+        if "student_led_proportion" not in teacher.model_fields_set:
+            teacher.student_led_proportion = student_led_proportion
+        teacher = TeacherConfig.model_validate(teacher.model_dump())
 
     if teacher.steps != teacher_total_steps:
         raise ValueError(f"Expected teacher.steps={teacher_total_steps} (bc_steps+anneal_steps), got {teacher.steps}")
@@ -90,6 +102,7 @@ def train(
         teacher=teacher,
         maps_cache_size=None,
     )
+    tt.evaluator.evaluate_local = evaluate_local
 
     if tt.scheduler is None:
         raise RuntimeError("Expected TrainTool.scheduler to be set by train_single_mission")
@@ -227,9 +240,9 @@ def train_sweep(
     dtype: str = "float32",
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
+    evaluate_local: bool = False,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
-
     base_variants = ["heart_chorus"]
     if variants:
         for v in variants:
@@ -244,6 +257,7 @@ def train_sweep(
         dtype=dtype,
         policy_architecture=policy_architecture,
         teacher=teacher,
+        evaluate_local=evaluate_local,
     )
     # Sweep-friendly default (kept consistent with the shared CvC sweep search space).
     tt.trainer.total_timesteps = 1_000_000_000

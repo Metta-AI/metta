@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import atexit
-from contextlib import contextmanager
-import fcntl
 import hashlib
 import logging
 import os
@@ -15,7 +13,7 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Optional
 
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
@@ -24,23 +22,9 @@ from mettagrid.util.file import read as s3_read
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
-_EXTRACTION_LOCK_FILENAME = ".extraction.lock"
-_SETUP_LOCK_FILENAME = ".setup.lock"
-_SETUP_COMPLETE_FILENAME = ".setup_complete"
 
 _registered_cleanup_dirs: set[Path] = set()
 _registered_cleanup_files: set[Path] = set()
-
-
-@contextmanager
-def _file_lock(lock_file: Path) -> Iterator[None]:
-    lock_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_file, "a+") as lock_fd:
-        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
 
 
 def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
@@ -144,19 +128,6 @@ def _run_setup_script(setup_script_path: Path, extraction_root: Path) -> None:
         )
 
     logger.info("Setup script completed successfully")
-
-
-def _run_setup_script_once(setup_script_path: Path, extraction_root: Path) -> None:
-    marker_file = extraction_root / _SETUP_COMPLETE_FILENAME
-    if marker_file.exists():
-        return
-
-    with _file_lock(extraction_root / _SETUP_LOCK_FILENAME):
-        if marker_file.exists():
-            return
-
-        _run_setup_script(setup_script_path, extraction_root)
-        marker_file.touch()
 
 
 _executed_setup_scripts: set[Path] = set()
