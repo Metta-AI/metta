@@ -389,8 +389,19 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
+    tasks.add_bucket("game.max_steps", [100, 500, 1000, 2000])
     tasks.add_bucket("game.agent.inventory.initial.heart", [0, 1, 2, 3])
+    tasks.add_bucket("game.agent.inventory.initial.aligner", [0, 1])
+    tasks.add_bucket("game.agent.inventory.initial.scrambler", [0, 1])
+    tasks.add_bucket("game.agent.inventory.initial.miner", [0, 1])
+    tasks.add_bucket("game.agent.inventory.initial.scout", [0, 1])
+    tasks.add_bucket("game.agent.inventory.regen_amounts.default.hp", [0, -1, 2])
+    tasks.add_bucket("game.agent.inventory.regen_amounts.default.energy", [0, -1, 2])
+    tasks.add_bucket("game.agent.rewards.stats.carbon.gained", [0, 0.0001])
+    tasks.add_bucket("game.agent.rewards.stats.oxygen.gained", [0, 0.0001])
+    tasks.add_bucket("game.agent.rewards.stats.germanium.gained", [0, 0.0001])
+    tasks.add_bucket("game.agent.rewards.stats.silicon.gained", [0, 0.0001])
+    # neutral chargers
 
     if algorithm_config is None:
         # algorithm_config = LearningProgressConfig(
