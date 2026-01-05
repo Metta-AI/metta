@@ -12,6 +12,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Literal, Protocol
 
+import sky
+import sky.jobs.client.sdk as sky_jobs_sdk
 import wandb
 from pydantic import BaseModel, Field
 
@@ -303,17 +305,14 @@ class Runner:
         error = f"Timeout after {job.timeout_s}s" if exit_code == 124 else None
         self._finish(job, status, exit_code, error=error)
 
-    _MAX_POLL_FAILURES = 3
-
     def _poll_remote_jobs(self) -> None:
-        import sky
-        import sky.jobs.client.sdk as sky_jobs_sdk
-
         running = [j for j in self.jobs.values() if j.status == JobStatus.RUNNING and j.is_remote]
         if not running:
             return
 
         now = _now()
+
+        # Check timeouts
         for job in running:
             if job.started_at and now - job.started_at > timedelta(seconds=job.timeout_s):
                 self._finish(job, JobStatus.FAILED, 124, f"Timeout after {job.timeout_s}s")
@@ -325,24 +324,20 @@ class Runner:
         if not job_ids:
             return
 
+        # Poll SkyPilot - if it fails, just log and retry next cycle
+        # Timeouts above are the safety net for stuck jobs
         try:
             request_id = sky_jobs_sdk.queue(refresh=False, job_ids=job_ids)
             queue_data = sky.get(request_id)
             if not isinstance(queue_data, list):
-                raise TypeError(f"Expected list, got {type(queue_data).__name__}: {str(queue_data)[:200]}")
-            status_by_id = {}
-            for item in queue_data:
-                job_id = item.get("job_id") if isinstance(item, dict) else getattr(item, "job_id", None)
-                status_by_id[str(job_id)] = item
+                raise TypeError(f"Expected list, got {type(queue_data).__name__}")
+            status_by_id = {
+                str(item.get("job_id") if isinstance(item, dict) else getattr(item, "job_id", None)): item
+                for item in queue_data
+            }
         except Exception as e:
-            self._poll_failure_count = getattr(self, "_poll_failure_count", 0) + 1
-            self._print(f"[WARN] SkyPilot poll failed ({self._poll_failure_count}/{self._MAX_POLL_FAILURES}): {e}")
-            if self._poll_failure_count >= self._MAX_POLL_FAILURES:
-                for job in running:
-                    if job.status == JobStatus.RUNNING:
-                        self._finish(job, JobStatus.FAILED, 1, f"SkyPilot poll failed: {e}")
+            self._print(f"[WARN] SkyPilot poll failed (will retry): {e}")
             return
-        self._poll_failure_count = 0
 
         for job in running:
             if not job.skypilot_job_id:
