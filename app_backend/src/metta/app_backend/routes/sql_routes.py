@@ -50,7 +50,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/tables")
     @timed_route("list_tables")
-    async def list_tables(user: UserOrToken) -> List[TableInfo]:
+    async def list_tables(_user: UserOrToken) -> List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
             async with metta_repo.connect() as con:
@@ -90,7 +90,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/tables/{table_name}/schema")
     @timed_route("get_table_schema")
-    async def get_table_schema(table_name: str, user: UserOrToken) -> TableSchema:
+    async def get_table_schema(table_name: str, _user: UserOrToken) -> TableSchema:
         """Get the schema for a specific table."""
         try:
             async with metta_repo.connect() as con:
@@ -138,7 +138,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/query")
     @timed_route("execute_sql_query")
-    async def execute_query(request: SQLQueryRequest, user: UserOrToken) -> SQLQueryResponse:
+    async def execute_query(request: SQLQueryRequest, _user: UserOrToken) -> SQLQueryResponse:
         """Execute a SQL query with a 20-second timeout."""
         try:
             # Basic validation to prevent access to schema_migrations

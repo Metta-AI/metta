@@ -18,7 +18,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
     @router.get("/v2")
-    async def get_leaderboard_policies_v2(user: UserOrToken) -> LeaderboardPoliciesResponse:
+    async def get_leaderboard_policies_v2(_user: UserOrToken) -> LeaderboardPoliciesResponse:
         return LeaderboardPoliciesResponse(
             entries=await metta_repo.get_leaderboard_policies(
                 # TODO: consider a designated-as-public tag, not just if it was submitted
@@ -42,7 +42,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/v2/policy/{policy_version_id}")
     async def get_leaderboard_policies_v2_for_policy(
-        policy_version_id: str, user: UserOrToken
+        policy_version_id: str, _user: UserOrToken
     ) -> LeaderboardPoliciesResponse:
         return LeaderboardPoliciesResponse(
             entries=await metta_repo.get_leaderboard_policies(
@@ -54,7 +54,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         )
 
     @router.get("/v2/vor")
-    async def get_leaderboard_with_vor(user: UserOrToken) -> LeaderboardPoliciesResponse:
+    async def get_leaderboard_with_vor(_user: UserOrToken) -> LeaderboardPoliciesResponse:
         """Get leaderboard entries with VOR computed for each policy (cached 60s)."""
         return LeaderboardPoliciesResponse(
             entries=await metta_repo.get_leaderboard_policies_with_vor(

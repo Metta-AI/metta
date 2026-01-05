@@ -138,7 +138,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies/{policy_id_str}/versions")
     @timed_http_handler
     async def create_policy_version(
-        policy_id_str: str, policy_version: PolicyVersionCreate, user: UserOrToken
+        policy_id_str: str, policy_version: PolicyVersionCreate, _user: UserOrToken
     ) -> UUIDResponse:
         policy_id = uuid.UUID(policy_id_str)
         policy_version_id = await stats_repo.create_policy_version(
@@ -152,7 +152,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/policies/versions/{policy_version_id_str}")
     @timed_http_handler
-    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionWithName:
+    async def get_policy_version(policy_version_id_str: str, _user: UserOrToken) -> PolicyVersionWithName:
         policy_version_id = uuid.UUID(policy_version_id_str)
         policy_version = await stats_repo.get_policy_version_with_name(policy_version_id)
         if policy_version is None:
@@ -161,7 +161,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/policies/{policy_id}")
     @timed_http_handler
-    async def get_policy_by_id(policy_id: str, user: UserOrToken) -> PublicPolicyVersionRow:
+    async def get_policy_by_id(policy_id: str, _user: UserOrToken) -> PublicPolicyVersionRow:
         """Get a single policy version by ID.
 
         Note: Despite the parameter name 'policy_id', this endpoint expects
@@ -184,7 +184,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.put("/policies/versions/{policy_version_id_str}/tags")
     @timed_http_handler
     async def update_policy_version_tags_route(
-        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], user: UserOrToken
+        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], _user: UserOrToken
     ) -> UUIDResponse:
         policy_version_id = uuid.UUID(policy_version_id_str)
         await stats_repo.upsert_policy_version_tags(policy_version_id, tags)
@@ -256,7 +256,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/episodes/bulk_upload/presigned-url")
     @timed_http_handler
-    async def get_bulk_upload_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+    async def get_bulk_upload_presigned_url(_user: UserOrToken) -> PresignedUploadUrlResponse:
         from botocore.config import Config
 
         upload_id = uuid.uuid4()
@@ -280,7 +280,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def complete_bulk_upload(
         request: CompleteBulkUploadRequest,
-        user: UserOrToken,
+        _user: UserOrToken,
     ) -> BulkEpisodeUploadResponse:
         from metta.app_backend.episode_stats_db import (
             read_agent_metrics,
@@ -370,6 +370,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policies")
     @timed_http_handler
     async def get_policies(
+        _user: UserOrToken,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         limit: int = 50,
@@ -386,6 +387,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
+        _user: UserOrToken,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
@@ -407,6 +409,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policies/{policy_id}/versions")
     @timed_http_handler
     async def get_versions_for_policy(
+        _user: UserOrToken,
         policy_id: str,
         limit: int = 500,
         offset: int = 0,
@@ -426,7 +429,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/episodes/query", response_model=EpisodeQueryResponse)
     @timed_http_handler
-    async def query_episodes(request: EpisodeQueryRequest, user: UserOrToken) -> EpisodeQueryResponse:
+    async def query_episodes(request: EpisodeQueryRequest, _user: UserOrToken) -> EpisodeQueryResponse:
         episodes = await stats_repo.get_episodes(
             primary_policy_version_ids=request.primary_policy_version_ids,
             episode_ids=request.episode_ids,
