@@ -10,6 +10,10 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 T = TypeVar("T", bound=BaseModel)
 
 
+class WhoAmIResponse(BaseModel):
+    user_email: str
+
+
 class NotAuthenticatedError(Exception):
     pass
 
@@ -54,8 +58,6 @@ class BaseAppBackendClient:
         return response_type.model_validate(response.json())
 
     def _validate_authenticated(self) -> str:
-        from metta.app_backend.server import WhoAmIResponse
-
         auth_user = self._make_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")

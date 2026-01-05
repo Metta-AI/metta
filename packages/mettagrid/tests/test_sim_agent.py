@@ -300,3 +300,64 @@ class TestMultipleAgents:
         assert all(hasattr(agent, "id") for agent in agents)
         assert agents[0].id == 0
         assert agents[1].id == 1
+
+
+class TestAgentInitialVibe:
+    """Test agent initial_vibe configuration."""
+
+    def test_initial_vibe_default(self):
+        """Test that agents start with vibe 0 by default."""
+        game_config = GameConfig(
+            max_steps=50,
+            num_agents=1,
+            obs=ObsConfig(width=3, height=3, num_tokens=50),
+            resource_names=["wood"],
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            objects={"wall": WallConfig()},
+            agent=AgentConfig(inventory=InventoryConfig(default_limit=10)),
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(
+            map_data=[
+                ["wall", "wall", "wall"],
+                ["wall", "agent.default", "wall"],
+                ["wall", "wall", "wall"],
+            ]
+        )
+
+        sim = Simulation(cfg, seed=42)
+        grid_objects = sim._c_sim.grid_objects(0)
+        agent_obj = next(o for o in grid_objects.values() if o["type_name"] == "agent")
+
+        assert agent_obj["vibe"] == 0, f"Expected default vibe=0, got {agent_obj['vibe']}"
+
+    def test_initial_vibe_custom(self):
+        """Test that agents start with configured initial_vibe value."""
+        game_config = GameConfig(
+            max_steps=50,
+            num_agents=1,
+            obs=ObsConfig(width=3, height=3, num_tokens=50),
+            resource_names=["wood"],
+            actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
+            objects={"wall": WallConfig()},
+            agent=AgentConfig(
+                initial_vibe=2,
+                inventory=InventoryConfig(default_limit=10),
+            ),
+        )
+
+        cfg = MettaGridConfig(game=game_config)
+        cfg.game.map_builder = ObjectNameMapBuilder.Config(
+            map_data=[
+                ["wall", "wall", "wall"],
+                ["wall", "agent.default", "wall"],
+                ["wall", "wall", "wall"],
+            ]
+        )
+
+        sim = Simulation(cfg, seed=42)
+        grid_objects = sim._c_sim.grid_objects(0)
+        agent_obj = next(o for o in grid_objects.values() if o["type_name"] == "agent")
+
+        assert agent_obj["vibe"] == 2, f"Expected initial_vibe=2, got {agent_obj['vibe']}"

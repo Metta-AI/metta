@@ -1,10 +1,14 @@
 import clsx from 'clsx'
 import { FC, Fragment, useState } from 'react'
-import { Link } from 'react-router-dom'
 
+import { A } from '../components/A'
+import { Spinner } from '../components/Spinner'
+import { StyledLink } from '../components/StyledLink'
+import { Table, TD, TH, TR } from '../components/Table'
 import { TaskBadge } from '../components/TaskBadge'
 import { EvalTask, PublicPolicyVersionRow, Repo, TaskAttempt } from '../repo'
 import { formatDate, formatDurationBetween } from '../utils/datetime'
+import { TaskAttemptTimeline } from './TaskAttemptTimeline'
 import { parsePolicyVersionId } from './TasksTable'
 
 type DatadogLogsParams = {
@@ -51,16 +55,6 @@ type TaskRowProps = {
   attemptedPolicyIds: Set<string>
 }
 
-const getTimeDiffColor = (from: string | null, to: string | null): string => {
-  if (!from || !to) return ''
-  const fromTs = new Date(from).getTime()
-  const toTs = new Date(to).getTime()
-  const minutes = Math.floor((toTs - fromTs) / 1000 / 60)
-  if (minutes < 2) return 'text-green-600'
-  if (minutes < 10) return 'text-yellow-600'
-  return 'text-red-500'
-}
-
 const parseRecipe = (command: string): string | null => {
   const match = command.match(/run\.py\s+(\S+)/)
   if (match) {
@@ -102,171 +96,99 @@ export const TaskRow: FC<TaskRowProps> = ({ task, repo, policyInfoMap, attempted
 
   return (
     <Fragment>
-      <tr
-        className={clsx('border-b border-gray-200', 'cursor-pointer', 'hover:bg-gray-50')}
-        onClick={() => toggleTaskExpansion()}
-      >
-        <td className="p-3 text-sm">
-          <span className="mr-2 text-xs text-gray-300 group-hover:text-gray-400">{isExpanded ? '▾' : '▸'}</span>
+      <TR className={clsx('cursor-pointer', 'hover:bg-gray-50')} onClick={() => toggleTaskExpansion()}>
+        <TD>
+          <span className="mr-2 text-base text-gray-300 group-hover:text-gray-400">
+            {isExpanded ? '▾' : isLoadingAttempts ? <Spinner size="sm" /> : '▸'}
+          </span>
           {policyInfo ? (
-            <Link
-              to={`/policies/versions/${policyVersionId}`}
-              onClick={(e) => e.stopPropagation()}
-              className="text-blue-500 no-underline hover:underline"
-            >
+            <StyledLink to={`/policies/versions/${policyVersionId}`}>
               {policyInfo.name}:v{policyInfo.version}
-            </Link>
+            </StyledLink>
           ) : policyVersionId && !hasAttemptedPolicy ? (
             <span className="text-gray-400 text-xs">Loading...</span>
           ) : (
             '-'
           )}
-          {isLoadingAttempts && <span className="ml-2 text-xs text-gray-500">...</span>}
-        </td>
-        <td className="p-3 text-sm truncate" title={task.command}>
+        </TD>
+        <TD className="truncate" title={task.command}>
           {parseRecipe(task.command) || '-'}
-        </td>
-        <td className="p-3">
+        </TD>
+        <TD>
           <TaskBadge task={task} />
-        </td>
-        <td className="p-3 text-sm">{formatDate(task.created_at)}</td>
-        <td className="p-3 text-sm">{formatDurationBetween(task.created_at, task.finished_at) || '-'}</td>
-        <td className="p-3 text-sm">
+        </TD>
+        <TD>{formatDate(task.created_at)}</TD>
+        <TD>{formatDurationBetween(task.created_at, task.finished_at) || '-'}</TD>
+        <TD>
           <div className="flex gap-1 items-center">
             {taskDatadogUrl ? (
-              <a
-                href={taskDatadogUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-blue-500 no-underline hover:underline"
-              >
+              <A href={taskDatadogUrl} target="_blank" rel="noopener noreferrer">
                 Datadog
-              </a>
+              </A>
             ) : null}
             {taskDatadogUrl && task.output_log_path ? <span className="text-gray-400">|</span> : null}
             {task.output_log_path ? (
-              <a
-                href={repo.getTaskLogUrl(task.id, 'output')}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-blue-500 no-underline hover:underline"
-              >
+              <A href={repo.getTaskLogUrl(task.id, 'output')} target="_blank" rel="noopener noreferrer">
                 Output
-              </a>
+              </A>
             ) : null}
             {!task.output_log_path && !taskDatadogUrl ? '-' : null}
           </div>
-        </td>
-      </tr>
+        </TD>
+      </TR>
       {isExpanded && (
-        <tr>
-          <td colSpan={6} className="p-4 bg-gray-100">
+        <TR>
+          <TD colSpan={6} className="p-4 bg-gray-100">
             <div className="mb-2 text-xs text-gray-500">Task ID: {task.id}</div>
             <div className="mb-3 text-xs text-gray-700 font-mono break-all">{task.command}</div>
             {isLoadingAttempts ? (
               <div>Loading attempts...</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="p-2 text-left">Attempt</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Assignee</th>
-                    <th className="p-2 text-left">Timeline</th>
-                    <th className="p-2 text-left">Logs</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table theme="light">
+                <Table.Header>
+                  <TH>Attempt</TH>
+                  <TH>Status</TH>
+                  <TH>Assignee</TH>
+                  <TH>Timeline</TH>
+                  <TH>Logs</TH>
+                </Table.Header>
+                <Table.Body>
                   {attempts.map((attempt) => {
                     const ddUrl = getDatadogLogsUrl(attempt)
-                    const assignedDiff = formatDurationBetween(task.created_at, attempt.assigned_at)
-                    const startedDiff = formatDurationBetween(attempt.assigned_at, attempt.started_at)
-                    const finishedDiff = formatDurationBetween(attempt.started_at, attempt.finished_at)
                     return (
-                      <tr key={attempt.id} className="align-top">
-                        <td className="p-2">{attempt.attempt_number + 1}</td>
-                        <td className="p-2">
+                      <TR key={attempt.id}>
+                        <TD>{attempt.attempt_number + 1}</TD>
+                        <TD>
                           <TaskBadge task={attempt} size="small" />
-                        </td>
-                        <td className="p-2">{attempt.assignee || '-'}</td>
-                        <td className="p-2">
-                          <table className="text-xs">
-                            <tbody>
-                              <tr>
-                                <td className="pr-2 text-gray-600">Assigned:</td>
-                                <td className="text-right">{formatDate(attempt.assigned_at)}</td>
-                                <td
-                                  className={clsx(
-                                    'pl-2 text-right',
-                                    getTimeDiffColor(task.created_at, attempt.assigned_at)
-                                  )}
-                                >
-                                  {assignedDiff ? `(+ ${assignedDiff})` : ''}
-                                </td>
-                              </tr>
-                              <tr>
-                                <td className="pr-2 text-gray-600">Started:</td>
-                                <td className="text-right">{formatDate(attempt.started_at)}</td>
-                                <td
-                                  className={clsx(
-                                    'pl-2 text-right',
-                                    getTimeDiffColor(attempt.assigned_at, attempt.started_at)
-                                  )}
-                                >
-                                  {startedDiff ? `(+ ${startedDiff})` : ''}
-                                </td>
-                              </tr>
-                              <tr>
-                                <td className="pr-2 text-gray-600">Finished:</td>
-                                <td className="text-right">{formatDate(attempt.finished_at)}</td>
-                                <td
-                                  className={clsx(
-                                    'pl-2 text-right',
-                                    getTimeDiffColor(attempt.started_at, attempt.finished_at)
-                                  )}
-                                >
-                                  {finishedDiff ? `(+ ${finishedDiff})` : ''}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </td>
-                        <td className="p-2">
+                        </TD>
+                        <TD>{attempt.assignee || '-'}</TD>
+                        <TD>
+                          <TaskAttemptTimeline task={task} attempt={attempt} />
+                        </TD>
+                        <TD>
                           <div className="flex gap-1 items-center">
                             {ddUrl ? (
-                              <a
-                                href={ddUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 no-underline hover:underline"
-                              >
+                              <A href={ddUrl} target="_blank" rel="noopener noreferrer">
                                 Datadog
-                              </a>
+                              </A>
                             ) : null}
                             {ddUrl && attempt.output_log_path ? <span className="text-gray-400">|</span> : null}
                             {attempt.output_log_path ? (
-                              <a
-                                href={repo.getTaskLogUrl(task.id, 'output')}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 no-underline hover:underline"
-                              >
+                              <A href={repo.getTaskLogUrl(task.id, 'output')} target="_blank" rel="noopener noreferrer">
                                 Output
-                              </a>
+                              </A>
                             ) : null}
                             {!attempt.output_log_path && !ddUrl ? '-' : null}
                           </div>
-                        </td>
-                      </tr>
+                        </TD>
+                      </TR>
                     )
                   })}
-                </tbody>
-              </table>
+                </Table.Body>
+              </Table>
             )}
-          </td>
-        </tr>
+          </TD>
+        </TR>
       )}
     </Fragment>
   )

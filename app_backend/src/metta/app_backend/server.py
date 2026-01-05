@@ -25,6 +25,7 @@ from metta.app_backend.routes import (
     sql_routes,
     stats_routes,
     sweep_routes,
+    tournament_routes,
 )
 
 
@@ -128,6 +129,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     jobs_router = job_routes.create_job_router()
     webhook_router = create_github_webhook_router()
+    tournament_router = tournament_routes.create_tournament_router()
 
     app.include_router(eval_task_router)
     app.include_router(sql_router)
@@ -136,6 +138,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(leaderboard_router)
     app.include_router(jobs_router)
     app.include_router(webhook_router)
+    app.include_router(tournament_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
