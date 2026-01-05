@@ -58,9 +58,8 @@ class Rollout:
             logger.debug(f"Step {self._step_count}")
 
         for i, policy in enumerate(self._policies):
-            action = self._config.game.actions.noop.Noop()
-
             if self._failed_agents[i]:
+                action = self._config.game.actions.noop.Noop()
                 self._agents[i].set_action(action)
                 continue
 
