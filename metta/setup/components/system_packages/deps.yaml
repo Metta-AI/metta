@@ -104,3 +104,8 @@ packages:
     brew:
       name: amazon-efs-utils
       tap: aws/aws
+
+  process-compose:
+    brew:
+      name: process-compose
+      tap: f1bonacc1/tap
