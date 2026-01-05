@@ -117,28 +117,29 @@ def create_github_webhook_router() -> APIRouter:
             return {"status": "ok", "message": "pong"}
 
         if x_github_event == "pull_request":
-            try:
-                with metrics.timed("github_asana.webhook.latency_ms", {"event": "pull_request"}):
-                    result = await handle_pull_request_event(
-                        payload=payload,
-                        delivery_id=x_github_delivery,
+            # Return response immediately to avoid GitHub timeout
+            # Process the event asynchronously
+            import asyncio
+            
+            async def process_event():
+                try:
+                    with metrics.timed("github_asana.webhook.latency_ms", {"event": "pull_request"}):
+                        result = await handle_pull_request_event(
+                            payload=payload,
+                            delivery_id=x_github_delivery,
+                        )
+                    logger.info(f"Successfully processed webhook: {x_github_delivery}, result: {result}")
+                except Exception as e:
+                    logger.error(
+                        f"Unexpected error processing pull_request event: {e}",
+                        exc_info=True,
+                        extra={"delivery": x_github_delivery, "action": payload.get("action")},
                     )
-                return {"status": "ok", "result": result}
-            except Exception as e:
-                logger.error(
-                    f"Unexpected error processing pull_request event: {e}",
-                    exc_info=True,
-                    extra={"delivery": x_github_delivery, "action": payload.get("action")},
-                )
-                metrics.increment_counter("github_asana.dead_letter.count", {"operation": "webhook_handler"})
-                return {
-                    "status": "ok",
-                    "result": {
-                        "kind": "dead_letter",
-                        "reason": "unexpected_error",
-                        "error": str(e),
-                    },
-                }
+                    metrics.increment_counter("github_asana.dead_letter.count", {"operation": "webhook_handler"})
+            
+            # Start processing in background, return immediately
+            asyncio.create_task(process_event())
+            return {"status": "ok", "message": "webhook received, processing in background"}
 
         # For unsupported events, log and return success
         logger.info(f"Ignoring unsupported event type: {x_github_event}")
