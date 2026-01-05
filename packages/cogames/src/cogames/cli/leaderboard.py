@@ -64,14 +64,6 @@ def _get_client(login_server: str, server: str) -> TournamentServerClient | None
     return TournamentServerClient.from_login(server_url=server, login_server=login_server)
 
 
-def _fetch_leaderboard(client: TournamentServerClient, path: str) -> dict[str, Any]:
-    try:
-        return client._get(path)
-    except httpx.HTTPError as exc:
-        console.print(f"[red]Failed to reach server:[/red] {exc}")
-        raise typer.Exit(1) from exc
-
-
 def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
     table = Table(title=title, box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
@@ -99,6 +91,15 @@ def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
 
 
 def submissions_cmd(
+    policy_name: Optional[str] = typer.Argument(
+        None,
+        help="Policy name to filter (e.g., 'my-policy' or 'my-policy:v3')",
+    ),
+    season: Optional[str] = typer.Option(
+        None,
+        "--season",
+        help="Filter by tournament season",
+    ),
     login_server: str = typer.Option(
         DEFAULT_COGAMES_SERVER,
         "--login-server",
@@ -116,24 +117,131 @@ def submissions_cmd(
         help="Print the raw JSON response instead of a table",
     ),
 ) -> None:
-    """Fetch submissions tied to the authenticated user."""
+    """Show your uploaded policies and tournament submissions.
+
+    Examples:
+      cogames submissions                    # All uploads
+      cogames submissions --season beta      # Submissions in beta season
+      cogames submissions my-policy          # Info on a specific policy
+    """
     client = _get_client(login_server, server)
     if not client:
         return
 
     with client:
-        payload = _fetch_leaderboard(client, "/leaderboard/v2/users/me")
+        if season:
+            _show_season_submissions(client, season, policy_name, json_output)
+        else:
+            _show_all_uploads(client, policy_name, json_output)
+
+
+def _show_all_uploads(
+    client: TournamentServerClient,
+    policy_name: Optional[str],
+    json_output: bool,
+) -> None:
+    """Show all uploaded policies."""
+    try:
+        name_filter = None
+        version_filter = None
+        if policy_name:
+            name_filter, version_filter = parse_policy_identifier(policy_name)
+        entries = client.get_my_policy_versions(name=name_filter, version=version_filter)
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     if json_output:
-        console.print(json.dumps(payload, indent=2))
+        console.print(json.dumps([e.model_dump(mode="json") for e in entries], indent=2))
         return
 
-    entries = payload.get("entries") or []
     if not entries:
-        console.print("[yellow]No submissions found.[/yellow]")
+        if policy_name:
+            console.print(f"[yellow]No uploads found matching '{policy_name}'.[/yellow]")
+        else:
+            console.print("[yellow]No uploads found.[/yellow]")
         return
 
-    _render_table("Your Submissions", entries)
+    table = Table(title="Your Uploaded Policies", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Policy", style="bold cyan")
+    table.add_column("Version", justify="right")
+    table.add_column("Uploaded", style="green")
+    table.add_column("ID", style="dim")
+
+    for entry in entries:
+        table.add_row(
+            entry.name,
+            str(entry.version),
+            _format_timestamp(entry.created_at.isoformat()),
+            str(entry.id),
+        )
+
+    console.print(table)
+
+
+def _show_season_submissions(
+    client: TournamentServerClient,
+    season: str,
+    policy_name: Optional[str],
+    json_output: bool,
+) -> None:
+    """Show submissions for a specific season."""
+    try:
+        entries = client._get(f"/tournament/seasons/{season}/policies")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            console.print(f"[red]Season '{season}' not found[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[red]Request failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
+        raise typer.Exit(1) from exc
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if policy_name:
+        name, version = parse_policy_identifier(policy_name)
+        if version:
+            entries = [
+                e
+                for e in entries
+                if e.get("policy", {}).get("name") == name and e.get("policy", {}).get("version") == version
+            ]
+        else:
+            entries = [e for e in entries if e.get("policy", {}).get("name") == name]
+
+    if json_output:
+        console.print(json.dumps(entries, indent=2))
+        return
+
+    if not entries:
+        if policy_name:
+            console.print(f"[yellow]No submissions found for '{policy_name}' in season '{season}'.[/yellow]")
+        else:
+            console.print(f"[yellow]No submissions found in season '{season}'.[/yellow]")
+        return
+
+    table = Table(title=f"Submissions in '{season}'", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Policy", style="bold cyan")
+    table.add_column("Version", justify="right")
+    table.add_column("Pools", style="white")
+    table.add_column("Matches", justify="right")
+    table.add_column("Entered", style="green")
+
+    for entry in entries:
+        policy = entry.get("policy", {})
+        pools = entry.get("pools", [])
+        pool_names = [p.get("pool_name", "?") for p in pools]
+        total_matches = sum(p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0) for p in pools)
+        table.add_row(
+            policy.get("name", "?"),
+            str(policy.get("version", "?")),
+            ", ".join(pool_names) if pool_names else "—",
+            str(total_matches),
+            _format_timestamp(entry.get("entered_at")),
+        )
+
+    console.print(table)
 
 
 def leaderboard_cmd(
@@ -166,8 +274,12 @@ def leaderboard_cmd(
         return
 
     path = "/leaderboard/v2" if view == "public" else "/leaderboard/v2/users/me"
-    with client:
-        payload = _fetch_leaderboard(client, path)
+    try:
+        with client:
+            payload = client._get(path)
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     if json_output:
         console.print(json.dumps(payload, indent=2))
@@ -209,7 +321,7 @@ def seasons_cmd(
         with client:
             seasons = client.get_seasons()
     except httpx.HTTPError as exc:
-        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
         raise typer.Exit(1) from exc
 
     if json_output:

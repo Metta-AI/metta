@@ -146,19 +146,27 @@ class TournamentServerClient:
     def get_leaderboard(self, season_name: str) -> list[LeaderboardEntry]:
         return self._get(f"/tournament/seasons/{season_name}/leaderboard", list[LeaderboardEntry])
 
+    def get_my_policy_versions(
+        self,
+        name: str | None = None,
+        version: int | None = None,
+    ) -> list[PolicyVersionInfo]:
+        params: dict[str, Any] = {"mine": "true", "limit": 100}
+        if name is not None:
+            params["name_exact"] = name
+        if version is not None:
+            params["version"] = version
+        result = self._get("/stats/policy-versions", params=params)
+        entries = result.get("entries", [])
+        return [PolicyVersionInfo.model_validate(e) for e in entries]
+
     def lookup_policy_version(
         self,
         name: str,
         version: int | None = None,
     ) -> PolicyVersionInfo | None:
-        params: dict[str, Any] = {"mine": "true", "name_exact": name, "limit": 1}
-        if version is not None:
-            params["version"] = version
-        result = self._get("/stats/policy-versions", params=params)
-        entries = result.get("entries", [])
-        if not entries:
-            return None
-        return PolicyVersionInfo.model_validate(entries[0])
+        versions = self.get_my_policy_versions(name=name, version=version)
+        return versions[0] if versions else None
 
     def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionInfo:
         return self._get(f"/stats/policy-versions/{policy_version_id}", PolicyVersionInfo)
