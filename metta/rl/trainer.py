@@ -76,10 +76,10 @@ class Trainer:
         slot_state = self._build_slot_state(self._policy)
         if len(slot_state["slots"]) > 1 or not slot_state["slots"][0].use_trainer_policy:
             self._policy = SlotControllerPolicy(
-                slots=slot_state["slots"],
                 slot_policies=slot_state["slot_policies"],
                 policy_env_info=self._env.policy_env_info,
                 agent_slot_map=slot_state["slot_ids"],
+                trainable_mask=slot_state["trainable_mask"].tolist(),
             )
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -311,12 +311,13 @@ class Trainer:
 
     def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
         num_agents = self._env.policy_env_info.num_agents
-        slots_cfg, slot_lookup, _, slot_ids = resolve_policy_slots(
+        slots_cfg, _, slot_ids = resolve_policy_slots(
             self._cfg.policy_slots,
             num_agents=num_agents,
             agent_slot_map=self._cfg.agent_slot_map,
             ensure_trainer_slot=True,
         )
+        slot_lookup = {slot.id: idx for idx, slot in enumerate(slots_cfg)}
 
         slot_policies: dict[int, Policy] = {}
         for idx, slot in enumerate(slots_cfg):

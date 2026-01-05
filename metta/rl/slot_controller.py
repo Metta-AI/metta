@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from typing import Dict, Iterable
 
 import torch
 from tensordict import TensorDict
@@ -17,20 +17,24 @@ class SlotControllerPolicy(Policy):
 
     def __init__(
         self,
-        slots: list[Any],
         slot_policies: Dict[int, Policy],
         policy_env_info,
         agent_slot_map: torch.Tensor | None = None,
+        trainable_mask: list[bool] | None = None,
     ) -> None:
         # Use the env info from trainer policy; architecture not needed here
         super().__init__(policy_env_info)  # type: ignore[arg-type]
-        self._slots = slots
         self._slot_policies = slot_policies
-        self._policy_env_info = policy_env_info
         if agent_slot_map is not None:
             self.register_buffer("_agent_slot_map", agent_slot_map)
         else:
             self._agent_slot_map = None
+        if trainable_mask is None:
+            self._trainable_mask = [True for _ in range(len(slot_policies))]
+        else:
+            if len(trainable_mask) != len(slot_policies):
+                raise ValueError("trainable_mask must match the number of slot policies")
+            self._trainable_mask = list(trainable_mask)
 
         # Register trainable sub-policies so optimizer sees their parameters
         for idx, policy in slot_policies.items():
@@ -86,7 +90,7 @@ class SlotControllerPolicy(Policy):
     def train(self, mode: bool = True):  # noqa: D401
         super().train(mode)
         for idx, policy in self._slot_policies.items():
-            if not self._slots[idx].trainable:
+            if not self._trainable_mask[idx]:
                 policy.eval()
         return self
 

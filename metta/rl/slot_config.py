@@ -42,19 +42,22 @@ def resolve_policy_slots(
     num_agents: int,
     agent_slot_map: Sequence[str] | None,
     ensure_trainer_slot: bool,
-) -> tuple[list[PolicySlotConfig], dict[str, int], list[str], list[int]]:
+) -> tuple[list[PolicySlotConfig], list[str], list[int]]:
     slots = list(slots_cfg or [])
+    if not slots:
+        if ensure_trainer_slot:
+            slots = [PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True)]
+        else:
+            raise ValueError("policy_slots must be provided when ensure_trainer_slot=False")
 
     trainer_slot_idx = next((idx for idx, slot in enumerate(slots) if slot.use_trainer_policy), None)
-    if ensure_trainer_slot and (not slots or trainer_slot_idx is None):
-        slots.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
-    elif ensure_trainer_slot and trainer_slot_idx != 0:
-        slots.insert(0, slots.pop(trainer_slot_idx))
-    elif not slots:
-        raise ValueError("policy_slots must be provided when ensure_trainer_slot=False")
-
-    if ensure_trainer_slot and sum(1 for slot in slots if slot.use_trainer_policy) > 1:
-        raise ValueError("Only one slot may set use_trainer_policy=True")
+    if ensure_trainer_slot:
+        if trainer_slot_idx is None:
+            slots.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+        elif trainer_slot_idx != 0:
+            slots.insert(0, slots.pop(trainer_slot_idx))
+        if sum(1 for slot in slots if slot.use_trainer_policy) > 1:
+            raise ValueError("Only one slot may set use_trainer_policy=True")
 
     slot_lookup: dict[str, int] = {}
     for slot in slots:
@@ -72,4 +75,4 @@ def resolve_policy_slots(
             raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id}'")
         slot_ids.append(slot_lookup[slot_id])
 
-    return slots, slot_lookup, resolved_agent_map, slot_ids
+    return slots, resolved_agent_map, slot_ids

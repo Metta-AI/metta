@@ -35,7 +35,7 @@ def _run_single_simulation(
         controller_device = torch.device(device_override or "cpu")
 
         num_agents = env_interface.num_agents
-        slots_cfg, _, agent_map, slot_ids = resolve_policy_slots(
+        slots_cfg, agent_map, slot_ids = resolve_policy_slots(
             sim_cfg.policy_slots,
             num_agents=num_agents,
             agent_slot_map=sim_cfg.agent_slot_map,
@@ -47,10 +47,10 @@ def _run_single_simulation(
             idx: registry.get(slot, env_interface, device=controller_device) for idx, slot in enumerate(slots_cfg)
         }
         controller = SlotControllerPolicy(
-            slots=slots_cfg,
             slot_policies=slot_policies,
             policy_env_info=env_interface,
             agent_slot_map=agent_slot_tensor,
+            trainable_mask=[slot.trainable for slot in slots_cfg],
         )
         if hasattr(controller, "to"):
             controller = controller.to(controller_device)
