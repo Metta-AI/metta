@@ -98,8 +98,9 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
-        episode_replay_writer: ReplayLogWriter | None = None
         handlers: list[SimulatorEventHandler] = []
+        # Create a new replay writer for each episode if save_replay is provided
+        episode_replay_writer = None
         if save_replay is not None:
             episode_replay_writer = ReplayLogWriter(save_replay)
             handlers.append(episode_replay_writer)

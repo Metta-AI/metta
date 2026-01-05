@@ -181,6 +181,7 @@ def send_eval_results_to_wandb(
             setup_policy_evaluator_metrics(wandb_run)
         except Exception:
             logger.error("Failed to set default axes for policy evaluator metrics. Continuing", exc_info=True)
+            pass
         metrics_to_log.update({POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         wandb_run.log(metrics_to_log)
     else:
