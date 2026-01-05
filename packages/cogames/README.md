@@ -133,11 +133,13 @@ To specify a `MISSION`, you can:
 To specify a `POLICY`, use one of two formats:
 
 **URI format** (for checkpoint bundles):
+
 - Point directly at a checkpoint bundle (directory or `.zip` containing `policy_spec.json`)
 - Examples: `./train_dir/my_run:v5`, `./train_dir/my_run:v5.zip`, `s3://bucket/path/run:v5.zip`
 - Use `:latest` suffix to auto-resolve the highest epoch: `./train_dir/checkpoints:latest`
 
 **Key-value format** (for explicit class + weights):
+
 - `class=`: Policy shorthand or full class path from `cogames policies`, e.g. `class=lstm` or
   `class=cogames.policy.random.RandomPolicy`.
 - `data=`: Optional path to a weights file (e.g., `weights.safetensors`). Must be a file, not a directory.
