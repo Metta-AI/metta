@@ -130,11 +130,17 @@ To specify a `MISSION`, you can:
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
 - Alternatively, specify a set of missions with `-S` or `--mission-set`.
 
-To specify a `POLICY`, use comma-separated key/value pairs:
+To specify a `POLICY`, use one of two formats:
 
+**URI format** (for checkpoint bundles):
+- Point directly at a checkpoint bundle (directory or `.zip` containing `policy_spec.json`)
+- Examples: `./train_dir/my_run:v5`, `./train_dir/my_run:v5.zip`, `s3://bucket/path/run:v5.zip`
+- Use `:latest` suffix to auto-resolve the highest epoch: `./train_dir/checkpoints:latest`
+
+**Key-value format** (for explicit class + weights):
 - `class=`: Policy shorthand or full class path from `cogames policies`, e.g. `class=lstm` or
   `class=cogames.policy.random.RandomPolicy`.
-- `data=`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `data=`: Optional path to a weights file (e.g., `weights.safetensors`). Must be a file, not a directory.
 - `proportion=`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 - `kw.<arg>=`: Optional policy `__init__` keyword arguments (all values parsed as strings).
 
@@ -166,10 +172,16 @@ policy architecture we support out of the box (like `lstm`), or can define your 
 Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
 find in `mettagrid/policy/policy.py`.
 
-You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
+You can continue training from a checkpoint bundle (use URI format):
 
 ```
-cogames tutorial train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p ./train_dir/my_run:v5
+```
+
+Or load weights into an explicit class:
+
+```
+cogames tutorial train -m [MISSION] -p class=path.to.MyPolicy,data=train_dir/run:v5/weights.safetensors
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
@@ -259,14 +271,14 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 **Examples:**
 
 ```bash
-# Evaluate a single trained policy checkpoint
-cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt
+# Evaluate a checkpoint bundle
+cogames run -m machina_1 -p ./train_dir/my_run:v5
 
-# Evaluate a single trained policy across a mission set with multiple agents
-cogames run -S integrated_evals -p class=stateless,data=train_dir/model.pt
+# Evaluate across a mission set
+cogames run -S integrated_evals -p ./train_dir/my_run:v5
 
-# Mix two policies: 3 parts your policy, 5 parts random policy
-cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
+# Mix two policies: 3 parts your policy, 5 parts random
+cogames run -m machina_1 -p ./train_dir/my_run:v5,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -306,7 +318,7 @@ Make sure you have authenticated before submitting a policy.
 Example:
 
 ```
-cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
+cogames submit -p ./train_dir/my_run:v5 -n my_policy
 ```
 
 **Options:**
