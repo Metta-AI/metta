@@ -17,6 +17,7 @@ message PureSingleEpisodeRunConfig {
     PureSingleEpisodeJob job = 1 [json_name="job"];
     string device            = 2 [json_name="device"];
     bool allow_network       = 3 [json_name="allow_network"];
+    int32 test_field = 4;
 }
 
 // A PureSingleEpisodeJob describes the configuration of a single game
