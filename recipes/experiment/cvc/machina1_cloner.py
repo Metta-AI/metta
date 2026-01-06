@@ -7,7 +7,7 @@ from cortex.stacks import build_cortex_auto_config
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import AdvantageConfig
-from metta.rl.training.scheduler import ScheduleRule
+from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
