@@ -192,6 +192,12 @@ class SlotControllerPolicy(Policy):
         agent_slot_map: torch.Tensor | None,
     ) -> None:
         """Validate slot configuration for consistency."""
+        if not slots:
+            for name, idx in slot_lookup.items():
+                if idx not in slot_policies:
+                    raise ValueError(f"Slot '{name}' references index {idx} but no policy exists for that id")
+            return
+
         # Check that all slot indices have corresponding policies
         for idx in range(len(slots)):
             if idx not in slot_policies:
