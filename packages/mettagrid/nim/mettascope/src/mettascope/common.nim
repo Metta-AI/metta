@@ -1,10 +1,14 @@
 import
-  std/[times, tables, os],
+  std/[times, tables, os, strutils, pathnorm],
   boxy, windy, vmath, silky,
   replays
 
-let rootDir* = "packages/mettagrid/nim/mettascope/"
-let dataDir* = rootDir / "data"
+var rootDir* = "packages/mettagrid/nim/mettascope/"
+var dataDir* = rootDir / "data"
+
+proc setDataDir*(path: string) =
+  dataDir = path.normalizePath
+  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object
