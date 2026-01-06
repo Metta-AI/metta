@@ -214,6 +214,45 @@ def _make_prettier_runner(
     return _runner
 
 
+def _make_turbo_js_runner(
+    extensions: Sequence[str],
+) -> Callable[[bool, set[str] | None], FormatterResult]:
+    def _runner(fix: bool, files: set[str] | None) -> FormatterResult:
+        repo_root = get_repo_root()
+        normalized_exts = _normalize_extensions(extensions)
+
+        if files:
+            # For file-specific operations, run prettier directly (turbo runs all packages
+            # which causes issues when packages like gridworks can't handle external paths)
+            targets = [f for f in files if Path(f).suffix.lower() in normalized_exts]
+            if not targets:
+                return FormatterResult(success=True, processed_files=0)
+            mode_arg = "--write" if fix else "--check"
+            cmd = ["pnpm", "exec", "prettier", mode_arg, *targets]
+        else:
+            # For full runs, use turbo to get caching and run all package lint/format scripts
+            task = "format" if fix else "lint"
+            cmd = ["pnpm", "exec", "turbo", task, "--", "."]
+
+        result = subprocess.run(
+            cmd,
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        file_count = len(files) if files else 0
+        if result.returncode != 0:
+            return FormatterResult(
+                success=False,
+                output=result.stderr + result.stdout,
+                processed_files=file_count,
+            )
+        return FormatterResult(success=True, processed_files=file_count)
+
+    return _runner
+
+
 def get_formatters() -> dict[str, FormatterConfig]:
     return {
         f.name: f
@@ -291,17 +330,16 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 runner=_make_cpp_runner(),
                 accepts_file_args=False,
             ),
+            # Javascript/Typescript:
+            # - Full runs use turbo to run lint/format scripts in each package
+            # - File-specific runs use prettier directly (turbo can't handle cross-package paths)
+            # Each package.json should define:
+            #   - "lint": type checking + eslint + prettier --check
+            #   - "format": prettier --write (without trailing "." - args passed via turbo)
             FormatterConfig(
-                name="Javascript (prettier)",
+                name="Javascript",
                 extensions=(".ts", ".tsx", ".js", ".jsx"),
-                runner=_make_prettier_runner(extensions=(".ts", ".tsx", ".js", ".jsx")),
-            ),
-            FormatterConfig(
-                name="Javascript (turbo)",
-                extensions=(".ts", ".tsx", ".js", ".jsx"),
-                check_cmds=(("pnpm", "exec", "turbo", "lint"),),
-                format_cmds=(("pnpm", "exec", "turbo", "format"),),
-                accepts_file_args=False,
+                runner=_make_turbo_js_runner(extensions=(".ts", ".tsx", ".js", ".jsx")),
             ),
         ]
     }
