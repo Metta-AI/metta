@@ -186,6 +186,9 @@ jobs:
       - name: Run linting and formatting
         run: uv run python .github/scripts/run_ci_stage.py lint
 
+      - name: Check proto files are up to date
+        run: uv run python .github/scripts/run_ci_stage.py proto-check
+
   observatory-typescript-check:
     name: "Observatory TypeScript Check"
     needs: [graphite-ci-optimizer, setup-checks]

@@ -2358,6 +2358,7 @@ interactive = [
 ]
 lint = [
     { name = "cpplint" },
+    { name = "grpcio-tools" },
     { name = "import-linter" },
     { name = "mypy" },
     { name = "ruff" },
@@ -2484,6 +2485,7 @@ interactive = [
 ]
 lint = [
     { name = "cpplint", specifier = ">=2.0.2" },
+    { name = "grpcio-tools", specifier = ">=1.76.0" },
     { name = "import-linter", specifier = ">=2.1" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "ruff", specifier = ">=0.11.13" },

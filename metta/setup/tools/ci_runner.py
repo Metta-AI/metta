@@ -204,6 +204,55 @@ def _run_pyright(*, verbose: bool = False, extra_args: Sequence[str] | None = No
     return CheckResult("Pyright", passed)
 
 
+def _run_proto_check(*, verbose: bool = False, extra_args: Sequence[str] | None = None) -> CheckResult:
+    """Check that generated protobuf files are up to date with .proto sources.
+
+    Limitation: This check won't detect orphaned _pb2.py files when a .proto
+    file is deleted. It only verifies that existing .proto files produce the
+    same output as the committed generated files.
+    """
+    _ensure_no_extra_args("proto-check", extra_args)
+    _print_header("Proto Staleness Check")
+
+    repo_root = get_repo_root()
+    generated_globs = ["*_pb2.py", "*_pb2.pyi"]
+
+    # Regenerate protos
+    gen_cmd = [sys.executable, str(repo_root / "scripts" / "generate_protos.py")]
+    info(f"Running: {_format_cmd_for_display(gen_cmd)}")
+    gen_result = subprocess.run(gen_cmd, cwd=repo_root, capture_output=True, text=True)
+    if gen_result.returncode != 0:
+        error("Proto generation failed")
+        if gen_result.stdout:
+            console.print(gen_result.stdout, markup=False)
+        if gen_result.stderr:
+            console.print(gen_result.stderr, markup=False)
+        return CheckResult("Proto Check", False)
+
+    # Check for uncommitted changes to tracked generated files
+    diff_cmd = ["git", "diff", "--exit-code", "--", *generated_globs]
+    info(f"Running: {_format_cmd_for_display(diff_cmd)}")
+    diff_result = subprocess.run(diff_cmd, cwd=repo_root, capture_output=True, text=True)
+    if diff_result.returncode != 0:
+        error("Generated proto files are out of date. Run: python scripts/generate_protos.py")
+        if verbose or diff_result.stdout:
+            console.print(diff_result.stdout, markup=False)
+        return CheckResult("Proto Check", False)
+
+    # Check for untracked generated files (new .proto files without committed outputs)
+    untracked_cmd = ["git", "ls-files", "--others", "--exclude-standard", "--", *generated_globs]
+    info(f"Running: {_format_cmd_for_display(untracked_cmd)}")
+    untracked_result = subprocess.run(untracked_cmd, cwd=repo_root, capture_output=True, text=True)
+    untracked_files = untracked_result.stdout.strip()
+    if untracked_files:
+        error("Untracked generated proto files. Run: python scripts/generate_protos.py && git add <files>")
+        console.print(untracked_files, markup=False)
+        return CheckResult("Proto Check", False)
+
+    success("Proto files are up to date")
+    return CheckResult("Proto Check", True)
+
+
 def _print_summary(results: list[CheckResult]) -> None:
     console.print()
 
@@ -224,6 +273,7 @@ StageRunner = Callable[[bool, Sequence[str] | None, str | None, bool], CheckResu
 stages: dict[str, StageRunner] = {
     "lint": lambda v, args, name, _: _run_lint(verbose=v, extra_args=args),
     "pyright": lambda v, args, name, _: _run_pyright(verbose=v, extra_args=args),
+    "proto-check": lambda v, args, name, _: _run_proto_check(verbose=v, extra_args=args),
     "python-tests-and-benchmarks": lambda v, args, name, _: _run_python_tests(verbose=v, extra_args=args),
     "cpp-tests": lambda v, args, name, _: _run_cpp_tests(verbose=v, extra_args=args),
     "cpp-benchmarks": lambda v, args, name, _: _run_cpp_benchmarks(verbose=v, extra_args=args),
@@ -234,6 +284,7 @@ stages: dict[str, StageRunner] = {
 
 DEFAULT_STAGES = {
     "lint",
+    "proto-check",
     "python-tests-and-benchmarks",
     "cpp-tests",
     "cpp-benchmarks",
