@@ -12,7 +12,6 @@ def get_user_from_header(request: Request) -> str | None:
 
     user_id = request.headers.get("X-User-Id")
     auth_secret = request.headers.get("X-Auth-Secret")
-
     if user_id and auth_secret and auth_secret == settings.OBSERVATORY_AUTH_SECRET:
         return user_id
     return None
