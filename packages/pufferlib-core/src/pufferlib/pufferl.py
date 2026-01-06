@@ -73,12 +73,6 @@ if threading.current_thread() is threading.main_thread():
 ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 
-def _enable_tf32_matmul() -> None:
-    """Enable TF32 matmul via the PyTorch 2.9+ API."""
-    if torch.cuda.is_available():
-        torch.backends.cuda.matmul.fp32_precision = "tf32"
-
-
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
         # Backend perf optimization
