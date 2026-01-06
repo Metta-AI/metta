@@ -290,7 +290,7 @@ def sweep(
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.experiment.cvc.machina1_cortex_100m",
+        recipe="recipes.experiment.cvc.machina1_cloner,
         train_entrypoint="train_sweep",
         eval_entrypoint="evaluate_stub",
         metric_key="env_game/assembler.heart.created",
