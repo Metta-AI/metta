@@ -76,11 +76,11 @@ class Rollout:
                 self._agent_failure_steps[i] = self._step_count
                 action = self._config.game.actions.noop.Noop()
             else:
-                elapsed = time.time() - start_time
-                if elapsed > self._max_action_time_ms:
+                elapsed_ms = (time.time() - start_time) * 1000
+                if elapsed_ms > self._max_action_time_ms:
                     logger.warning(
-                        "Action took %s seconds, exceeding max of %sms",
-                        elapsed,
+                        "Action took %.0fms, exceeding max of %sms",
+                        elapsed_ms,
                         self._max_action_time_ms,
                     )
                     action = self._config.game.actions.noop.Noop()
