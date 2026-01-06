@@ -60,6 +60,7 @@ def train(
     cortex_d_hidden: int = 128,
     cortex_num_layers: int = 2,
     cortex_pattern: Sequence[str] = ("Ag,A,S",),
+    ppo_during_bc: bool = True,
 ) -> TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if eval_variants is None:
@@ -123,15 +124,23 @@ def train(
 
     # teacher.py delays PPO critic rollout until teacher.steps; keep PPO running from step 0 instead.
     # (Leaving this gate in place would still work due to OR semantics, but it's misleading in configs.)
+    ppo_gate_names = {"ppo_critic", "quantile_ppo_critic"}
     tt.scheduler.run_gates = [
         gate
         for gate in tt.scheduler.run_gates
         if not (
             gate.phase == "rollout"
             and gate.begin_at_step is not None
-            and gate.loss_instance_name in {"ppo_critic", "quantile_ppo_critic"}
+            and gate.loss_instance_name in ppo_gate_names
         )
     ]
+    if not ppo_during_bc:
+        # Optional: keep PPO gated off until bc_steps to run a pure-BC warmup.
+        for loss_name in ("ppo_actor", "ppo_critic"):
+            for phase in ("rollout", "train"):
+                tt.scheduler.run_gates.append(
+                    LossRunGate(loss_instance_name=loss_name, phase=phase, begin_at_step=bc_steps)
+                )
 
     # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
     blocked_paths = {teacher_proportion_path, student_proportion_path}
@@ -239,6 +248,7 @@ def train_sweep(
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
     evaluate_local: bool = False,
+    ppo_during_bc: bool = True,
 ) -> TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
     base_variants = ["heart_chorus"]
@@ -256,6 +266,7 @@ def train_sweep(
         policy_architecture=policy_architecture,
         teacher=teacher,
         evaluate_local=evaluate_local,
+        ppo_during_bc=ppo_during_bc,
     )
     # Sweep-friendly default (kept consistent with the shared CvC sweep search space).
     tt.trainer.total_timesteps = 1_000_000_000
