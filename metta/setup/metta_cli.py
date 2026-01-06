@@ -310,7 +310,7 @@ def cmd_status(
         console=console,
         transient=True,
     ) as progress:
-        progress.add_task("Checking component status...", total=None)
+        progress.add_task("Checking component status...\n", total=None)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_module = {executor.submit(lambda m: (m.name, m.get_status()), m): m for m in modules}
