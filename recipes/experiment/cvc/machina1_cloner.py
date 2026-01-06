@@ -129,9 +129,7 @@ def train(
         gate
         for gate in tt.scheduler.run_gates
         if not (
-            gate.phase == "rollout"
-            and gate.begin_at_step is not None
-            and gate.loss_instance_name in ppo_gate_names
+            gate.phase == "rollout" and gate.begin_at_step is not None and gate.loss_instance_name in ppo_gate_names
         )
     ]
     if not ppo_during_bc:
