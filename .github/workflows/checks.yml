@@ -225,7 +225,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-8core
     timeout-minutes: 30
     steps:
       - name: Checkout code
@@ -257,6 +257,8 @@ jobs:
 
       - name: Run Python tests and benchmarks
         shell: bash
+        env:
+          DD_CIVISIBILITY_LOG_LEVEL: warning
         run: |
           set -eo pipefail
           ARGS=()
