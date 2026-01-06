@@ -367,18 +367,60 @@ void test_limit_reduces_when_modifier_removed() {
   inv.inventory.update(0, -2);
   assert(inv.inventory.amount(0) == 2);
 
-  // Batteries should still be 18 (removing gears doesn't auto-destroy batteries)
-  assert(inv.inventory.amount(1) == 18);
-
-  // But free_space should be 0 (over limit)
-  assert(inv.inventory.free_space(1) == 0);
-
-  // Trying to add batteries when over limit will clamp down to the limit
-  // 18 + 1 = 19, clamped to max of 10, so delta is -8
-  assert(inv.inventory.update(1, 1) == -8);
+  // Batteries should now be 10, since the limit is automatically enforced.
   assert(inv.inventory.amount(1) == 10);
 
+  // Free_space should be 0 (over limit)
+  assert(inv.inventory.free_space(1) == 0);
+
   std::cout << "✓ Limit reduction when modifier removed test passed" << std::endl;
+}
+
+void test_recursive_limit_reduction_when_dropping_inventory() {
+  std::cout << "Testing recursive limit reduction when dropping inventory causes limit changes..." << std::endl;
+
+  // Resource 0 = gear, Resource 1 = battery, Resource 2 = energy
+  // Chain: gear -> battery -> energy
+  InventoryConfig config;
+  config.limit_defs.push_back(LimitDef({0}, 10));            // gear has fixed limit of 10
+  config.limit_defs.push_back(LimitDef({1}, 0, {{0, 2}}));   // each gear adds +2 battery capacity
+  config.limit_defs.push_back(LimitDef({2}, 0, {{1, 10}}));  // each battery adds +10 energy capacity
+
+  HasInventory inv(config);
+
+  // Add 5 gears (battery limit = 10)
+  inv.inventory.update(0, 5);
+  assert(inv.inventory.amount(0) == 5);
+
+  // Add 10 batteries (at limit)
+  inv.inventory.update(1, 10);
+  assert(inv.inventory.amount(1) == 10);
+
+  // Add 100 energy (at limit: 10 batteries * 10 = 100)
+  inv.inventory.update(2, 100);
+  assert(inv.inventory.amount(2) == 100);
+
+  // Now remove 3 gears (from 5 to 2)
+  // This should trigger recursive limit enforcement:
+  // 1. Battery limit reduces from 10 to 4 (2 gears * 2)
+  // 2. Batteries drop from 10 to 4
+  // 3. Energy limit reduces from 100 to 40 (4 batteries * 10)
+  // 4. Energy drops from 100 to 40
+  inv.inventory.update(0, -3);
+  assert(inv.inventory.amount(0) == 2);
+
+  // Batteries should be reduced to 4 (new limit)
+  assert(inv.inventory.amount(1) == 4);
+
+  // Energy should be reduced to 40 (new limit: 4 batteries * 10)
+  assert(inv.inventory.amount(2) == 40);
+
+  // Verify free_space is 0 for all (at limits)
+  assert(inv.inventory.free_space(0) == 8);  // 10 - 2 = 8
+  assert(inv.inventory.free_space(1) == 0);  // At limit
+  assert(inv.inventory.free_space(2) == 0);  // At limit
+
+  std::cout << "✓ Recursive limit reduction when dropping inventory test passed" << std::endl;
 }
 
 void test_transfer_with_modifier_limits() {
@@ -435,6 +477,7 @@ int main() {
   test_dynamic_limit_chain();
   test_free_space_with_modifiers();
   test_limit_reduces_when_modifier_removed();
+  test_recursive_limit_reduction_when_dropping_inventory();
   test_transfer_with_modifier_limits();
 
   std::cout << "================================================" << std::endl;

@@ -63,6 +63,12 @@ public:
 
   // Get all inventory items
   std::unordered_map<InventoryItem, InventoryQuantity> get() const;
+
+  // Enforce all limits - drop excess items when limits decrease (e.g., after losing gear modifiers)
+  void enforce_all_limits();
+
+  // Check if an item is a modifier for any limit
+  bool is_modifier(InventoryItem item) const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_
