@@ -16,7 +16,7 @@ class NotebookWidgetsSetup(SetupModule):
     ]
 
     def dependencies(self) -> list[str]:
-        return ["nodejs"]
+        return ["js-toolchain"]
 
     @property
     def description(self) -> str:
