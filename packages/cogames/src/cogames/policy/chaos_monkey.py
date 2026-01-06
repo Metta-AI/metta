@@ -41,14 +41,14 @@ class ChaosMonkeyPolicy(MultiAgentPolicy):
     def __init__(
         self,
         policy_env_info: PolicyEnvInterface,
-        fail_step: int = 10,
-        fail_probability: float = 1.0,
+        fail_step: int | str = 10,
+        fail_probability: float | int | str = 1.0,
         device: str = "cpu",
         **_: object,
     ):
         super().__init__(policy_env_info, device=device)
-        self._fail_step = fail_step
-        self._fail_probability = fail_probability
+        self._fail_step = int(fail_step)
+        self._fail_probability = float(fail_probability)
 
     def agent_policy(self, agent_id: int) -> AgentPolicy:
         return _ChaosMonkeyAgent(self.policy_env_info, self._fail_step, self._fail_probability)
