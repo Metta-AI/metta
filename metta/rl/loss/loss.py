@@ -123,6 +123,7 @@ class LossConfig(Config):
 @dataclass(frozen=True)
 class MaskMeta:
     agent_mask: Optional[torch.Tensor]
+    agent_axis: Optional[int]
     mask_flat: Optional[torch.Tensor]
     mask_shape: tuple[int, ...]
 
@@ -299,14 +300,27 @@ class Loss:
             return shared_loss_data
         mask_shape = mask.shape
 
-        # If the agent mask is constant across env/time, keep the batch structure and
-        # slice only the agent axis; otherwise fall back to flattened selection.
-        mask_2d = mask.reshape(-1, mask_shape[-1])
         agent_mask = None
-        if mask_2d.shape[0] > 0:
-            first_row = mask_2d[0]
-            if torch.equal(mask_2d, first_row.expand_as(mask_2d)):
-                agent_mask = first_row
+        agent_axis = None
+        if mask.dim() == 2:
+            # If each row is constant across time, drop non-trainable agents but keep time intact.
+            first_step = mask[:, :1]
+            if torch.equal(mask, first_step.expand_as(mask)):
+                agent_mask = mask[:, 0]
+                agent_axis = 0
+            else:
+                # Fallback for [envs, agents] style masks: constant across rows, keep agent axis.
+                first_row = mask[0]
+                if torch.equal(mask, first_row.expand_as(mask)):
+                    agent_mask = first_row
+                    agent_axis = 1
+        elif mask.dim() > 2:
+            mask_2d = mask.reshape(-1, mask_shape[-1])
+            if mask_2d.numel() > 0:
+                first_row = mask_2d[0]
+                if torch.equal(mask_2d, first_row.expand_as(mask_2d)):
+                    agent_mask = first_row
+                    agent_axis = -1
 
         filtered = shared_loss_data.clone()
 
@@ -315,21 +329,33 @@ class Loss:
             agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
 
             def _mask_agent_tensor(t: torch.Tensor) -> torch.Tensor:
-                # reshape to [-1, agents, ...], index-select agent axis, then reshape back
                 lead = len(mask_shape)
+                if t.dim() < lead:
+                    return t
+                if tuple(t.shape[:lead]) != mask_shape:
+                    return t
                 rest_shape = t.shape[lead:]
-                t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
-                t_sel = t_view.index_select(1, agent_idx)
-                new_shape = (*mask_shape[:-1], agent_idx.numel(), *rest_shape)
-                return t_sel.reshape(new_shape)
+                if agent_axis in (0, -lead):
+                    t_sel = t.index_select(0, agent_idx)
+                    new_shape = (int(agent_idx.numel()), *mask_shape[1:], *rest_shape)
+                    return t_sel.reshape(new_shape)
+                if agent_axis in (lead - 1, -1):
+                    t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
+                    t_sel = t_view.index_select(1, agent_idx)
+                    new_shape = (*mask_shape[:-1], int(agent_idx.numel()), *rest_shape)
+                    return t_sel.reshape(new_shape)
+                return t
 
-            new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+            if agent_axis in (0, -len(mask_shape)):
+                new_batch = (int(agent_idx.numel()), *mask_shape[1:])
+            else:
+                new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
             filtered["sampled_mb"] = TensorDict(
                 {k: _mask_agent_tensor(v) for k, v in mb.items()},
                 batch_size=new_batch,
                 device=mb.device,
             )
-            mask_meta = MaskMeta(agent_mask=agent_mask, mask_flat=None, mask_shape=mask_shape)
+            mask_meta = MaskMeta(agent_mask=agent_mask, agent_axis=agent_axis, mask_flat=None, mask_shape=mask_shape)
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
@@ -343,7 +369,7 @@ class Loss:
 
             filtered["sampled_mb"] = mb_flat[mask_flat]
 
-            mask_meta = MaskMeta(agent_mask=None, mask_flat=mask_flat, mask_shape=mask_shape)
+            mask_meta = MaskMeta(agent_mask=None, agent_axis=None, mask_flat=mask_flat, mask_shape=mask_shape)
             for key, value in list(filtered.items()):
                 if key == "sampled_mb":
                     continue
@@ -357,6 +383,7 @@ class Loss:
         """Apply either a flattened mask or per-agent mask to a value."""
 
         agent_mask = mask_meta.agent_mask
+        agent_axis = mask_meta.agent_axis
         mask_flat = mask_meta.mask_flat
         mask_shape = mask_meta.mask_shape
 
@@ -385,8 +412,12 @@ class Loss:
             agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
             lead = len(mask_shape)
             if t.dim() < lead:
-                return t  # nothing to mask
-            if tuple(t.shape[: lead - 1]) == tuple(mask_shape[:-1]) and t.shape[lead - 1] == mask_shape[-1]:
+                return t
+            if tuple(t.shape[:lead]) != mask_shape:
+                return t
+            if agent_axis in (0, -lead):
+                return t.index_select(0, agent_idx)
+            if agent_axis in (lead - 1, -1):
                 return t.index_select(lead - 1, agent_idx)
             return t
 
@@ -395,7 +426,10 @@ class Loss:
         def apply_tensordict(td: TensorDict) -> TensorDict:
             if agent_mask is not None:
                 agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
-                new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+                if agent_axis in (0, -len(mask_shape)):
+                    new_batch = (int(agent_idx.numel()), *mask_shape[1:])
+                else:
+                    new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
                 masked = TensorDict({}, batch_size=new_batch, device=td.device)
                 for key in td.keys(include_nested=True, leaves_only=True):
                     item = td.get(key)

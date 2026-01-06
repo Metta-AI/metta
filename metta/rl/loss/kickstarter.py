@@ -54,6 +54,7 @@ class Kickstarter(Loss):
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+        self.trainable_only = True
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -94,6 +95,7 @@ class Kickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch = shared_loss_data["sampled_mb"]
         B, TT = minibatch.batch_size
 

@@ -47,6 +47,7 @@ class ActionSupervised(Loss):
         cfg: "ActionSupervisedConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
+        self.trainable_only = True
 
     def get_experience_spec(self) -> Composite:
         scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
@@ -83,6 +84,7 @@ class ActionSupervised(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch = shared_loss_data["sampled_mb"]
         policy_td = shared_loss_data["policy_td"]
 

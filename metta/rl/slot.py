@@ -130,7 +130,14 @@ class SlotControllerPolicy(Policy):
         else:
             self._agent_slot_map = None
         self._slot_specs = {idx: policy.get_agent_experience_spec() for idx, policy in slot_policies.items()}
-        self._merged_spec = _merge_policy_specs(self._slot_specs.values())
+        specs_for_merge: list[Composite] = []
+        for idx, spec in self._slot_specs.items():
+            slot = slots[idx] if idx < len(slots) else None
+            if slot is None or getattr(slot, "trainable", True):
+                specs_for_merge.append(spec)
+        if not specs_for_merge:
+            specs_for_merge = list(self._slot_specs.values())
+        self._merged_spec = _merge_policy_specs(specs_for_merge)
 
         for idx, policy in slot_policies.items():
             if isinstance(policy, nn.Module):

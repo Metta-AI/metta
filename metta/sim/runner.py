@@ -54,6 +54,12 @@ def _run_single_simulation(
     if sim_cfg.policy_slots:
         registry = SlotRegistry()
         slots_cfg = list(sim_cfg.policy_slots)
+        for slot_cfg in slots_cfg:
+            if slot_cfg.use_trainer_policy:
+                raise ValueError(
+                    "use_trainer_policy is not supported in simulation slots; "
+                    "provide policy_uri or class_path for evaluation."
+                )
         slot_lookup: dict[str, int] = {}
         for slot_cfg in slots_cfg:
             if slot_cfg.id in slot_lookup:
