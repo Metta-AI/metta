@@ -81,18 +81,15 @@ class WandbSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
+            # Local import because wandb is heavy, top-level import slows down other metta cli commands
             import wandb
 
             api = wandb.Api()
             saved_settings = get_saved_settings()
             if saved_settings.user_type.is_softmax:
-                expected_entity = METTA_WANDB_ENTITY
-                teams = api.viewer.teams
-                for team in teams:
-                    if team.name == expected_entity:
-                        return expected_entity
+                if (expected_entity := METTA_WANDB_ENTITY) in api.viewer.teams:
+                    return expected_entity
                 return None
-            return api.default_entity
         except Exception:
             return None
 
