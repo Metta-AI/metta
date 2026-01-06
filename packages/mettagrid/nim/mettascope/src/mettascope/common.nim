@@ -3,12 +3,10 @@ import
   boxy, windy, vmath, silky,
   replays
 
-var rootDir* = "packages/mettagrid/nim/mettascope/"
-var dataDir* = rootDir / "data"
+var dataDir* = "packages/mettagrid/nim/mettascope/data"
 
 proc setDataDir*(path: string) =
   dataDir = path.normalizePath
-  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object
