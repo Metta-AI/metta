@@ -749,47 +749,6 @@ class MettaRepo:
                 )
                 return await cur.fetchall()
 
-    async def get_user_policy_version_by_name(
-        self, user_id: str, name: str, version: int | None = None
-    ) -> PublicPolicyVersionRow | None:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
-                if version is not None:
-                    await cur.execute(
-                        """
-                        SELECT
-                            pv.id,
-                            pv.policy_id,
-                            pv.created_at,
-                            p.created_at AS policy_created_at,
-                            user_id,
-                            p.name,
-                            pv.version
-                        FROM policy_versions AS pv, policies AS p
-                        WHERE pv.policy_id = p.id AND p.user_id = %s AND p.name = %s AND pv.version = %s
-                        """,
-                        (user_id, name, version),
-                    )
-                else:
-                    await cur.execute(
-                        """
-                        SELECT
-                            pv.id,
-                            pv.policy_id,
-                            pv.created_at,
-                            p.created_at AS policy_created_at,
-                            user_id,
-                            p.name,
-                            pv.version
-                        FROM policy_versions AS pv, policies AS p
-                        WHERE pv.policy_id = p.id AND p.user_id = %s AND p.name = %s
-                        ORDER BY pv.version DESC
-                        LIMIT 1
-                        """,
-                        (user_id, name),
-                    )
-                return await cur.fetchone()
-
     async def get_policies(
         self,
         name_exact: str | None = None,

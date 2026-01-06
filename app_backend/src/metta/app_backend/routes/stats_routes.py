@@ -6,8 +6,11 @@ import aioboto3
 import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import selectinload
+from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
+from metta.app_backend.database import DbSession
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
@@ -15,6 +18,7 @@ from metta.app_backend.metta_repo import (
     PolicyVersionWithName,
     PublicPolicyVersionRow,
 )
+from metta.app_backend.models.policies import Policy, PolicyVersion
 from metta.app_backend.route_logger import timed_http_handler
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -428,14 +432,35 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def lookup_my_policy_version(
         user: UserOrToken,
+        session: DbSession,
         name: str = Query(..., description="Policy name"),
         version: Optional[int] = Query(None, description="Version number (latest if omitted)"),
     ) -> PublicPolicyVersionRow:
-        result = await stats_repo.get_user_policy_version_by_name(user, name, version)
+        query = (
+            select(PolicyVersion)
+            .join(PolicyVersion.policy)
+            .where(Policy.user_id == user, Policy.name == name)
+            .options(selectinload(PolicyVersion.policy))
+        )
+        if version is not None:
+            query = query.where(PolicyVersion.version == version)
+        else:
+            query = query.order_by(col(PolicyVersion.version).desc()).limit(1)
+
+        result = (await session.execute(query)).scalar_one_or_none()
         if result is None:
             version_str = f" v{version}" if version else ""
             raise HTTPException(status_code=404, detail=f"Policy '{name}'{version_str} not found")
-        return result
+
+        return PublicPolicyVersionRow(
+            id=result.id,
+            policy_id=result.policy_id,
+            created_at=result.created_at,
+            policy_created_at=result.policy.created_at,
+            user_id=result.policy.user_id,
+            name=result.policy.name,
+            version=result.version,
+        )
 
     @router.post("/episodes/query", response_model=EpisodeQueryResponse)
     @timed_http_handler
