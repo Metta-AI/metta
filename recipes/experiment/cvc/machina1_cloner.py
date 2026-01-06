@@ -107,37 +107,36 @@ def train(
     if tt.scheduler is None:
         raise RuntimeError("Expected TrainTool.scheduler to be set by train_single_mission")
 
-    # --------------------- BC -> PPO schedule (sliced_cloner) ---------------------
+    # --------------------- BC + PPO schedule (sliced_cloner) ---------------------
     #
     # Goal:
-    # 1) [0 .. bc_steps)        : "pure BC" (PPO gated off). Teacher/student slices drive behavior; PPO does not train.
-    # 2) [bc_steps .. end)      : enable PPO; anneal teacher/student slice proportions -> 0 linearly.
-    # 3) [end .. inf)           : pure PPO (cloner gated off by teacher.steps).
+    # 1) Keep PPO active for the entire run.
+    # 2) [0 .. bc_steps)        : BC slices run alongside PPO.
+    # 3) [bc_steps .. end)      : anneal teacher/student slice proportions -> 0 linearly.
+    # 4) [end .. inf)           : pure PPO (cloner gated off by teacher.steps).
     #
     # Mechanism:
     # - We use TeacherConfig(mode="sliced_cloner") to enable the sliced cloner loss and supervisor actions.
-    # - We use scheduler run gates to disable PPO actor/critic until bc_steps.
     # - We override teacher.py's default anneal (0..end) so annealing begins at bc_steps instead.
     teacher_proportion_path = "losses.sliced_scripted_cloner.teacher_led_proportion"
     student_proportion_path = "losses.sliced_scripted_cloner.student_led_proportion"
 
-    # teacher.py delays PPO critic rollout until teacher.steps; we want PPO to start at bc_steps.
+    # teacher.py delays PPO critic rollout until teacher.steps; keep PPO running from step 0 instead.
     # (Leaving this gate in place would still work due to OR semantics, but it's misleading in configs.)
     tt.scheduler.run_gates = [
         gate
         for gate in tt.scheduler.run_gates
-        if not (gate.loss_instance_name == "ppo_critic" and gate.phase == "rollout" and gate.begin_at_step is not None)
+        if not (
+            gate.phase == "rollout"
+            and gate.begin_at_step is not None
+            and gate.loss_instance_name in {"ppo_critic", "quantile_ppo_critic"}
+        )
     ]
 
     # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
     tt.scheduler.rules = [
         rule for rule in tt.scheduler.rules if rule.target_path not in {teacher_proportion_path, student_proportion_path}
     ]
-
-    # Phase 1: PPO off. Phase 2+: PPO on (trains on all slices).
-    for loss_name in ("ppo_actor", "ppo_critic"):
-        for phase in ("rollout", "train"):
-            tt.scheduler.run_gates.append(LossRunGate(loss_instance_name=loss_name, phase=phase, begin_at_step=bc_steps))
 
     # Phase 2: linearly anneal BC slice proportions down to 0, growing the PPO slice over time.
     tt.scheduler.rules.append(
