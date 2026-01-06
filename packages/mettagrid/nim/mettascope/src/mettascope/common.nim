@@ -1,5 +1,5 @@
 import
-  std/[times, tables, os, strutils],
+  std/[times, tables, os, strutils, pathnorm],
   boxy, windy, vmath, silky,
   replays
 
@@ -7,8 +7,8 @@ var rootDir* = "packages/mettagrid/nim/mettascope/"
 var dataDir* = rootDir / "data"
 
 proc setDataDir*(path: string) =
-  dataDir = path.normalize
-  rootDir = dataDir.parentDir.normalize
+  dataDir = path.normalizePath
+  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object
