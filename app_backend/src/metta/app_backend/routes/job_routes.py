@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlmodel import col, select
 
 from metta.app_backend.auth import UserOrToken
-from metta.app_backend.database import db_session
+from metta.app_backend.database import get_session
 from metta.app_backend.job_runner.dispatcher import dispatch_job
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.route_logger import timed_http_handler
@@ -32,7 +32,7 @@ def create_job_router() -> APIRouter:
 
         # Create all jobs in db as pending
         db_jobs: list[JobRequest] = []
-        async with db_session() as session:
+        async with get_session() as session:
             for job_create in jobs:
                 db_job = JobRequest(**job_create.model_dump(), user_id=user, status=JobStatus.pending)
                 session.add(db_job)
@@ -56,7 +56,7 @@ def create_job_router() -> APIRouter:
                 dispatch_results[job_id] = _DispatchResult(error=str(e), time=datetime.now(UTC))
 
         # Update DB with dispatch results
-        async with db_session() as session:
+        async with get_session() as session:
             query = await session.execute(select(JobRequest).where(col(JobRequest.id).in_(dispatch_results.keys())))
             job_requests = list(query.scalars().all())
             for job_request in job_requests:
@@ -80,14 +80,11 @@ def create_job_router() -> APIRouter:
         _user: UserOrToken,
         job_type: JobType | None = Query(default=None),
         statuses: list[JobStatus] | None = Query(default=None),
-        job_id: UUID | None = Query(default=None),
         limit: int = Query(default=100, ge=1, le=1000),
         offset: int = Query(default=0, ge=0),
     ) -> list[JobRequest]:
-        async with db_session() as session:
+        async with get_session() as session:
             query = select(JobRequest).order_by(col(JobRequest.created_at).desc()).offset(offset).limit(limit)
-            if job_id:
-                query = query.where(JobRequest.id == job_id)
             if statuses:
                 query = query.where(col(JobRequest.status).in_(statuses))
             if job_type:
@@ -98,7 +95,7 @@ def create_job_router() -> APIRouter:
     @router.get("/{job_id}")
     @timed_http_handler
     async def get_job(job_id: UUID, _user: UserOrToken) -> JobRequest:
-        async with db_session() as session:
+        async with get_session() as session:
             result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             row = result.scalar_one_or_none()
             if not row:
@@ -108,7 +105,7 @@ def create_job_router() -> APIRouter:
     @router.post("/{job_id}")
     @timed_http_handler
     async def update_job(job_id: UUID, request: JobRequestUpdate, _user: UserOrToken) -> JobRequest:
-        async with db_session() as session:
+        async with get_session() as session:
             result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             job = result.scalar_one_or_none()
             if not job:

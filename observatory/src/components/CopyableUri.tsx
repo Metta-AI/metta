@@ -1,4 +1,3 @@
-import clsx from 'clsx'
 import { FC, useState } from 'react'
 
 type CopyableUriProps = {
@@ -26,14 +25,14 @@ export const CopyableUri: FC<CopyableUriProps> = ({ uri, label = 'Copy' }) => {
     <button
       type="button"
       onClick={handleCopy}
-      className={clsx(
-        'flex items-center gap-3 px-3 py-2 rounded border text-left font-mono text-sm bg-white',
-        'transition-colors cursor-pointer w-full max-w-xl',
-        copied ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'
-      )}
+      className={`
+        flex items-center gap-3 px-3 py-2 rounded border text-left font-mono text-sm
+        transition-colors cursor-pointer w-full max-w-md
+        ${copied ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'}
+      `}
     >
       <code className="flex-1 text-xs text-gray-900 break-all">{uri}</code>
-      <span className={clsx('text-xs font-semibold whitespace-nowrap', copied ? 'text-blue-600' : 'text-gray-500')}>
+      <span className={`text-xs font-semibold whitespace-nowrap ${copied ? 'text-blue-600' : 'text-gray-500'}`}>
         {copied ? 'Copied!' : label}
       </span>
     </button>

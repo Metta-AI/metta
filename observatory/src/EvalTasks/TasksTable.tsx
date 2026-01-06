@@ -1,9 +1,7 @@
-import { FC, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { FC, PropsWithChildren, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 
 import { Button } from '../components/Button'
 import { Input } from '../components/Input'
-import { Spinner } from '../components/Spinner'
-import { Table, TH } from '../components/Table'
 import { PaginatedEvalTasksResponse, PublicPolicyVersionRow, Repo, TaskFilters } from '../repo'
 import { TaskRow } from './TaskRow'
 
@@ -47,6 +45,25 @@ const StatusDropdown: FC<{ value: string; onChange: (value: string) => void }> =
       <option value="canceled">Canceled</option>
     </select>
   )
+}
+
+const TH: FC<
+  PropsWithChildren<{
+    width?: string | number
+  }>
+> = ({ children, width }) => {
+  return (
+    <th
+      className="px-3 pt-2 pb-0.5 text-left text-xs text-gray-800 font-semibold tracking-wide uppercase"
+      style={{ width }}
+    >
+      {children}
+    </th>
+  )
+}
+
+const THFilter: FC<PropsWithChildren> = ({ children }) => {
+  return <th className="px-1 pb-2">{children}</th>
 }
 
 export const TasksTable: FC<{
@@ -133,42 +150,44 @@ export const TasksTable: FC<{
   }, [loadTasks, currentPage])
 
   if (!tasksResponse) {
-    return <Spinner size="lg" />
+    return <div>Loading tasks...</div>
   }
 
   return (
     <div>
       <div className="overflow-x-auto">
-        <Table>
-          <Table.Header>
-            <TH>Policy</TH>
-            <TH>
-              <div className="flex flex-col gap-1">
-                Recipe
-                {!hideFilters && (
+        <table className="w-full border-collapse table-fixed">
+          <thead className="border-b border-b-gray-300 bg-gray-100">
+            <tr>
+              <TH>Policy</TH>
+              <TH>Recipe</TH>
+              <TH>Status</TH>
+              <TH>Created</TH>
+              <TH>Duration</TH>
+              <TH>Logs</TH>
+            </tr>
+            {!hideFilters && (
+              <tr>
+                <THFilter />
+                <THFilter>
                   <FilterInput
                     value={filters.command || ''}
                     onChange={(value) => setFilters({ ...filters, command: value })}
                   />
-                )}
-              </div>
-            </TH>
-            <TH>
-              <div className="flex flex-col gap-1">
-                Status
-                {!hideFilters && (
+                </THFilter>
+                <THFilter>
                   <StatusDropdown
                     value={filters.status || ''}
                     onChange={(value) => setFilters({ ...filters, status: value })}
                   />
-                )}
-              </div>
-            </TH>
-            <TH>Created</TH>
-            <TH>Duration</TH>
-            <TH>Logs</TH>
-          </Table.Header>
-          <Table.Body>
+                </THFilter>
+                <THFilter />
+                <THFilter />
+                <THFilter />
+              </tr>
+            )}
+          </thead>
+          <tbody>
             {tasksResponse.tasks.map((task) => (
               <TaskRow
                 key={task.id}
@@ -178,8 +197,8 @@ export const TasksTable: FC<{
                 attemptedPolicyIds={attemptedPolicyIds.current}
               />
             ))}
-          </Table.Body>
-        </Table>
+          </tbody>
+        </table>
         {tasksResponse.tasks.length === 0 && <div className="p-5 text-center text-gray-500">No tasks found</div>}
       </div>
 

@@ -5,7 +5,7 @@ import uuid
 from typing import Any, TypeVar
 
 import httpx
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
 from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionWithName
@@ -33,10 +33,6 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 logger = logging.getLogger("stats_client")
 
 T = TypeVar("T")
-
-
-class WhoAmIResponse(BaseModel):
-    user_email: str
 
 
 class StatsClient:
@@ -68,6 +64,8 @@ class StatsClient:
         return TypeAdapter(response_type).validate_python(response.json())
 
     def _validate_authenticated(self) -> str:
+        from metta.app_backend.server import WhoAmIResponse
+
         auth_user = self._make_sync_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")

@@ -301,10 +301,6 @@ def main(
     return
 
 
-def cli_entry():
+if __name__ == "__main__":
     init_logging()
     app()
-
-
-if __name__ == "__main__":
-    cli_entry()

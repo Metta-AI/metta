@@ -79,8 +79,9 @@ def iter_enabled_specs(specs: Iterable[NodeSpec], node_cfgs: dict[str, NodeConfi
 def _sort_specs(specs: list[NodeSpec]) -> list[NodeSpec]:
     order_map = {name: idx for idx, name in enumerate(DEFAULT_NODE_ORDER)}
     indexed = list(enumerate(specs))
-    fallback = len(order_map) + 100
-    indexed.sort(key=lambda pair: (order_map.get(pair[1].key, fallback), pair[0]))
+    # Use a high fallback value for nodes not in the default order
+    UNORDERED_NODE_PRIORITY = len(order_map) + 100
+    indexed.sort(key=lambda pair: (order_map.get(pair[1].key, UNORDERED_NODE_PRIORITY), pair[0]))
     return [spec for _, spec in indexed]
 
 

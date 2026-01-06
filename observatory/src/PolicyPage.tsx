@@ -1,13 +1,8 @@
 import { FC, useContext, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
-import { Card } from './components/Card'
 import { CopyableUri } from './components/CopyableUri'
-import { LinkButton } from './components/LinkButton'
-import { Spinner } from './components/Spinner'
-import { StyledLink } from './components/StyledLink'
-import { Table, TD, TH, TR } from './components/Table'
 import type { PublicPolicyVersionRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 
@@ -53,7 +48,7 @@ export const PolicyPage: FC = () => {
       }
     }
 
-    loadVersions()
+    void loadVersions()
 
     return () => {
       isMounted = false
@@ -90,47 +85,66 @@ export const PolicyPage: FC = () => {
             </div>
           )}
         </div>
-        <LinkButton to="/" theme="tertiary">
-          ← Back to policies
-        </LinkButton>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/"
+            className="inline-flex items-center px-3 py-2 rounded border border-gray-300 text-gray-700 no-underline hover:bg-gray-50 text-sm"
+          >
+            ← Back to policies
+          </Link>
+        </div>
       </div>
 
       {!versionsState.loading && versionsState.data[0]?.name && (
         <CopyableUri uri={`metta://policy/${versionsState.data[0].name}`} />
       )}
 
-      <Card title="Versions">
-        {versionsState.loading ? (
-          <Spinner />
-        ) : versionsState.error ? (
-          <div className="text-red-600 text-sm">{versionsState.error}</div>
-        ) : versionsState.data.length === 0 ? (
-          <div className="text-gray-500 text-sm">No versions found for this policy.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <Table.Header>
-                <TH>Version</TH>
-                <TH>Version ID</TH>
-                <TH>Created</TH>
-              </Table.Header>
-              <Table.Body>
-                {versionsState.data.map((pv) => (
-                  <TR key={pv.id}>
-                    <TD>
-                      <StyledLink to={`/policies/versions/${pv.id}`}>v{pv.version}</StyledLink>
-                    </TD>
-                    <TD>
-                      <span className="font-mono text-xs text-gray-600">{pv.id}</span>
-                    </TD>
-                    <TD title={formatDate(pv.created_at)}>{formatRelativeTime(pv.created_at)}</TD>
-                  </TR>
-                ))}
-              </Table.Body>
-            </Table>
-          </div>
-        )}
-      </Card>
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+        <div className="px-5 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Versions</h2>
+        </div>
+        <div className="p-5">
+          {versionsState.loading ? (
+            <div className="text-gray-500 text-sm">Loading versions...</div>
+          ) : versionsState.error ? (
+            <div className="text-red-600 text-sm">{versionsState.error}</div>
+          ) : versionsState.data.length === 0 ? (
+            <div className="text-gray-500 text-sm">No versions found for this policy.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
+                    <th className="px-3 py-2 border-b border-gray-200">Version</th>
+                    <th className="px-3 py-2 border-b border-gray-200">Version ID</th>
+                    <th className="px-3 py-2 border-b border-gray-200">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versionsState.data.map((pv) => (
+                    <tr key={pv.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <Link
+                          to={`/policies/versions/${pv.id}`}
+                          className="text-blue-600 no-underline hover:underline font-medium"
+                        >
+                          v{pv.version}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="font-mono text-xs text-gray-600">{pv.id}</span>
+                      </td>
+                      <td className="px-3 py-2 text-gray-600" title={formatDate(pv.created_at)}>
+                        {formatRelativeTime(pv.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

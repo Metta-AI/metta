@@ -10,6 +10,8 @@ from typing import Callable
 import torch
 from torch._dynamo import disable
 
+from cortex.tf32 import set_tf32_precision
+
 logger = logging.getLogger(__name__)
 
 _disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
@@ -86,4 +88,14 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-__all__ = ["TRITON_AVAILABLE", "select_backend"]
+def configure_tf32_precision() -> None:
+    """Ensure TF32 fast paths are enabled."""
+    try:
+        from metta.rl.torch_init import configure_torch_globally
+
+        configure_torch_globally()
+    except ImportError:
+        set_tf32_precision("tf32")
+
+
+__all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision", "set_tf32_precision"]

@@ -86,13 +86,12 @@ def create_episode_job(job: JobRequest) -> str:
                 metadata=client.V1ObjectMeta(labels=labels),
                 spec=client.V1PodSpec(
                     restart_policy="Never",
-                    service_account_name="episode-runner" if not cfg.LOCAL_DEV else None,
                     volumes=volumes if volumes else None,
                     containers=[
                         client.V1Container(
                             name="worker",
                             image=cfg.EPISODE_RUNNER_IMAGE,
-                            image_pull_policy="IfNotPresent" if cfg.LOCAL_DEV else "Always",
+                            image_pull_policy="IfNotPresent",
                             command=[
                                 "uv",
                                 "run",
@@ -113,8 +112,8 @@ def create_episode_job(job: JobRequest) -> str:
                             ),
                             volume_mounts=volume_mounts if volume_mounts else None,
                             resources=client.V1ResourceRequirements(
-                                requests={"cpu": "3", "memory": "8Gi"},
-                                limits={"cpu": "4", "memory": "12Gi"},
+                                requests={"cpu": "3", "memory": "3Gi"},
+                                limits={"cpu": "4", "memory": "6Gi"},
                             ),
                         )
                     ],

@@ -1,8 +1,6 @@
 import { FC } from 'react'
 
 import { METTASCOPE_REPLAY_URL_PREFIX } from '../constants'
-import { A } from './A'
-import { SmallHeader } from './SmallHeader'
 
 export const normalizeReplayUrl = (replayUrl: string | null | undefined): string | null => {
   if (!replayUrl) return null
@@ -27,7 +25,7 @@ export const ReplayViewer: FC<ReplayViewerProps> = ({ replayUrl, label, height =
 
   return (
     <div className="space-y-2">
-      {label ? <SmallHeader>{label}</SmallHeader> : null}
+      {label ? <div className="text-sm font-semibold text-gray-900">{label}</div> : null}
       <div
         className="w-full border border-gray-200 rounded overflow-hidden bg-black"
         style={{ minHeight: '360px', height }}
@@ -36,9 +34,14 @@ export const ReplayViewer: FC<ReplayViewerProps> = ({ replayUrl, label, height =
       </div>
       {showExternalLink ? (
         <div className="text-sm">
-          <A href={normalized} target="_blank" rel="noopener noreferrer">
+          <a
+            href={normalized}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 no-underline hover:underline"
+          >
             Open replay in new tab
-          </A>
+          </a>
         </div>
       ) : null}
     </div>

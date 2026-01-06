@@ -23,8 +23,6 @@ goal is code that gets kept, not a messy MVP.
 - Private members start with `_`
 - Empty `__init__.py` files (except public packages that need exports)
 - `Optional[X]` over `X | None`
-- Top-level imports only (no inline `from x import Y` inside functions)
-- Use `collections.defaultdict` instead of `dict.setdefault()`
 
 ### Imports
 
@@ -43,7 +41,3 @@ Circular import? Extract types to `types.py` or use module import (`import x.y a
 - Don't add backwards-compatibility shims for unused code
 - Don't run lint/tests automatically (too slow)
 - Don't push to git remote (humans do that)
-
-## Additional style guides
-
-Some guidelines exist in STYLE_GUIDE.md files closer to the code they are relevant to.

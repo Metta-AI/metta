@@ -620,10 +620,6 @@ def new(
     print(f"  {green(f'uv run sky autostop --cancel {cluster_name}')}")
 
 
-def cli_entry():
+if __name__ == "__main__":
     init_logging()
     app()
-
-
-if __name__ == "__main__":
-    cli_entry()

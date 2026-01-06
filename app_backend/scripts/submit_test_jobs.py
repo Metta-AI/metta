@@ -7,7 +7,6 @@ from metta.app_backend.models.job_request import JobRequestCreate, JobType
 from metta.common.util.constants import SOFTMAX_S3_REPLAYS_PREFIX
 from metta.sim.single_episode_runner import SingleEpisodeJob
 from mettagrid import MettaGridConfig
-from mettagrid.util.file import http_url
 
 
 def main():
@@ -27,7 +26,7 @@ def main():
 
     jobs = []
     for seed in range(args.num_jobs):
-        replay_uri = None if args.no_replay else http_url(f"{SOFTMAX_S3_REPLAYS_PREFIX}/{uuid.uuid4()}.json.z")
+        replay_uri = None if args.no_replay else f"{SOFTMAX_S3_REPLAYS_PREFIX}/{uuid.uuid4()}.json.z"
         job = SingleEpisodeJob(
             policy_uris=policy_uris,
             assignments=[i % len(policy_uris) for i in range(args.num_agents)],
