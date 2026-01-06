@@ -7,14 +7,8 @@ var rootDir* = "packages/mettagrid/nim/mettascope/"
 var dataDir* = rootDir / "data"
 
 proc setDataDir*(path: string) =
-  ## Set the data directory path. Derives rootDir from dataDir by removing the trailing /data.
-  var normalizedPath = path
-  if normalizedPath.endsWith("/"):
-    normalizedPath = normalizedPath[0 .. ^2]
-  dataDir = normalizedPath
-  rootDir = dataDir.parentDir
-  if not rootDir.endsWith("/"):
-    rootDir = rootDir / ""
+  dataDir = path.normalize
+  rootDir = dataDir.parentDir.normalize
 
 type
   IRect* = object
