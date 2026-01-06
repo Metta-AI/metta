@@ -288,95 +288,139 @@ class Loss:
         ``_applied_mask`` so downstream consumers can apply the same masking to
         auxiliary tensors (e.g., advantages, priorities).
         """
-
         mb = shared_loss_data["sampled_mb"]
-
-        mask = None
-        if (profiles := getattr(self, "loss_profiles", None)) is not None:
-            mask = torch.isin(mb["loss_profile_id"], torch.as_tensor(list(profiles), device=mb.device))
-        if getattr(self, "trainable_only", False):
-            mask = mb["is_trainable_agent"] if mask is None else mask & mb["is_trainable_agent"]
+        
+        # Step 1: Create mask based on profiles and trainable flags
+        mask = self._create_filter_mask(mb)
         if mask is None:
             return shared_loss_data
+            
+        # Step 2: Detect mask pattern (per-agent vs mixed)
+        agent_mask, agent_axis = self._detect_mask_pattern(mask)
+        
+        # Step 3: Apply the appropriate masking strategy
+        if agent_mask is not None:
+            return self._apply_agent_masking(shared_loss_data, mb, mask, agent_mask, agent_axis)
+        else:
+            return self._apply_flat_masking(shared_loss_data, mb, mask)
+    
+    def _create_filter_mask(self, mb: TensorDict) -> torch.Tensor | None:
+        """Create a mask based on loss profiles and trainable flags."""
+        mask = None
+        
+        # Apply loss profile filter
+        if (profiles := getattr(self, "loss_profiles", None)) is not None:
+            mask = torch.isin(mb["loss_profile_id"], torch.as_tensor(list(profiles), device=mb.device))
+        
+        # Apply trainable-only filter
+        if getattr(self, "trainable_only", False):
+            mask = mb["is_trainable_agent"] if mask is None else mask & mb["is_trainable_agent"]
+            
+        return mask
+    
+    def _detect_mask_pattern(self, mask: torch.Tensor) -> tuple[torch.Tensor | None, int | None]:
+        """Detect if mask is per-agent (constant across time) or mixed.
+        
+        Returns:
+            agent_mask: The per-agent mask if pattern detected, None otherwise
+            agent_axis: The axis containing agents if per-agent pattern, None otherwise
+        """
         mask_shape = mask.shape
-
-        agent_mask = None
-        agent_axis = None
+        
         if mask.dim() == 2:
-            # If each row is constant across time, drop non-trainable agents but keep time intact.
+            # Check if constant across time (axis 1)
             first_step = mask[:, :1]
             if torch.equal(mask, first_step.expand_as(mask)):
-                agent_mask = mask[:, 0]
-                agent_axis = 0
-            else:
-                # Fallback for [envs, agents] style masks: constant across rows, keep agent axis.
-                first_row = mask[0]
-                if torch.equal(mask, first_row.expand_as(mask)):
-                    agent_mask = first_row
-                    agent_axis = 1
+                return mask[:, 0], 0
+            
+            # Check if constant across environments (axis 0)
+            first_row = mask[0]
+            if torch.equal(mask, first_row.expand_as(mask)):
+                return first_row, 1
+                
         elif mask.dim() > 2:
+            # For higher dimensions, check if last dimension is agent axis
             mask_2d = mask.reshape(-1, mask_shape[-1])
             if mask_2d.numel() > 0:
                 first_row = mask_2d[0]
                 if torch.equal(mask_2d, first_row.expand_as(mask_2d)):
-                    agent_mask = first_row
-                    agent_axis = -1
-
+                    return first_row, -1
+        
+        return None, None
+    
+    def _apply_agent_masking(
+        self, 
+        shared_loss_data: TensorDict, 
+        mb: TensorDict, 
+        mask: torch.Tensor,
+        agent_mask: torch.Tensor,
+        agent_axis: int
+    ) -> TensorDict:
+        """Apply per-agent masking, preserving batch structure."""
         filtered = shared_loss_data.clone()
-
-        if agent_mask is not None:
-            # Preserve leading batch dims, drop non-trainable agents.
-            agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
-
-            def _mask_agent_tensor(t: torch.Tensor) -> torch.Tensor:
-                lead = len(mask_shape)
-                if t.dim() < lead:
-                    return t
-                if tuple(t.shape[:lead]) != mask_shape:
-                    return t
-                rest_shape = t.shape[lead:]
-                if agent_axis in (0, -lead):
-                    t_sel = t.index_select(0, agent_idx)
-                    new_shape = (int(agent_idx.numel()), *mask_shape[1:], *rest_shape)
-                    return t_sel.reshape(new_shape)
-                if agent_axis in (lead - 1, -1):
-                    t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
-                    t_sel = t_view.index_select(1, agent_idx)
-                    new_shape = (*mask_shape[:-1], int(agent_idx.numel()), *rest_shape)
-                    return t_sel.reshape(new_shape)
+        mask_shape = mask.shape
+        agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+        
+        # Helper to mask individual tensors
+        def mask_agent_tensor(t: torch.Tensor) -> torch.Tensor:
+            lead = len(mask_shape)
+            if t.dim() < lead or tuple(t.shape[:lead]) != mask_shape:
                 return t
-
-            if agent_axis in (0, -len(mask_shape)):
-                new_batch = (int(agent_idx.numel()), *mask_shape[1:])
-            else:
-                new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
-            filtered["sampled_mb"] = TensorDict(
-                {k: _mask_agent_tensor(v) for k, v in mb.items()},
-                batch_size=new_batch,
-                device=mb.device,
-            )
-            mask_meta = MaskMeta(agent_mask=agent_mask, agent_axis=agent_axis, mask_flat=None, mask_shape=mask_shape)
-            for key, value in list(filtered.items()):
-                if key == "sampled_mb":
-                    continue
-                filtered[key] = self._apply_row_mask(value, mask_meta)
-
-            filtered["_applied_mask"] = NonTensorData(mask_meta)
+                
+            rest_shape = t.shape[lead:]
+            if agent_axis in (0, -lead):
+                t_sel = t.index_select(0, agent_idx)
+                new_shape = (int(agent_idx.numel()), *mask_shape[1:], *rest_shape)
+                return t_sel.reshape(new_shape)
+            if agent_axis in (lead - 1, -1):
+                t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
+                t_sel = t_view.index_select(1, agent_idx)
+                new_shape = (*mask_shape[:-1], int(agent_idx.numel()), *rest_shape)
+                return t_sel.reshape(new_shape)
+            return t
+        
+        # Compute new batch size
+        if agent_axis in (0, -len(mask_shape)):
+            new_batch = (int(agent_idx.numel()), *mask_shape[1:])
         else:
-            # Mixed mask across batch: flatten and mask.
-            mask_flat = mask.flatten()
-            mb_flat = mb.flatten()
-
-            filtered["sampled_mb"] = mb_flat[mask_flat]
-
-            mask_meta = MaskMeta(agent_mask=None, agent_axis=None, mask_flat=mask_flat, mask_shape=mask_shape)
-            for key, value in list(filtered.items()):
-                if key == "sampled_mb":
-                    continue
+            new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+        
+        # Apply masking to minibatch
+        filtered["sampled_mb"] = TensorDict(
+            {k: mask_agent_tensor(v) for k, v in mb.items()},
+            batch_size=new_batch,
+            device=mb.device,
+        )
+        
+        # Apply to other data and attach metadata
+        mask_meta = MaskMeta(agent_mask=agent_mask, agent_axis=agent_axis, mask_flat=None, mask_shape=mask_shape)
+        for key, value in list(filtered.items()):
+            if key != "sampled_mb":
                 filtered[key] = self._apply_row_mask(value, mask_meta)
-
-            filtered["_applied_mask"] = NonTensorData(mask_meta)
-
+        
+        filtered["_applied_mask"] = NonTensorData(mask_meta)
+        return filtered
+    
+    def _apply_flat_masking(
+        self,
+        shared_loss_data: TensorDict,
+        mb: TensorDict,
+        mask: torch.Tensor
+    ) -> TensorDict:
+        """Apply flat masking when mask varies across batch."""
+        filtered = shared_loss_data.clone()
+        mask_flat = mask.flatten()
+        mb_flat = mb.flatten()
+        
+        filtered["sampled_mb"] = mb_flat[mask_flat]
+        
+        # Apply to other data and attach metadata
+        mask_meta = MaskMeta(agent_mask=None, agent_axis=None, mask_flat=mask_flat, mask_shape=mask.shape)
+        for key, value in list(filtered.items()):
+            if key != "sampled_mb":
+                filtered[key] = self._apply_row_mask(value, mask_meta)
+        
+        filtered["_applied_mask"] = NonTensorData(mask_meta)
         return filtered
 
     def _apply_row_mask(self, value: Any, mask_meta: MaskMeta) -> Any:

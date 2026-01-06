@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 import torch
@@ -15,6 +16,25 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+
+
+class SlotType(str, Enum):
+    """Common slot types for multi-policy training."""
+    STUDENT = "student"
+    TEACHER = "teacher"
+    NPC = "npc"
+    OPPONENT = "opponent"
+    SELF_PLAY = "self_play"
+    BASELINE = "baseline"
+
+
+class LossProfile(str, Enum):
+    """Standard loss profile names."""
+    PPO_ONLY = "ppo_only"
+    DISTILLATION = "distillation"
+    SUPERVISED = "supervised"
+    NO_LOSS = "no_loss"
+    DEFAULT = "default"
 
 
 class LossProfileConfig(Config):
@@ -103,6 +123,21 @@ def _merge_policy_specs(specs: Iterable[Composite]) -> Composite:
 
 
 class SlotControllerPolicy(Policy):
+    """Multi-policy controller that routes agent observations to different slot policies.
+    
+    Performance considerations:
+    - Each unique slot triggers a separate policy forward pass
+    - Best performance with few unique slots (1-4)
+    - Agents using the same slot are batched together
+    - Consider using agent_slot_map for static routing (avoids per-step slot_id computation)
+    - Non-trainable slots should use lightweight policies (e.g., SimpleNPCPolicy)
+    
+    Memory usage:
+    - Each slot policy maintains its own parameters and buffers
+    - Shared slots reduce memory overhead vs per-agent policies
+    - Use slot caching (via SlotRegistry) to avoid duplicate policy loads
+    """
+    
     def __init__(
         self,
         slot_lookup: Dict[str, int],
@@ -114,6 +149,10 @@ class SlotControllerPolicy(Policy):
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         super().__init__(policy_env_info)  # type: ignore[arg-type]
+        
+        # Validate slot configuration
+        self._validate_slot_config(slot_lookup, slots, slot_policies, agent_slot_map)
+        
         self._slot_lookup = slot_lookup
         self._slots = slots
         self._slot_policies = slot_policies
@@ -143,10 +182,41 @@ class SlotControllerPolicy(Policy):
             if isinstance(policy, nn.Module):
                 self.add_module(f"slot_{idx}", policy)
 
+    def _validate_slot_config(
+        self,
+        slot_lookup: Dict[str, int],
+        slots: list[Any],
+        slot_policies: Dict[int, Policy],
+        agent_slot_map: torch.Tensor | None,
+    ) -> None:
+        """Validate slot configuration for consistency."""
+        # Check that all slot indices have corresponding policies
+        for idx in range(len(slots)):
+            if idx not in slot_policies:
+                raise ValueError(f"Slot at index {idx} has no corresponding policy in slot_policies")
+        
+        # Check that slot_lookup indices match actual slots
+        for name, idx in slot_lookup.items():
+            if idx >= len(slots):
+                raise ValueError(f"Slot '{name}' references index {idx} but only {len(slots)} slots exist")
+        
+        # Validate agent_slot_map if provided
+        if agent_slot_map is not None:
+            if agent_slot_map.dim() != 1:
+                raise ValueError(f"agent_slot_map must be 1D tensor, got shape {agent_slot_map.shape}")
+            
+            # Check that all slot IDs in map are valid
+            unique_ids = torch.unique(agent_slot_map).tolist()
+            for slot_id in unique_ids:
+                if slot_id not in slot_policies:
+                    raise ValueError(
+                        f"agent_slot_map references slot id {slot_id} which has no corresponding policy"
+                    )
+    
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return self._merged_spec
 
-    def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
+    def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device) -> None:  # noqa: D401
         for policy in self._slot_policies.values():
             policy.initialize_to_environment(policy_env_info, device)
         self._device = torch.device(device)
