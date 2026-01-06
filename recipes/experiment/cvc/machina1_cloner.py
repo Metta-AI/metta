@@ -6,8 +6,8 @@ from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import AdvantageConfig, OptimizerConfig
-from metta.rl.training.scheduler import LossRunGate, ScheduleRule
+from metta.rl.trainer_config import AdvantageConfig
+from metta.rl.training.scheduler import ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
@@ -134,9 +134,8 @@ def train(
     ]
 
     # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
-    tt.scheduler.rules = [
-        rule for rule in tt.scheduler.rules if rule.target_path not in {teacher_proportion_path, student_proportion_path}
-    ]
+    blocked_paths = {teacher_proportion_path, student_proportion_path}
+    tt.scheduler.rules = [rule for rule in tt.scheduler.rules if rule.target_path not in blocked_paths]
 
     # Phase 2: linearly anneal BC slice proportions down to 0, growing the PPO slice over time.
     tt.scheduler.rules.append(

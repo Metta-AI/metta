@@ -33,7 +33,7 @@ def test_setup_script_runs_once_across_processes(tmp_path: Path) -> None:
                 "",
                 "time.sleep(0.2)",
                 "with open('setup_runs.txt', 'a', encoding='utf-8') as f:",
-                "    f.write(f\"{os.getpid()}\\n\")",
+                '    f.write(f"{os.getpid()}\\n")',
                 "",
             ]
         )

@@ -24,7 +24,6 @@ from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
-from metta.rl.utils import should_run
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
