@@ -358,8 +358,8 @@ def write_eval_results_to_observatory(
                     for key, value in sim_config.episode_tags.items():
                         insert_episode_tag(conn, episode_id, key, value)
 
-                    for agent_id, policy_idx in enumerate(e.assignments):
-                        pv_id = policy_version_ids[policy_idx]
+                    for agent_id in range(len(e.assignments)):
+                        pv_id = policy_version_ids[e.assignments[agent_id]]
 
                         insert_agent_policy(conn, episode_id, pv_id, agent_id)
 
