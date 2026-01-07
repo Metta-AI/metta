@@ -1,16 +1,14 @@
 import re
 import warnings
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.token_encoder import coordinates
-
-if TYPE_CHECKING:
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -72,7 +70,7 @@ class ObsTokenPadStrip(nn.Module):
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: PolicyEnvInterface,
         device: torch.device,
     ) -> str:
         # Build feature mappings from policy_env_info.obs_features list

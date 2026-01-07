@@ -12,8 +12,28 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
+from cogames.cli.client import TournamentServerClient
+from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER
+
+
+def parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+    """Parse 'name' or 'name:v3' into (name, version).
+
+    Accepts formats:
+    - 'my-policy' -> ('my-policy', None) - latest version
+    - 'my-policy:v3' -> ('my-policy', 3) - specific version
+    - 'my-policy:3' -> ('my-policy', 3) - specific version
+    """
+    if ":" in identifier:
+        name, version_str = identifier.rsplit(":", 1)
+        version_str = version_str.lstrip("v")
+        try:
+            version = int(version_str)
+        except ValueError:
+            raise ValueError(f"Invalid version format: {identifier}") from None
+        return name, version
+    return identifier, None
 
 
 def _format_timestamp(value: Optional[str]) -> str:
@@ -40,37 +60,16 @@ def _format_score(value: Any) -> str:
     return "—"
 
 
-def _load_token(login_server: str) -> str | None:
-    authenticator = CoGamesAuthenticator()
-    if not authenticator.has_saved_token(login_server):
-        console.print("[red]Error:[/red] Not authenticated.")
-        console.print("Please run: [cyan]cogames login[/cyan]")
-        return None
-
-    token = authenticator.load_token(login_server)
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server}")
-        return None
-    return token
+def _get_client(login_server: str, server: str) -> TournamentServerClient | None:
+    return TournamentServerClient.from_login(server_url=server, login_server=login_server)
 
 
-def _fetch_leaderboard(server: str, path: str, token: str) -> dict[str, Any]:
+def _fetch_leaderboard(client: TournamentServerClient, path: str) -> dict[str, Any]:
     try:
-        response = httpx.get(
-            f"{server}{path}",
-            headers={"X-Auth-Token": token},
-            timeout=30.0,
-        )
+        return client._get(path)
     except httpx.HTTPError as exc:
-        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
         raise typer.Exit(1) from exc
-
-    if response.status_code != 200:
-        console.print(f"[red]Request failed with status {response.status_code}[/red]")
-        console.print(f"[dim]{response.text}[/dim]")
-        raise typer.Exit(1)
-
-    return response.json()
 
 
 def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
@@ -118,11 +117,13 @@ def submissions_cmd(
     ),
 ) -> None:
     """Fetch submissions tied to the authenticated user."""
-    token = _load_token(login_server)
-    if not token:
+    client = _get_client(login_server, server)
+    if not client:
         return
 
-    payload = _fetch_leaderboard(server, "/leaderboard/v2/users/me", token)
+    with client:
+        payload = _fetch_leaderboard(client, "/leaderboard/v2/users/me")
+
     if json_output:
         console.print(json.dumps(payload, indent=2))
         return
@@ -160,12 +161,14 @@ def leaderboard_cmd(
     ),
 ) -> None:
     """Display leaderboard entries (public or personal)."""
-    token = _load_token(login_server)
-    if not token:
+    client = _get_client(login_server, server)
+    if not client:
         return
 
     path = "/leaderboard/v2" if view == "public" else "/leaderboard/v2/users/me"
-    payload = _fetch_leaderboard(server, path, token)
+    with client:
+        payload = _fetch_leaderboard(client, path)
+
     if json_output:
         console.print(json.dumps(payload, indent=2))
         return
@@ -177,3 +180,54 @@ def leaderboard_cmd(
 
     table_title = "Public Leaderboard" if view == "public" else "My Leaderboard Entries"
     _render_table(table_title, entries)
+
+
+def seasons_cmd(
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Observatory API base URL",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the raw JSON response instead of a table",
+    ),
+) -> None:
+    """List available tournament seasons."""
+    client = _get_client(login_server, server)
+    if not client:
+        return
+
+    try:
+        with client:
+            seasons = client.get_seasons()
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if json_output:
+        console.print(json.dumps([s.model_dump() for s in seasons], indent=2))
+        return
+
+    if not seasons:
+        console.print("[yellow]No seasons found.[/yellow]")
+        return
+
+    table = Table(title="Tournament Seasons", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Season", style="bold cyan")
+    table.add_column("Description", style="white")
+    table.add_column("Pools", style="dim")
+
+    for season in seasons:
+        pool_names = [p.name for p in season.pools]
+        pools_str = ", ".join(pool_names) if pool_names else "—"
+        table.add_row(season.name, season.summary, pools_str)
+
+    console.print(table)

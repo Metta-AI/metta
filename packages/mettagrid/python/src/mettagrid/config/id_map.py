@@ -11,6 +11,10 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
+# This breaks a circular dependency: id_map <-> mettagrid_config
+# Pythonic resolutions (require refactor):
+# a. move IdMap, ObservationFeatureSpec to mettagrid_config
+# b. move IdMap, GameConfig, ObservationFeatureSpec to package-level types.py
 if TYPE_CHECKING:
     from mettagrid.config.mettagrid_config import GameConfig
 

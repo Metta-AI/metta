@@ -1,14 +1,11 @@
 """Object info panel component for miniscope renderer."""
 
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import SIDEBAR_WIDTH, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class ObjectInfoComponent(MiniscopeComponent):
@@ -16,7 +13,7 @@ class ObjectInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):

@@ -1419,18 +1419,6 @@ wheels = [
 ]
 
 [[package]]
-name = "honcho"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/65/c8/d860888358bf5c8a6e7d78d1b508b59b0e255afd5655f243b8f65166dafd/honcho-2.0.0.tar.gz", hash = "sha256:af3815c03c634bf67d50f114253ea9fef72ecff26e4fd06b29234789ac5b8b2e", size = 45618, upload-time = "2024-10-06T14:26:53.871Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/1c/25631fc359955569e63f5446dbb7022c320edf9846cbe892ee5113433a7e/honcho-2.0.0-py3-none-any.whl", hash = "sha256:56dcd04fc72d362a4befb9303b1a1a812cba5da283526fbc6509be122918ddf3", size = 22093, upload-time = "2024-10-06T14:26:52.181Z" },
-]
-
-[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -2331,7 +2319,6 @@ dev = [
     { name = "freezegun" },
     { name = "gcovr" },
     { name = "grpcio-tools" },
-    { name = "honcho" },
     { name = "import-linter" },
     { name = "metta-pr-similarity-mcp" },
     { name = "mypy" },
@@ -2368,6 +2355,7 @@ mcp-servers = [
 testing = [
     { name = "freezegun" },
     { name = "gcovr" },
+    { name = "grpcio-tools" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -2457,7 +2445,6 @@ dev = [
     { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
     { name = "grpcio-tools", specifier = ">=1.76.0" },
-    { name = "honcho", specifier = ">=2.0.0" },
     { name = "import-linter", specifier = ">=2.1" },
     { name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_similarity" },
     { name = "mypy", specifier = ">=1.18.2" },
@@ -2492,6 +2479,7 @@ mcp-servers = [{ name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_si
 testing = [
     { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
+    { name = "grpcio-tools", specifier = ">=1.76.0" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },
