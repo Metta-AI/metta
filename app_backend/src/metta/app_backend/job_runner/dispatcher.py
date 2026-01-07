@@ -33,7 +33,7 @@ def _get_otel_env_vars(service_name: str) -> list[client.V1EnvVar]:
         ),
         client.V1EnvVar(name="OTEL_RESOURCE_ATTRIBUTES", value=resource_attributes_str),
         client.V1EnvVar(name="OTEL_EXPORTER_OTLP_ENDPOINT", value=otlp_endpoint),
-        client.V1EnvVar(name="LOG_FORMAT", value=os.environ.get("LOG_FORMAT", "json")),
+        client.V1EnvVar(name="LOG_JSON", value=os.environ.get("LOG_JSON", "true")),
         client.V1EnvVar(
             name="HOST_IP",
             value_from=client.V1EnvVarSource(field_ref=client.V1ObjectFieldSelector(field_path="status.hostIP")),

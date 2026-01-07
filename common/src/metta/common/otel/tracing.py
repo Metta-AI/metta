@@ -7,6 +7,7 @@ import os
 from functools import wraps
 from typing import Callable, Optional, TypeVar
 
+from opentelemetry import propagate
 from opentelemetry import trace as otel_trace
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -70,6 +71,37 @@ def trace(name: str) -> Callable[[Callable[..., T]], Callable[..., T]]:
         def sync_wrapper(*args, **kwargs):
             tracer = get_tracer(func.__module__)
             with tracer.start_as_current_span(name):
+                return func(*args, **kwargs)
+
+        return sync_wrapper
+
+    return decorator
+
+
+def trace_from_carrier(
+    name: str,
+    carrier_getter: Callable[..., Optional[dict[str, str]]],
+    **span_kwargs: object,
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        if asyncio.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                carrier = carrier_getter(*args, **kwargs) or {}
+                parent_context = propagate.extract(carrier)
+                tracer = get_tracer(func.__module__)
+                with tracer.start_as_current_span(name, context=parent_context, **span_kwargs):
+                    return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            carrier = carrier_getter(*args, **kwargs) or {}
+            parent_context = propagate.extract(carrier)
+            tracer = get_tracer(func.__module__)
+            with tracer.start_as_current_span(name, context=parent_context, **span_kwargs):
                 return func(*args, **kwargs)
 
         return sync_wrapper

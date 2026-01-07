@@ -63,8 +63,8 @@ spec:
           value: "tournament-commissioner"
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "deployment.environment={{ .Values.datadog.env }},service.version={{ .Values.image.tag }}"
-        - name: LOG_FORMAT
-          value: "json"
+        - name: LOG_JSON
+          value: "true"
         envFrom:
         - secretRef:
             name: {{ .Values.tournament.dbSecret }}

@@ -61,8 +61,8 @@ spec:
           value: "episode-job-watcher"
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: "deployment.environment={{ .Values.datadog.env }},service.version={{ .Values.image.tag }}"
-        - name: LOG_FORMAT
-          value: "json"
+        - name: LOG_JSON
+          value: "true"
         resources:
           {{- toYaml .Values.watcher.resources | nindent 10 }}
 {{- end }}

@@ -26,7 +26,7 @@ Environment variables used by the tournament/job runner path:
 - `OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4318`)
 - `OTEL_SERVICE_NAME`
 - `OTEL_RESOURCE_ATTRIBUTES` (set `deployment.environment` and `service.version`)
-- `LOG_FORMAT=json`
+- `LOG_JSON=true`
 
 ### How to Verify
 

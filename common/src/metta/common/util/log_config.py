@@ -92,8 +92,12 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=True)
 
 
-def _should_use_json_logging() -> bool:
-    return os.environ.get("LOG_FORMAT", "").lower() == "json"
+def _json_logging_mode() -> str:
+    if os.environ.get("LOG_FORMAT", "").lower() == "json":
+        return "only"
+    if os.environ.get("LOG_JSON", "").lower() in ("1", "true", "yes"):
+        return "dual"
+    return "none"
 
 
 @functools.cache
@@ -152,7 +156,8 @@ def _init_console_logging() -> None:
     local_rank = os.environ.get("LOCAL_RANK")
     rank_prefix = f"[{rank}-{local_rank}] " if rank and local_rank else f"[{rank}] " if rank else ""
 
-    if _should_use_json_logging():
+    json_mode = _json_logging_mode()
+    if json_mode == "only":
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(JsonFormatter())
         root_logger.addHandler(handler)
@@ -207,7 +212,12 @@ def _init_console_logging() -> None:
     # Set default level
     root_logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
-    if not _should_use_json_logging():
+    if json_mode == "dual":
+        json_handler = logging.StreamHandler(sys.stdout)
+        json_handler.setFormatter(JsonFormatter())
+        root_logger.addHandler(json_handler)
+
+    if json_mode != "only":
         rich.traceback.install(show_locals=False)
 
 
