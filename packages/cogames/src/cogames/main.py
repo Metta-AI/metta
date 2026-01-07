@@ -36,13 +36,12 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.client import TournamentServerClient
 from cogames.cli.leaderboard import (
     leaderboard_cmd,
-    lookup_policy_version_id,
     parse_policy_identifier,
     seasons_cmd,
     submissions_cmd,
-    submit_to_season,
 )
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
@@ -996,10 +995,9 @@ def upload_cmd(
     )
 
     if result:
-        console.print(f"\n[bold green]Uploaded {result.name} v{result.version}[/bold green]")
-        console.print(f"[dim]Policy version ID: {result.policy_version_id}[/dim]")
+        console.print(f"\n[bold green]Uploaded {result.name}[/bold green][dim]:v{result.version}[/dim]")
         console.print("\n[yellow]To submit to a tournament:[/yellow]")
-        console.print(f"  cogames submit {result.name} --season <season-name>")
+        console.print(f"  cogames submit {result.name}:v{result.version} --season <season-name>")
 
 
 @app.command(name="submit", help="Submit an uploaded policy to a tournament season")
@@ -1034,17 +1032,10 @@ def submit_cmd(
       cogames submit my-policy --season beta
       cogames submit my-policy:v3 --season beta
     """
-    from cogames.cli.login import CoGamesAuthenticator
+    import httpx
 
-    authenticator = CoGamesAuthenticator()
-    if not authenticator.has_saved_token(login_server):
-        console.print("[red]Error:[/red] Not authenticated.")
-        console.print("Please run: [cyan]cogames login[/cyan]")
-        raise typer.Exit(1)
-
-    token = authenticator.load_token(login_server)
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server}")
+    client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
+    if not client:
         raise typer.Exit(1)
 
     try:
@@ -1053,26 +1044,35 @@ def submit_cmd(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
 
-    version_str = f" v{version}" if version is not None else " (latest)"
-    console.print(f"[bold]Submitting {name}{version_str} to season '{season}'[/bold]\n")
+    version_str = f"[dim]:v{version}[/dim]" if version is not None else "[dim] (latest)[/dim]"
+    console.print(f"[bold]Submitting {name}[/bold]{version_str} to season '{season}'\n")
 
-    policy_version_id = lookup_policy_version_id(server, token, name, version)
-    if policy_version_id is None:
-        version_hint = f" v{version}" if version is not None else ""
-        console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
-        console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
-        raise typer.Exit(1)
+    with client:
+        pv = client.lookup_policy_version(name=name, version=version)
+        if pv is None:
+            version_hint = f" v{version}" if version is not None else ""
+            console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
+            console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
+            raise typer.Exit(1)
 
-    console.print(f"[dim]Found policy version: {policy_version_id}[/dim]")
-
-    pools = submit_to_season(server, token, season, policy_version_id)
-    if pools is None:
-        console.print("\n[red]Submission failed.[/red]")
-        raise typer.Exit(1)
+        try:
+            result = client.submit_to_season(season, pv.id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                console.print(f"[red]Season '{season}' not found[/red]")
+            elif exc.response.status_code == 409:
+                console.print(f"[red]Policy already submitted to season '{season}'[/red]")
+            else:
+                console.print(f"[red]Submit failed with status {exc.response.status_code}[/red]")
+                console.print(f"[dim]{exc.response.text}[/dim]")
+            raise typer.Exit(1) from exc
+        except httpx.HTTPError as exc:
+            console.print(f"[red]Submit failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
 
     console.print(f"\n[bold green]Submitted to season '{season}'[/bold green]")
-    if pools:
-        console.print(f"[dim]Pools: {', '.join(pools)}[/dim]")
+    if result.pools:
+        console.print(f"[dim]Pools: {', '.join(result.pools)}[/dim]")
 
 
 @app.command(name="docs", help="Print documentation")
