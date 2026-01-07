@@ -12,17 +12,6 @@ packages:
     apt:
       name: docker.io
 
-  node:
-    brew:
-      name: node
-    apt:
-      name: nodejs
-
-  corepack:
-    brew:
-      name: corepack
-    # apt: corepack comes bundled with nodejs
-
   gh:
     brew:
       name: gh
