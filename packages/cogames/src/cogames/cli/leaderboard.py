@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 import httpx
 import typer
@@ -63,32 +63,6 @@ def _format_score(value: Any) -> str:
 
 def _get_client(login_server: str, server: str) -> TournamentServerClient | None:
     return TournamentServerClient.from_login(server_url=server, login_server=login_server)
-
-
-def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
-    table = Table(title=title, box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
-    table.add_column("Policy", style="bold cyan")
-    table.add_column("Created", style="green")
-    table.add_column("Avg Score", justify="right")
-    table.add_column("Version ID", style="dim")
-
-    for entry in entries:
-        policy_version = entry.get("policy_version", {})
-        policy_label = f"{policy_version.get('name', '?')}.{policy_version.get('version', '?')}"
-        created_at = policy_version.get("policy_created_at") or policy_version.get("created_at")
-        table.add_row(
-            policy_label,
-            _format_timestamp(created_at),
-            _format_score(entry.get("avg_score")),
-            str(policy_version.get("id", "—")),
-        )
-
-        scores = entry.get("scores") or {}
-        for sim_name, score_value in sorted(scores.items()):
-            pretty_name = sim_name.split(":", 1)[-1] if ":" in sim_name else sim_name
-            table.add_row(f"    {pretty_name}", "", _format_score(score_value), "")
-
-    console.print(table)
 
 
 def submissions_cmd(
@@ -170,16 +144,15 @@ def _show_all_uploads(
 
     table = Table(title="Your Uploaded Policies", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
-    table.add_column("Version", justify="right")
     table.add_column("Uploaded", style="green")
     table.add_column("Seasons", style="white")
 
     for entry in entries:
         seasons = memberships.get(str(entry.id), [])
         seasons_str = ", ".join(sorted(seasons)) if seasons else "—"
+        policy_label = f"{entry.name}[dim]:v{entry.version}[/dim]"
         table.add_row(
-            entry.name,
-            str(entry.version),
+            policy_label,
             _format_timestamp(entry.created_at.isoformat()),
             seasons_str,
         )
@@ -231,19 +204,15 @@ def _show_season_submissions(
 
     table = Table(title=f"Submissions in '{season}'", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
-    table.add_column("Version", justify="right")
     table.add_column("Entered", style="green")
 
     for entry in entries:
         policy = entry.get("policy", {})
         pools = entry.get("pools", [])
         entered_at = _format_timestamp(entry.get("entered_at"))
+        policy_label = f"{policy.get('name', '?')}[dim]:v{policy.get('version', '?')}[/dim]"
 
-        table.add_row(
-            policy.get("name", "?"),
-            str(policy.get("version", "?")),
-            entered_at,
-        )
+        table.add_row(policy_label, entered_at)
         for i, p in enumerate(pools):
             pool_name = p.get("pool_name", "?")
             is_active = p.get("active", True)
@@ -254,17 +223,16 @@ def _show_season_submissions(
             status_style = "green" if is_active else "dim"
             status_markup = f"[{status_style}]{status}[/{status_style}]"
             pool_info = f"[not bold white]{prefix}{pool_name} ({status_markup}): {matches} matches[/]"
-            table.add_row(pool_info, "", "")
+            table.add_row(pool_info, "")
 
     console.print(table)
 
 
 def leaderboard_cmd(
-    view: Literal["public", "mine"] = typer.Option(
-        "public",
-        "--view",
-        "-v",
-        help="Choose 'public' to view the global leaderboard or 'mine' for your submissions.",
+    season: str = typer.Option(
+        ...,
+        "--season",
+        help="Tournament season name (required)",
     ),
     login_server: str = typer.Option(
         DEFAULT_COGAMES_SERVER,
@@ -283,30 +251,54 @@ def leaderboard_cmd(
         help="Print the raw JSON response instead of a table",
     ),
 ) -> None:
-    """Display leaderboard entries (public or personal)."""
+    """Display the tournament leaderboard for a season.
+
+    Example:
+      cogames leaderboard --season beta
+    """
     client = _get_client(login_server, server)
     if not client:
         return
 
-    path = "/leaderboard/v2" if view == "public" else "/leaderboard/v2/users/me"
     try:
         with client:
-            payload = client._get(path)
+            entries = client._get(f"/tournament/seasons/{season}/leaderboard")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            console.print(f"[red]Season '{season}' not found[/red]")
+            raise typer.Exit(1) from exc
+        console.print(f"[red]Request failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
+        raise typer.Exit(1) from exc
     except httpx.HTTPError as exc:
         console.print(f"[red]Failed to reach server:[/red] {exc}")
         raise typer.Exit(1) from exc
 
     if json_output:
-        console.print(json.dumps(payload, indent=2))
+        console.print(json.dumps(entries, indent=2))
         return
 
-    entries = payload.get("entries") or []
     if not entries:
-        console.print("[yellow]No entries found for this view.[/yellow]")
+        console.print(f"[yellow]No leaderboard entries for season '{season}'.[/yellow]")
         return
 
-    table_title = "Public Leaderboard" if view == "public" else "My Leaderboard Entries"
-    _render_table(table_title, entries)
+    table = Table(title=f"Leaderboard: {season}", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Rank", justify="right", style="bold")
+    table.add_column("Policy", style="bold cyan")
+    table.add_column("Score", justify="right", style="green")
+    table.add_column("Matches", justify="right")
+
+    for entry in entries:
+        policy = entry.get("policy", {})
+        policy_label = f"{policy.get('name', '?')}[dim]:v{policy.get('version', '?')}[/dim]"
+        table.add_row(
+            str(entry.get("rank", "?")),
+            policy_label,
+            _format_score(entry.get("score")),
+            str(entry.get("matches", 0)),
+        )
+
+    console.print(table)
 
 
 def seasons_cmd(
