@@ -24,12 +24,6 @@ uv run ./tools/run.py evaluate arena policy_uri=file://./train_dir/my_run/checkp
 
 # List available tools
 uv run ./tools/run.py arena --list
-
-# Testing (only when specifically needed)
-metta pytest tests/path/to/test.py -v
-
-# Linting (only when specifically needed)
-metta lint path/to/file.py --fix
 ```
 
 ## Repository Structure
@@ -44,10 +38,32 @@ recipes/
   experiment/   # Work-in-progress recipes
 ```
 
-Dependency direction: `metta` → `cogames` → `mettagrid`. Nothing depends on `metta`.
+## Package Dependencies
 
-Internal `metta/` folder dependencies are enforced by `import-linter`. Run `uv run lint-imports` to check. See
-`.importlinter` for the folder hierarchy.
+```
+metta/ ──────► cogames/ ──────► mettagrid/
+app_backend/ ──► common/ (only)
+```
+
+- Nothing depends on `metta/` (it's the top-level consumer)
+- `mettagrid` has no internal Python dependencies (C++/Python hybrid)
+- `app_backend` is isolated, can only import from `common/`
+- Enforced by `import-linter`. Run `uv run lint-imports` to check. See `.importlinter`.
+
+## Testing
+
+- Don't speculatively run tests; only run when asked or in a targeted way for changes you made and want to validate
+
+```bash
+metta pytest tests/path/to/test.py -v    # Run specific test
+metta pytest --changed                    # Run only tests affected by your changes
+```
+
+## Proto Files
+
+Files in `proto/` define schemas for cross-system boundaries (network APIs, files on disk). Do not modify proto schemas
+as part of other refactoring work. Schema changes require explicit discussion because they can break compatibility with
+files written using older schemas or services that haven't been redeployed.
 
 ## Recipe System
 

@@ -4,7 +4,7 @@ import { FC, PropsWithChildren, useContext, useEffect, useState } from 'react'
 import { AppContext } from '../AppContext'
 import { Card } from '../components/Card'
 import { Spinner } from '../components/Spinner'
-import { Table, TH, TR } from '../components/Table'
+import { Table, TH } from '../components/Table'
 import type { LeaderboardPolicyEntry } from '../repo'
 import { LeaderboardEntry } from './LeaderboardEntry'
 
@@ -94,11 +94,9 @@ export const Leaderboard: FC = () => {
     return (
       <Table>
         <Table.Header>
-          <TR>
-            <TH>Policy</TH>
-            <TH>Policy Created</TH>
-            <TH>Avg score</TH>
-          </TR>
+          <TH>Policy</TH>
+          <TH>Policy Created</TH>
+          <TH>Avg score</TH>
         </Table.Header>
         <Table.Body>
           {state.entries.map((entry) => (

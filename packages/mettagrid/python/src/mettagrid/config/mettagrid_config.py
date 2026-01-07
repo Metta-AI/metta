@@ -201,24 +201,73 @@ class ChangeVibeActionConfig(ActionConfig):
         return Action(name=f"change_vibe_{vibe.name}")
 
 
+class AttackOutcome(Config):
+    """Outcome configuration for successful attack."""
+
+    actor_inv_delta: dict[str, int] = Field(
+        default_factory=dict,
+        description="Inventory changes for attacker. Maps resource name to delta.",
+    )
+    target_inv_delta: dict[str, int] = Field(
+        default_factory=dict,
+        description="Inventory changes for target. Maps resource name to delta.",
+    )
+    loot: list[str] = Field(
+        default_factory=list,
+        description="Resources to steal from target.",
+    )
+    freeze: int = Field(
+        default=0,
+        description="Freeze duration (0 = no freeze).",
+    )
+
+
 class AttackActionConfig(ActionConfig):
-    """Python attack action configuration."""
+    """Python attack action configuration.
+
+    Attack is triggered by moving onto another agent (when vibes match).
+    No standalone attack actions are created.
+
+    Enhanced attack system with armor/weapon modifiers:
+    - defense_resources: Base resources needed to block an attack
+    - armor_resources: Target's resources that reduce incoming damage (weighted)
+    - weapon_resources: Attacker's resources that increase damage (weighted)
+    - success: Outcome when attack succeeds (actor/target inventory changes, freeze)
+    - vibe_bonus: Per-vibe armor bonus when vibing a matching resource
+
+    Defense calculation:
+    - weapon_power = sum(attacker_inventory[item] * weapon_weight)
+    - armor_power = sum(target_inventory[item] * armor_weight) + vibe_bonus[target_vibe] if vibing
+    - damage_bonus = max(weapon_power - armor_power, 0)
+    - cost_to_defend = defense_resources + damage_bonus
+    """
 
     action_handler: str = Field(default="attack")
     defense_resources: dict[str, int] = Field(default_factory=dict)
-    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
-        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    armor_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on target that reduce damage. Maps resource name to weight.",
+    )
+    weapon_resources: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resources on attacker that increase damage. Maps resource name to weight.",
+    )
+    success: AttackOutcome = Field(
+        default_factory=AttackOutcome,
+        description="Outcome when attack succeeds.",
     )
     vibes: list[str] = Field(
         default_factory=list,
         description="Vibe names that trigger attack on move (e.g., ['weapon'])",
     )
+    vibe_bonus: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
+    )
 
     def _actions(self) -> list[Action]:
-        return [self.Attack(location) for location in self.target_locations]
-
-    def Attack(self, location: Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]) -> Action:
-        return Action(name=f"attack_{location}")
+        # Attack only triggers via move, no standalone actions
+        return []
 
 
 class VibeTransfer(Config):
@@ -309,6 +358,10 @@ class GridObjectConfig(Config):
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
+    collective: Optional[str] = Field(
+        default=None,
+        description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+    )
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
@@ -319,6 +372,11 @@ class GridObjectConfig(Config):
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
             self.tags = [self.render_name]
+        # Add collective tag if collective is set
+        if self.collective:
+            collective_tag = f"collective:{self.collective}"
+            if collective_tag not in self.tags:
+                self.tags = self.tags + [collective_tag]
         return self
 
 
@@ -423,6 +481,20 @@ class ClipperConfig(Config):
     )
 
 
+class CollectiveConfig(Config):
+    """
+    Configuration for a shared inventory (Collective).
+
+    Collective provides a shared inventory that multiple grid objects can access.
+    Objects are associated with a collective via tags of the form "collective:{name}".
+    Grid objects can specify collective="name" in their config to automatically add
+    this tag.
+    """
+
+    name: str = Field(description="Unique name for this collective")
+    inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
+
+
 AnyGridObjectConfig = SerializeAsAny[
     Annotated[
         Union[
@@ -485,6 +557,12 @@ class GameConfig(Config):
 
     # Global clipper system
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
+
+    # Collectives - shared inventories that grid objects can belong to
+    collectives: list[CollectiveConfig] = Field(
+        default_factory=list,
+        description="List of collectives (shared inventories) that grid objects can belong to",
+    )
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = Field(default_factory=lambda: RandomMapBuilder.Config(agents=24))

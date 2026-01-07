@@ -1,5 +1,5 @@
 import { FC, useContext, useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { AppContext } from './AppContext'
 import { A } from './components/A'
@@ -11,11 +11,18 @@ import { normalizeReplayUrl, ReplayViewer } from './components/ReplayViewer'
 import { Spinner } from './components/Spinner'
 import { StyledLink } from './components/StyledLink'
 import { Table, TD, TH, TR } from './components/Table'
-import { LEADERBOARD_SIM_NAME_EPISODE_KEY } from './constants'
 import { TasksTable } from './EvalTasks/TasksTable'
-import type { EpisodeWithTags, LeaderboardPolicyEntry, PolicyVersionWithName } from './repo'
+import type { EpisodeWithTags, LeaderboardPolicyEntry, MembershipHistoryEntry, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
+
+const ActionBadge: FC<{ action: string }> = ({ action }) => {
+  const colors: Record<string, string> = {
+    add: 'bg-green-100 text-green-800',
+    remove: 'bg-gray-100 text-gray-600',
+  }
+  return <span className={`px-2 py-1 rounded text-xs font-medium ${colors[action] || 'bg-gray-100'}`}>{action}</span>
+}
 
 type LoadState<T> = {
   data: T
@@ -49,6 +56,9 @@ export const PolicyVersionPage: FC = () => {
   const [taskError, setTaskError] = useState<string | null>(null)
   const [episodesState, setEpisodesState] = useState<LoadState<EpisodeWithTags[]>>(() =>
     createInitialState<EpisodeWithTags[]>([])
+  )
+  const [membershipsState, setMembershipsState] = useState<LoadState<MembershipHistoryEntry[]>>(() =>
+    createInitialState<MembershipHistoryEntry[]>([])
   )
   const [episodeReplayPreview, setEpisodeReplayPreview] = useState<{ url: string; label: string } | null>(null)
 
@@ -128,9 +138,28 @@ export const PolicyVersionPage: FC = () => {
       }
     }
 
+    const loadMemberships = async () => {
+      setMembershipsState((prev) => ({ ...prev, loading: true, error: null }))
+      try {
+        const memberships = await repo.getPolicyMemberships(policyVersionId)
+        if (isMounted) {
+          setMembershipsState({ data: memberships, loading: false, error: null })
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setMembershipsState({
+            data: [],
+            loading: false,
+            error: error.message ?? 'Failed to load memberships',
+          })
+        }
+      }
+    }
+
     void loadPolicy()
     void loadEpisodes()
     void loadPolicyVersionInfo()
+    void loadMemberships()
 
     return () => {
       isMounted = false
@@ -155,15 +184,6 @@ export const PolicyVersionPage: FC = () => {
       return episode.avg_rewards[episode.primary_pv_id]
     }
     return undefined
-  }
-
-  const getLeaderboardTagDisplay = (episode: EpisodeWithTags): { value: string; tooltip: string } => {
-    const tags = episode.tags || {}
-    const leaderboardValue = tags[LEADERBOARD_SIM_NAME_EPISODE_KEY] ?? '—'
-    const otherTags = Object.entries(tags).filter(([key]) => key !== LEADERBOARD_SIM_NAME_EPISODE_KEY)
-    const tooltip =
-      otherTags.length === 0 ? 'No other tags' : otherTags.map(([key, value]) => `${key}: ${value}`).join('\n')
-    return { value: leaderboardValue, tooltip }
   }
 
   const toggleEpisodeReplayPreview = (episode: EpisodeWithTags) => {
@@ -224,13 +244,10 @@ export const PolicyVersionPage: FC = () => {
             <div className="overflow-x-auto">
               <Table>
                 <Table.Header>
-                  <TR>
-                    <TH>ID</TH>
-                    <TH>Leaderboard Tag</TH>
-                    <TH>Replay</TH>
-                    <TH>Created</TH>
-                    <TH>Avg Reward (policy)</TH>
-                  </TR>
+                  <TH>ID</TH>
+                  <TH>Replay</TH>
+                  <TH>Created</TH>
+                  <TH>Avg Reward (policy)</TH>
                 </Table.Header>
                 <Table.Body>
                   {episodesState.data.map((episode) => (
@@ -239,19 +256,6 @@ export const PolicyVersionPage: FC = () => {
                         <StyledLink to={`/episodes/${episode.id}`} className="font-mono text-xs">
                           {episode.id}
                         </StyledLink>
-                      </TD>
-                      <TD>
-                        {(() => {
-                          const { value, tooltip } = getLeaderboardTagDisplay(episode)
-                          return (
-                            <span
-                              className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 font-mono"
-                              title={tooltip}
-                            >
-                              {value}
-                            </span>
-                          )
-                        })()}
                       </TD>
                       <TD>
                         {(() => {
@@ -289,6 +293,43 @@ export const PolicyVersionPage: FC = () => {
               </div>
             ) : null}
           </>
+        )}
+      </Card>
+
+      <Card title="Tournament Memberships">
+        {membershipsState.loading ? (
+          <Spinner />
+        ) : membershipsState.error ? (
+          <div className="text-red-600 text-sm">{membershipsState.error}</div>
+        ) : membershipsState.data.length === 0 ? (
+          <div className="text-gray-500 text-sm">No tournament memberships found for this policy version.</div>
+        ) : (
+          <Table>
+            <Table.Header>
+              <TH>Time</TH>
+              <TH>Season</TH>
+              <TH>Pool</TH>
+              <TH>Action</TH>
+              <TH>Notes</TH>
+            </Table.Header>
+            <Table.Body>
+              {membershipsState.data.map((entry, i) => (
+                <TR key={i}>
+                  <TD className="text-gray-500 text-sm">{formatRelativeTime(entry.created_at)}</TD>
+                  <TD>
+                    <Link to={`/tournament/${entry.season_name}`} className="text-blue-500 hover:underline">
+                      {entry.season_name}
+                    </Link>
+                  </TD>
+                  <TD className="capitalize">{entry.pool_name}</TD>
+                  <TD>
+                    <ActionBadge action={entry.action} />
+                  </TD>
+                  <TD className="text-sm text-gray-600">{entry.notes || '-'}</TD>
+                </TR>
+              ))}
+            </Table.Body>
+          </Table>
         )}
       </Card>
 

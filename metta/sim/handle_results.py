@@ -30,7 +30,7 @@ from metta.rl.wandb import (
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
-from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
+from mettagrid.renderer.common import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.util.file import http_url
 
@@ -392,7 +392,7 @@ def populate_single_episode_duckdb(
         conn,
         episode_id=str(episode_id),
         primary_pv_id=str(policy_version_ids[0]) if policy_version_ids[0] else None,
-        replay_url=replay_uri,
+        replay_url=http_url(replay_uri) if replay_uri else None,
         thumbnail_url=None,
         eval_task_id=None,
     )

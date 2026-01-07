@@ -86,7 +86,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("\n" + ctx.get_usage())
 
     console.print("\n")
-    raise typer.Exit(0)
+    raise typer.Exit(1)
 
 
 def get_policy_specs_with_proportions(
@@ -109,7 +109,7 @@ def get_policy_specs_with_proportions(
     if policy_args:
         console.print("\n" + ctx.get_usage())
     console.print("\n")
-    raise typer.Exit(0)
+    raise typer.Exit(1)
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:

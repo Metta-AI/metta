@@ -192,7 +192,8 @@ footer {
   font-size: 12px;
 }
 
-.loading, .error {
+.loading,
+.error {
   padding: 20px;
   text-align: center;
 }
@@ -279,7 +280,9 @@ footer {
   color: #cbd5e1;
   padding: 4px;
   line-height: 1;
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
   opacity: 0.5;
 }
 

@@ -181,18 +181,45 @@ class ClipperConfig:
     scaled_cutoff_distance: int
     clip_period: int
 
+class CollectiveConfig:
+    def __init__(self, name: str = "") -> None: ...
+    name: str
+    inventory_config: InventoryConfig
+    initial_inventory: dict[int, int]
+
+class AttackOutcome:
+    def __init__(
+        self,
+        actor_inv_delta: dict[int, int] = {},
+        target_inv_delta: dict[int, int] = {},
+        loot: list[int] = [],
+        freeze: int = 0,
+    ) -> None: ...
+    actor_inv_delta: dict[int, int]
+    target_inv_delta: dict[int, int]
+    loot: list[int]
+    freeze: int
+
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
         consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
+        armor_resources: dict[int, int] = {},
+        weapon_resources: dict[int, int] = {},
+        success: AttackOutcome = ...,
         enabled: bool = True,
         vibes: list[int] = [],
+        vibe_bonus: dict[int, int] = {},
     ) -> None: ...
     defense_resources: dict[int, int]
+    armor_resources: dict[int, int]
+    weapon_resources: dict[int, int]
+    success: AttackOutcome
     enabled: bool
     vibes: list[int]
+    vibe_bonus: dict[int, int]
 
 class MoveActionConfig(ActionConfig):
     def __init__(
@@ -258,15 +285,16 @@ class GameConfig:
         vibe_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
+        feature_ids: dict[str, int],
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         tag_id_map: dict[int, str] | None = None,
+        collectives: dict[str, CollectiveConfig] | None = None,
         protocol_details_obs: bool = True,
-        allow_diagonals: bool = False,
         reward_estimates: Optional[dict[str, float]] = None,
-        inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
         clipper: Optional[ClipperConfig] = None,
+        token_value_base: int = 256,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -277,14 +305,15 @@ class GameConfig:
     vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
+    feature_ids: dict[str, int]
+    tag_id_map: dict[int, str]
+    collectives: dict[str, CollectiveConfig]
     # FEATURE FLAGS
     protocol_details_obs: bool
-    allow_diagonals: bool
     reward_estimates: Optional[dict[str, float]]
-    tag_id_map: dict[int, str]
-    inventory_regen_amounts: dict[int, int]
     inventory_regen_interval: int
     clipper: Optional[ClipperConfig]
+    token_value_base: int
 
 class MettaGrid:
     obs_width: int

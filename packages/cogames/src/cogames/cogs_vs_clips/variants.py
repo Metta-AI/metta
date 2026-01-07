@@ -703,6 +703,19 @@ class TraderVariant(MissionVariant):
         env.game.actions.transfer.vibe_transfers.extend(trade_transfers)
 
 
+class SharedRewardsVariant(MissionVariant):
+    name: str = "shared_rewards"
+    description: str = "Rewards for deposited hearts are shared among all agents."
+
+    @override
+    def modify_env(self, mission, env):
+        num_cogs = mission.num_cogs if mission.num_cogs is not None else mission.site.min_cogs
+        rewards = dict(env.game.agent.rewards.stats)
+        rewards["chest.heart.deposited_by_agent"] = 0
+        rewards["chest.heart.amount"] = 1 / num_cogs
+        env.game.agent.rewards.stats = rewards
+
+
 # TODO - validate that all variant names are unique
 VARIANTS: list[MissionVariant] = [
     AssemblerDrawsFromChestsVariant(),
@@ -727,6 +740,7 @@ VARIANTS: list[MissionVariant] = [
     QuadrantBuildingsVariant(),
     ResourceBottleneckVariant(),
     RoughTerrainVariant(),
+    SharedRewardsVariant(),
     SingleResourceUniformVariant(),
     SingleToolUnclipVariant(),
     Small50Variant(),

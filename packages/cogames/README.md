@@ -98,14 +98,17 @@ cogames evals
 # Shows all policies available and their shorthands
 cogames policies
 
-# Authenticate before submitting or checking leaderboard
+# Authenticate before uploading or checking leaderboard
 cogames login
 
-# Inspect your leaderboard submissions
-cogames submissions
+# List available tournament seasons
+cogames seasons
 
-# Show current leaderboard
-cogames leaderboard
+# View leaderboard for a season
+cogames leaderboard --season SEASON
+
+# View your tournament submissions
+cogames submissions
 ```
 
 # Develop a Policy
@@ -313,11 +316,11 @@ You will be able to provide your specified `--output` path as the `MISSION` argu
 
 ### `cogames login`
 
-Make sure you have authenticated before submitting a policy.
+Authenticate before uploading policies or viewing leaderboards.
 
-### `cogames submit -p [POLICY] -n [NAME]`
+### `cogames upload -p [POLICY] -n [NAME]`
 
-Example:
+Upload a policy to the server.
 
 ```
 cogames submit -p ./train_dir/my_run:v5 -n my_policy
@@ -325,11 +328,49 @@ cogames submit -p ./train_dir/my_run:v5 -n my_policy
 
 **Options:**
 
-- `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
-- `--dry-run`: Validates the policy works for submission without uploading it
+- `--include-files`: Additional files to include (can be specified multiple times)
+- `--dry-run`: Validate the policy without uploading
 
-When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
-policies for the Alignment League Benchmark.
+### `cogames seasons`
+
+List available tournament seasons you can submit to.
+
+### `cogames submit [POLICY] --season [SEASON]`
+
+Submit an uploaded policy to a tournament season.
+
+```bash
+# Submit latest version of a policy
+cogames submit my_policy --season alb-season-1
+
+# Submit a specific version
+cogames submit my_policy:v3 --season alb-season-1
+```
+
+### `cogames submissions`
+
+View your tournament submissions.
+
+```bash
+# View all submissions
+cogames submissions
+
+# Filter by season
+cogames submissions --season alb-season-1
+
+# Filter by policy (positional argument)
+cogames submissions my_policy
+```
+
+### `cogames leaderboard --season [SEASON]`
+
+View the leaderboard for a tournament season.
+
+```bash
+cogames leaderboard --season alb-season-1
+```
+
+When a policy is submitted to a season, it is queued for matches against other policies in that season's pools.
 
 ## Citation
 
