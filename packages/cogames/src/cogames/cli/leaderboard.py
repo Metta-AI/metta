@@ -163,14 +163,10 @@ def _show_all_uploads(
             console.print("[yellow]No uploads found.[/yellow]")
         return
 
-    memberships_by_pv: dict[uuid.UUID, set[str]] = {}
-    for entry in entries:
-        try:
-            memberships = client.get_policy_memberships(entry.id)
-            seasons = {m["season_name"] for m in memberships if m.get("action") == "add"}
-            memberships_by_pv[entry.id] = seasons
-        except httpx.HTTPError:
-            memberships_by_pv[entry.id] = set()
+    try:
+        memberships = client.get_my_memberships()
+    except httpx.HTTPError:
+        memberships = {}
 
     table = Table(title="Your Uploaded Policies", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
@@ -179,7 +175,7 @@ def _show_all_uploads(
     table.add_column("Seasons", style="white")
 
     for entry in entries:
-        seasons = memberships_by_pv.get(entry.id, set())
+        seasons = memberships.get(str(entry.id), [])
         seasons_str = ", ".join(sorted(seasons)) if seasons else "—"
         table.add_row(
             entry.name,

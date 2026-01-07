@@ -199,3 +199,10 @@ class TournamentServerClient:
 
     def get_policy_memberships(self, policy_version_id: uuid.UUID) -> list[dict[str, Any]]:
         return self._get(f"/tournament/policies/{policy_version_id}/memberships")
+
+    def get_my_memberships(self) -> dict[str, list[str]]:
+        """Get all season memberships for the user's policy versions.
+
+        Returns a mapping of policy_version_id -> list of season names.
+        """
+        return self._get("/tournament/my-memberships")
