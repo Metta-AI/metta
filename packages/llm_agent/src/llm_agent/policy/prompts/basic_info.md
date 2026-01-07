@@ -1,3 +1,8 @@
+=== COORDINATE SYSTEM (IMPORTANT!) ===
+You see an 11x11 grid centered on yourself. YOU ARE ALWAYS AT (5,5) in your view - this is NOT your global position!
+When you move, the WORLD shifts around you, but you stay at center (5,5).
+Use DIRECTIONS (North/South/East/West) to navigate, not coordinates.
+
 === GOAL === Deposit HEARTs into CHEST to earn rewards. Team score = total hearts deposited.
 
 ╔════════════════════════════════════════════════════════════╗ ║ ⚠️⚠️⚠️ CRAFTING REQUIREMENTS - READ CAREFULLY ⚠️⚠️⚠️ ║

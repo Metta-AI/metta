@@ -672,8 +672,9 @@ class LLMPromptBuilder:
         agent_y = self._policy_env_info.obs_height // 2
 
         lines = [
-            f"=== VISIBLE OBJECTS (you are at {agent_x},{agent_y}) ===",
-            "Grid: 11x11, (0,0)=top-left, x=column(E/W), y=row(N/S)",
+            "=== VISIBLE OBJECTS ===",
+            f"You see an 11x11 grid centered on yourself. YOU are always at ({agent_x},{agent_y}) in this view.",
+            "Objects CLOSER to (5,5) are NEARER to you. Use DIRECTION to navigate, not coordinates.",
             "",
         ]
 

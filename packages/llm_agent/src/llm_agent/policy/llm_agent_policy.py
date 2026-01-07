@@ -80,6 +80,9 @@ class LLMAgentPolicy(AgentPolicy, ABC):
         self._current_direction: str | None = None
         self._steps_in_direction: int = 0
         self._direction_change_threshold: int = 8
+        self._conversation_summaries: list[str] = []  # LLM summaries of past conversation windows
+        self._max_conversation_summaries = 10  # Keep last N conversation summaries
+        self._conversation_window_count = 0  # Total windows processed (doesn't reset with list trim)
 
     def _init_prompt_builder(self, policy_env_info: PolicyEnvInterface, context_window_size: int) -> None:
         self.prompt_builder = LLMPromptBuilder(
@@ -188,7 +191,8 @@ class LLMAgentPolicy(AgentPolicy, ABC):
             self._history_summaries.append(summary)
             if len(self._history_summaries) > self._max_history_summaries:
                 self._history_summaries = self._history_summaries[-self._max_history_summaries :]
-            print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
+            if self.verbose:
+                print(f"\n[HISTORY Agent {self.agent_id}] {summary}\n")
 
         self._current_window_actions = []
         self.exploration.reset_window_positions()
@@ -225,7 +229,8 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             summary_text = self._call_debug_summary_llm(summary_prompt)
             self._write_debug_summary_to_file(summary_info, inv_str, energy, action_summary, summary_text)
         except Exception as e:
-            print(f"[WARNING] Failed to generate debug summary: {e}")
+            if self.verbose:
+                print(f"[WARNING] Failed to generate debug summary: {e}")
 
         self._debug_summary_actions = []
 
@@ -256,7 +261,80 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
             f.write(f"Actions: {action_summary}\n")
             f.write(f"\nSummary: {summary_text}\n")
 
-        print(f"\n[DEBUG SUMMARY Agent {self.agent_id}] Steps {step_start}-{step_end}: {summary_text}\n")
+        if self.verbose:
+            print(f"\n[DEBUG SUMMARY Agent {self.agent_id}] Steps {step_start}-{step_end}: {summary_text}\n")
+
+    def _summarize_conversation(self) -> str:
+        """Use LLM to summarize the current conversation window.
+
+        Returns:
+            A concise summary of the conversation, or empty string if not enough messages.
+        """
+        if len(self._messages) < 4:  # Need at least 2 turns to summarize
+            return ""
+
+        # Format messages for summarization
+        formatted_messages = []
+        for msg in self._messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            # Truncate long content for the summary prompt
+            if len(content) > 500:
+                content = content[:500] + "..."
+            formatted_messages.append(f"[{role.upper()}]: {content}")
+
+        conversation_text = "\n".join(formatted_messages[-20:])  # Last 20 messages max
+
+        window_num = self._conversation_window_count + 1
+        summary_prompt = f"""Summarize this game conversation between observations (USER) and actions (ASSISTANT).
+
+Focus on:
+1. Key decisions and actions taken
+2. Resources collected or used
+3. Current strategy or goal being pursued
+4. Any problems encountered
+
+Conversation (Window {window_num}):
+{conversation_text}
+
+Write a 2-3 sentence summary. Be concise and focus on what matters for future decisions."""
+
+        try:
+            if self.verbose:
+                print(f"\n[SUMMARY PROMPT Agent {self.agent_id}]\n{summary_prompt}\n")
+            messages: list[dict[str, str]] = [{"role": "user", "content": summary_prompt}]
+            response, _, _ = self._call(messages)
+            return f"[Window {window_num}] {response.strip()}"
+        except Exception as e:
+            if self.verbose:
+                print(f"[WARNING] Failed to generate conversation summary: {e}")
+            return ""
+
+    def _finalize_conversation_summary(self) -> None:
+        """Create LLM summary of current conversation window and store it."""
+        summary = self._summarize_conversation()
+        if summary:
+            self._conversation_window_count += 1  # Increment AFTER summary uses count+1
+            self._conversation_summaries.append(summary)
+            # Keep only the last N summaries
+            if len(self._conversation_summaries) > self._max_conversation_summaries:
+                self._conversation_summaries = self._conversation_summaries[-self._max_conversation_summaries :]
+            print(f"[CONVERSATION SUMMARY Agent {self.agent_id}] {summary}\n")
+
+    def _get_conversation_summary_text(self) -> str:
+        """Get formatted conversation summaries to include in prompts.
+
+        Returns:
+            Formatted string of past conversation summaries, or empty string if none.
+        """
+        if not self._conversation_summaries:
+            return ""
+
+        summaries_text = "\n".join(f"  {summary}" for summary in self._conversation_summaries)
+        return f"""=== PREVIOUS CONVERSATION SUMMARIES ===
+These are LLM-generated summaries of your past decision-making:
+{summaries_text}
+"""
 
     def _get_history_summary_text(self) -> str:
         """Get formatted history summaries to prepend to prompts.
@@ -456,14 +534,23 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         next_step = self.prompt_builder.step_count + 1
         if next_step > 1 and (next_step - 1) % self.prompt_builder.context_window_size == 0:
+            # Summarize conversation before clearing messages
+            self._finalize_conversation_summary()
             self._messages = []
 
     def _build_prompt(self, obs: AgentObservation, inventory: dict[str, int]) -> str:
         """Build the full prompt with all context additions."""
         user_prompt, includes_basic_info = self.prompt_builder.context_prompt(obs)
 
-        if includes_basic_info and self._history_summaries:
-            user_prompt = self._get_history_summary_text() + "\n" + user_prompt
+        # Add summaries when resending basic info (at window boundaries)
+        if includes_basic_info:
+            prefix_parts = []
+            if self._conversation_summaries:
+                prefix_parts.append(self._get_conversation_summary_text())
+            if self._history_summaries:
+                prefix_parts.append(self._get_history_summary_text())
+            if prefix_parts:
+                user_prompt = "\n".join(prefix_parts) + "\n" + user_prompt
 
         additions = [
             self.exploration.get_discovered_objects_text(),
@@ -495,7 +582,8 @@ Write a 2-3 sentence summary of progress, challenges, and current strategy. Be c
 
         raw_response, input_tokens, output_tokens = self._call(messages)
 
-        print(f"[LLM Agent {self.agent_id}] {raw_response}")
+        if self.verbose:
+            print(f"[LLM Agent {self.agent_id}] {raw_response}")
 
         action_name = raw_response.strip()
         self._add_to_messages("assistant", action_name)
