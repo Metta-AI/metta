@@ -50,6 +50,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before stopping, check: 1) Were there uncommitted code changes? If so, did Claude offer to commit or was the user informed? 2) If the user asked for multiple things, were they all addressed? 3) Are there obvious next steps Claude should mention? Return {\"decision\": \"approve\"} if complete, or {\"decision\": \"block\", \"reason\": \"...\"} with brief guidance."
+          }
+        ]
+      }
     ]
   }
 }
