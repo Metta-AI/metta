@@ -11,7 +11,7 @@
 
 #include "config/observation_features.hpp"
 #include "core/types.hpp"
-#include "objects/commons_config.hpp"
+#include "objects/collective_config.hpp"
 #include "systems/clipper_config.hpp"
 
 // Forward declarations
@@ -43,8 +43,8 @@ struct GameConfig {
   std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   std::unordered_map<int, std::string> tag_id_map;
 
-  // Commons configurations - maps commons name to config
-  std::unordered_map<std::string, std::shared_ptr<CommonsConfig>> commons;
+  // Collective configurations - maps collective name to config
+  std::unordered_map<std::string, std::shared_ptr<CollectiveConfig>> collectives;
 
   // FEATURE FLAGS
   bool protocol_details_obs = true;
@@ -94,8 +94,8 @@ inline void bind_game_config(py::module& m) {
                     const std::unordered_map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     const std::unordered_map<int, std::string>&,
 
-                    // Commons
-                    const std::unordered_map<std::string, std::shared_ptr<CommonsConfig>>&,
+                    // Collectives
+                    const std::unordered_map<std::string, std::shared_ptr<CollectiveConfig>>&,
 
                     // FEATURE FLAGS
                     bool,
@@ -123,8 +123,8 @@ inline void bind_game_config(py::module& m) {
            py::arg("objects"),
            py::arg("tag_id_map") = std::unordered_map<int, std::string>(),
 
-           // Commons
-           py::arg("commons") = std::unordered_map<std::string, std::shared_ptr<CommonsConfig>>(),
+           // Collectives
+           py::arg("collectives") = std::unordered_map<std::string, std::shared_ptr<CollectiveConfig>>(),
 
            // FEATURE FLAGS
            py::arg("protocol_details_obs") = true,
@@ -157,8 +157,8 @@ inline void bind_game_config(py::module& m) {
 
       .def_readwrite("tag_id_map", &GameConfig::tag_id_map)
 
-      // Commons
-      .def_readwrite("commons", &GameConfig::commons)
+      // Collectives
+      .def_readwrite("collectives", &GameConfig::collectives)
 
       // FEATURE FLAGS
       .def_readwrite("protocol_details_obs", &GameConfig::protocol_details_obs)

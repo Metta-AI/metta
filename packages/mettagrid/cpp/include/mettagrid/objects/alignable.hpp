@@ -2,34 +2,33 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ALIGNABLE_HPP_
 
 // Forward declarations
-class Commons;
+class Collective;
 class Inventory;
 
 /**
- * Interface for objects that can belong to a Commons group.
- * Objects that implement this interface can have their commons changed
- * via the transfer action's align functionality.
+ * Interface for objects that can belong to a Collective group.
  */
 class Alignable {
 private:
-  Commons* _commons = nullptr;
+  // Currently limited to one collective, but expected to support multiple in the future.
+  Collective* _collective = nullptr;
 
 public:
   virtual ~Alignable() = default;
 
-  // Set the commons this object belongs to
-  void setCommons(Commons* commons);
+  // Set the collective this object belongs to
+  void setCollective(Collective* collective);
 
-  // Remove this object from its current commons
-  void clearCommons();
+  // Remove this object from its current collective
+  void clearCollective();
 
-  // Get the current commons
-  Commons* getCommons() const {
-    return _commons;
+  // Get the current collective
+  Collective* getCollective() const {
+    return _collective;
   }
 
-  // Get the inventory of the commons (if any)
-  Inventory* commons_inventory() const;
+  // Get the inventory of the collective (if any)
+  Inventory* collective_inventory() const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ALIGNABLE_HPP_

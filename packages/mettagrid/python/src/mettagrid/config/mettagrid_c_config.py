@@ -14,7 +14,7 @@ from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
-from mettagrid.mettagrid_c import CommonsConfig as CppCommonsConfig
+from mettagrid.mettagrid_c import CollectiveConfig as CppCollectiveConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -489,7 +489,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
         vibe_transfers=vibe_transfers_cpp,
         enabled=transfer_cfg.enabled,
-        align=transfer_cfg.align,
     )
 
     # Process change_vibe - always add to map
@@ -542,12 +541,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
-    # Convert commons configurations
-    commons_cpp = {}
-    for commons_cfg in game_config.commons:
+    # Convert collective configurations
+    collectives_cpp = {}
+    for collective_cfg in game_config.collectives:
         # Build inventory config with limits
         limit_defs = []
-        for resource_limit in commons_cfg.inventory.limits.values():
+        for resource_limit in collective_cfg.inventory.limits.values():
             resource_list = resource_limit.resources
             resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
             if resource_ids:
@@ -563,16 +562,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Convert initial inventory
         initial_inventory_cpp = {}
-        for resource, amount in commons_cfg.inventory.initial.items():
+        for resource, amount in collective_cfg.inventory.initial.items():
             if resource in resource_name_to_id:
                 resource_id = resource_name_to_id[resource]
                 initial_inventory_cpp[resource_id] = amount
 
-        cpp_commons_config = CppCommonsConfig(commons_cfg.name)
-        cpp_commons_config.inventory_config = inventory_config
-        cpp_commons_config.initial_inventory = initial_inventory_cpp
-        commons_cpp[commons_cfg.name] = cpp_commons_config
+        cpp_collective_config = CppCollectiveConfig(collective_cfg.name)
+        cpp_collective_config.inventory_config = inventory_config
+        cpp_collective_config.initial_inventory = initial_inventory_cpp
+        collectives_cpp[collective_cfg.name] = cpp_collective_config
 
-    game_cpp_params["commons"] = commons_cpp
+    game_cpp_params["collectives"] = collectives_cpp
 
     return CppGameConfig(**game_cpp_params)

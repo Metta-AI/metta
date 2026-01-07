@@ -12,8 +12,6 @@
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
-#include "objects/alignable.hpp"
-#include "objects/commons.hpp"
 #include "objects/has_inventory.hpp"
 
 namespace py = pybind11;
@@ -35,14 +33,11 @@ struct TransferActionConfig : public ActionConfig {
   // Maps vibe ID to transfer effects (separate actor/target deltas)
   std::unordered_map<ObservationType, VibeTransferEffect> vibe_transfers;
   bool enabled;
-  // If true, transfer also aligns the target's commons to the actor's commons
-  bool align;
 
   TransferActionConfig(const std::unordered_map<InventoryItem, InventoryQuantity>& required_resources = {},
                        const std::unordered_map<ObservationType, VibeTransferEffect>& vibe_transfers = {},
-                       bool enabled = true,
-                       bool align = false)
-      : ActionConfig(required_resources, {}), vibe_transfers(vibe_transfers), enabled(enabled), align(align) {}
+                       bool enabled = true)
+      : ActionConfig(required_resources, {}), vibe_transfers(vibe_transfers), enabled(enabled) {}
 };
 
 class Transfer : public ActionHandler {
@@ -50,7 +45,7 @@ public:
   explicit Transfer(const TransferActionConfig& cfg,
                     [[maybe_unused]] const GameConfig* game_config,
                     const std::string& action_name = "transfer")
-      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled), _align(cfg.align) {
+      : ActionHandler(cfg, action_name), _vibe_transfers(cfg.vibe_transfers), _enabled(cfg.enabled) {
     priority = 0;  // Lower priority than attack
     // Derive vibes from vibe_transfers keys
     for (const auto& [vibe_id, _] : _vibe_transfers) {
@@ -150,16 +145,6 @@ public:
       }
     }
 
-    // Align target's commons to actor's commons if enabled
-    if (_align) {
-      Commons* actor_commons = actor.getCommons();
-      Commons* target_commons = target->getCommons();
-      if (actor_commons != nullptr && actor_commons != target_commons) {
-        target->setCommons(actor_commons);
-        actor.stats.incr(_action_prefix(actor_group) + "aligned");
-      }
-    }
-
     actor.stats.incr(_action_prefix(actor_group) + "count");
     return true;
   }
@@ -167,7 +152,6 @@ public:
 protected:
   std::unordered_map<ObservationType, VibeTransferEffect> _vibe_transfers;
   bool _enabled;
-  bool _align;
   std::vector<ObservationType> _vibes;
 
   bool _handle_action(Agent& actor, ActionArg arg) override {
@@ -205,15 +189,12 @@ inline void bind_transfer_action_config(py::module& m) {
   py::class_<TransferActionConfig, ActionConfig, std::shared_ptr<TransferActionConfig>>(m, "TransferActionConfig")
       .def(py::init<const std::unordered_map<InventoryItem, InventoryQuantity>&,
                     const std::unordered_map<ObservationType, VibeTransferEffect>&,
-                    bool,
                     bool>(),
            py::arg("required_resources") = std::unordered_map<InventoryItem, InventoryQuantity>(),
            py::arg("vibe_transfers") = std::unordered_map<ObservationType, VibeTransferEffect>(),
-           py::arg("enabled") = true,
-           py::arg("align") = false)
+           py::arg("enabled") = true)
       .def_readwrite("vibe_transfers", &TransferActionConfig::vibe_transfers)
-      .def_readwrite("enabled", &TransferActionConfig::enabled)
-      .def_readwrite("align", &TransferActionConfig::align);
+      .def_readwrite("enabled", &TransferActionConfig::enabled);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_TRANSFER_HPP_
