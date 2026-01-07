@@ -26,6 +26,7 @@ episodeRunnerImage:
 
 env:
   RUN_MIGRATIONS: "true"
+  DEPLOYMENT_ENVIRONMENT: "production"
 
 secrets:
   machineToken: "machine-token-secret"

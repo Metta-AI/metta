@@ -1,9 +1,10 @@
 import functools
+import json
 import logging
 import os
 import sys
 import warnings
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import rich.traceback
@@ -72,6 +73,33 @@ class SimpleHandler(logging.StreamHandler):
         self.formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
 
 
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, object] = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        for key in ("trace_id", "span_id", "service", "env", "version"):
+            value = getattr(record, key, None)
+            if value is not None:
+                payload[key] = value
+
+        return json.dumps(payload, ensure_ascii=True)
+
+
+def _json_logging_mode() -> str:
+    if os.environ.get("LOG_FORMAT", "").lower() == "json":
+        return "only"
+    if os.environ.get("LOG_JSON", "").lower() in ("1", "true", "yes"):
+        return "dual"
+    return "none"
+
+
 @functools.cache
 def _add_file_logging(run_dir: str) -> None:
     """Set up file logging in addition to stdout logging."""
@@ -128,7 +156,12 @@ def _init_console_logging() -> None:
     local_rank = os.environ.get("LOCAL_RANK")
     rank_prefix = f"[{rank}-{local_rank}] " if rank and local_rank else f"[{rank}] " if rank else ""
 
-    if use_simple_handler:
+    json_mode = _json_logging_mode()
+    if json_mode == "only":
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(JsonFormatter())
+        root_logger.addHandler(handler)
+    elif use_simple_handler:
         # Use simple handler without Rich formatting
         handler = SimpleHandler(sys.stdout)
         # Apply custom formatting for timestamps
@@ -179,7 +212,13 @@ def _init_console_logging() -> None:
     # Set default level
     root_logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
-    rich.traceback.install(show_locals=False)
+    if json_mode == "dual":
+        json_handler = logging.StreamHandler(sys.stdout)
+        json_handler.setFormatter(JsonFormatter())
+        root_logger.addHandler(json_handler)
+
+    if json_mode != "only":
+        rich.traceback.install(show_locals=False)
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
