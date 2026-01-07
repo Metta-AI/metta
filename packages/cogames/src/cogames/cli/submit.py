@@ -1,5 +1,7 @@
 """Policy submission command for CoGames."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
@@ -8,14 +10,19 @@ import uuid
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import typer
 from rich.console import Console
 
 from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
+from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.policy import PolicySpec, get_policy_spec
+
+if TYPE_CHECKING:
+    from cogames.cli.client import TournamentServerClient
+
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
@@ -73,7 +80,7 @@ def get_latest_cogames_version() -> str:
     return response.json()["info"]["version"]
 
 
-def create_temp_validation_env(console: Console) -> Path:
+def create_temp_validation_env() -> Path:
     """Create a temporary directory with a minimal pyproject.toml.
 
     The pyproject.toml depends on the latest published cogames package.
@@ -96,11 +103,10 @@ build-backend = "setuptools.build_meta"
     pyproject_path = temp_dir / "pyproject.toml"
     pyproject_path.write_text(pyproject_content)
 
-    console.print(f"[dim]Created validation environment: {temp_dir}[/dim]")
     return temp_dir
 
 
-def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console: Console) -> None:
+def copy_files_maintaining_structure(files: list[Path], dest_dir: Path) -> None:
     """Copy files to destination, maintaining directory structure.
 
     If a file is 'train_dir/model.pt', it will be copied to 'dest_dir/train_dir/model.pt'.
@@ -109,12 +115,8 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
         dest_path = dest_dir / file_path
 
         if file_path.is_dir():
-            # Copy entire directory
-            console.print(f"[dim]Copying directory: {file_path}[/dim]")
             shutil.copytree(file_path, dest_path, dirs_exist_ok=True)
         else:
-            # Copy single file
-            console.print(f"[dim]Copying file: {file_path}[/dim]")
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file_path, dest_path)
 
@@ -164,16 +166,13 @@ def validate_policy_in_isolation(
             parts.append(f"kw.{key}={value}")
         return ",".join(parts)
 
+    console.print("[dim]Testing policy can run 10 steps on machina_1...[/dim]")
+
     temp_dir = None
     try:
-        # Create temp validation environment
-        temp_dir = create_temp_validation_env(console)
+        temp_dir = create_temp_validation_env()
+        copy_files_maintaining_structure(include_files, temp_dir)
 
-        # Copy include files maintaining structure
-        console.print("[yellow]Copying files to validation environment...[/yellow]")
-        copy_files_maintaining_structure(include_files, temp_dir, console)
-
-        # Build cogames eval command
         policy_arg = _format_policy_arg(policy_spec)
 
         def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -188,16 +187,13 @@ def validate_policy_in_isolation(
                 env=env,
             )
             if not res.returncode == 0:
-                console.print("[red]✗ Setting up validation environment failed![/red]")
-                console.print("\n[red]Error output:[/red]")
-                console.print(res.stderr)
+                console.print("[red]Validation failed[/red]")
+                console.print(f"\n[red]Error:[/red]\n{res.stderr}")
                 if res.stdout:
-                    console.print("\n[dim]Standard output:[/dim]")
-                    console.print(res.stdout)
-                raise Exception("Setting up validation environment failed")
+                    console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
+                raise Exception("Validation failed")
             return res
 
-        console.print("[yellow] Validating policy...[/yellow]")
         _run_from_tmp_dir(["uv", "run", "cogames", "version"])
 
         validate_cmd = [
@@ -210,30 +206,24 @@ def validate_policy_in_isolation(
         if setup_script:
             validate_cmd.extend(["--setup-script", setup_script])
 
-        result = _run_from_tmp_dir(validate_cmd)
+        _run_from_tmp_dir(validate_cmd)
 
-        console.print(f"[dim]Validation result: {result.stdout.strip()}[/dim]")
-
-        console.print("[green]✓ Validation passed![/green]")
+        console.print("[green]Validation passed[/green]")
         return True
 
     except subprocess.TimeoutExpired:
-        console.print("[red]✗ Validation timed out after 5 minutes[/red]")
+        console.print("[red]Validation timed out after 5 minutes[/red]")
         return False
-    except Exception as e:
-        console.print(f"[red]✗ Validation error: {e}[/red]")
+    except Exception:
         return False
     finally:
-        # Clean up temp directory
         if temp_dir and temp_dir.exists():
             shutil.rmtree(temp_dir)
-            console.print("[dim]Cleaned up validation environment[/dim]")
 
 
 def create_submission_zip(
     include_files: list[Path],
     policy_spec: PolicySpec,
-    console: Console,
     setup_script: str | None = None,
 ) -> Path:
     """Create a zip file containing all include-files.
@@ -241,11 +231,8 @@ def create_submission_zip(
     Maintains directory structure exactly as provided.
     Returns path to created zip file.
     """
-    # Create temp zip file
     zip_fd, zip_path = tempfile.mkstemp(suffix=".zip", prefix="cogames_submission_")
     os.close(zip_fd)
-
-    console.print("[yellow]Creating submission zip...[/yellow]")
 
     submission_spec = SubmissionPolicySpec(
         class_path=policy_spec.class_path,
@@ -259,59 +246,45 @@ def create_submission_zip(
 
         for file_path in include_files:
             if file_path.is_dir():
-                # Add all files in directory recursively
                 for root, _, files in os.walk(file_path):
                     for file in files:
                         file_full_path = Path(root) / file
-                        arcname = file_full_path
-                        console.print(f"[dim]  Adding: {arcname}[/dim]")
-                        zipf.write(file_full_path, arcname=arcname)
+                        zipf.write(file_full_path, arcname=file_full_path)
             else:
-                # Add single file
-                console.print(f"[dim]  Adding: {file_path}[/dim]")
                 zipf.write(file_path, arcname=file_path)
 
-    console.print(f"[green]✓ Created zip: {zip_path}[/green]")
     return Path(zip_path)
 
 
 def upload_submission(
+    client: TournamentServerClient,
     zip_path: Path,
     submission_name: str,
-    token: str,
-    submit_server_url: str,
     console: Console,
 ) -> UploadResult | None:
     """Upload submission to CoGames backend using a presigned S3 URL."""
-    console.print("[yellow]Uploading submission...[/yellow]")
-
-    headers = {"X-Auth-Token": token}
+    console.print("[bold]Uploading[/bold]")
 
     try:
-        presigned_response = httpx.post(
-            f"{submit_server_url}/stats/policies/submit/presigned-url",
-            headers=headers,
-            timeout=60.0,
-        )
-
-        if presigned_response.status_code != 200:
-            console.print(f"[red]✗ Failed to get upload URL ({presigned_response.status_code})[/red]")
-            console.print(f"[red]Response: {presigned_response.text}[/red]")
-            return None
-
-        presigned_data = presigned_response.json()
+        presigned_data = client.get_presigned_upload_url()
         upload_url = presigned_data.get("upload_url")
         upload_id = presigned_data.get("upload_id")
 
         if not upload_url or not upload_id:
-            console.print("[red]✗ Upload URL missing from response[/red]")
+            console.print("[red]Upload URL missing from response[/red]")
             return None
     except httpx.TimeoutException:
-        console.print("[red]✗ Timed out while requesting presigned URL[/red]")
+        console.print("[red]Timed out while requesting upload URL[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Failed to get upload URL ({exc.response.status_code})[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
         return None
     except Exception as e:
-        console.print(f"[red]✗ Error requesting presigned URL: {e}[/red]")
+        console.print(f"[red]Error requesting upload URL: {e}[/red]")
         return None
+
+    console.print("[dim]Uploading to storage...[/dim]")
 
     try:
         with open(zip_path, "rb") as f:
@@ -319,59 +292,49 @@ def upload_submission(
                 upload_url,
                 content=f,
                 headers={"Content-Type": "application/zip"},
-                timeout=600.0,  # Allow large uploads
+                timeout=600.0,
             )
         upload_response.raise_for_status()
     except httpx.TimeoutException:
-        console.print("[red]✗ Upload timed out after 10 minutes[/red]")
+        console.print("[red]Upload timed out after 10 minutes[/red]")
         return None
     except httpx.HTTPStatusError as exc:
-        console.print(f"[red]✗ Upload failed with status {exc.response.status_code}[/red]")
-        console.print(f"[red]Response: {exc.response.text}[/red]")
+        console.print(f"[red]Upload failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
         return None
     except Exception as e:
-        console.print(f"[red]✗ Upload error: {e}[/red]")
+        console.print(f"[red]Upload error: {e}[/red]")
         return None
 
-    console.print("[dim]  Uploaded successfully. Registering...[/dim]")
+    console.print("[dim]Registering policy...[/dim]")
 
     try:
-        complete_response = httpx.post(
-            f"{submit_server_url}/stats/policies/submit/complete",
-            json={"upload_id": upload_id, "name": submission_name},
-            headers=headers,
-            timeout=120.0,
-        )
+        result = client.complete_policy_upload(upload_id, submission_name)
+        submission_id = result.get("id")
+        name = result.get("name")
+        version = result.get("version")
+        if submission_id is not None and name is not None and version is not None:
+            try:
+                return UploadResult(
+                    policy_version_id=uuid.UUID(str(submission_id)),
+                    name=name,
+                    version=version,
+                )
+            except ValueError:
+                console.print(f"[red]Invalid submission ID returned: {submission_id}[/red]")
+                return None
 
-        if complete_response.status_code == 200:
-            result = complete_response.json()
-            console.print("[green]✓ Submitted successfully![/green]")
-            submission_id = result.get("id")
-            name = result.get("name")
-            version = result.get("version")
-            if submission_id is not None and name is not None and version is not None:
-                try:
-                    return UploadResult(
-                        policy_version_id=uuid.UUID(str(submission_id)),
-                        name=name,
-                        version=version,
-                    )
-                except ValueError:
-                    console.print(f"[red]✗ Invalid submission ID returned: {submission_id}[/red]")
-                    return None
-
-            console.print("[red]✗ Missing fields in response[/red]")
-            return None
-
-        console.print(f"[red]✗ Submission finalize failed with status {complete_response.status_code}[/red]")
-        console.print(f"[red]Response: {complete_response.text}[/red]")
+        console.print("[red]Missing fields in response[/red]")
         return None
-
     except httpx.TimeoutException:
-        console.print("[red]✗ Finalizing submission timed out[/red]")
+        console.print("[red]Registration timed out[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Registration failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
         return None
     except Exception as e:
-        console.print(f"[red]✗ Submission finalize error: {e}[/red]")
+        console.print(f"[red]Registration error: {e}[/red]")
         return None
 
 
@@ -392,24 +355,13 @@ def upload_policy(
     Returns UploadResult with policy_version_id, name, and version on success.
     Returns None on failure.
     """
+    from cogames.cli.client import TournamentServerClient
+
     if dry_run:
-        console.print("[bold]CoGames Policy Upload (DRY RUN)[/bold]\n")
-        console.print("[yellow]Running in dry-run mode - validation only, no upload[/yellow]\n")
-    else:
-        console.print("[bold]CoGames Policy Upload[/bold]\n")
+        console.print("[dim]Dry run mode - no upload[/dim]\n")
 
-    if skip_validation:
-        console.print("[yellow]Skipping policy validation (--skip-validation)[/yellow]\n")
-
-    authenticator = CoGamesAuthenticator()
-    if not authenticator.has_saved_token(login_server):
-        console.print("[red]Error:[/red] Not authenticated.")
-        console.print("Please run: [cyan]cogames login[/cyan]")
-        return None
-
-    token = authenticator.load_token(login_server)
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server}")
+    client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
+    if not client:
         return None
 
     try:
@@ -425,10 +377,6 @@ def upload_policy(
             data_path=policy_spec.data_path,
             init_kwargs=merged_kwargs,
         )
-        console.print("\n[bold]Policy init_kwargs:[/bold]")
-        for key, value in init_kwargs.items():
-            console.print(f"  {key}: {value}")
-        console.print()
 
     files_to_include = []
     if policy_spec.data_path:
@@ -445,37 +393,28 @@ def upload_policy(
         except (ValueError, FileNotFoundError):
             return None
 
-        console.print("\n[bold]Files to include:[/bold]")
-        for path in validated_paths:
-            console.print(f"  - {path}")
-        console.print()
-
     if not skip_validation:
         if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
             console.print("\n[red]Upload aborted due to validation failure.[/red]")
             return None
     else:
-        console.print("[yellow]Policy validation skipped[/yellow]")
+        console.print("[dim]Skipping validation[/dim]")
 
     try:
-        zip_path = create_submission_zip(validated_paths, policy_spec, console, setup_script=setup_script)
+        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
         return None
 
     if dry_run:
-        if skip_validation:
-            console.print("\n[green]Dry run complete - validation skipped, zip created![/green]")
-        else:
-            console.print("\n[green]Dry run complete - validation passed, zip created![/green]")
-        console.print("[dim]Skipping upload (dry-run mode)[/dim]")
+        console.print("[green]Dry run complete[/green]")
         if zip_path.exists():
             zip_path.unlink()
-            console.print("[dim]Cleaned up temporary zip file[/dim]")
         return None
 
     try:
-        result = upload_submission(zip_path, name, token, server, console)
+        with client:
+            result = upload_submission(client, zip_path, name, console)
         if not result:
             console.print("\n[red]Upload failed.[/red]")
             return None
@@ -483,4 +422,3 @@ def upload_policy(
     finally:
         if zip_path.exists():
             zip_path.unlink()
-            console.print("[dim]Cleaned up temporary zip file[/dim]")
