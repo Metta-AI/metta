@@ -60,6 +60,9 @@ def test_discounted_sum_pytorch_shapes_and_broadcast(T: int, B: int, Nextra: int
 @pytest.mark.cuda
 @pytest.mark.parametrize("shape_case", [(6, 5, 2, 3), (3, 2, 1, 7)])
 def test_discounted_sum_cuda_parity(shape_case) -> None:
+    if not is_cuda_supported():
+        pytest.skip("CUDA not available")
+
     T, B, R, D = shape_case
     device = torch.device("cuda")
     dtype = torch.float32
