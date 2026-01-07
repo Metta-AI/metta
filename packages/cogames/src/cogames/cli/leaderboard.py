@@ -242,22 +242,19 @@ def _show_season_submissions(
         pools = entry.get("pools", [])
         entered_at = _format_timestamp(entry.get("entered_at"))
 
-        for i, p in enumerate(pools):
+        table.add_row(
+            policy.get("name", "?"),
+            str(policy.get("version", "?")),
+            "",
+            "",
+            "",
+            entered_at,
+        )
+        for p in pools:
             pool_name = p.get("pool_name", "?")
             status = "active" if p.get("active", True) else "retired"
             matches = p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0)
-
-            if i == 0:
-                table.add_row(
-                    policy.get("name", "?"),
-                    str(policy.get("version", "?")),
-                    pool_name,
-                    status,
-                    str(matches),
-                    entered_at,
-                )
-            else:
-                table.add_row("", "", pool_name, status, str(matches), "")
+            table.add_row("", "", pool_name, status, str(matches), "")
 
     console.print(table)
 
