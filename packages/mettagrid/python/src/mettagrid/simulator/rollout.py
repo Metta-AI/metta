@@ -73,7 +73,8 @@ class Rollout:
                     policy.__class__.__name__,
                     self._step_count,
                 )
-                self._record_failure(i)
+                self._failed_agents[i] = True
+                self._agent_failure_steps[i] = self._step_count
                 action = self._config.game.actions.noop.Noop()
             else:
                 elapsed_ms = (time.time() - start_time) * 1000
@@ -93,10 +94,6 @@ class Rollout:
 
         self._sim.step()
         self._step_count += 1
-
-    def _record_failure(self, agent_index: int) -> None:
-        self._failed_agents[agent_index] = True
-        self._agent_failure_steps[agent_index] = self._step_count
 
     def run_until_done(self) -> None:
         """Run the rollout until completion or early exit."""

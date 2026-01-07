@@ -368,7 +368,7 @@ def write_eval_results_to_observatory(
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
-                        if agent_id < len(failure_steps):
+                        if failure_steps:
                             failure_step = failure_steps[agent_id]
                             if failure_step is not None:
                                 insert_agent_metric(conn, episode_id, agent_id, "exception_flag", 1.0)
