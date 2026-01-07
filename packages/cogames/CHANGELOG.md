@@ -1,5 +1,15 @@
 # Changelog
 
+## Jan 2026
+
+**Tournament CLI Updates**
+
+- `cogames upload` - Upload a policy without submitting to a tournament
+- `cogames submit` - Submit an uploaded policy to a tournament season
+- `cogames submissions` - View your uploaded policies and tournament submissions
+- `cogames leaderboard --season <name>` - View the leaderboard for a season
+- `cogames seasons` - List available tournament seasons
+
 ## Dec 16, 2025
 
 **CLI Command Restructuring**

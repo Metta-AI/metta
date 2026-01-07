@@ -3,7 +3,8 @@ import logging
 import os
 
 from kubernetes import client
-from kubernetes import config as kubernetes_config
+from kubernetes.config.incluster_config import load_incluster_config
+from kubernetes.config.kube_config import load_kube_config
 
 from metta.app_backend.job_runner.config import (
     JOB_NAMESPACE,
@@ -49,10 +50,10 @@ def get_k8s_client() -> client.BatchV1Api:
     if cfg.LOCAL_DEV:
         if not cfg.LOCAL_DEV_K8S_CONTEXT:
             raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
+        load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
     else:
         # Prod: require in-cluster config, no silent fallback
-        kubernetes_config.load_incluster_config()
+        load_incluster_config()
 
     return client.BatchV1Api()
 
@@ -94,6 +95,27 @@ def create_episode_job(job: JobRequest) -> str:
             )
             volume_mounts.append(client.V1VolumeMount(name=vol_name, mount_path=container_path))
 
+    tolerations: list[client.V1Toleration] | None = (
+        [
+            client.V1Toleration(
+                key="workload-type",
+                operator="Equal",
+                value="jobs",
+                effect="NoSchedule",
+            )
+        ]
+        if not cfg.LOCAL_DEV
+        else None
+    )
+
+    node_selector = (
+        {
+            "workload-type": "jobs",
+        }
+        if not cfg.LOCAL_DEV
+        else None
+    )
+
     k8s_job = client.V1Job(
         metadata=client.V1ObjectMeta(
             name=job_name,
@@ -109,11 +131,18 @@ def create_episode_job(job: JobRequest) -> str:
             # Longer TTL gives watcher time to catch up if it restarts
             ttl_seconds_after_finished=3600,
             template=client.V1PodTemplateSpec(
-                metadata=client.V1ObjectMeta(labels=labels),
+                metadata=client.V1ObjectMeta(
+                    labels=labels,
+                    annotations={
+                        "karpenter.sh/do-not-disrupt": "true",
+                    },
+                ),
                 spec=client.V1PodSpec(
                     restart_policy="Never",
                     service_account_name="episode-runner" if not cfg.LOCAL_DEV else None,
-                    volumes=volumes if volumes else None,
+                    volumes=volumes,
+                    tolerations=tolerations,
+                    node_selector=node_selector,
                     containers=[
                         client.V1Container(
                             name="worker",
@@ -138,7 +167,7 @@ def create_episode_job(job: JobRequest) -> str:
                                 if cfg.LOCAL_DEV and cfg.LOCAL_DEV_AWS_PROFILE
                                 else []
                             ),
-                            volume_mounts=volume_mounts if volume_mounts else None,
+                            volume_mounts=volume_mounts,
                             resources=client.V1ResourceRequirements(
                                 requests={"cpu": "3", "memory": "8Gi"},
                                 limits={"cpu": "4", "memory": "12Gi"},
