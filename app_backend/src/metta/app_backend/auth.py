@@ -44,6 +44,7 @@ async def user_from_header_or_token_or_raise(request: Request) -> str:
 
 # Dependency types for use in route decorators
 UserOrToken = Annotated[str, Depends(user_from_header_or_token_or_raise)]
+OptionalUserOrToken = Annotated[str | None, Depends(user_from_header_or_token)]
 
 
 async def validate_token_via_login_service(token: str) -> str | None:
