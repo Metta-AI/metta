@@ -227,6 +227,10 @@ def suppress_noisy_logs() -> None:
     # Silence ddtrace CI Visibility spam
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
 
+    # Silence AWS SDK credential/token loading noise
+    logging.getLogger("botocore.tokens").setLevel(logging.WARNING)
+    logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
+
 
 def init_mettagrid_system_environment() -> None:
     """Initialize environment variables for headless operation."""
