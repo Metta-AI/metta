@@ -57,7 +57,8 @@ from metta.tools.utils.auto_config import (
 )
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.base import ParsedScheme
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -96,9 +97,13 @@ class TrainTool(Tool):
         return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
+        run_set_explicitly = False
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
+            run_set_explicitly = True
+
+        self._apply_resume_hints(run_set_explicitly)
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
@@ -276,6 +281,83 @@ class TrainTool(Tool):
             self.gradient_reporter.epoch_interval = self.stats_reporter.grad_mean_variance_interval
 
         return trainer
+
+    def _apply_resume_hints(self, run_set_explicitly: bool) -> None:
+        resume_checked = False
+        run_from_uri: str | None = None
+        parsed: ParsedScheme | None = None
+
+        if self.initial_policy_uri:
+            try:
+                parsed = resolve_uri(self.initial_policy_uri)
+            except Exception as exc:
+                logger.info(
+                    "Initial policy URI is not a checkpoint URI (%s); skipping trainer-state discovery.",
+                    exc,
+                )
+                parsed = None
+
+        if parsed is not None:
+            info = parsed.checkpoint_info
+            if info:
+                run_from_uri, _ = info
+                if self.run is None:
+                    self.run = run_from_uri
+                elif self.run != run_from_uri:
+                    logger.info(
+                        "initial_policy_uri run '%s' differs from run '%s'; treating as warm-start.",
+                        run_from_uri,
+                        self.run,
+                    )
+                    run_from_uri = None
+            else:
+                logger.info("Initial policy URI did not include checkpoint metadata; skipping trainer-state discovery.")
+
+        if run_from_uri and self.run == run_from_uri:
+            checkpoint_dir, inferred_data_dir = self._infer_checkpoint_dir(parsed, run_from_uri)
+            if inferred_data_dir is not None and inferred_data_dir != self.system.data_dir:
+                logger.info("Using data_dir inferred from initial_policy_uri: %s", inferred_data_dir)
+                self.system.data_dir = inferred_data_dir
+            candidate_dir = checkpoint_dir or (self.system.data_dir / run_from_uri / "checkpoints")
+            self._log_trainer_state_presence(candidate_dir)
+            resume_checked = True
+
+        if not resume_checked and run_set_explicitly and self.run:
+            checkpoint_dir = self.system.data_dir / self.run / "checkpoints"
+            self._log_trainer_state_presence(checkpoint_dir)
+
+    def _infer_checkpoint_dir(
+        self, parsed: ParsedScheme | None, run_name: str
+    ) -> tuple[Path | None, Path | None]:
+        if parsed is None or parsed.local_path is None:
+            return None, None
+
+        local_path = parsed.local_path
+        checkpoint_dir = local_path if local_path.is_dir() else local_path.parent
+        if checkpoint_dir.name != "checkpoints":
+            checkpoint_dir = local_path.parent
+
+        if checkpoint_dir.name != "checkpoints":
+            return None, None
+
+        run_dir = checkpoint_dir.parent
+        if run_dir.name != run_name:
+            return None, None
+
+        return checkpoint_dir, run_dir.parent
+
+    def _log_trainer_state_presence(self, checkpoint_dir: Path) -> None:
+        trainer_state_path = checkpoint_dir / "trainer_state.pt"
+        if trainer_state_path.exists():
+            logger.info(
+                "Trainer state found at %s; optimizer/curriculum state will be restored.",
+                trainer_state_path,
+            )
+        else:
+            logger.info(
+                "No trainer state found at %s; continuing with weights-only warm-start.",
+                trainer_state_path,
+            )
 
     def _register_components(
         self,
