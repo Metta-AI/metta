@@ -23,10 +23,15 @@ class PolicyVersionInfo(BaseModel):
     version: int
 
 
+class PoolInfo(BaseModel):
+    name: str
+    description: str
+
+
 class SeasonInfo(BaseModel):
     name: str
-    description: dict[str, Any] | None = None
-    pools: list[str] = []
+    summary: str
+    pools: list[PoolInfo]
 
 
 class LeaderboardEntry(BaseModel):

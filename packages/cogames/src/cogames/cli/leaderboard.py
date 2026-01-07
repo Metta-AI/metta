@@ -161,3 +161,54 @@ def leaderboard_cmd(
 
     table_title = "Public Leaderboard" if view == "public" else "My Leaderboard Entries"
     _render_table(table_title, entries)
+
+
+def seasons_cmd(
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Observatory API base URL",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the raw JSON response instead of a table",
+    ),
+) -> None:
+    """List available tournament seasons."""
+    client = _get_client(login_server, server)
+    if not client:
+        return
+
+    try:
+        with client:
+            seasons = client.get_seasons()
+    except httpx.HTTPError as exc:
+        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        raise typer.Exit(1) from exc
+
+    if json_output:
+        console.print(json.dumps([s.model_dump() for s in seasons], indent=2))
+        return
+
+    if not seasons:
+        console.print("[yellow]No seasons found.[/yellow]")
+        return
+
+    table = Table(title="Tournament Seasons", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
+    table.add_column("Season", style="bold cyan")
+    table.add_column("Description", style="white")
+    table.add_column("Pools", style="dim")
+
+    for season in seasons:
+        pool_names = [p.name for p in season.pools]
+        pools_str = ", ".join(pool_names) if pool_names else "—"
+        table.add_row(season.name, season.summary, pools_str)
+
+    console.print(table)
