@@ -326,9 +326,7 @@ class TrainTool(Tool):
             checkpoint_dir = self.system.data_dir / self.run / "checkpoints"
             self._log_trainer_state_presence(checkpoint_dir)
 
-    def _infer_checkpoint_dir(
-        self, parsed: ParsedScheme | None, run_name: str
-    ) -> tuple[Path | None, Path | None]:
+    def _infer_checkpoint_dir(self, parsed: ParsedScheme | None, run_name: str) -> tuple[Path | None, Path | None]:
         if parsed is None or parsed.local_path is None:
             return None, None
 
