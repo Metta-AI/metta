@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 import httpx
 from pydantic import BaseModel, TypeAdapter
@@ -40,6 +40,24 @@ class PolicyVersionSummary(BaseModel):
     id: uuid.UUID
     name: str | None
     version: int | None
+
+
+class SubmitToSeasonResponse(BaseModel):
+    pools: list[str]
+
+
+class PoolMembership(BaseModel):
+    pool_name: str
+    active: bool
+    completed: int
+    failed: int
+    pending: int
+
+
+class SeasonPolicyEntry(BaseModel):
+    policy: PolicyVersionSummary
+    pools: list[PoolMembership]
+    entered_at: str
 
 
 class TournamentServerClient:
@@ -96,12 +114,24 @@ class TournamentServerClient:
             return TypeAdapter(response_type).validate_python(response.json())
         return response.json()
 
+    @overload
+    def _get(self, path: str, response_type: type[T], **kwargs: Any) -> T: ...
+    @overload
+    def _get(self, path: str, response_type: None = None, **kwargs: Any) -> dict[str, Any]: ...
     def _get(self, path: str, response_type: type[T] | None = None, **kwargs: Any) -> T | dict[str, Any]:
         return self._request("GET", path, response_type, **kwargs)
 
+    @overload
+    def _post(self, path: str, response_type: type[T], **kwargs: Any) -> T: ...
+    @overload
+    def _post(self, path: str, response_type: None = None, **kwargs: Any) -> dict[str, Any]: ...
     def _post(self, path: str, response_type: type[T] | None = None, **kwargs: Any) -> T | dict[str, Any]:
         return self._request("POST", path, response_type, **kwargs)
 
+    @overload
+    def _put(self, path: str, response_type: type[T], **kwargs: Any) -> T: ...
+    @overload
+    def _put(self, path: str, response_type: None = None, **kwargs: Any) -> dict[str, Any]: ...
     def _put(self, path: str, response_type: type[T] | None = None, **kwargs: Any) -> T | dict[str, Any]:
         return self._request("PUT", path, response_type, **kwargs)
 
@@ -128,10 +158,18 @@ class TournamentServerClient:
     def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionInfo:
         return self._get(f"/stats/policy-versions/{policy_version_id}", PolicyVersionInfo)
 
-    def submit_to_season(self, season_name: str, policy_version_id: uuid.UUID) -> dict[str, Any]:
+    def submit_to_season(self, season_name: str, policy_version_id: uuid.UUID) -> SubmitToSeasonResponse:
         return self._post(
-            f"/tournament/seasons/{season_name}/submit",
+            f"/tournament/seasons/{season_name}/submissions",
+            SubmitToSeasonResponse,
             json={"policy_version_id": str(policy_version_id)},
+        )
+
+    def get_season_policies(self, season_name: str, mine: bool = False) -> list[SeasonPolicyEntry]:
+        return self._get(
+            f"/tournament/seasons/{season_name}/policies",
+            list[SeasonPolicyEntry],
+            params={"mine": "true"} if mine else None,
         )
 
     def get_presigned_upload_url(self, name: str) -> dict[str, Any]:
