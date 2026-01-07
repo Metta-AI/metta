@@ -14,6 +14,7 @@ from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
+from mettagrid.mettagrid_c import CollectiveConfig as CppCollectiveConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
@@ -202,15 +203,13 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 if name in resource_name_to_id
             }
             base_limit = resource_limit["limit"]
-            limit_defs.append(CppLimitDef(resources=resource_ids, base_limit=base_limit, modifiers=modifier_ids))
+            limit_defs.append(CppLimitDef(resource_ids, base_limit, modifier_ids))
             configured_resources.update(resource_limit["resources"])
 
         # Add default limits for unconfigured resources
         for resource_name in resource_names:
             if resource_name not in configured_resources:
-                limit_defs.append(
-                    CppLimitDef(resources=[resource_name_to_id[resource_name]], base_limit=default_resource_limit)
-                )
+                limit_defs.append(CppLimitDef([resource_name_to_id[resource_name]], default_resource_limit))
 
         inventory_config = CppInventoryConfig()
         inventory_config.limit_defs = limit_defs
@@ -342,9 +341,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                         for name, bonus in resource_limit.modifiers.items()
                         if name in resource_name_to_id
                     }
-                    limit_defs.append(
-                        CppLimitDef(resources=resource_ids, base_limit=resource_limit.limit, modifiers=modifier_ids)
-                    )
+                    limit_defs.append(CppLimitDef(resource_ids, resource_limit.limit, modifier_ids))
 
             inventory_config = CppInventoryConfig()
             inventory_config.limit_defs = limit_defs
@@ -543,5 +540,38 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
+
+    # Convert collective configurations
+    collectives_cpp = {}
+    for collective_cfg in game_config.collectives:
+        # Build inventory config with limits
+        limit_defs = []
+        for resource_limit in collective_cfg.inventory.limits.values():
+            resource_list = resource_limit.resources
+            resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
+            if resource_ids:
+                modifier_ids = {
+                    resource_name_to_id[name]: bonus
+                    for name, bonus in resource_limit.modifiers.items()
+                    if name in resource_name_to_id
+                }
+                limit_defs.append(CppLimitDef(resource_ids, resource_limit.limit, modifier_ids))
+
+        inventory_config = CppInventoryConfig()
+        inventory_config.limit_defs = limit_defs
+
+        # Convert initial inventory
+        initial_inventory_cpp = {}
+        for resource, amount in collective_cfg.inventory.initial.items():
+            if resource in resource_name_to_id:
+                resource_id = resource_name_to_id[resource]
+                initial_inventory_cpp[resource_id] = amount
+
+        cpp_collective_config = CppCollectiveConfig(collective_cfg.name)
+        cpp_collective_config.inventory_config = inventory_config
+        cpp_collective_config.initial_inventory = initial_inventory_cpp
+        collectives_cpp[collective_cfg.name] = cpp_collective_config
+
+    game_cpp_params["collectives"] = collectives_cpp
 
     return CppGameConfig(**game_cpp_params)

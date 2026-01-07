@@ -9,10 +9,8 @@ from typing import Optional
 import numpy as np
 
 from mettagrid.renderer.renderer import Renderer
-from mettagrid.simulator import Action
+from mettagrid.simulator.types import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
-
-METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
 
 logger = logging.getLogger(__name__)
 
