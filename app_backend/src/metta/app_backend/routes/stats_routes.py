@@ -329,6 +329,14 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
             agent_metrics_result = read_agent_metrics(conn, str(episode_id))
 
+            def _apply_exception_metric(metrics: dict[str, float], metric: str, value: float) -> None:
+                if metric == "exception_flag":
+                    metrics["exception_flag"] = max(metrics.get("exception_flag", 0.0), value)
+                elif metric == "exception_step":
+                    current = metrics.get("exception_step")
+                    if current is None or value < current:
+                        metrics["exception_step"] = value
+
             policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
             for agent_id, metric_name, metric_value in agent_metrics_result:
                 pv_id = agent_policy_map.get(int(agent_id))
@@ -343,13 +351,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                     if "reward" not in policy_metrics[pv_id]:
                         policy_metrics[pv_id]["reward"] = 0.0
                     policy_metrics[pv_id]["reward"] += metric_value
-                elif metric_name == "exception_flag":
-                    current = policy_metrics[pv_id].get("exception_flag", 0.0)
-                    policy_metrics[pv_id]["exception_flag"] = max(current, metric_value)
-                elif metric_name == "exception_step":
-                    current = policy_metrics[pv_id].get("exception_step")
-                    if current is None or metric_value < current:
-                        policy_metrics[pv_id]["exception_step"] = metric_value
+                else:
+                    _apply_exception_metric(policy_metrics[pv_id], metric_name, metric_value)
 
             policy_agent_counts: dict[uuid.UUID, int] = {}
             for _agent_id, pv_id in agent_policy_map.items():

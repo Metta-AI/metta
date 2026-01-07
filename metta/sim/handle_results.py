@@ -357,6 +357,7 @@ def write_eval_results_to_observatory(
                     for key, value in sim_config.episode_tags.items():
                         insert_episode_tag(conn, episode_id, key, value)
 
+                    failure_steps = e.failure_steps or []
                     for agent_id in range(len(e.assignments)):
                         pv_id = policy_version_ids[e.assignments[agent_id]]
 
@@ -367,7 +368,6 @@ def write_eval_results_to_observatory(
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
-                        failure_steps = e.failure_steps or []
                         if agent_id < len(failure_steps):
                             failure_step = failure_steps[agent_id]
                             if failure_step is not None:
