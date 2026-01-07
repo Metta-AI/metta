@@ -97,13 +97,11 @@ class TrainTool(Tool):
         return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
-        run_set_explicitly = False
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
-            run_set_explicitly = True
 
-        self._apply_resume_hints(run_set_explicitly)
+        self._apply_resume_hints()
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
@@ -282,36 +280,21 @@ class TrainTool(Tool):
 
         return trainer
 
-    def _apply_resume_hints(self, run_set_explicitly: bool) -> None:
+    def _apply_resume_hints(self) -> None:
         resume_checked = False
-        run_from_uri: str | None = None
-        parsed: ParsedScheme | None = None
+        parsed = self._try_parse_policy_uri(self.initial_policy_uri)
+        run_from_uri = self._get_run_from_uri(parsed)
 
-        if self.initial_policy_uri:
-            try:
-                parsed = resolve_uri(self.initial_policy_uri)
-            except Exception as exc:
+        if run_from_uri:
+            if self.run is None:
+                self.run = run_from_uri
+            elif self.run != run_from_uri:
                 logger.info(
-                    "Initial policy URI is not a checkpoint URI (%s); skipping trainer-state discovery.",
-                    exc,
+                    "initial_policy_uri run '%s' differs from run '%s'; treating as warm-start.",
+                    run_from_uri,
+                    self.run,
                 )
-                parsed = None
-
-        if parsed is not None:
-            info = parsed.checkpoint_info
-            if info:
-                run_from_uri, _ = info
-                if self.run is None:
-                    self.run = run_from_uri
-                elif self.run != run_from_uri:
-                    logger.info(
-                        "initial_policy_uri run '%s' differs from run '%s'; treating as warm-start.",
-                        run_from_uri,
-                        self.run,
-                    )
-                    run_from_uri = None
-            else:
-                logger.info("Initial policy URI did not include checkpoint metadata; skipping trainer-state discovery.")
+                run_from_uri = None
 
         if run_from_uri and self.run == run_from_uri:
             checkpoint_dir, inferred_data_dir = self._infer_checkpoint_dir(parsed, run_from_uri)
@@ -322,9 +305,31 @@ class TrainTool(Tool):
             self._log_trainer_state_presence(candidate_dir)
             resume_checked = True
 
-        if not resume_checked and run_set_explicitly and self.run:
+        if not resume_checked and self.run:
             checkpoint_dir = self.system.data_dir / self.run / "checkpoints"
             self._log_trainer_state_presence(checkpoint_dir)
+
+    def _try_parse_policy_uri(self, policy_uri: str | None) -> ParsedScheme | None:
+        if not policy_uri:
+            return None
+        try:
+            return resolve_uri(policy_uri)
+        except Exception as exc:
+            logger.info(
+                "Initial policy URI is not a checkpoint URI (%s); skipping trainer-state discovery.",
+                exc,
+            )
+            return None
+
+    def _get_run_from_uri(self, parsed: ParsedScheme | None) -> str | None:
+        if parsed is None:
+            return None
+        info = parsed.checkpoint_info
+        if not info:
+            logger.info("Initial policy URI did not include checkpoint metadata; skipping trainer-state discovery.")
+            return None
+        run_from_uri, _ = info
+        return run_from_uri
 
     def _infer_checkpoint_dir(self, parsed: ParsedScheme | None, run_name: str) -> tuple[Path | None, Path | None]:
         if parsed is None or parsed.local_path is None:
@@ -332,9 +337,6 @@ class TrainTool(Tool):
 
         local_path = parsed.local_path
         checkpoint_dir = local_path if local_path.is_dir() else local_path.parent
-        if checkpoint_dir.name != "checkpoints":
-            checkpoint_dir = local_path.parent
-
         if checkpoint_dir.name != "checkpoints":
             return None, None
 
