@@ -6,11 +6,8 @@ import aioboto3
 import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import selectinload
-from sqlmodel import col, select
 
-from metta.app_backend.auth import UserOrToken
-from metta.app_backend.database import DbSession
+from metta.app_backend.auth import OptionalUserOrToken, UserOrToken
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
@@ -18,7 +15,6 @@ from metta.app_backend.metta_repo import (
     PolicyVersionWithName,
     PublicPolicyVersionRow,
 )
-from metta.app_backend.models.policies import Policy, PolicyVersion
 from metta.app_backend.route_logger import timed_http_handler
 
 OBSERVATORY_S3_BUCKET = "observatory-private"
@@ -399,19 +395,24 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
+        user: OptionalUserOrToken,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
         policy_version_ids: Optional[list[str]] = Query(default=None),
+        mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
+        if mine and not user:
+            raise HTTPException(status_code=401, detail="Authentication required for mine=true")
         pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
         entries, total_count = await stats_repo.get_policy_versions(
             name_exact=name_exact,
             name_fuzzy=name_fuzzy,
             version=version,
             policy_version_ids=pv_uuids,
+            user_id=user if mine else None,
             limit=limit,
             offset=offset,
         )
@@ -436,40 +437,6 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def get_my_policy_versions(user: UserOrToken) -> MyPolicyVersionsResponse:
         policy_versions = await stats_repo.get_user_policy_versions(user)
         return MyPolicyVersionsResponse(entries=policy_versions)
-
-    @router.get("/policies/my-versions/lookup")
-    @timed_http_handler
-    async def lookup_my_policy_version(
-        user: UserOrToken,
-        session: DbSession,
-        name: str = Query(..., description="Policy name"),
-        version: Optional[int] = Query(None, description="Version number (latest if omitted)"),
-    ) -> PublicPolicyVersionRow:
-        query = (
-            select(PolicyVersion)
-            .join(PolicyVersion.policy)
-            .where(Policy.user_id == user, Policy.name == name)
-            .options(selectinload(PolicyVersion.policy))
-        )
-        if version is not None:
-            query = query.where(PolicyVersion.version == version)
-        else:
-            query = query.order_by(col(PolicyVersion.version).desc()).limit(1)
-
-        result = (await session.execute(query)).scalar_one_or_none()
-        if result is None:
-            version_str = f" v{version}" if version else ""
-            raise HTTPException(status_code=404, detail=f"Policy '{name}'{version_str} not found")
-
-        return PublicPolicyVersionRow(
-            id=result.id,
-            policy_id=result.policy_id,
-            created_at=result.created_at,
-            policy_created_at=result.policy.created_at,
-            user_id=result.policy.user_id,
-            name=result.policy.name,
-            version=result.version,
-        )
 
     @router.post("/episodes/query", response_model=EpisodeQueryResponse)
     @timed_http_handler
