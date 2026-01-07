@@ -17,6 +17,8 @@ from cortex import (
     sLSTMCellConfig,
 )
 
+from metta.common.util.cuda import is_cuda_supported
+
 
 def _stack_with_column(d_hidden: int = 64, k: int = 3):
     experts = [
@@ -31,6 +33,11 @@ def _stack_with_column(d_hidden: int = 64, k: int = 3):
 
 
 def test_column_shapes_and_state():
+    # Devices with unsupported capability will fail
+    # on the initialization of the GPU Context
+    if not is_cuda_supported():
+        return
+
     torch.manual_seed(0)
     d_hidden = 32
     B, T = 2, 5
@@ -141,6 +148,11 @@ def test_auto_config_axonify_flags():
 
 
 def test_auto_block_forward_and_state():
+    # Devices with unsupported capability will fail
+    # on the initialization of the GPU Context
+    if not is_cuda_supported():
+        return
+
     d_hidden = 32
     block = build_column_auto_block(d_hidden=d_hidden, pattern="AXMSM^X^S^")
     B, T = 2, 5

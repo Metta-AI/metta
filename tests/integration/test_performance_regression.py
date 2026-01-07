@@ -14,6 +14,7 @@ import time
 import numpy as np
 import pytest
 
+from metta.common.util.cuda import is_cuda_supported
 from mettagrid import PufferMettaGridEnv
 from mettagrid.mettagrid_c import (
     dtype_actions,
@@ -183,7 +184,7 @@ class TestBufferSharingRegression:
         """
         torch = pytest.importorskip("torch", reason="PyTorch not available for GPU test")
 
-        if not torch.cuda.is_available():
+        if not is_cuda_supported():
             pytest.skip("CUDA not available for GPU compatibility test")
 
         # Basic GPU compatibility test

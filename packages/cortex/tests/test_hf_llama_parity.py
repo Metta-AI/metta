@@ -6,6 +6,8 @@ from cortex.stacks.hf import build_llama_stack_from_model
 from transformers import AutoModelForCausalLM, LlamaConfig, LlamaForCausalLM
 from transformers.cache_utils import DynamicCache
 
+from metta.common.util.cuda import is_cuda_supported
+
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
 pytestmark = (
     pytest.mark.slow
@@ -91,7 +93,7 @@ def test_llama_stack_streaming_chunk_parity(chunk: int) -> None:
 
 
 def test_smollm_llama_parity_and_streaming() -> None:
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         pytest.skip("CUDA required for SmolLM parity test (memory)")
 
     device = torch.device("cuda")

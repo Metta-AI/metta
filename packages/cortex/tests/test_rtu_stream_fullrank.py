@@ -16,6 +16,8 @@ import pytest
 import torch
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
 
+from metta.common.util.cuda import is_cuda_supported
+
 # Skip this module entirely by default (slow).
 # Set RUN_SLOW_CORTEX_TESTS=1 to enable; otherwise keep skipped.
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
@@ -250,7 +252,7 @@ def _run_chunks_cuda_full(x, params, activation: str, resets_bt=None, chunks=(5,
     return torch.cat(ys, dim=1)
 
 
-@pytest.mark.skipif(not _HAS_FULL_CUDA or not torch.cuda.is_available(), reason="CUDA required")
+@pytest.mark.skipif(not _HAS_FULL_CUDA or not is_cuda_supported(), reason="CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_cuda_fullrank_full_forward_and_grad_parity(with_resets: bool) -> None:
     torch.manual_seed(101)
@@ -304,7 +306,7 @@ def test_cuda_fullrank_full_forward_and_grad_parity(with_resets: bool) -> None:
         )
 
 
-@pytest.mark.skipif(not _HAS_FULL_CUDA or not torch.cuda.is_available(), reason="CUDA required")
+@pytest.mark.skipif(not _HAS_FULL_CUDA or not is_cuda_supported(), reason="CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_cuda_fullrank_chunked_forward_and_grad_parity(with_resets: bool) -> None:
     torch.manual_seed(202)
