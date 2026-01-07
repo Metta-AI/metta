@@ -27,7 +27,6 @@ class Experience:
         policy_experience_spec: Optional[Composite] = None,
     ):
         """Initialize experience buffer with segmented storage."""
-        self.experience_spec = experience_spec
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
         if duplicate_keys := duplicates(all_keys):
             raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")

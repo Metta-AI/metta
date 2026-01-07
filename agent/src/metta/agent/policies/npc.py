@@ -27,7 +27,6 @@ class SimpleNPCPolicy(Policy):
 
     def initialize_to_environment(self, policy_env_info: PolicyEnvInterface, device: torch.device) -> None:
         self._policy_env_info = policy_env_info
-        self._actions_by_id = self._policy_env_info.actions.actions()
         self._default_action_id = self._resolve_action_id(self._default_action_name)
         self._device = torch.device(device)
 

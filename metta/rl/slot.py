@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 import torch
@@ -16,27 +15,6 @@ from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
-
-
-class SlotType(str, Enum):
-    """Common slot types for multi-policy training."""
-
-    STUDENT = "student"
-    TEACHER = "teacher"
-    NPC = "npc"
-    OPPONENT = "opponent"
-    SELF_PLAY = "self_play"
-    BASELINE = "baseline"
-
-
-class LossProfile(str, Enum):
-    """Standard loss profile names."""
-
-    PPO_ONLY = "ppo_only"
-    DISTILLATION = "distillation"
-    SUPERVISED = "supervised"
-    NO_LOSS = "no_loss"
-    DEFAULT = "default"
 
 
 class LossProfileConfig(Config):
@@ -208,16 +186,7 @@ class SlotControllerPolicy(Policy):
             if idx >= len(slots):
                 raise ValueError(f"Slot '{name}' references index {idx} but only {len(slots)} slots exist")
 
-        # Validate agent_slot_map if provided
-        if agent_slot_map is not None:
-            if agent_slot_map.dim() != 1:
-                raise ValueError(f"agent_slot_map must be 1D tensor, got shape {agent_slot_map.shape}")
-
-            # Check that all slot IDs in map are valid
-            unique_ids = torch.unique(agent_slot_map).tolist()
-            for slot_id in unique_ids:
-                if slot_id not in slot_policies:
-                    raise ValueError(f"agent_slot_map references slot id {slot_id} which has no corresponding policy")
+        # agent_slot_map is created by trainer/sim config, so no extra validation here.
 
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return self._merged_spec
@@ -246,7 +215,6 @@ class SlotControllerPolicy(Policy):
             td.set("slot_id", slot_map.repeat(num_envs))
 
         slot_ids = td.get("slot_id")
-        assert isinstance(slot_ids, torch.Tensor), "slot_id must be a tensor"
 
         unique_ids: Iterable[int] = torch.unique(slot_ids).tolist()
         for b_id in unique_ids:

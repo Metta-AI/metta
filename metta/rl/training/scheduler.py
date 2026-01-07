@@ -266,8 +266,6 @@ class LossScheduler(TrainerComponent):
     def apply(self, *, phase: Literal["rollout", "train"]) -> None:
         epoch = self.context.epoch
         agent_step = self.context.agent_step
-        # One-time supervisor teardown after teacher phase to avoid extra forwards.
-        env_obj = getattr(self.context, "env", None)
         # 1) Apply run gates for the requested phase
         gates = getattr(self.context, "loss_run_gates", None)
         if gates is None:

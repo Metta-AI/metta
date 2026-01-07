@@ -188,23 +188,14 @@ class CoreTrainingLoop:
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
-    def _inject_slot_metadata(self, td: TensorDict, _training_env_id: slice | None = None) -> None:
+    def _inject_slot_metadata(self, td: TensorDict) -> None:
         ctx = self.context
         slot_ids = ctx.slot_id_per_agent
         if slot_ids is None:
             return
 
         num_agents = ctx.env.policy_env_info.num_agents
-        if slot_ids.numel() != num_agents:
-            raise RuntimeError(f"slot_id_per_agent expected {num_agents} entries, got {slot_ids.numel()}")
-
-        batch_elems = td.batch_size.numel()
-        if batch_elems % num_agents:
-            raise RuntimeError(
-                f"Batch elements ({batch_elems}) must be divisible by num_agents ({num_agents}) for slot metadata"
-            )
-
-        num_envs = batch_elems // num_agents
+        num_envs = td.batch_size.numel() // num_agents
         device = td.device
 
         def _expand(meta: torch.Tensor) -> torch.Tensor:
