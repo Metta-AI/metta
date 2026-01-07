@@ -14,6 +14,7 @@ from metta.rl.nodes.base import NodeBase, NodeConfig
 from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 
+# Keep: heavy modules, TrainerConfig manages circular dep (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
     from metta.rl.training import TrainingEnvironment

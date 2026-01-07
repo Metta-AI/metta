@@ -13,6 +13,7 @@ from metta.rl.nodes.registry import NodeSpec
 from metta.rl.nodes.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 

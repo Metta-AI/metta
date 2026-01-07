@@ -14,6 +14,7 @@ from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
+# Keep: heavy (curriculum, distributed_helper, stats_reporter)
 if TYPE_CHECKING:
     from metta.cogworks.curriculum import Curriculum
     from metta.rl.training.distributed_helper import DistributedHelper
