@@ -2355,6 +2355,7 @@ mcp-servers = [
 testing = [
     { name = "freezegun" },
     { name = "gcovr" },
+    { name = "grpcio-tools" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
@@ -2478,6 +2479,7 @@ mcp-servers = [{ name = "metta-pr-similarity-mcp", editable = "mcp_servers/pr_si
 testing = [
     { name = "freezegun", specifier = ">=1.5.5" },
     { name = "gcovr", specifier = ">=8.3" },
+    { name = "grpcio-tools", specifier = ">=1.76.0" },
     { name = "pyright", specifier = ">=1.1.401" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-benchmark", specifier = ">=5.1.0" },

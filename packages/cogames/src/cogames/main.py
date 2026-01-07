@@ -52,7 +52,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_spec
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -907,8 +907,8 @@ def _parse_init_kwarg(value: str) -> tuple[str, str]:
     return key.replace("-", "_"), val
 
 
-@app.command(name="submit", help="Submit a policy to CoGames competitions")
-def submit_cmd(
+@app.command(name="upload", help="Upload a policy to CoGames")
+def upload_cmd(
     ctx: typer.Context,
     policy: str = typer.Option(
         ...,
@@ -920,7 +920,7 @@ def submit_cmd(
         ...,
         "--name",
         "-n",
-        help="Policy name for the submission",
+        help="Policy name for the upload",
     ),
     init_kwarg: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -932,7 +932,7 @@ def submit_cmd(
         None,
         "--include-files",
         "-f",
-        help="Files or directories to include in submission (can be specified multiple times)",
+        help="Files or directories to include (can be specified multiple times)",
     ),
     login_server: str = typer.Option(
         DEFAULT_COGAMES_SERVER,
@@ -943,12 +943,12 @@ def submit_cmd(
         DEFAULT_SUBMIT_SERVER,
         "--server",
         "-s",
-        help="Submission server URL",
+        help="Server URL",
     ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
-        help="Run validation only without submitting",
+        help="Run validation only without uploading",
     ),
     skip_validation: bool = typer.Option(
         False,
@@ -961,13 +961,11 @@ def submit_cmd(
         help="Path to a Python setup script to run before loading the policy",
     ),
 ) -> None:
-    """Submit a policy to CoGames competitions.
+    """Upload a policy to CoGames.
 
-    This command validates your policy, creates a submission package,
-    and uploads it to the CoGames server.
-
-    The policy will be tested in an isolated environment before submission
-    (unless --skip-validation is used).
+    This command validates your policy, creates an upload package,
+    and uploads it to the CoGames server. You can then submit it
+    to tournaments using 'cogames submit'.
     """
     init_kwargs: dict[str, str] = {}
     if init_kwarg:
@@ -975,7 +973,7 @@ def submit_cmd(
             key, val = _parse_init_kwarg(kv)
             init_kwargs[key] = val
 
-    submit_command(
+    result = upload_policy(
         ctx=ctx,
         policy=policy,
         name=name,
@@ -987,6 +985,12 @@ def submit_cmd(
         init_kwargs=init_kwargs if init_kwargs else None,
         setup_script=setup_script,
     )
+
+    if result:
+        console.print(f"\n[bold green]Uploaded {result.name} v{result.version}[/bold green]")
+        console.print(f"[dim]Policy version ID: {result.policy_version_id}[/dim]")
+        console.print("\n[yellow]To submit to a tournament:[/yellow]")
+        console.print(f"  cogames submit {result.name} --season <season-name>")
 
 
 @app.command(name="docs", help="Print documentation")
