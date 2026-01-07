@@ -167,7 +167,7 @@ def _show_all_uploads(
     for entry in entries:
         try:
             memberships = client.get_policy_memberships(entry.id)
-            seasons = {m["season_name"] for m in memberships if m.get("action") == "entered"}
+            seasons = {m["season_name"] for m in memberships if m.get("action") == "add"}
             memberships_by_pv[entry.id] = seasons
         except httpx.HTTPError:
             memberships_by_pv[entry.id] = set()
