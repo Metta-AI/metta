@@ -198,8 +198,7 @@ def validate_policy_in_isolation(
             return res
 
         console.print("[yellow] Validating policy...[/yellow]")
-        result = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
-        console.print(f"[dim]Cogames version: {result.stdout.strip()}[/dim]")
+        _run_from_tmp_dir(["uv", "run", "cogames", "version"])
 
         validate_cmd = [
             "uv",
@@ -282,7 +281,7 @@ def upload_submission(
     token: str,
     submit_server_url: str,
     console: Console,
-) -> uuid.UUID | None:
+) -> UploadResult | None:
     """Upload submission to CoGames backend using a presigned S3 URL."""
     console.print("[yellow]Uploading submission...[/yellow]")
 
@@ -313,8 +312,6 @@ def upload_submission(
     except Exception as e:
         console.print(f"[red]✗ Error requesting presigned URL: {e}[/red]")
         return None
-
-    console.print(f"[dim]  Upload ID: {upload_id}[/dim]")
 
     try:
         with open(zip_path, "rb") as f:
@@ -349,17 +346,21 @@ def upload_submission(
         if complete_response.status_code == 200:
             result = complete_response.json()
             console.print("[green]✓ Submitted successfully![/green]")
-            submission_id = result.get("id") or result.get("submission_id")
-            if submission_id:
+            submission_id = result.get("id")
+            name = result.get("name")
+            version = result.get("version")
+            if submission_id is not None and name is not None and version is not None:
                 try:
-                    policy_version_id = uuid.UUID(str(submission_id))
-                    console.print(f"[dim]Submission ID: {policy_version_id}[/dim]")
-                    return policy_version_id
+                    return UploadResult(
+                        policy_version_id=uuid.UUID(str(submission_id)),
+                        name=name,
+                        version=version,
+                    )
                 except ValueError:
                     console.print(f"[red]✗ Invalid submission ID returned: {submission_id}[/red]")
                     return None
 
-            console.print("[red]✗ Submission ID missing from response[/red]")
+            console.print("[red]✗ Missing fields in response[/red]")
             return None
 
         console.print(f"[red]✗ Submission finalize failed with status {complete_response.status_code}[/red]")
@@ -371,27 +372,6 @@ def upload_submission(
         return None
     except Exception as e:
         console.print(f"[red]✗ Submission finalize error: {e}[/red]")
-        return None
-
-
-def fetch_policy_version_info(
-    policy_version_id: uuid.UUID,
-    token: str,
-    server_url: str,
-    console: Console,
-) -> tuple[str, int] | None:
-    """Fetch policy name and version from the backend."""
-    try:
-        response = httpx.get(
-            f"{server_url}/stats/policy-versions/{policy_version_id}",
-            headers={"X-Auth-Token": token},
-            timeout=30.0,
-        )
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("name", "unknown"), data.get("version", 0)
-        return None
-    except Exception:
         return None
 
 
@@ -495,22 +475,11 @@ def upload_policy(
         return None
 
     try:
-        policy_version_id = upload_submission(zip_path, name, token, server, console)
-        if not policy_version_id:
+        result = upload_submission(zip_path, name, token, server, console)
+        if not result:
             console.print("\n[red]Upload failed.[/red]")
             return None
-
-        version_info = fetch_policy_version_info(policy_version_id, token, server, console)
-        if version_info:
-            policy_name, version = version_info
-        else:
-            policy_name, version = name, 0
-
-        return UploadResult(
-            policy_version_id=policy_version_id,
-            name=policy_name,
-            version=version,
-        )
+        return result
     finally:
         if zip_path.exists():
             zip_path.unlink()
