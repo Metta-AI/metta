@@ -397,4 +397,34 @@ def create_tournament_router() -> APIRouter:
             for c in changes
         ]
 
+    @router.get("/my-memberships")
+    @timed_http_handler
+    async def get_my_memberships(
+        user: UserOrToken, session: AsyncSession = Depends(get_session)
+    ) -> dict[str, list[str]]:
+        """Get all season memberships for the authenticated user's policy versions.
+
+        Returns a mapping of policy_version_id -> list of season names.
+        """
+        rows = (
+            await session.execute(
+                select(PoolPlayer.policy_version_id, Season.name)
+                .join(PoolPlayer.pool)
+                .join(Pool.season)
+                .join(PoolPlayer.policy_version)
+                .join(PolicyVersion.policy)
+                .where(Policy.user_id == user)
+                .distinct()
+            )
+        ).all()
+
+        result: dict[str, list[str]] = {}
+        for pv_id, season_name in rows:
+            pv_id_str = str(pv_id)
+            if pv_id_str not in result:
+                result[pv_id_str] = []
+            result[pv_id_str].append(season_name)
+
+        return result
+
     return router
