@@ -281,55 +281,30 @@ class TrainTool(Tool):
         return trainer
 
     def _apply_resume_hints(self) -> None:
-        resume_checked = False
-        parsed = self._try_parse_policy_uri(self.initial_policy_uri)
-        run_from_uri = self._get_run_from_uri(parsed)
+        parsed: ParsedScheme | None = None
+        if self.initial_policy_uri:
+            try:
+                parsed = resolve_uri(self.initial_policy_uri)
+            except Exception:
+                parsed = None
 
+        run_from_uri = parsed.checkpoint_info[0] if parsed and parsed.checkpoint_info else None
         if run_from_uri:
             if self.run is None:
                 self.run = run_from_uri
             elif self.run != run_from_uri:
-                logger.info(
-                    "initial_policy_uri run '%s' differs from run '%s'; treating as warm-start.",
-                    run_from_uri,
-                    self.run,
-                )
                 run_from_uri = None
 
-        if run_from_uri and self.run == run_from_uri:
+        if run_from_uri:
             checkpoint_dir, inferred_data_dir = self._infer_checkpoint_dir(parsed, run_from_uri)
             if inferred_data_dir is not None and inferred_data_dir != self.system.data_dir:
-                logger.info("Using data_dir inferred from initial_policy_uri: %s", inferred_data_dir)
                 self.system.data_dir = inferred_data_dir
             candidate_dir = checkpoint_dir or (self.system.data_dir / run_from_uri / "checkpoints")
             self._log_trainer_state_presence(candidate_dir)
-            resume_checked = True
+            return
 
-        if not resume_checked and self.run:
-            checkpoint_dir = self.system.data_dir / self.run / "checkpoints"
-            self._log_trainer_state_presence(checkpoint_dir)
-
-    def _try_parse_policy_uri(self, policy_uri: str | None) -> ParsedScheme | None:
-        if not policy_uri:
-            return None
-        try:
-            return resolve_uri(policy_uri)
-        except Exception as exc:
-            logger.info(
-                "Initial policy URI is not a checkpoint URI (%s); skipping trainer-state discovery.",
-                exc,
-            )
-            return None
-
-    def _get_run_from_uri(self, parsed: ParsedScheme | None) -> str | None:
-        if parsed is None:
-            return None
-        info = parsed.checkpoint_info
-        if not info:
-            logger.info("Initial policy URI did not include checkpoint metadata; skipping trainer-state discovery.")
-            return None
-        run_from_uri, _ = info
-        return run_from_uri
+        if self.run:
+            self._log_trainer_state_presence(self.system.data_dir / self.run / "checkpoints")
 
     def _infer_checkpoint_dir(self, parsed: ParsedScheme | None, run_name: str) -> tuple[Path | None, Path | None]:
         if parsed is None or parsed.local_path is None:
