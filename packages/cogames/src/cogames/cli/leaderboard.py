@@ -232,9 +232,6 @@ def _show_season_submissions(
     table = Table(title=f"Submissions in '{season}'", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
     table.add_column("Version", justify="right")
-    table.add_column("Pool", style="white")
-    table.add_column("Status", style="dim")
-    table.add_column("Matches", justify="right")
     table.add_column("Entered", style="green")
 
     for entry in entries:
@@ -245,16 +242,18 @@ def _show_season_submissions(
         table.add_row(
             policy.get("name", "?"),
             str(policy.get("version", "?")),
-            "",
-            "",
-            "",
             entered_at,
         )
-        for p in pools:
+        for i, p in enumerate(pools):
             pool_name = p.get("pool_name", "?")
-            status = "active" if p.get("active", True) else "retired"
+            is_active = p.get("active", True)
+            status = "active" if is_active else "retired"
             matches = p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0)
-            table.add_row("", "", pool_name, status, str(matches), "")
+            is_last = i == len(pools) - 1
+            prefix = "  └ " if is_last else "  ├ "
+            status_style = "green" if is_active else "dim"
+            pool_info = f"{prefix}{pool_name} ([{status_style}]{status}[/{status_style}]): {matches} matches"
+            table.add_row(pool_info, "", "")
 
     console.print(table)
 
