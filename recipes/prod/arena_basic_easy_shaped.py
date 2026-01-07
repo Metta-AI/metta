@@ -16,11 +16,14 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
-from metta.rl.policy_assets import PolicyAssetConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
+from metta.rl.training.trajectory_isolation import (
+    TrajectoryIsolationConfig,
+    TrajectoryIsolationSliceConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -116,14 +119,26 @@ def train(
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    policy_assets = {
-        "primary": PolicyAssetConfig(
-            architecture=policy_architecture,
-            uri=None,
-            checkpoint=True,
-            trainable=True,
-        )
-    }
+    tt = TrainTool(
+        trainer=trainer_cfg,
+        training_env=training_env_cfg,
+        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
+        policy_architecture=policy_architecture,
+        losses=trainer_cfg.losses,
+        torch_profiler=TorchProfilerConfig(),
+    )
+
+    trajectory_isolation = TrajectoryIsolationConfig(
+        slices=[
+            TrajectoryIsolationSliceConfig(
+                name="all",
+                env_ratio=1.0,
+                policies=["primary"],
+                losses=[],
+            )
+        ]
+    )
+    trajectory_isolation.validate_references(policy_assets=tt.policy_assets, losses=trainer_cfg.losses)
 
     # Enable optional teacher phases (e.g., sliced_cloner) when provided.
     scheduler_run_gates: list[LossRunGate] = []
@@ -134,19 +149,10 @@ def train(
         scheduler_rules=scheduler_rules,
         scheduler_run_gates=scheduler_run_gates,
         teacher_cfg=teacher,
-        policy_assets=policy_assets,
+        policy_assets=tt.policy_assets,
         default_steps=teacher.steps or 1_000_000_000,
     )
 
-    tt = TrainTool(
-        trainer=trainer_cfg,
-        training_env=training_env_cfg,
-        evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
-        policy_architecture=policy_architecture,
-        policy_assets=policy_assets,
-        losses=trainer_cfg.losses,
-        torch_profiler=TorchProfilerConfig(),
-    )
     if scheduler_run_gates or scheduler_rules:
         tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
     return tt

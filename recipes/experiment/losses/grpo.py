@@ -3,7 +3,8 @@
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
+from metta.rl.policy_assets import OptimizerConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 
@@ -53,16 +54,17 @@ def train(
 
     trainer_config = TrainerConfig(
         losses=LossesConfig(grpo=grpo_config),
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
         policy_architecture=ViTGRPOConfig(),
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
@@ -102,16 +104,17 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
     trainer_config = TrainerConfig(
         losses=loss_config,
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
         policy_architecture=ViTGRPOConfig(),
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt
 
 
 def basic_easy_shaped() -> TrainTool:
@@ -151,13 +154,14 @@ def basic_easy_shaped() -> TrainTool:
 
     trainer_config = TrainerConfig(
         losses=loss_config,
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
         policy_architecture=ViTGRPOConfig(),
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt

@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional
 import torch
 
 from metta.rl.system_config import SystemConfig
-from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import auto_policy_storage_decision
 from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.util.uri_resolvers.schemes import checkpoint_filename, resolve_uri
@@ -124,7 +123,7 @@ class CheckpointManager:
             return None
         state = torch.load(trainer_file, map_location="cpu", weights_only=False)
         result = {
-            "optimizer_state": state.get("optimizer", state.get("optimizer_state")),
+            "optimizer_state": state.get("optimizers", state.get("optimizer", state.get("optimizer_state"))),
             "epoch": state.get("epoch", 0),
             "agent_step": state.get("agent_step", 0),
         }
@@ -140,7 +139,7 @@ class CheckpointManager:
 
     def save_trainer_state(
         self,
-        optimizer,
+        optimizer_state: dict[str, Any] | None,
         epoch: int,
         agent_step: int,
         avg_reward: torch.Tensor | float | None = None,
@@ -151,11 +150,7 @@ class CheckpointManager:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
 
-        is_schedulefree = is_schedulefree_optimizer(optimizer)
-        if is_schedulefree:
-            optimizer.eval()
-
-        state: dict[str, Any] = {"optimizer": optimizer.state_dict(), "epoch": epoch, "agent_step": agent_step}
+        state: dict[str, Any] = {"optimizers": optimizer_state, "epoch": epoch, "agent_step": agent_step}
         if avg_reward is not None:
             state["avg_reward"] = torch.as_tensor(avg_reward).detach().to(device="cpu")
         if stopwatch_state:
@@ -181,5 +176,4 @@ class CheckpointManager:
                     tmp_path.unlink()
                 raise
 
-        if is_schedulefree:
-            optimizer.train()
+        return

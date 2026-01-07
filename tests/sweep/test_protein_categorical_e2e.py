@@ -21,7 +21,7 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
         goal="maximize",
         parameters={
             "model.color": CategoricalParameterConfig(choices=["red", "blue", "green"]),
-            "trainer.optimizer.learning_rate": ParameterConfig(
+            "policy_assets.primary.optimizer.learning_rate": ParameterConfig(
                 min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
             ),
         },
@@ -39,7 +39,7 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
     s0 = suggestions[0]
     # Real Protein returns flat keys (e.g., "model.color")
     assert s0["model.color"] == "blue"
-    lr0: float = s0["trainer.optimizer.learning_rate"]
+    lr0: float = s0["policy_assets.primary.optimizer.learning_rate"]
     assert 1e-5 <= lr0 <= 1e-3
 
     # 2) Provide an observation that includes a categorical value and request multiple suggestions.
@@ -47,7 +47,7 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
     observations: list[dict[str, Any]] = [
         {
             # Use flat keys to align with Protein's expectations
-            "suggestion": {"model.color": "green", "trainer.optimizer.learning_rate": 2e-4},
+            "suggestion": {"model.color": "green", "policy_assets.primary.optimizer.learning_rate": 2e-4},
             "score": 0.5,
             "cost": 10.0,
         }
@@ -59,5 +59,5 @@ def test_e2e_categorical_single_and_multi_suggestions() -> None:
     choices = {"red", "blue", "green"}
     for s in multi:
         assert s["model.color"] in choices
-        lr: float = s["trainer.optimizer.learning_rate"]
+        lr: float = s["policy_assets.primary.optimizer.learning_rate"]
         assert 1e-5 <= lr <= 1e-3

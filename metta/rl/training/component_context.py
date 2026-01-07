@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import torch
-from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
 from metta.rl.training import Experience, TrainingEnvironment
@@ -46,7 +45,8 @@ class TrainerState:
     epoch: int = 0
     agent_step: int = 0
     avg_reward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0, dtype=torch.float32))
-    latest_policy_uri: Optional[str] = None
+    # Multi-policy checkpoint surface: policy_name -> latest checkpoint URI.
+    latest_policy_uris: Dict[str, Optional[str]] = field(default_factory=dict)
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     training_env_window: Optional[TrainingEnvWindow] = None
@@ -67,7 +67,6 @@ class ComponentContext:
         policy: Policy,
         env: TrainingEnvironment,
         experience: Experience,
-        optimizer: Optimizer,
         config: Any,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
@@ -80,7 +79,6 @@ class ComponentContext:
         self.policy = policy
         self.env = env
         self.experience = experience
-        self.optimizer = optimizer
         self.config = config
         self.stopwatch = stopwatch
         self.distributed = distributed
@@ -92,7 +90,6 @@ class ComponentContext:
         self.stats_reporter: StatsReporter | None = None
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None
-        self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
         self.losses: Dict[str, Any] = {}
 
         # Scheduler-related state
@@ -144,21 +141,19 @@ class ComponentContext:
     # Latest policy helpers
     # ------------------------------------------------------------------
     @property
-    def latest_policy_uri_value(self) -> Optional[str]:
-        return self.state.latest_policy_uri
-
-    @latest_policy_uri_value.setter
-    def latest_policy_uri_value(self, value: Optional[str]) -> None:
-        self.state.latest_policy_uri = value
+    def latest_policy_uris(self) -> Dict[str, Optional[str]]:
+        return self.state.latest_policy_uris
 
     def latest_policy_uri(self) -> Optional[str]:
-        if self.state.latest_policy_uri:
-            return self.state.latest_policy_uri
-        if self.latest_policy_uri_fn is None:
-            return None
-        uri = self.latest_policy_uri_fn()
-        self.state.latest_policy_uri = uri
-        return uri
+        """Return a policy URI only when unambiguous.
+
+        This exists for backwards compatibility with single-policy evaluators.
+        If multiple policies have checkpoints, callers should select explicitly.
+        """
+        uris = {k: v for k, v in self.state.latest_policy_uris.items() if v}
+        if len(uris) == 1:
+            return next(iter(uris.values()))
+        return None
 
     @property
     def latest_saved_policy_epoch(self) -> int:

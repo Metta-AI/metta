@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 import torch.nn as nn
@@ -34,8 +34,8 @@ class ViTReconstructionLossConfig(LossConfig):
 
     def create(
         self,
-        policy_assets: "PolicyAssetRegistry",
-        trainer_cfg: "TrainerConfig",
+        policy_assets: Any,
+        trainer_cfg: Any,
         env: "TrainingEnvironment",
         device: torch.device,
         instance_name: str,
@@ -219,8 +219,9 @@ class ViTReconstructionLoss(Loss):
         ).to(self.device)
 
         # Register new parameters with the optimizer since they were created after optimizer init
-        if context.optimizer is not None:
-            context.optimizer.add_param_group({"params": self.decoder.parameters()})
+        optimizer = getattr(getattr(context, "policy", None), "optimizer", None)
+        if optimizer is not None:
+            optimizer.add_param_group({"params": self.decoder.parameters()})
 
         # Handle distributed training: wrap decoder in DDP if needed
         # The policy is already DDP wrapped by Trainer, but this new module is not.

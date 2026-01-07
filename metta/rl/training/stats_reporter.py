@@ -208,7 +208,7 @@ class StatsReporter(TrainerComponent):
         policy: Any,
         timer: Timer | None,
         trainer_cfg: Any,
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer | None,
     ) -> None:
         timing_context = timer("_process_stats") if callable(timer) else nullcontext()
 
@@ -280,7 +280,7 @@ class StatsReporter(TrainerComponent):
             policy=ctx.policy,
             timer=ctx.stopwatch,
             trainer_cfg=ctx.config,
-            optimizer=ctx.optimizer,
+            optimizer=getattr(ctx.policy, "optimizer", None),
         )
 
     def on_training_complete(self) -> None:
@@ -316,7 +316,7 @@ class StatsReporter(TrainerComponent):
         agent_step: int,
         epoch: int,
         timer: Any,
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer | None,
     ) -> dict[str, float]:
         """Convert collected stats into a flat wandb payload."""
 
@@ -494,12 +494,12 @@ class StatsReporter(TrainerComponent):
         self,
         *,
         experience: Any,
-        optimizer: torch.optim.Optimizer,
+        optimizer: torch.optim.Optimizer | None,
         timing_info: dict[str, Any],
     ) -> dict[str, Any]:
-        learning_rate = getattr(self.context.config.optimizer, "learning_rate", 0)
-        if optimizer and optimizer.param_groups:
-            learning_rate = optimizer.param_groups[0].get("lr", learning_rate)
+        learning_rate = 0.0
+        if optimizer is not None and optimizer.param_groups:
+            learning_rate = float(optimizer.param_groups[0].get("lr", learning_rate))
 
         parameters: dict[str, Any] = {
             "learning_rate": learning_rate,
@@ -508,7 +508,7 @@ class StatsReporter(TrainerComponent):
         }
 
         # Add ScheduleFree optimizer information
-        if optimizer and optimizer.param_groups:
+        if optimizer is not None and optimizer.param_groups:
             param_group = optimizer.param_groups[0]
             is_schedulefree = "train_mode" in param_group
 
@@ -532,13 +532,7 @@ class StatsReporter(TrainerComponent):
         if "learning_rate" in parameters:
             hyperparameters["learning_rate"] = parameters["learning_rate"]
 
-        optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
-        if optimizer_cfg:
-            hyperparameters["optimizer_type"] = optimizer_cfg.type
-            if "schedulefree" in optimizer_cfg.type:
-                warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
-                if warmup_steps is not None:
-                    hyperparameters["schedulefree_warmup_steps"] = warmup_steps
+        # Optimizer hyperparameters are per-policy via PolicyAssetConfig now.
 
         losses = getattr(trainer_cfg, "losses", None)
         loss_configs = getattr(losses, "loss_configs", {}) if losses else {}

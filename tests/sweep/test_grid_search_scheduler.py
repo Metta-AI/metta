@@ -143,8 +143,8 @@ def test_grid_scheduler_basic_flow():
 def test_grid_scheduler_ignores_non_categorical_leaves():
     # Non-categorical leaves are ignored; only categorical dimensions are used.
     params = {
-        "trainer.optimizer.device": ["cpu", "cuda"],
-        "trainer.optimizer.learning_rate": 1e-3,  # ignored
+        "policy_assets.primary.optimizer.device": ["cpu", "cuda"],
+        "policy_assets.primary.optimizer.learning_rate": 1e-3,  # ignored
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_bad", parameters=params)
     scheduler = GridSearchScheduler(cfg)
@@ -152,13 +152,13 @@ def test_grid_scheduler_ignores_non_categorical_leaves():
     jobs = scheduler.schedule([], available_training_slots=1)
     assert len(jobs) == 1
     suggestion = jobs[0].metadata.get("sweep/suggestion", {})
-    assert suggestion["trainer.optimizer.device"] in {"cpu", "cuda"}
-    assert "trainer.optimizer.learning_rate" not in suggestion
+    assert suggestion["policy_assets.primary.optimizer.device"] in {"cpu", "cuda"}
+    assert "policy_assets.primary.optimizer.learning_rate" not in suggestion
 
 
 def test_grid_scheduler_accepts_list_and_nested_config():
     params = {
-        "trainer.optimizer.device": ["cpu", "cuda"],
+        "policy_assets.primary.optimizer.device": ["cpu", "cuda"],
         "model.color": CategoricalParameterConfig(choices=["red", "blue"]),
     }
     cfg = GridSearchSchedulerConfig(experiment_id="grid_ok", parameters=params)
@@ -168,7 +168,7 @@ def test_grid_scheduler_accepts_list_and_nested_config():
     jobs = scheduler.schedule([], available_training_slots=1)
     assert len(jobs) == 1
     s = jobs[0].metadata.get("sweep/suggestion", {})
-    assert s["trainer.optimizer.device"] in {"cpu", "cuda"}
+    assert s["policy_assets.primary.optimizer.device"] in {"cpu", "cuda"}
     assert s["model.color"] in {"red", "blue"}
 
 

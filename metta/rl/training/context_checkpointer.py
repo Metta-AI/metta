@@ -7,6 +7,7 @@ import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
+from metta.rl.training.optimizer import is_schedulefree_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -82,24 +83,31 @@ class ContextCheckpointer(TrainerComponent):
         optimizer_state = payload.get("optimizer_state")
         context.state.optimizer_state = optimizer_state
         if optimizer_state:
-            # Defensive: skip restore if saved param groups lack keys the current optimizer expects.
-            cg, sg = context.optimizer.param_groups, optimizer_state.get("param_groups", [])
-            if cg:
-                req = set(cg[0])
-                valid = bool(sg) and not any(req - set(g) for g in sg)
-                if not valid:
-                    logger.warning("Checkpoint optimizer state missing param_group keys %s; skipping restore.", req)
-                    optimizer_state = None
-                    context.state.optimizer_state = None
+            # Multi-policy: optimizer_state is expected to be {policy_name: state_dict}.
+            policy_assets = getattr(context, "policy_assets", None)
+            policies = getattr(policy_assets, "policies", {}) if policy_assets is not None else {}
 
-            try:
-                if optimizer_state:
-                    context.optimizer.load_state_dict(optimizer_state)
-            except (ValueError, KeyError) as exc:  # pragma: no cover - mismatch rare but we log it
-                logger.warning("Failed to load optimizer state from checkpoint: %s", exc)
-            finally:
-                # Drop reference to the restored state to avoid retaining GPU buffers
-                context.state.optimizer_state = None
+            if isinstance(optimizer_state, dict) and "param_groups" in optimizer_state:
+                # Backwards compatibility: legacy single-optimizer checkpoint.
+                optimizer = getattr(getattr(context, "policy", None), "optimizer", None)
+                if optimizer is not None:
+                    try:
+                        optimizer.load_state_dict(optimizer_state)
+                    except (ValueError, KeyError) as exc:  # pragma: no cover
+                        logger.warning("Failed to load legacy optimizer state: %s", exc)
+            elif isinstance(optimizer_state, dict):
+                for policy_name, opt_state in optimizer_state.items():
+                    pol = policies.get(policy_name) if isinstance(policies, dict) else None
+                    optimizer = getattr(pol, "optimizer", None) if pol is not None else None
+                    if optimizer is None or not opt_state:
+                        continue
+                    try:
+                        optimizer.load_state_dict(opt_state)
+                    except (ValueError, KeyError) as exc:  # pragma: no cover
+                        logger.warning("Failed to load optimizer state for policy[%s]: %s", policy_name, exc)
+
+            # Drop reference to the restored state to avoid retaining GPU buffers
+            context.state.optimizer_state = None
 
         stopwatch_state = payload.get("stopwatch_state")
         context.state.stopwatch_state = stopwatch_state
@@ -173,7 +181,22 @@ class ContextCheckpointer(TrainerComponent):
             logger.debug("Unable to capture stopwatch state: %s", exc)
             context.state.stopwatch_state = None
 
-        context.state.optimizer_state = context.optimizer.state_dict()
+        # Save optimizer state per trainable policy (if present).
+        policy_assets = getattr(context, "policy_assets", None)
+        policies = getattr(policy_assets, "policies", {}) if policy_assets is not None else {}
+        optimizer_state: dict[str, Any] = {}
+        if isinstance(policies, dict):
+            for policy_name, pol in policies.items():
+                optimizer = getattr(pol, "optimizer", None)
+                if optimizer is None:
+                    continue
+                is_schedulefree = is_schedulefree_optimizer(optimizer)
+                if is_schedulefree:
+                    optimizer.eval()
+                optimizer_state[policy_name] = optimizer.state_dict()
+                if is_schedulefree:
+                    optimizer.train()
+        context.state.optimizer_state = optimizer_state
         losses = getattr(context, "losses", None)
         if losses:
             context.state.loss_states = {name: loss.state_dict() for name, loss in losses.items()}
@@ -191,7 +214,7 @@ class ContextCheckpointer(TrainerComponent):
             context.state.curriculum_state = None
 
         self._checkpoint_manager.save_trainer_state(
-            context.optimizer,
+            context.state.optimizer_state,
             current_epoch,
             agent_step,
             avg_reward=context.state.avg_reward,

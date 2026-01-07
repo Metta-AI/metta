@@ -33,7 +33,6 @@ class CoreTrainingLoop:
         policy: Policy,
         experience: Experience,
         losses: dict[str, Loss],
-        optimizer: torch.optim.Optimizer,
         device: torch.device,
         context: ComponentContext,
     ):
@@ -49,7 +48,6 @@ class CoreTrainingLoop:
         self.policy = policy
         self.experience = experience
         self.losses = losses
-        self.optimizer = optimizer
         self.device = device
         self.accumulate_minibatches = experience.accumulate_minibatches
         self.context = context
@@ -267,8 +265,14 @@ class CoreTrainingLoop:
 
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
+                optimizer = getattr(self.policy, "optimizer", None)
+                if optimizer is None:
+                    raise RuntimeError(
+                        "CoreTrainingLoop.training_phase requires an optimizer attached to the active policy "
+                        "(policy.optimizer is None)."
+                    )
                 if mb_idx % self.accumulate_minibatches == 0:
-                    self.optimizer.zero_grad()
+                    optimizer.zero_grad()
 
                 total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
                 stop_update_epoch_mb = False
@@ -318,7 +322,7 @@ class CoreTrainingLoop:
                             break
 
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), actual_max_grad_norm)
-                    self.optimizer.step()
+                    optimizer.step()
 
                     if self.device.type == "cuda":
                         torch.cuda.synchronize()

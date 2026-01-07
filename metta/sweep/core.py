@@ -61,7 +61,7 @@ class SweepParameters:
 
     # Learning rate
     LEARNING_RATE = {
-        "trainer.optimizer.learning_rate": ParameterConfig(
+        "policy_assets.primary.optimizer.learning_rate": ParameterConfig(
             min=1e-5,
             max=1e-2,
             distribution="log_normal",
@@ -115,7 +115,7 @@ class SweepParameters:
 
     # Optimizer parameters
     ADAM_EPS = {
-        "trainer.optimizer.eps": ParameterConfig(
+        "policy_assets.primary.optimizer.eps": ParameterConfig(
             min=1e-8,
             max=1e-4,
             distribution="log_normal",

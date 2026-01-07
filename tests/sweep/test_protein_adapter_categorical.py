@@ -32,7 +32,7 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
         goal="maximize",
         parameters={
             "model.color": CategoricalParameterConfig(choices=["red", "blue", "butt"]),
-            "trainer.optimizer.learning_rate": ParameterConfig(
+            "policy_assets.primary.optimizer.learning_rate": ParameterConfig(
                 min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
             ),
         },

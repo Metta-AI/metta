@@ -2,7 +2,9 @@
 
 from typing import Optional, Sequence
 
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.rl.policy_assets import OptimizerConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -42,15 +44,17 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
+        policy_architecture=ViTDefaultConfig(),
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt
 
 
 def train_shaped(rewards: bool = True) -> TrainTool:
@@ -76,16 +80,18 @@ def train_shaped(rewards: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
     # Return a new TrainTool with the shaped environment but ScheduleFree optimizer
-    return TrainTool(
+    tt = TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
+        policy_architecture=base_tool.policy_architecture,
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
@@ -154,7 +160,7 @@ def sweep(sweep_name: str) -> SweepTool:
         SP.LEARNING_RATE,
         # Weight decay - important for AdamW variant
         SP.param(
-            "trainer.optimizer.weight_decay",
+            "policy_assets.primary.optimizer.weight_decay",
             D.LOG_NORMAL,
             min=1e-4,
             max=1e-1,
@@ -162,7 +168,7 @@ def sweep(sweep_name: str) -> SweepTool:
         ),
         # Warmup steps - ScheduleFree specific
         SP.param(
-            "trainer.optimizer.warmup_steps",
+            "policy_assets.primary.optimizer.warmup_steps",
             D.INT_UNIFORM,
             min=500,
             max=5000,

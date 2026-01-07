@@ -359,7 +359,10 @@ class TestCheckpointManagerIntegration:
             optimizer = torch.optim.Adam([torch.tensor(1.0, requires_grad=True)])
 
             checkpoint_manager.save_trainer_state(
-                optimizer=optimizer, epoch=5, agent_step=1000, curriculum_state=curriculum_state
+                {"primary": optimizer.state_dict()},
+                epoch=5,
+                agent_step=1000,
+                curriculum_state=curriculum_state,
             )
 
             # Load trainer state
@@ -387,7 +390,7 @@ class TestCheckpointManagerIntegration:
 
             optimizer = torch.optim.Adam([torch.tensor(1.0, requires_grad=True)])
 
-            checkpoint_manager.save_trainer_state(optimizer=optimizer, epoch=3, agent_step=500)
+            checkpoint_manager.save_trainer_state({"primary": optimizer.state_dict()}, epoch=3, agent_step=500)
 
             # Load trainer state
             loaded_state = checkpoint_manager.load_trainer_state()

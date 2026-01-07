@@ -1,6 +1,8 @@
 """Arena recipe with regular Adam optimizer for comparison testing."""
 
-from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
+from metta.agent.policies.vit import ViTDefaultConfig
+from metta.rl.policy_assets import OptimizerConfig
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from recipes.experiment.arena import (
@@ -32,15 +34,17 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
+        policy_architecture=ViTDefaultConfig(),
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt
 
 
 def train_shaped(rewards: bool = True) -> TrainTool:
@@ -65,13 +69,15 @@ def train_shaped(rewards: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
 
     # Return a new TrainTool with the shaped environment but regular Adam optimizer
-    return TrainTool(
+    tt = TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
+        policy_architecture=base_tool.policy_architecture,
     )
+    tt.policy_assets["primary"].optimizer = optimizer_config
+    return tt

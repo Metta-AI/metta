@@ -1,7 +1,7 @@
 from metta.agent.policies.gtrxl import GTrXLConfig
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import OptimizerConfig
+from metta.rl.policy_assets import OptimizerConfig
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -36,8 +36,9 @@ def train(
 
     if isinstance(policy_architecture, TransformerPolicyConfig):
         hint = policy_architecture.learning_rate_hint
-        optimizer = tool.trainer.optimizer
-        if hint is not None and optimizer.learning_rate == DEFAULT_LR:
+        asset = (tool.policy_assets or {}).get("primary")
+        optimizer = getattr(asset, "optimizer", None) if asset is not None else None
+        if hint is not None and optimizer is not None and optimizer.learning_rate == DEFAULT_LR:
             optimizer.learning_rate = hint
 
     return tool

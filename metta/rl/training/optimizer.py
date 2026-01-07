@@ -5,7 +5,7 @@ import torch
 from heavyball import ForeachMuon
 
 from metta.agent.policy import Policy
-from metta.rl.trainer_config import OptimizerConfig
+from metta.rl.policy_assets import OptimizerConfig
 
 logger = logging.getLogger(__name__)
 

@@ -23,7 +23,6 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
 
     reporter._context = SimpleNamespace(  # type: ignore[attr-defined, assignment]
         config=SimpleNamespace(
-            optimizer=SimpleNamespace(learning_rate=0.0, type="adam"),
             losses=SimpleNamespace(
                 loss_configs={
                     "ppo_actor": SimpleNamespace(enabled=False),
@@ -33,8 +32,7 @@ def _reporter(existing_heart: float | None = None) -> StatsReporter:
         ),
         stopwatch=timer,
         experience=SimpleNamespace(stats=lambda: {}),
-        policy=None,
-        optimizer=SimpleNamespace(param_groups=[]),
+        policy=SimpleNamespace(optimizer=SimpleNamespace(param_groups=[])),
         epoch=0,
         agent_step=0,
         run_name=None,
@@ -57,11 +55,11 @@ def test_heart_metric_zero_fill_and_preserve(existing: float | None, expected: f
         losses_stats={},
         experience=reporter.context.experience,
         trainer_cfg=reporter.context.config,
-        policy=None,
+        policy=reporter.context.policy,
         agent_step=0,
         epoch=0,
         timer=reporter.context.stopwatch,
-        optimizer=reporter.context.optimizer,
+        optimizer=getattr(reporter.context.policy, "optimizer", None),
     )
 
     assert payload["env_game/assembler.heart.created"] == expected

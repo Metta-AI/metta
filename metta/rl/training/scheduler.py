@@ -381,12 +381,8 @@ class LossScheduler(TrainerComponent):
         experience.set_store_keys(active_keys)
 
     def _sync_optimizer_from_config(self) -> None:
-        """Propagate TrainerConfig optimizer learning_rate into the live optimizer."""
-        optimizer = self.context.optimizer
-        trainer_cfg = self.context.config
-        lr = float(trainer_cfg.optimizer.learning_rate)
-        for group in optimizer.param_groups:
-            group["lr"] = lr
+        """No-op: optimizer config is per-policy via PolicyAssetConfig now."""
+        return
 
 
 def _set_attr_path(obj: object, path: str, value: Any) -> None:

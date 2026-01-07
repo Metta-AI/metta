@@ -19,7 +19,6 @@ from metta.common.util.git_repo import REPO_SLUG
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
-from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
@@ -72,6 +71,10 @@ class EvaluatorConfig(Config):
     allow_eval_without_stats: bool = Field(
         default=False,
         description="Allow evaluations to run without stats infrastructure (useful for local development/testing)",
+    )
+    policy_name: str | None = Field(
+        default=None,
+        description="If set, evaluate this policy from the latest checkpoints produced during training.",
     )
 
 
@@ -301,9 +304,15 @@ class Evaluator(TrainerComponent):
         if not self.should_evaluate(epoch):
             return
 
-        policy_uri = self.context.latest_policy_uri()
+        policy_uri: str | None = None
+        if self._config.policy_name:
+            policy_uri = (getattr(self.context, "latest_policy_uris", {}) or {}).get(self._config.policy_name)
+        else:
+            # Backwards-compatible single-policy behaviour: only evaluate when unambiguous.
+            policy_uri = self.context.latest_policy_uri()
+
         if not policy_uri:
-            logger.warning("Evaluator: skipping epoch %s because no policy checkpoint is available", epoch)
+            logger.warning("Evaluator: skipping epoch %s because no unambiguous policy checkpoint is available", epoch)
             return
 
         curriculum: Curriculum | None = getattr(self.context.env, "_curriculum", None)
@@ -311,18 +320,9 @@ class Evaluator(TrainerComponent):
             logger.warning("Evaluator: curriculum unavailable; skipping evaluation")
             return
 
-        optimizer = getattr(self.context, "optimizer", None)
-        is_schedulefree = optimizer is not None and is_schedulefree_optimizer(optimizer)
-        if is_schedulefree and optimizer is not None:
-            optimizer.eval()
-
         self.evaluate(
             policy_uri=policy_uri,
             curriculum=curriculum,
             epoch=epoch,
             agent_step=self.context.agent_step,
         )
-
-        # Restore train mode after evaluation for ScheduleFree optimizers
-        if is_schedulefree and optimizer is not None:
-            optimizer.train()

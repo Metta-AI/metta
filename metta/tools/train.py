@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import torch
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
@@ -68,6 +68,7 @@ class TrainTool(Tool):
     training_env: TrainingEnvironmentConfig
     # New multi-policy interface (registry). If unset, we fall back to legacy single-policy fields.
     policy_assets: dict[str, PolicyAssetConfig] | None = None
+    # Deprecated hint. Not used for selecting a special policy anymore.
     primary_policy: str = "primary"
 
     # Legacy single-policy fields (deprecated; still supported for existing recipes).
@@ -93,6 +94,25 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
     sandbox: bool = False
+
+    @model_validator(mode="after")
+    def _default_policy_assets(self) -> "TrainTool":
+        """Populate a default single-policy registry when recipes omit policy_assets.
+
+        This matches the legacy single-policy fields:
+          {primary_policy: PolicyAssetConfig(uri=initial_policy_uri, architecture=policy_architecture,
+                                             checkpoint=True, trainable=True)}
+        """
+        if self.policy_assets is None:
+            self.policy_assets = {
+                self.primary_policy: PolicyAssetConfig(
+                    uri=self.initial_policy_uri,
+                    architecture=self.policy_architecture,
+                    checkpoint=True,
+                    trainable=True,
+                )
+            }
+        return self
 
     def output_references(self, job_name: str) -> dict:
         storage = auto_policy_storage_decision(job_name)
@@ -175,21 +195,6 @@ class TrainTool(Tool):
         # ------------------------------------------------------------------
         # Policy asset registry: load/create all declared policies.
         # ------------------------------------------------------------------
-        if self.policy_assets is None:
-            self.policy_assets = {
-                self.primary_policy: PolicyAssetConfig(
-                    uri=self.initial_policy_uri,
-                    architecture=self.policy_architecture,
-                    checkpoint=True,
-                    trainable=True,
-                )
-            }
-
-        if self.primary_policy not in self.policy_assets:
-            raise ValueError(
-                f"primary_policy='{self.primary_policy}' missing from policy_assets={list(self.policy_assets)}"
-            )
-
         loaded_policies: dict[str, Policy] = {}
         for policy_name, asset in self.policy_assets.items():
             loader_checkpointer = Checkpointer(
@@ -198,7 +203,6 @@ class TrainTool(Tool):
                 distributed_helper=distributed_helper,
                 policy_architecture=asset.architecture,
                 policy_name=policy_name,
-                is_primary=(policy_name == self.primary_policy),
             )
             policy_obj = loader_checkpointer.load_or_create_policy(
                 env.policy_env_info,
@@ -215,16 +219,20 @@ class TrainTool(Tool):
         policy_assets = PolicyAssetRegistry(
             configs=self.policy_assets,
             policies=loaded_policies,
-            primary=self.primary_policy,
         )
-        policy = policy_assets.primary_policy
 
         if distributed_helper.is_master():
-            total_params = sum(param.numel() for param in policy.parameters())
-            trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
-            logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
+            for policy_name, policy in policy_assets.policies.items():
+                total_params = sum(param.numel() for param in policy.parameters())
+                trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
+                logging.info(
+                    "policy[%s] parameters: total=%d trainable=%d",
+                    policy_name,
+                    total_params,
+                    trainable_params,
+                )
 
-        trainer = self._initialize_trainer(env, policy, policy_assets, distributed_helper)
+        trainer = self._initialize_trainer(env, policy_assets, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
@@ -270,7 +278,6 @@ class TrainTool(Tool):
     def _initialize_trainer(
         self,
         env: VectorizedTrainingEnvironment,
-        policy: Policy,
         policy_assets: PolicyAssetRegistry,
         distributed_helper: DistributedHelper,
     ) -> Trainer:
@@ -281,7 +288,6 @@ class TrainTool(Tool):
         trainer = Trainer(
             self.trainer,
             env,
-            policy,
             policy_assets=policy_assets,
             losses_cfg=effective_losses,
             device=torch.device(self.system.device),
@@ -340,7 +346,6 @@ class TrainTool(Tool):
                         policy_architecture=asset.architecture,
                         policy_getter=lambda name=policy_name: policy_assets.get(name),
                         policy_name=policy_name,
-                        is_primary=(policy_name == policy_assets.primary_name),
                     )
                 )
 

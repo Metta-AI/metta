@@ -86,7 +86,10 @@ class TestCheckpointManagerFlows:
 
         mock_optimizer = torch.optim.Adam([torch.tensor(1.0)])
         checkpoint_manager.save_trainer_state(
-            mock_optimizer, epoch=5, agent_step=1000, stopwatch_state={"elapsed_time": 123.45}
+            {"primary": mock_optimizer.state_dict()},
+            epoch=5,
+            agent_step=1000,
+            stopwatch_state={"elapsed_time": 123.45},
         )
 
         loaded = checkpoint_manager.load_trainer_state()

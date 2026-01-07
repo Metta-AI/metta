@@ -54,7 +54,10 @@ def _apply_overrides(
     forward_pass_minibatch_target_size: int,
 ) -> None:
     trainer = tool.trainer
-    trainer.optimizer.learning_rate = learning_rate
+    asset = (tool.policy_assets or {}).get("primary")
+    optimizer = getattr(asset, "optimizer", None) if asset is not None else None
+    if optimizer is not None:
+        optimizer.learning_rate = learning_rate
     trainer.batch_size = batch_size
     trainer.minibatch_size = minibatch_size
 

@@ -34,7 +34,6 @@ class Checkpointer(TrainerComponent):
         policy_architecture: PolicyArchitecture | None,
         policy_getter: Callable[[], Policy] | None = None,
         policy_name: str | None = None,
-        is_primary: bool = True,
     ) -> None:
         super().__init__(epoch_interval=max(1, config.epoch_interval))
         self._master_only = True
@@ -45,20 +44,16 @@ class Checkpointer(TrainerComponent):
         self._latest_policy_uri: Optional[str] = None
         self._policy_getter = policy_getter
         self._policy_name = policy_name
-        self._is_primary = is_primary
 
     def register(self, context) -> None:
         super().register(context)
-        if self._is_primary:
-            context.latest_policy_uri_fn = self.get_latest_policy_uri
-            context.latest_policy_uri_value = self.get_latest_policy_uri()
-        else:
-            latest_uris = getattr(context, "latest_policy_uris", None)
-            if latest_uris is None:
-                latest_uris = {}
-                context.latest_policy_uris = latest_uris
-            if self._policy_name:
-                latest_uris[self._policy_name] = self.get_latest_policy_uri()
+        if not self._policy_name:
+            raise ValueError("Checkpointer requires policy_name when using multi-policy assets")
+        latest_uris = getattr(context, "latest_policy_uris", None)
+        if latest_uris is None:
+            latest_uris = {}
+            context.latest_policy_uris = latest_uris
+        latest_uris[self._policy_name] = self.get_latest_policy_uri()
 
     def load_or_create_policy(
         self,
@@ -153,18 +148,17 @@ class Checkpointer(TrainerComponent):
         )
 
         self._latest_policy_uri = uri
-        if self._is_primary:
-            self.context.latest_policy_uri_value = uri
-            try:
-                self.context.latest_saved_policy_epoch = epoch
-            except AttributeError:
-                logger.debug("Component context missing latest_saved_policy_epoch attribute")
-        elif self._policy_name:
-            latest_uris = getattr(self.context, "latest_policy_uris", None)
-            if latest_uris is None:
-                latest_uris = {}
-                self.context.latest_policy_uris = latest_uris
+        latest_uris = getattr(self.context, "latest_policy_uris", None)
+        if latest_uris is None:
+            latest_uris = {}
+            self.context.latest_policy_uris = latest_uris
+        if self._policy_name:
             latest_uris[self._policy_name] = uri
+        try:
+            # Track the most recent epoch at which *any* policy checkpoint was saved.
+            self.context.latest_saved_policy_epoch = epoch
+        except AttributeError:
+            logger.debug("Component context missing latest_saved_policy_epoch attribute")
 
         # Log latest checkpoint URI to wandb if available
         stats_reporter = getattr(self.context, "stats_reporter", None)
@@ -172,8 +166,8 @@ class Checkpointer(TrainerComponent):
         if wandb_run is not None:
             wandb_run.log(
                 {
-                    f"checkpoint/{self._policy_name or 'primary'}/latest_uri": uri,
-                    f"checkpoint/{self._policy_name or 'primary'}/latest_epoch": float(epoch),
+                    f"checkpoint/{self._policy_name}/latest_uri": uri,
+                    f"checkpoint/{self._policy_name}/latest_epoch": float(epoch),
                 },
                 step=self.context.agent_step,
             )

@@ -1,6 +1,6 @@
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import OptimizerConfig
+from metta.rl.policy_assets import OptimizerConfig
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -30,8 +30,10 @@ def train(
     )
 
     # Adjust optimizer + trainer settings for the smaller sliding transformer architecture
-    optimizer = tool.trainer.optimizer
-    optimizer.learning_rate = OptimizerConfig.model_fields["learning_rate"].default
+    asset = (tool.policy_assets or {}).get("primary")
+    optimizer = getattr(asset, "optimizer", None) if asset is not None else None
+    if optimizer is not None:
+        optimizer.learning_rate = OptimizerConfig.model_fields["learning_rate"].default
     tool.trainer.batch_size = 131072
     tool.trainer.minibatch_size = 4096
     tool.training_env.forward_pass_minibatch_target_size = 1024

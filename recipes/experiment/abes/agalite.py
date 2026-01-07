@@ -7,7 +7,7 @@ from typing import Callable
 from metta.agent.policies.agalite import AGaLiTeConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.rl.trainer_config import OptimizerConfig
+from metta.rl.policy_assets import OptimizerConfig
 from metta.tools.train import TrainTool
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
@@ -56,9 +56,10 @@ def train(
     )
 
     hint = getattr(policy_architecture, "learning_rate_hint", None)
-    optimizer = tool.trainer.optimizer
+    asset = (tool.policy_assets or {}).get("primary")
+    optimizer = getattr(asset, "optimizer", None) if asset is not None else None
     default_lr = OptimizerConfig.model_fields["learning_rate"].default
-    if hint is not None and optimizer.learning_rate == default_lr:
+    if hint is not None and optimizer is not None and optimizer.learning_rate == default_lr:
         optimizer.learning_rate = hint
 
     return tool

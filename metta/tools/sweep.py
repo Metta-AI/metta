@@ -116,7 +116,7 @@ class SweepTool(Tool):
 
     # Search space expressed as dot-path keys -> ParameterSpec or fixed value
     search_space: dict[str, ParameterSpec | Any] = {
-        "trainer.optimizer.learning_rate": ParameterConfig(
+        "policy_assets.primary.optimizer.learning_rate": ParameterConfig(
             min=1e-5,
             max=1e-3,
             distribution="log_normal",

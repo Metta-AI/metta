@@ -28,7 +28,6 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.common.wandb.context import WandbConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.policy_assets import PolicyAssetConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
@@ -382,25 +381,13 @@ def train(
         epoch_interval=150,
     )
 
+    primary_arch = ViTDefaultConfig()
     tt = TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=primary_arch,
     )
-
-    # ------------------------------------------------------------------
-    # define policy assets
-    # ------------------------------------------------------------------
-    primary_arch = ViTDefaultConfig()
-    tt.policy_architecture = primary_arch  # keep sweep paths stable (policy_architecture.*)
-    tt.policy_assets = {
-        "primary": PolicyAssetConfig(
-            architecture=primary_arch,
-            uri=None,
-            checkpoint=True,
-            trainable=True,
-        )
-    }
 
     # ------------------------------------------------------------------
     # define losses, giving each a policy asset
@@ -658,35 +645,35 @@ def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
     return {
         # Optimizer
         **SP.param(
-            "trainer.optimizer.learning_rate",
+            "policy_assets.primary.optimizer.learning_rate",
             D.LOG_NORMAL,
             min=1e-3,
             max=3e-2,
             search_center=1e-2,
         ),
         **SP.param(
-            "trainer.optimizer.eps",
+            "policy_assets.primary.optimizer.eps",
             D.LOG_NORMAL,
             min=1e-8,
             max=5e-5,
             search_center=1e-6,
         ),
         **SP.param(
-            "trainer.optimizer.warmup_steps",
+            "policy_assets.primary.optimizer.warmup_steps",
             D.INT_UNIFORM,
             min=0,
             max=10_000,
             search_center=2300,
         ),
         **SP.param(
-            "trainer.optimizer.weight_decay",
+            "policy_assets.primary.optimizer.weight_decay",
             D.LOG_NORMAL,
             min=1e-5,
             max=1e-1,
             search_center=1e-2,
         ),
         **SP.param(
-            "trainer.optimizer.momentum",
+            "policy_assets.primary.optimizer.momentum",
             D.UNIFORM,
             min=0.7,
             max=0.99,

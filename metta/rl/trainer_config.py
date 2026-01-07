@@ -4,33 +4,9 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import HeartbeatConfig
+from metta.rl.training.trajectory_isolation import SamplingConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
-
-
-class OptimizerConfig(Config):
-    type: Literal["adam", "muon", "adamw_schedulefree", "sgd_schedulefree"] = "adamw_schedulefree"
-    # Learning rate tuned from CvC sweep winners (schedule-free AdamW)
-    learning_rate: float = Field(default=0.00737503357231617, gt=0, le=1.0)
-    # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
-    beta1: float = Field(default=0.9, ge=0, le=1.0)
-    # Beta2: Standard Adam default from Kingma & Ba (2014)
-    beta2: float = Field(default=0.999, ge=0, le=1.0)
-    # Epsilon tuned from CvC sweep winners
-    eps: float = Field(default=5.0833278919526e-07, gt=0)
-    # Weight decay: modest L2 regularization for AdamW-style optimizers
-    weight_decay: float = Field(default=0.01, ge=0)
-    # ScheduleFree-specific parameters
-    momentum: float = Field(default=0.9, ge=0, le=1.0)  # Beta parameter for ScheduleFree
-    warmup_steps: int = Field(default=1000, ge=0)  # Number of warmup steps for ScheduleFree
-
-
-class SamplingConfig(Config):
-    """Configuration for minibatch sampling during training."""
-
-    method: Literal["sequential", "prioritized"] = "sequential"
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
 class RewardCenteringConfig(Config):
@@ -76,7 +52,6 @@ class TorchProfilerConfig(Config):
 class TrainerConfig(Config):
     total_timesteps: int = Field(default=10_000_000_000, gt=0)
     losses: LossesConfig = Field(default_factory=LossesConfig)
-    optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
 
