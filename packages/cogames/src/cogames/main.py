@@ -862,7 +862,7 @@ app.command(name="seasons", help="List available tournament seasons")(seasons_cm
 
 app.command(
     name="leaderboard",
-    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+    help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
 
 
