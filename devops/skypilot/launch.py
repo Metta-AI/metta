@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 # ruff: noqa: E402
+from devops.skypilot.utils.job_helpers import skypilot_sanity_check
 from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
@@ -284,6 +285,8 @@ def main(
     # For --confirm, ask for confirmation
     if confirm and not get_user_confirmation("Should we launch this task?"):
         return
+
+    skypilot_sanity_check()
 
     # Set secrets only when actually launching (not for dry-run or dump-config)
     set_task_secrets(task)
