@@ -33,7 +33,11 @@ Environment variables used by the tournament/job runner path:
 1. Run locally:
    - `metta observatory local-k8s setup`
    - `metta observatory up`
-   - `uv run python app_backend/scripts/submit_test_jobs.py --policy-uri metta://policy/<your-policy-name>`
+   - Submit a test job:
+     ```bash
+     uv run python app_backend/scripts/submit_test_jobs.py \
+       --policy-uri metta://policy/<your-policy-name>
+     ```
 2. Confirm traces in Datadog APM:
    - Filter for services `tournament-commissioner` and `episode-runner`
    - Look for spans named `tournament.job.enqueue` and `tournament.job.run`
