@@ -9,6 +9,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 from typing_extensions import Literal
 
 from metta.agent.policy import Policy
+from metta.rl.advantage import td_lambda_reverse_scan
 from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
@@ -21,6 +22,7 @@ class PPOCriticConfig(LossConfig):
     critic_update: Literal["mse", "gtd_lambda"] = "gtd_lambda"
     aux_coef: float = Field(default=1.0, ge=0)
     beta: float = Field(default=1.0, ge=0)
+    teacher_offpolicy_rho_clip: float = Field(default=1.0, gt=0)
 
     def create(
         self,
@@ -92,6 +94,33 @@ class PPOCritic(Loss):
             return {"values", "h_values"}
         return {"values"}
 
+    def _importance_sampled_delta_lambda(
+        self,
+        *,
+        values: Tensor,
+        rewards: Tensor,
+        dones: Tensor,
+        rho: Tensor,
+        gamma: float,
+        gae_lambda: float,
+    ) -> Tensor:
+        _, tt = values.shape
+        delta_lambda = torch.zeros_like(values)
+        if tt <= 1:
+            return delta_lambda
+
+        terminal_next = dones[:, 1:]
+        mask_next = 1.0 - terminal_next
+
+        delta = rewards[:, 1:] + gamma * mask_next * values[:, 1:] - values[:, :-1]  # [B, TT-1]
+        rho = rho[:, :-1].clamp(max=float(self.cfg.teacher_offpolicy_rho_clip))
+
+        x = rho * delta
+        discounts = rho * mask_next
+        delta_lambda[:, :-1] = td_lambda_reverse_scan(x, discounts, float(gamma * gae_lambda))
+
+        return delta_lambda
+
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
@@ -116,6 +145,28 @@ class PPOCritic(Loss):
             h_values = h_values.reshape(old_values.shape)
 
             delta_lambda = shared_loss_data["advantages_pg"]
+            if "teacher_mask" in minibatch.keys():
+                teacher_mask = minibatch["teacher_mask"][:, 0]
+                if bool(teacher_mask.any()):
+                    if "act_log_prob" not in policy_td.keys():
+                        raise RuntimeError("Teacher-slice TD(λ) correction requires policy_td['act_log_prob']")
+                    rho = policy_td["act_log_prob"].reshape(minibatch["actions"].shape).exp()
+                    rho_trim = rho.detach()[teacher_mask][:, :-1]
+                    rho_clip = float(self.cfg.teacher_offpolicy_rho_clip)
+                    self.loss_tracker["teacher_td_lambda_rho_clipfrac"].append(
+                        float((rho_trim > rho_clip).float().mean().item())
+                    )
+                    centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
+                    corrected = self._importance_sampled_delta_lambda(
+                        values=new_values[teacher_mask],
+                        rewards=centered_rewards[teacher_mask],
+                        dones=minibatch["dones"][teacher_mask],
+                        rho=rho.detach()[teacher_mask],
+                        gamma=float(context.config.advantage.gamma),
+                        gae_lambda=float(context.config.advantage.gae_lambda),
+                    )
+                    delta_lambda = delta_lambda.clone()
+                    delta_lambda[teacher_mask] = corrected
 
             # Use only valid transitions (t=0..TT-2). The last step is padding.
             dl = delta_lambda[:, :-1]
