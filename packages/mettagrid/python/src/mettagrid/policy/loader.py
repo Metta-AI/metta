@@ -107,8 +107,9 @@ def _walk_and_import_package(package_name: str) -> None:
                 # If it's a package, recursively discover its submodules
                 if ispkg:
                     _walk_and_import_package(name)
-            except (ImportError, AttributeError, TypeError):
+            except (ImportError, AttributeError, TypeError, OSError):
                 # Skip modules that can't be imported (may have missing dependencies)
+                # OSError covers ctypes failing to load native libraries (e.g., Nim bindings)
                 pass
 
         # Also check for namespace packages (directories without __init__.py)

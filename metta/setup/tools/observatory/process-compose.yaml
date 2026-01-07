@@ -1,11 +1,21 @@
 version: "0.5"
 
 processes:
-  postgres:
-    command: metta observatory postgres up
+  orbstack:
+    command: orbctl start && echo "OrbStack is running" && tail -f /dev/null
     readiness_probe:
       exec:
-        # Using python instead of nc for portability (nc not available on all systems)
+        command: orbctl status
+      initial_delay_seconds: 0
+      period_seconds: 2
+
+  postgres:
+    command: metta observatory postgres up
+    depends_on:
+      orbstack:
+        condition: process_healthy
+    readiness_probe:
+      exec:
         command: python -c "import socket; socket.create_connection(('${POSTGRES_HOST}', ${POSTGRES_PORT}), timeout=1)"
       initial_delay_seconds: 1
       period_seconds: 2
@@ -40,3 +50,6 @@ processes:
 
   jobs:
     command: bash -c "while true; do kubectl --context orbstack logs -n jobs -l app=episode-runner -f --all-containers 2>/dev/null; sleep 2; done"
+    depends_on:
+      orbstack:
+        condition: process_healthy

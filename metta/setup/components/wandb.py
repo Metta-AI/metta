@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
@@ -82,14 +81,15 @@ class WandbSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
-            result = subprocess.run(["wandb", "login"], capture_output=True, text=True)
-            # W&B outputs login status to stderr, not stdout
-            output = result.stderr if result.stderr else result.stdout
-            if result.returncode == 0 and "Currently logged in as:" in output:
-                match = re.search(r"Currently logged in as: (\S+) \(([^)]+)\)", output)
-                if match:
-                    return match.group(2)
-            return None
+            # Local import because wandb is heavy, top-level import slows down other metta cli commands
+            import wandb
+
+            api = wandb.Api()
+            saved_settings = get_saved_settings()
+            if saved_settings.user_type.is_softmax:
+                if (expected_entity := METTA_WANDB_ENTITY) in api.viewer.teams:
+                    return expected_entity
+                return None
         except Exception:
             return None
 

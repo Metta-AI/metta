@@ -35,7 +35,7 @@ from mettagrid import MettaGridConfig
 def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
     trainer_updates = {
         "compile": False,
-        "batch_size": 4_194_304 // 2,
+        "batch_size": 4_194_304,
         "minibatch_size": 8192,
         "bptt_horizon": 256,
         "optimizer": OptimizerConfig(learning_rate=1e-4),
@@ -43,7 +43,7 @@ def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
     }
 
     env_updates = {
-        "forward_pass_minibatch_target_size": 16384 // 2,
+        "forward_pass_minibatch_target_size": 16384,
         "auto_workers": False,
         "num_workers": 1,
         "async_factor": 1,
@@ -133,30 +133,28 @@ def train(
 
     if policy_architecture is None:
         stack_cfg = build_cortex_auto_config(
-            d_hidden=256,
-            num_layers=28,
+            d_hidden=512,
+            num_layers=8,
             pattern=[
                 "Ag,A",
                 "Ag,A",
                 "Ag,A",
                 "Ag,A,S",
             ]
-            * 7,
+            * 2,
             post_norm=True,
             compile_blocks=True,
         )
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
 
     losses_config = LossesConfig()
-    default_teacher_steps = 600_000_000
+    default_teacher_steps = 1_000_000_000
     teacher = teacher or TeacherConfig(
-        policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340",
-        mode="sliced_kickstarter",
-        steps=default_teacher_steps,
-        teacher_led_proportion=0.2,
+        policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt",
+        mode="eer_kickstarter",
     )
-    losses_config.sliced_kickstarter.action_loss_coef = 1.0
-    losses_config.sliced_kickstarter.value_loss_coef = 0.0
+    # losses_config.eer_kickstarter.action_loss_coef = 1.0
+    # losses_config.eer_kickstarter.value_loss_coef = 0.0
 
     trainer_cfg = TrainerConfig(losses=losses_config)
     trainer_cfg = trainer_cfg.model_copy(update=trainer_updates)

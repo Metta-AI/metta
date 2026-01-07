@@ -9,12 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from mettagrid.simulator import Action
-
-if TYPE_CHECKING:
-    from mettagrid.simulator.interface import AgentObservation
+from mettagrid.simulator.interface import AgentObservation
 
 
 @dataclass

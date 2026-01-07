@@ -68,6 +68,7 @@ class AsyncCappedOptimizingScheduler:
     """Asynchronous scheduler with capped eval concurrency and CL fantasies."""
 
     def __init__(self, config: AsyncCappedSchedulerConfig, state: SchedulerState | None = None):
+        # Keep local import for slow loading ProteinOptimizer (~500ms)
         from metta.sweep.optimizer.protein import ProteinOptimizer
 
         self.config = config

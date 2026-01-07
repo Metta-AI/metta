@@ -16,6 +16,7 @@ from mettagrid.util.uri_resolvers.schemes import (
     checkpoint_uri_for_epoch,
 )
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
