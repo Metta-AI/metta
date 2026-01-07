@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
+import fcntl
 import hashlib
 import logging
 import os
@@ -12,6 +14,7 @@ import stat
 import subprocess
 import sys
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Optional
 
@@ -25,6 +28,33 @@ DEFAULT_POLICY_CACHE_DIR = Path("/tmp/mettagrid-policy-cache")
 
 _registered_cleanup_dirs: set[Path] = set()
 _registered_cleanup_files: set[Path] = set()
+
+
+@contextlib.contextmanager
+def _exclusive_file_lock(lock_path: Path) -> Iterator[None]:
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+") as lock_fd:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+
+
+def _setup_marker_paths(extraction_root: Path, setup_script: str) -> tuple[Path, Path]:
+    digest = hashlib.sha256(setup_script.encode()).hexdigest()[:16]
+    return (extraction_root / f".setup-{digest}.lock", extraction_root / f".setup-{digest}.done")
+
+
+def _ensure_setup_script_ran(setup_script: str, extraction_root: Path) -> None:
+    lock_path, done_path = _setup_marker_paths(extraction_root, setup_script)
+
+    with _exclusive_file_lock(lock_path):
+        if done_path.exists():
+            return
+
+        _run_setup_script(extraction_root / setup_script, extraction_root)
+        done_path.touch()
 
 
 def _validate_archive_member(entry: zipfile.ZipInfo, destination_root: Path) -> None:
@@ -204,14 +234,15 @@ def load_policy_spec_from_path(
         extraction_root = force_dest or (
             DEFAULT_POLICY_CACHE_DIR / hashlib.sha256(local_path.as_uri().encode()).hexdigest()
         ).with_suffix(".d")
-        if not (extraction_root / ".extraction_complete").exists():
-            extraction_root.mkdir(parents=True, exist_ok=True)
-            _extract_submission_archive(local_path, extraction_root)
-            (extraction_root / ".extraction_complete").touch()
+        extraction_root.mkdir(parents=True, exist_ok=True)
+        with _exclusive_file_lock(extraction_root / ".extraction.lock"):
+            if not (extraction_root / ".extraction_complete").exists():
+                _extract_submission_archive(local_path, extraction_root)
+                (extraction_root / ".extraction_complete").touch()
 
-            if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
-                _registered_cleanup_dirs.add(extraction_root)
-                atexit.register(_cleanup_cache_dir, extraction_root)
+                if remove_downloaded_copy_on_exit and extraction_root not in _registered_cleanup_dirs:
+                    _registered_cleanup_dirs.add(extraction_root)
+                    atexit.register(_cleanup_cache_dir, extraction_root)
 
     policy_spec_path = extraction_root / POLICY_SPEC_FILENAME
     if not policy_spec_path.exists():
@@ -220,7 +251,7 @@ def load_policy_spec_from_path(
     submission_spec = SubmissionPolicySpec.model_validate_json(policy_spec_path.read_text())
 
     if submission_spec.setup_script and extraction_root not in _executed_setup_scripts:
-        _run_setup_script(extraction_root / submission_spec.setup_script, extraction_root)
+        _ensure_setup_script_ran(submission_spec.setup_script, extraction_root)
         _executed_setup_scripts.add(extraction_root)
 
     spec = PolicySpec(

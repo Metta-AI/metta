@@ -71,6 +71,7 @@ class PPOActor(Loss):
         cfg = self.cfg
 
         minibatch = shared_loss_data["sampled_mb"]
+
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
