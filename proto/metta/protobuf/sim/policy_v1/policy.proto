@@ -1,0 +1,146 @@
+// This is the "Policy Protocol", major version 1.
+//
+// It describes the wire protocol between the game engine and policies. It
+// includes some room for growth before "v2", but overall these messages
+// are in direct support of that wire protocol (and so may be of limited
+// use for other purposes). In particular, "GameRules" is for the rules we
+// wish to expose to the policies, which may be a subset of what we need to
+// communicate to the game engine itself.
+//
+// There's some room for anticipated growth within this version of the
+// protocol, but v2 (and beyond) are certainly an option as well. The
+// portions we won't need immediately include:
+//
+//   - BatchStep allows a policy to control several agents in one episode
+//   - episode_id for reuse of (and concurrency with) policy servers
+//   - AgentActions.action_id is a vector, not limited to a single action
+//   - changes to the dense AgentObservations.observations format
+
+edition = "2023";
+
+package metta.protobuf.sim.policy_v1;
+
+// AgentObservations contains the game engine's observations for a single
+// agent for a given tick of the game.
+message AgentObservations {
+    int32 agent_id = 1 [json_name="agent_id"];
+
+    // The observations for this agent, in a dense format, as announced in
+    // PreparePolicyRequest.observations_format.
+    bytes observations = 2 [json_name="observations"];
+
+    enum Format {
+        AGENT_OBSERVATIONS_FORMAT_UNKNOWN = 0;
+
+        // Every 3 bytes (aligned) is an independent observation. The
+        // format of each observation is as follows:
+        //
+        // The first byte is the observation's location, with bits 0xF0
+        // holding the row and 0x0F holding the column. 0xFF means the
+        // observation should be ignored.
+        //
+        // The second byte is the feature_id, as seen in the
+        // GameRules.Feature message at the start of the episode.
+        //
+        // The third byte is an unsigned value for the observation.
+        TRIPLET_V1 = 1;
+    }
+}
+
+message BatchStepRequest {
+    // Episode ID to match the value provided during PreparePolicy (for
+    // reusable policy servers).
+    string episode_id = 1 [json_name="episode_id"];
+
+    // Step ID increases by 1 for each tick of the game.
+    //
+    // Policies may consider a BatchStep request for a given game tick to
+    // implicitly cancel any lower-numbered requests for the same
+    // episode_id.
+    int64 step_id = 2 [json_name="step_id"];
+
+    // The current vector of observations for this policy's agent(s).
+    repeated AgentObservations agent_observations = 3 [json_name="agent_observations"];
+}
+
+// AgentActions describes the actions that an agent would like to take
+// during the next game tick.
+message AgentActions {
+    int32 agent_id = 1 [json_name="agent_id"];
+
+    // action_id indexes into GameRules.Action
+    repeated int32 action_id = 2 [json_name="action_id"];
+}
+
+message BatchStepResponse {
+    repeated AgentActions agent_actions = 1 [json_name="agent_actions"];
+}
+
+// GameRules describes invariants for the upcoming episode.
+message GameRules {
+    message Feature {
+        // ID provides a short form reference to the Feature. Note that
+        // features may be renumbered between different game
+        // configurations.
+        int32 id = 1 [json_name="id"];
+
+        // Name provides a human-readable and stable description of the
+        // feature. Features with the same meaning will have the same name
+        // across training and evaluation runs, surviving adjustments to
+        // how the game is configured.
+        string name = 2 [json_name="name"];
+
+        // Normalization factor for the feature.
+        double normalization = 3 [json_name="normalization"];
+    }
+
+    message Action {
+        // ID provides a short form reference to the Action. Note that
+        // actions may be renumbered between different game configurations.
+        int32 id = 1 [json_name="id"];
+
+        // Name provides a human-readable and stable description of the
+        // action. Actions with the same effect will have the same name
+        // across training and evaluation runs, surviving adjustments to
+        // how the game is configured.
+        string name = 2 [json_name="name"];
+    }
+
+    repeated Feature features = 1 [json_name="features"];
+    repeated Action actions = 2 [json_name="actions"];
+}
+
+// PreparePolicyRequest informs the policy of the upcoming game's
+// configuration, including the caller's expectations for which agents the
+// policy will control.
+message PreparePolicyRequest {
+    // Episode ID refers to a game episode, and is unique within the scope
+    // of the policy server. (If left empty, the policy endpoint can serve
+    // only a single episode during its lifetime.)
+    string episode_id = 1 [json_name="episode_id"];
+
+    GameRules game_rules = 2 [json_name="game_rules"];
+
+    repeated int32 agent_ids = 3 [json_name="agent_ids"]; // list of policy's agents
+
+    AgentObservations.Format observations_format = 4 [json_name="observations_format"];
+}
+
+message PreparePolicyResponse {
+}
+
+// Policy is the logical API corresponding to a policy during a single game
+// episode, acting as any number of agents. To run an episode, the creator
+// of the policy instance must call the Prepare method one time, followed
+// by calling the BatchStep method for each game step.
+service Policy {
+
+    // PreparePolicy initializes the policy, informing it of invariants for
+    // the upcoming game.
+    rpc PreparePolicy(PreparePolicyRequest) returns (PreparePolicyResponse);
+
+    // BatchStep executes a single step for the policy's agents, providing
+    // each with its new observations and requesting actions in return.
+    rpc BatchStep(BatchStepRequest) returns (BatchStepResponse);
+
+}
