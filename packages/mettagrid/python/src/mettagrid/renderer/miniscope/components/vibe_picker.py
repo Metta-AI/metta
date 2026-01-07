@@ -1,15 +1,10 @@
 """Vibe picker component for miniscope renderer."""
 
-from typing import TYPE_CHECKING
-
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-from mettagrid.simulator.interface import Action
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
+from mettagrid.simulator.types import Action
 
 try:
     from mettagrid.config.vibes import VIBES as VIBE_DATA
@@ -24,7 +19,7 @@ class VibePickerComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
