@@ -6,7 +6,7 @@ from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.training.scheduler import LossRunGate, ScheduleRule
+from metta.rl.training.scheduler import RunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
@@ -97,8 +97,8 @@ def train(
     # Mechanism:
     # - We use TeacherConfig(mode="sliced_cloner") to enable the sliced cloner loss and supervisor actions.
     # - We override teacher.py's default anneal (0..end) so annealing begins at bc_steps instead.
-    teacher_proportion_path = "losses.sliced_scripted_cloner.teacher_led_proportion"
-    student_proportion_path = "losses.sliced_scripted_cloner.student_led_proportion"
+    teacher_proportion_path = "nodes.sliced_scripted_cloner.teacher_led_proportion"
+    student_proportion_path = "nodes.sliced_scripted_cloner.student_led_proportion"
 
     # teacher.py delays PPO critic rollout until teacher.steps; keep PPO running from step 0 instead.
     # (Leaving this gate in place would still work due to OR semantics, but it's misleading in configs.)
@@ -107,7 +107,7 @@ def train(
         gate
         for gate in tt.scheduler.run_gates
         if not (
-            gate.phase == "rollout" and gate.begin_at_step is not None and gate.loss_instance_name in ppo_gate_names
+            gate.phase == "rollout" and gate.begin_at_step is not None and gate.node_name in ppo_gate_names
         )
     ]
     if not ppo_during_bc:
@@ -115,7 +115,7 @@ def train(
         for loss_name in ("ppo_actor", "ppo_critic"):
             for phase in ("rollout", "train"):
                 tt.scheduler.run_gates.append(
-                    LossRunGate(loss_instance_name=loss_name, phase=phase, begin_at_step=bc_steps)
+                    RunGate(node_name=loss_name, phase=phase, begin_at_step=bc_steps)
                 )
 
     # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
@@ -166,16 +166,14 @@ def train(
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
     tt.policy_architecture = policy_architecture
 
-    losses_cfg = tt.trainer.losses
-    needs_full_log_probs = any(
-        getattr(losses_cfg, name).enabled
-        for name in (
-            "supervisor",
-            "sliced_scripted_cloner",
-            "eer_kickstarter",
-            "eer_cloner",
-        )
+    nodes_cfg = tt.trainer.nodes
+    node_names = (
+        "supervisor",
+        "sliced_scripted_cloner",
+        "eer_kickstarter",
+        "eer_cloner",
     )
+    needs_full_log_probs = any(getattr(nodes_cfg.get(name), "enabled", False) for name in node_names)
     action_probs_config = getattr(tt.policy_architecture, "action_probs_config", None)
     if action_probs_config is not None and not needs_full_log_probs:
         action_probs_config.emit_full_log_probs = False

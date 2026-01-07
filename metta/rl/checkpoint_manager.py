@@ -154,10 +154,6 @@ class CheckpointManager:
         if not trainer_file.exists():
             return None
         state = torch.load(trainer_file, map_location="cpu", weights_only=False)
-        if "optimizer" not in state:
-            state["optimizer"] = state.get("optimizer_state", {})
-        if "node_states" not in state:
-            state["node_states"] = state.get("loss_states", {})
         return state
 
     def save_trainer_state(
