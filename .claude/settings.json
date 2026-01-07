@@ -21,12 +21,17 @@
     ],
     "deny": []
   },
-  "mcpServers": {
-    "metta-pr-similarity": {
-      "command": "metta-pr-similarity-mcp"
-    }
-  },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",

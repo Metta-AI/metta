@@ -1,1 +1,12 @@
-# Default values for system chart
+pools:
+  # legacy eval jobs
+  - name: eval-worker-nodepool
+    workload: eval-worker
+
+  # new episode jobs system
+  - name: jobs-nodepool
+    workload: jobs
+
+  - name: jobs-nodepool-warm
+    workload: jobs
+    replicas: 2 # pre-allocate two nodes to avoid cold start latency

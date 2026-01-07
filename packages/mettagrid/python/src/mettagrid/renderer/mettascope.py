@@ -9,10 +9,8 @@ from typing import Optional
 import numpy as np
 
 from mettagrid.renderer.renderer import Renderer
-from mettagrid.simulator import Action
+from mettagrid.simulator.types import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
-
-METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
 
 logger = logging.getLogger(__name__)
 
@@ -34,25 +32,6 @@ class MettascopeRenderer(Renderer):
         # Get the GameConfig from MettaGridConfig
         game_config = self._sim.config.game
         game_config_dict = game_config.model_dump(mode="json", exclude_none=True)
-
-        # Convert snake_case to camelCase for Nim compatibility
-        field_mappings = {
-            "vibe_names": "vibeNames",
-            "resource_names": "resourceNames",
-            "num_agents": "numAgents",
-            "max_steps": "maxSteps",
-        }
-        for snake, camel in field_mappings.items():
-            if snake in game_config_dict:
-                game_config_dict[camel] = game_config_dict.pop(snake)
-
-        # Extract obs config to top level for Nim compatibility
-        if "obs" in game_config_dict:
-            obs_config = game_config_dict.pop("obs")
-            if "width" in obs_config:
-                game_config_dict["obsWidth"] = obs_config["width"]
-            if "height" in obs_config:
-                game_config_dict["obsHeight"] = obs_config["height"]
 
         initial_replay = {
             "version": 2,

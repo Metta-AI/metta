@@ -141,7 +141,7 @@ export const PolicyVersionPage: FC = () => {
     const loadMemberships = async () => {
       setMembershipsState((prev) => ({ ...prev, loading: true, error: null }))
       try {
-        const memberships = await repo.getPlayerMemberships(policyVersionId)
+        const memberships = await repo.getPolicyMemberships(policyVersionId)
         if (isMounted) {
           setMembershipsState({ data: memberships, loading: false, error: null })
         }
