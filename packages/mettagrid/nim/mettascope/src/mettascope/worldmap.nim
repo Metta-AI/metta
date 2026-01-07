@@ -598,6 +598,26 @@ proc drawWorldMini*() =
 
   drawTerrain()
 
+  # Draw heatmap if enabled.
+  if settings.showHeatmap and worldHeatmap != nil:
+    # Initialize heatmap shader if needed.
+    if not heatmapShaderInitialized:
+      initHeatmapShader()
+      heatmapShaderInitialized = true
+
+    # Update heatmap texture if step changed.
+    updateTexture(worldHeatmap, step)
+    # Draw heatmap overlay.
+    bxy.enterRawOpenGLMode()
+    let maxHeat = worldHeatmap.getMaxHeat(step).float32
+    draw(
+      worldHeatmap,
+      getProjectionView(),
+      vec2(replay.mapSize[0].float32, replay.mapSize[1].float32),
+      maxHeat
+    )
+    bxy.exitRawOpenGLMode()
+
   # Overlays
   if settings.showVisualRange:
     drawVisualRanges()
