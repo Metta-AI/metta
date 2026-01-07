@@ -47,10 +47,18 @@ cogames play -m hello_world -p "class=llm-anthropic,kw.model=claude-sonnet-4-5,k
 - Multi-agent coordination support
 - Cost tracking for API usage
 
-## Development
+## Installation
 
-If the policy isn't found after dependency changes, resync all packages:
+The package must be installed for the LLM policies to be discoverable:
 
 ```bash
-uv sync --all-packages
+uv pip install -e packages/llm_agent
+```
+
+## Development
+
+If the policy isn't found after dependency changes (e.g., after merging/rebasing), reinstall:
+
+```bash
+uv pip install -e packages/llm_agent
 ```
