@@ -18,8 +18,8 @@ Deployed to EKS via Helm chart at `devops/charts/observatory-backend/`.
 
 ## Observability (Tournament Jobs)
 
-OpenTelemetry traces are exported via OTLP to the Datadog Agent. Logs are emitted as JSON with `trace_id` and
-`span_id` fields for correlation.
+OpenTelemetry traces are exported via OTLP to the Datadog Agent. Logs are emitted as JSON with `trace_id` and `span_id`
+fields for correlation.
 
 Environment variables used by the tournament/job runner path:
 
@@ -34,6 +34,7 @@ Environment variables used by the tournament/job runner path:
    - `metta observatory local-k8s setup`
    - `metta observatory up`
    - Submit a test job:
+
      ```bash
      uv run python app_backend/scripts/submit_test_jobs.py \
        --policy-uri metta://policy/<your-policy-name>

@@ -1,7 +1,7 @@
 import json
-import uuid
 from subprocess import CompletedProcess
 from types import SimpleNamespace
+import uuid
 
 import pytest
 from opentelemetry import propagate, trace
