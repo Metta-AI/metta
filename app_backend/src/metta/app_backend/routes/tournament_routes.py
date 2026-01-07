@@ -337,9 +337,26 @@ def create_tournament_router() -> APIRouter:
 
     @router.post("/seasons/{season_name}/submissions")
     @timed_http_handler
-    async def submit_policy(season_name: str, request: SubmitRequest, _user: UserOrToken) -> SubmitResponse:
+    async def submit_policy(
+        season_name: str, request: SubmitRequest, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+    ) -> SubmitResponse:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
+
+        existing = (
+            await session.execute(
+                select(PoolPlayer)
+                .join(PoolPlayer.pool)
+                .join(Pool.season)
+                .where(Season.name == season_name)
+                .where(PoolPlayer.policy_version_id == request.policy_version_id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+        if existing:
+            raise HTTPException(status_code=409, detail="Policy already submitted to this season")
+
         commissioner = SEASONS[season_name]()
         pool_names = await commissioner.submit(request.policy_version_id)
         return SubmitResponse(pools=pool_names)
