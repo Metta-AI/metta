@@ -1053,12 +1053,12 @@ def submit_cmd(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from None
 
-    version_str = f" v{version}" if version else " (latest)"
+    version_str = f" v{version}" if version is not None else " (latest)"
     console.print(f"[bold]Submitting {name}{version_str} to season '{season}'[/bold]\n")
 
     policy_version_id = lookup_policy_version_id(server, token, name, version)
     if policy_version_id is None:
-        version_hint = f" v{version}" if version else ""
+        version_hint = f" v{version}" if version is not None else ""
         console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
         console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
         raise typer.Exit(1)
