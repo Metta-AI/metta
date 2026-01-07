@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from datetime import datetime
 from typing import Any, Optional
 
@@ -168,7 +167,7 @@ def _show_season_submissions(
 ) -> None:
     """Show submissions for a specific season."""
     try:
-        entries = client._get(f"/tournament/seasons/{season}/policies", params={"mine": "true"})
+        entries = client.get_season_policies(season, mine=True)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             console.print(f"[red]Season '{season}' not found[/red]")
@@ -182,17 +181,13 @@ def _show_season_submissions(
 
     if policy_name:
         name, version = parse_policy_identifier(policy_name)
-        if version:
-            entries = [
-                e
-                for e in entries
-                if e.get("policy", {}).get("name") == name and e.get("policy", {}).get("version") == version
-            ]
+        if version is not None:
+            entries = [e for e in entries if e.policy.name == name and e.policy.version == version]
         else:
-            entries = [e for e in entries if e.get("policy", {}).get("name") == name]
+            entries = [e for e in entries if e.policy.name == name]
 
     if json_output:
-        console.print(json.dumps(entries, indent=2))
+        console.print(json.dumps([e.model_dump(mode="json") for e in entries], indent=2))
         return
 
     if not entries:
@@ -207,22 +202,16 @@ def _show_season_submissions(
     table.add_column("Entered", style="green")
 
     for entry in entries:
-        policy = entry.get("policy", {})
-        pools = entry.get("pools", [])
-        entered_at = _format_timestamp(entry.get("entered_at"))
-        policy_label = f"{policy.get('name', '?')}[dim]:v{policy.get('version', '?')}[/dim]"
-
-        table.add_row(policy_label, entered_at)
-        for i, p in enumerate(pools):
-            pool_name = p.get("pool_name", "?")
-            is_active = p.get("active", True)
-            status = "active" if is_active else "retired"
-            matches = p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0)
-            is_last = i == len(pools) - 1
+        policy_label = f"{entry.policy.name}[dim]:v{entry.policy.version}[/dim]"
+        table.add_row(policy_label, _format_timestamp(entry.entered_at))
+        for i, pool in enumerate(entry.pools):
+            status = "active" if pool.active else "retired"
+            matches = pool.completed + pool.failed + pool.pending
+            is_last = i == len(entry.pools) - 1
             prefix = "  └ " if is_last else "  ├ "
-            status_style = "green" if is_active else "dim"
+            status_style = "green" if pool.active else "dim"
             status_markup = f"[{status_style}]{status}[/{status_style}]"
-            pool_info = f"[not bold white]{prefix}{pool_name} ({status_markup}): {matches} matches[/]"
+            pool_info = f"[not bold white]{prefix}{pool.pool_name} ({status_markup}): {matches} matches[/]"
             table.add_row(pool_info, "")
 
     console.print(table)
@@ -262,7 +251,7 @@ def leaderboard_cmd(
 
     try:
         with client:
-            entries = client._get(f"/tournament/seasons/{season}/leaderboard")
+            entries = client.get_leaderboard(season)
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             console.print(f"[red]Season '{season}' not found[/red]")
@@ -275,7 +264,7 @@ def leaderboard_cmd(
         raise typer.Exit(1) from exc
 
     if json_output:
-        console.print(json.dumps(entries, indent=2))
+        console.print(json.dumps([e.model_dump(mode="json") for e in entries], indent=2))
         return
 
     if not entries:
@@ -289,13 +278,12 @@ def leaderboard_cmd(
     table.add_column("Matches", justify="right")
 
     for entry in entries:
-        policy = entry.get("policy", {})
-        policy_label = f"{policy.get('name', '?')}[dim]:v{policy.get('version', '?')}[/dim]"
+        policy_label = f"{entry.policy.name or '?'}[dim]:v{entry.policy.version or '?'}[/dim]"
         table.add_row(
-            str(entry.get("rank", "?")),
+            str(entry.rank),
             policy_label,
-            _format_score(entry.get("score")),
-            str(entry.get("matches", 0)),
+            _format_score(entry.score),
+            str(entry.matches),
         )
 
     console.print(table)
