@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(mkdir:*)",
@@ -17,7 +19,14 @@
       "Bash(metta status:*)",
       "Bash(metta install:*)",
       "Bash(metta test:*)",
-      "Bash(./install.sh:*)"
+      "Bash(./install.sh:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch)",
+      "Bash(git branch --list:*)",
+      "Bash(git branch -a)",
+      "Bash(git branch -r)"
     ],
     "deny": []
   },
