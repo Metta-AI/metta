@@ -101,9 +101,7 @@ def _run_episode(job_id: UUID, job: SingleEpisodeJob, stats_client: StatsClient)
                     error_output = result.stderr or result.stdout or "No output"
                     if len(error_output) > 200000:
                         error_output = error_output[:200000] + "\n... (truncated)"
-                    raise RuntimeError(
-                        f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}"
-                    )
+                    raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
 
         with tracer.start_as_current_span("tournament.job.step.upload_results"):
             for src, dest, content_type in [
