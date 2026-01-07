@@ -121,11 +121,11 @@ block basic_tests:
     heatmap.initialize(replay)
 
     # Step 0: 2 agents at (1,1) -> heat = 2
-    # Step 1: copy step 0 (heat = 2) + 2 agents at (1,1) -> heat = 4
+    # Step 1: agents still at (1,1) but no increment when standing still -> heat = 2
     doAssert heatmap.getHeat(0, 1, 1) == 2, "position with 2 agents should have heat 2"
-    doAssert heatmap.getHeat(1, 1, 1) == 4, "position with 2 agents cumulatively should have heat 4"
+    doAssert heatmap.getHeat(1, 1, 1) == 2, "standing still should not accumulate additional heat"
     doAssert heatmap.getMaxHeat(0) == 2, "max heat should be 2"
-    doAssert heatmap.getMaxHeat(1) == 4, "max heat should be 4"
+    doAssert heatmap.getMaxHeat(1) == 2, "max heat should remain 2"
 
   block cumulative_heat:
     echo "Testing cumulative heat behavior"
@@ -140,13 +140,13 @@ block basic_tests:
     # Step 0: agent at (0,0) for first time
     doAssert heatmap.getHeat(0, 0, 0) == 1, "first visit should have heat 1"
 
-    # Step 1: agent at (0,0) again, cumulative heat should be 2
-    doAssert heatmap.getHeat(1, 0, 0) == 2, "second visit should have cumulative heat 2"
+    # Step 1: agent at (0,0) again, but no increment when standing still
+    doAssert heatmap.getHeat(1, 0, 0) == 1, "standing still should not accumulate heat"
 
-    # Step 2: agent moved to (1,1), (0,0) retains heat 2, (1,1) gets heat 1
-    doAssert heatmap.getHeat(2, 0, 0) == 2, "(0,0) should retain heat 2"
+    # Step 2: agent moved to (1,1), (0,0) retains heat 1, (1,1) gets heat 1
+    doAssert heatmap.getHeat(2, 0, 0) == 1, "(0,0) should retain heat 1"
     doAssert heatmap.getHeat(2, 1, 1) == 1, "(1,1) should have heat 1"
-    doAssert heatmap.getMaxHeat(2) == 2, "max heat should be 2"
+    doAssert heatmap.getMaxHeat(2) == 1, "max heat should be 1"
 
   block boundary_conditions:
     echo "Testing boundary conditions"

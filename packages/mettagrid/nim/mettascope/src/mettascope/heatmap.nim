@@ -18,6 +18,7 @@ proc newHeatmap*(replay: Replay): Heatmap =
 proc initialize*(heatmap: Heatmap, replay: Replay) =
   ## Initialize the heatmap for every step in the replay.
   ## For each step, start with previous step's cumulative values, then add agent positions.
+  ## Only increment heat when agents move to new tiles, but always include step 0 positions.
 
   for step in 0 ..< replay.maxSteps:
     # Start with previous step's cumulative values (if not the first step).
@@ -25,14 +26,17 @@ proc initialize*(heatmap: Heatmap, replay: Replay) =
       for i in 0 ..< heatmap.data[step].len:
         heatmap.data[step][i] = heatmap.data[step - 1][i]
 
-    # Add agent positions for this step.
+    # Add agent positions for this step, but only if they moved or it's step 0.
     for agent in replay.agents:
-      let location = agent.location.at(step)
-      let x = location.x.int
-      let y = location.y.int
+      let currentLocation = agent.location.at(step)
+      let x = currentLocation.x.int
+      let y = currentLocation.y.int
 
       if x >= 0 and x < heatmap.width and y >= 0 and y < heatmap.height:
-        heatmap.data[step][y * heatmap.width + x] += 1
+        # Always add heat for step 0 (initial positions), or when agent moved from previous step.
+        let shouldAddHeat = (step == 0) or (agent.location.at(step - 1) != currentLocation)
+        if shouldAddHeat:
+          heatmap.data[step][y * heatmap.width + x] += 1
 
     # Calculate max heat for this step.
     var maxHeat = 0
@@ -66,14 +70,18 @@ proc update*(heatmap: Heatmap, step: int, replay: Replay) =
       for j in 0 ..< heatmap.data[i].len:
         heatmap.data[i][j] = heatmap.data[i - 1][j]
 
-  # Update the cumulative heatmap for every agent at this step.
+  # Update the cumulative heatmap for every agent at this step, but only if they moved.
   for agent in replay.agents:
-    let location = agent.location.at(step)
-    let x = location.x.int
-    let y = location.y.int
+    let currentLocation = agent.location.at(step)
+    let x = currentLocation.x.int
+    let y = currentLocation.y.int
 
     if x >= 0 and x < heatmap.width and y >= 0 and y < heatmap.height:
-      heatmap.data[step][y * heatmap.width + x] += 1
+      # Only add heat if agent moved from the previous step.
+      let previousLocation = agent.location.at(step - 1)
+      let shouldAddHeat = (previousLocation != currentLocation)
+      if shouldAddHeat:
+        heatmap.data[step][y * heatmap.width + x] += 1
 
   # Calculate max heat for this step.
   var maxHeat = 0
