@@ -7,7 +7,7 @@ import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import OptionalUserOrToken, UserOrToken
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
@@ -395,19 +395,24 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
+        user: OptionalUserOrToken,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
         policy_version_ids: Optional[list[str]] = Query(default=None),
+        mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
+        if mine and not user:
+            raise HTTPException(status_code=401, detail="Authentication required for mine=true")
         pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
         entries, total_count = await stats_repo.get_policy_versions(
             name_exact=name_exact,
             name_fuzzy=name_fuzzy,
             version=version,
             policy_version_ids=pv_uuids,
+            user_id=user if mine else None,
             limit=limit,
             offset=offset,
         )
