@@ -17,6 +17,13 @@ type
 
   RecipeInfoConfig* = tuple[pattern: seq[string], protocol: Protocol]
 
+  ObsConfig* = object
+    width*: int
+    height*: int
+    tokenDim*: int
+    numTokens*: int
+    tokenValueBase*: int
+
   ObjectConfig* = object
     name*: string
     typeId*: int
@@ -32,8 +39,7 @@ type
     vibeNames*: seq[string]
     numAgents*: int
     maxSteps*: int
-    obsWidth*: int
-    obsHeight*: int
+    obs*: ObsConfig
     actions*: Table[string, ActionConfig]
     objects*: Table[string, ObjectConfig]
 

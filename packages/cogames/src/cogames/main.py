@@ -856,13 +856,13 @@ def login_cmd(
         raise typer.Exit(1)
 
 
-app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+app.command(name="submissions", help="Show your uploaded policies and tournament submissions")(submissions_cmd)
 
 app.command(name="seasons", help="List available tournament seasons")(seasons_cmd)
 
 app.command(
     name="leaderboard",
-    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+    help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
 
 
@@ -995,9 +995,8 @@ def upload_cmd(
     )
 
     if result:
-        console.print(f"\n[bold green]Uploaded {result.name}[/bold green][dim]:v{result.version}[/dim]")
-        console.print("\n[yellow]To submit to a tournament:[/yellow]")
-        console.print(f"  cogames submit {result.name}:v{result.version} --season <season-name>")
+        console.print(f"[green]Upload complete: {result.name}:v{result.version}[/green]")
+        console.print(f"\nTo submit to a tournament: cogames submit {result.name}:v{result.version} --season <name>")
 
 
 @app.command(name="submit", help="Submit an uploaded policy to a tournament season")
