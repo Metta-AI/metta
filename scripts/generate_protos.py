@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Generate Python protobuf bindings from .proto files.
 
-Usage:
-    python scripts/generate_protos.py
-
 Proto files in ./proto/metta/ are compiled to ./metta/, preserving directory structure.
 For example:
     proto/metta/protobuf/sim/single_episode.proto
@@ -14,19 +11,26 @@ For example:
 import subprocess
 import sys
 from pathlib import Path
+from typing import Annotated, Optional
 
-REPO_ROOT = Path(__file__).parent.parent
+import typer
+
+from metta.common.util.fs import get_repo_root
+
+REPO_ROOT = get_repo_root()
 
 PROTO_ROOT = REPO_ROOT / "proto"
 
-# Each mapping: scan proto/{subdir}/, output to {output_root}/ (preserving subdir structure)
-PROTO_MAPPINGS = [
-    {
-        "subdir": Path("metta"),
-        "output_root": REPO_ROOT,
-    },
-    # Future: {"subdir": Path("mettagrid"), "output_root": REPO_ROOT / "packages/mettagrid/python/src"},
-]
+
+def get_proto_mappings(root_dir: Path = REPO_ROOT) -> list[dict]:
+    """Get proto mappings with output paths relative to root_dir."""
+    return [
+        {
+            "subdir": Path("metta"),
+            "output_root": root_dir,
+        },
+        # Future: {"subdir": Path("mettagrid"), "output_root": root_dir / "packages/mettagrid/python/src"},
+    ]
 
 
 def find_proto_files(subdir: Path) -> list[Path]:
@@ -86,13 +90,17 @@ def ensure_init_files(subdir: Path, output_root: Path) -> None:
             init_file = parent / "__init__.py"
             if not init_file.exists():
                 init_file.touch()
-                print(f"  Created {init_file.relative_to(REPO_ROOT)}")
+                print(f"  Created {init_file.relative_to(output_root)}")
 
 
-def main() -> int:
+def main(
+    output: Annotated[Optional[Path], typer.Option(help="Output directory (default: repo root)")] = None,
+) -> None:
+    """Generate Python protobuf bindings from .proto files."""
+    root_dir = output or REPO_ROOT
     success = True
 
-    for mapping in PROTO_MAPPINGS:
+    for mapping in get_proto_mappings(root_dir):
         subdir = mapping["subdir"]
         output_root = mapping["output_root"]
 
@@ -106,8 +114,9 @@ def main() -> int:
 
         ensure_init_files(subdir, output_root)
 
-    return 0 if success else 1
+    if not success:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    typer.run(main)
