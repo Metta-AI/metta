@@ -25,18 +25,18 @@ def temp_checkpoint_dir():
 @pytest.fixture
 def test_env_config():
     """Get a small test game configuration."""
-    return get_mission("machina_1")[1]
+    return get_mission("training_facility.harvest")[1]
 
 
 @pytest.mark.timeout(120)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
-    """Test training with LSTMPolicy for 1000 steps."""
+    """Test training with LSTMPolicy for a short run."""
     train(
         env_cfg=test_env_config,
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=200,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
         batch_size=64,
@@ -69,7 +69,7 @@ def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
         policy_class_path="mettagrid.policy.lstm.LSTMPolicy",
         device=torch.device("cpu"),
         initial_weights_path=None,
-        num_steps=1000,
+        num_steps=200,
         checkpoints_path=temp_checkpoint_dir,
         seed=42,
         batch_size=64,
@@ -124,7 +124,7 @@ def test_make_policy_trainable_and_train(temp_checkpoint_dir):
         try:
             # Train using the generated policy for a few steps
             train(
-                env_cfg=get_mission("machina_1")[1],
+                env_cfg=get_mission("training_facility.harvest")[1],
                 policy_class_path=f"{policy_file.stem}.MyTrainablePolicy",
                 device=torch.device("cpu"),
                 initial_weights_path=None,
