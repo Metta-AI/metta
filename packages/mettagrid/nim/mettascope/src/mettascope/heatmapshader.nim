@@ -142,7 +142,7 @@ proc draw*(
   mvp: Mat4,
   mapSize: Vec2,
   maxHeat: float32,
-  minOpacity: float32 = 0.1,
+  minOpacity: float32 = 0.3,
   maxOpacity: float32 = 0.7
 ) =
   ## Draw the heatmap overlay.
