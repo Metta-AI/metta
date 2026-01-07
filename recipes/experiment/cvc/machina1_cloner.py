@@ -6,7 +6,6 @@ from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import AdvantageConfig
 from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -21,27 +20,6 @@ from recipes.experiment.cogs_v_clips import (
     make_training_env,
     train_single_mission,
 )
-
-
-def _trainer_and_env_overrides() -> tuple[dict[str, object], dict[str, object]]:
-    trainer_updates = {
-        # "compile": False,
-        # "batch_size": 4_194_304 ,
-        # "minibatch_size": 8192,
-        # "bptt_horizon": 256,
-        # "optimizer": OptimizerConfig(learning_rate=1e-4),
-        "update_epochs": 2,
-        "advantage": AdvantageConfig(gae_lambda=0.997),
-    }
-
-    env_updates = {
-        # "forward_pass_minibatch_target_size": 16384,
-        # "auto_workers": False,
-        # "num_workers": 1,
-        # "async_factor": 1,
-    }
-
-    return trainer_updates, env_updates
 
 
 def train(
@@ -167,10 +145,6 @@ def train(
             end_agent_step=teacher_total_steps,
         )
     )
-
-    trainer_updates, env_updates = _trainer_and_env_overrides()
-    tt.trainer = tt.trainer.model_copy(update=trainer_updates)
-    tt.training_env = tt.training_env.model_copy(update=env_updates)
 
     if policy_architecture is None:
         cortex_pattern = list(cortex_pattern)
