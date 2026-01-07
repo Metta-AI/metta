@@ -21,11 +21,6 @@
     ],
     "deny": []
   },
-  "mcpServers": {
-    "metta-pr-similarity": {
-      "command": "metta-pr-similarity-mcp"
-    }
-  },
   "hooks": {
     "PostToolUse": [
       {
