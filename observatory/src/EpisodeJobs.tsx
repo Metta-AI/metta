@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AppContext } from './AppContext'
 import { Button } from './components/Button'
 import { Card } from './components/Card'
+import { Input } from './components/Input'
 import { Spinner } from './components/Spinner'
 import { StyledLink } from './components/StyledLink'
 import { Table, TD, TH, TR } from './components/Table'
@@ -72,10 +73,10 @@ const Timeline: FC<{ job: JobRequest }> = ({ job }) => {
   )
 }
 
-const parsePolicyUri = (uri: string): { name: string; version: string } | null => {
-  const match = uri.match(/^metta:\/\/policy\/(.+):v(\d+)$/)
+const parsePolicyUri = (uri: string): { uuid: string } | null => {
+  const match = uri.match(/^metta:\/\/policy\/([0-9a-fA-F-]{36})$/)
   if (match) {
-    return { name: match[1], version: `v${match[2]}` }
+    return { uuid: match[1] }
   }
   return null
 }
@@ -84,15 +85,15 @@ const PolicyLink: FC<{ uri: string }> = ({ uri }) => {
   const parsed = parsePolicyUri(uri)
   if (parsed) {
     return (
-      <StyledLink to={`/policies?name=${encodeURIComponent(parsed.name)}`} className="font-mono text-xs">
-        {parsed.name}:{parsed.version}
+      <StyledLink to={`/policies/versions/${parsed.uuid}`} className="font-mono text-xs" title={uri}>
+        {uri}
       </StyledLink>
     )
   }
   return (
-    <span className="font-mono text-xs truncate max-w-[400px]" title={uri}>
+    <div className="font-mono text-xs text-wrap break-all" title={uri}>
       {uri}
-    </span>
+    </div>
   )
 }
 
@@ -259,13 +260,13 @@ export const EpisodeJobs: FC = () => {
         )}
 
         <div className="mb-4 flex gap-4 items-center">
-          <input
-            type="text"
-            value={jobIdFilter}
-            onChange={(e) => handleJobIdChange(e.target.value)}
-            placeholder="Filter by Job ID..."
-            className="rounded border h-8 border-gray-300 bg-white text-gray-800 text-sm py-1 px-2 w-80 font-mono"
-          />
+          <div className="max-w-80">
+            <Input
+              value={jobIdFilter}
+              onChange={(value) => handleJobIdChange(value)}
+              placeholder="Filter by Job ID..."
+            />
+          </div>
           <StatusDropdown value={statusFilter} onChange={setStatusFilter} />
           <Button onClick={loadJobs} disabled={loading}>
             Refresh
