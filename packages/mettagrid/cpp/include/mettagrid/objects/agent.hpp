@@ -10,6 +10,7 @@
 
 #include "core/types.hpp"
 #include "objects/agent_config.hpp"
+#include "objects/alignable.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/usable.hpp"
@@ -17,7 +18,7 @@
 
 class ObservationEncoder;
 
-class Agent : public GridObject, public HasInventory, public Usable {
+class Agent : public GridObject, public HasInventory, public Usable, public Alignable {
 public:
   ObservationType group;
   short frozen;
@@ -28,8 +29,6 @@ public:
   std::unordered_map<std::string, RewardType> stat_rewards;
   std::unordered_map<std::string, RewardType> stat_reward_max;
   std::string group_name;
-  // We expect only a small number (single-digit) of soul-bound resources.
-  std::vector<InventoryItem> soul_bound_resources;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
@@ -38,8 +37,9 @@ public:
   RewardType* reward;
   GridLocation prev_location;
   unsigned int steps_without_motion;
-  // Inventory regeneration amounts (per-agent, vibe-dependent with "default" fallback at vibe ID 0)
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryQuantity>> inventory_regen_amounts;
+  // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount (can be negative for decay)
+  // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
+  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>> inventory_regen_amounts;
   // Damage configuration
   DamageConfig damage_config;
 
@@ -80,7 +80,6 @@ private:
   std::vector<char> diversity_tracked_mask;
   std::vector<char> tracked_resource_presence;
   std::size_t tracked_resource_diversity{0};
-  std::unordered_map<ObservationType, std::unordered_map<InventoryItem, int>> vibe_transfers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_AGENT_HPP_

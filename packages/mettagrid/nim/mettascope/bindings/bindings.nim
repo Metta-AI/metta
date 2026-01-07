@@ -25,6 +25,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     setControlCHook(ctrlCHandler)
     result = RenderResponse(shouldClose: false, actions: @[])
     playMode = Realtime
+    setDataDir(dataDir)
     common.replay = loadReplayString(replay, "MettaScope")
     window = newWindow(
       "MettaScope",

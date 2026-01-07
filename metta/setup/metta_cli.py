@@ -5,15 +5,17 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 import concurrent.futures
+import json
 import re
 import shutil
 import subprocess
 import sys
 import time
 import webbrowser
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import Annotated, Optional
 
 import typer
 from rich.console import Console
@@ -24,6 +26,9 @@ import gitta as git
 from metta.common.util.fs import get_repo_root
 from metta.common.util.log_config import init_logging
 from metta.setup.components.base import SetupModuleStatus
+from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from metta.setup.registry import SetupModule, get_all_modules
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.tools.book import app as book_app
 from metta.setup.tools.ci_runner import cmd_ci
 from metta.setup.tools.clean import cmd_clean
@@ -34,10 +39,17 @@ from metta.setup.tools.publish import cmd_publish
 from metta.setup.tools.test_runner.test_cpp import app as cpp_test_runner_app
 from metta.setup.tools.test_runner.test_nim import app as nim_test_runner_app
 from metta.setup.tools.test_runner.test_python import app as python_test_runner_app
-from metta.setup.utils import debug, error, info, success, warning
-
-if TYPE_CHECKING:
-    from metta.setup.registry import SetupModule
+from metta.setup.utils import (
+    debug,
+    error,
+    header,
+    import_all_modules_from_subpackage,
+    info,
+    prompt_choice,
+    success,
+    warning,
+)
+from metta.tools.utils.auto_config import auto_policy_storage_decision
 
 
 class PRStatus(StrEnum):
@@ -58,16 +70,10 @@ class MettaCLI:
         if self._components_initialized:
             return
 
-        from metta.setup.utils import import_all_modules_from_subpackage
-
         import_all_modules_from_subpackage("metta.setup", "components")
         self._components_initialized = True
 
     def setup_wizard(self, non_interactive: bool = False):
-        from metta.setup.profiles import UserType
-        from metta.setup.saved_settings import get_saved_settings
-        from metta.setup.utils import header, info, prompt_choice, success
-
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
@@ -102,11 +108,6 @@ class MettaCLI:
         info("\nRun 'metta install' to set up your environment.")
 
     def _custom_setup(self, non_interactive: bool = False):
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-        from metta.setup.registry import get_all_modules
-        from metta.setup.saved_settings import get_saved_settings
-        from metta.setup.utils import prompt_choice
-
         user_type = prompt_choice(
             "Select base profile for custom configuration:",
             [(ut, ut.get_description()) for ut in UserType if ut != UserType.CUSTOM],
@@ -180,9 +181,6 @@ def cmd_configure(
             raise typer.Exit(1)
         configure_component(component)
     elif profile:
-        from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
-        from metta.setup.saved_settings import get_saved_settings
-
         selected_user_type = UserType(profile)
         if selected_user_type in PROFILE_DEFINITIONS:
             saved_settings = get_saved_settings()
@@ -197,8 +195,6 @@ def cmd_configure(
 
 def configure_component(component_name: str):
     _ensure_components_initialized()
-    from metta.setup.registry import get_all_modules
-    from metta.setup.utils import error, info
 
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
@@ -217,7 +213,6 @@ def configure_component(component_name: str):
 
 def _get_selected_modules(components: list[str] | None = None, ensure_required: bool = False) -> list["SetupModule"]:
     _ensure_components_initialized()
-    from metta.setup.registry import get_all_modules
 
     component_objs = [
         m
@@ -247,8 +242,6 @@ def cmd_install(
 ):
     if not no_clean:
         cmd_clean(force=force)
-
-    from metta.setup.saved_settings import get_saved_settings
 
     # A profile must exist before installing. If installing in non-interactive mode,
     # the target profile must be specified with --profile. If in interactive mode and
@@ -358,8 +351,6 @@ def cmd_status(
     console = Console()
     console.print(table)
 
-    from metta.tools.utils.auto_config import auto_policy_storage_decision
-
     policy_decision = auto_policy_storage_decision()
     if policy_decision.using_remote and policy_decision.base_prefix:
         if policy_decision.reason == "env_override":
@@ -403,7 +394,6 @@ def cmd_run(
     args: Annotated[Optional[list[str]], typer.Argument(help="Arguments to pass to the component")] = None,
 ):
     _ensure_components_initialized()
-    from metta.setup.registry import get_all_modules
 
     modules = get_all_modules()
     module_map = {m.name: m for m in modules}
@@ -477,8 +467,6 @@ def cmd_pr_feed(
 
     Automatically fetches all pages within the time window.
     """
-    import json
-    from datetime import datetime, timedelta, timezone
 
     # Convert status to GraphQL enum
     # Note: "closed" includes both CLOSED (without merge) and MERGED
@@ -749,10 +737,10 @@ app.add_typer(code_formatters_app, name="lint")
 app.command(name="publish", help="Create and push a release tag for a package")(cmd_publish)
 
 
-def main() -> None:
+def cli_entry() -> None:
+    init_logging()
     app()
 
 
 if __name__ == "__main__":
-    init_logging()
-    main()
+    cli_entry()

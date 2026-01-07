@@ -13,12 +13,14 @@ import tempfile
 from pathlib import Path
 
 from metta.agent.policies.fast import FastConfig
+from metta.cogworks.curriculum import Curriculum
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
-from mettagrid.policy.mpt_artifact import load_mpt
-from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.util.uri_resolvers.schemes import get_checkpoint_metadata, policy_spec_from_uri
 from tests.helpers.fast_train_tool import create_minimal_training_setup, run_fast_train_tool
 
 
@@ -134,7 +136,7 @@ class TestTrainerCheckpointIntegration:
         assert trainer_state is not None
         assert trainer_state["agent_step"] > 0
         assert trainer_state["epoch"] > 0
-        assert isinstance(trainer_state.get("optimizer_state"), dict)
+        assert isinstance(trainer_state.get("optimizer"), dict)
 
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "No policy checkpoints found"
@@ -159,5 +161,7 @@ class TestTrainerCheckpointIntegration:
         policy_uri = checkpoint_manager.get_latest_checkpoint()
         assert policy_uri, "Expected at least one policy checkpoint"
 
-        artifact = load_mpt(policy_uri)
-        assert artifact.state_dict is not None
+        env_cfg = Curriculum(training_env_cfg.curriculum).get_task().get_env_cfg()
+        env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+        policy = initialize_or_load_policy(env_info, policy_spec_from_uri(policy_uri))
+        assert policy.state_dict()

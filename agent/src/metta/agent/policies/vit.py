@@ -28,7 +28,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     # Defaults aligned with legacy CvC baseline (keep max_tokens from newer runs)
-    latent_dim: int = Field(default=64)
+    latent_dim: int = Field(default=128)
     actor_hidden: int = Field(default=256)
     core_num_heads: int = Field(default=4)
     max_tokens: int = Field(default=128)
@@ -42,7 +42,7 @@ class ViTDefaultConfig(PolicyArchitecture):
     # Number of Axon layers in the trunk
     core_resnet_layers: int = 2
     # Pattern for trunk layers (e.g., "A" for Axon blocks, "L" for linear)
-    core_resnet_pattern: str = "A"
+    core_resnet_pattern: str = "Ag,A,S"
     # Enable layer normalization after each trunk layer
     core_use_layer_norm: bool = False
     # Whether to torch.compile the trunk (Cortex stack)
@@ -54,7 +54,7 @@ class ViTDefaultConfig(PolicyArchitecture):
 
     def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
         # If the architecture spec already bundled a component list (common for saved
-        # .mpt checkpoints), reuse it instead of regenerating with current defaults.
+        # checkpoint bundles), reuse it instead of regenerating with current defaults.
         # This keeps restored policies aligned with the shapes they were trained with.
         if self.components:
             return super().make_policy(policy_env_info)
@@ -103,6 +103,14 @@ class ViTDefaultConfig(PolicyArchitecture):
                 in_key="core",
                 out_key="values",
                 name="critic",
+                in_features=self.latent_dim,
+                out_features=1,
+                hidden_features=[self.critic_hidden],
+            ),
+            MLPConfig(
+                in_key="core",
+                out_key="h_values",
+                name="gtd_aux",
                 in_features=self.latent_dim,
                 out_features=1,
                 hidden_features=[self.critic_hidden],

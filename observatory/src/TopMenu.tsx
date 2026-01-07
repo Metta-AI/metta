@@ -31,8 +31,14 @@ export const TopMenu: FC = () => {
           <MenuLink to="/leaderboard" isActive={location.pathname.startsWith('/leaderboard')}>
             Leaderboard
           </MenuLink>
+          <MenuLink to="/tournament" isActive={location.pathname.startsWith('/tournament')}>
+            Tournament
+          </MenuLink>
           <MenuLink to="/eval-tasks" isActive={location.pathname.startsWith('/eval-task')}>
             Remote Jobs
+          </MenuLink>
+          <MenuLink to="/episode-jobs" isActive={location.pathname.startsWith('/episode-job')}>
+            Episode Jobs
           </MenuLink>
           <MenuLink to="/sql-query" isActive={location.pathname === '/sql-query'}>
             SQL Query

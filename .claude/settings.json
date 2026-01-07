@@ -21,9 +21,27 @@
     ],
     "deny": []
   },
-  "mcpServers": {
-    "metta-pr-similarity": {
-      "command": "metta-pr-similarity-mcp"
-    }
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix \"$CLAUDE_FILE_PATHS\""
+          }
+        ]
+      }
+    ]
   }
 }

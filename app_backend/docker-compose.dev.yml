@@ -2,37 +2,18 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: metta
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 2s
       timeout: 5s
-      retries: 5
-
-  observatory-backend:
-    platform: linux/amd64
-    build:
-      context: ..
-      dockerfile: app_backend/Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      STATS_DB_URI: postgres://postgres:password@postgres:5432/metta
-      RUN_MIGRATIONS: "true"
-      DEBUG_USER_EMAIL: localdev@example.com
-    volumes:
-      - ./src:/workspace/metta/app_backend/src
-      - ../common/src:/workspace/metta/common/src
-      - ../metta:/workspace/metta/metta
-    depends_on:
-      postgres:
-        condition: service_healthy
+      retries: 10
 
 volumes:
   postgres_data:

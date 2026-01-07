@@ -79,6 +79,12 @@ InventoryDelta Inventory::update(InventoryItem item, InventoryDelta attempted_de
     _owner->on_inventory_change(item, clamped_delta);
   }
 
+  // If we removed a modifier item, enforce limits on all resources
+  // (their effective limits may have decreased)
+  if (clamped_delta < 0 && is_modifier(item)) {
+    enforce_all_limits();
+  }
+
   return clamped_delta;
 }
 
@@ -108,4 +114,49 @@ InventoryQuantity Inventory::free_space(InventoryItem item) const {
 // Get method implementation
 std::unordered_map<InventoryItem, InventoryQuantity> Inventory::get() const {
   return this->_inventory;
+}
+
+// Check if an item is a modifier for any limit
+bool Inventory::is_modifier(InventoryItem item) const {
+  for (const auto& [_, limit] : this->_limits) {
+    if (limit->modifiers.count(item) > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Enforce all limits - drop excess items when limits decrease
+void Inventory::enforce_all_limits() {
+  // Collect unique limits (multiple resources can share a limit)
+  std::set<SharedInventoryLimit*> unique_limits;
+  for (const auto& [_, limit] : this->_limits) {
+    unique_limits.insert(limit);
+  }
+
+  // For each limit, check if we need to drop excess
+  for (SharedInventoryLimit* limit : unique_limits) {
+    InventoryDelta excess = limit->amount - limit->effective_limit(this->_inventory);
+    if (excess <= 0) {
+      continue;  // No excess
+    }
+
+    // Find resources belonging to this limit and drop excess
+    for (auto& [item, item_limit] : this->_limits) {
+      if (item_limit != limit) continue;
+
+      InventoryQuantity current = this->amount(item);
+
+      // Drop up to 'excess' from this item
+      InventoryDelta to_drop = std::min(static_cast<InventoryDelta>(current), excess);
+      if (to_drop > 0) {
+        // update may recurse, if we drop something that impacts inventory limits.
+        this->update(item, -to_drop);
+        // Because of the potential recursion, calculate the excess again from scratch.
+        excess = limit->amount - limit->effective_limit(this->_inventory);
+      }
+
+      if (excess <= 0) break;
+    }
+  }
 }

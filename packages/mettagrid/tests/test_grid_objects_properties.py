@@ -16,6 +16,7 @@ from mettagrid.config.mettagrid_config import (
     ProtocolConfig,
     WallConfig,
 )
+from mettagrid.config.vibes import Vibe
 from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.simulator import BoundingBox, Simulation
 
@@ -28,12 +29,17 @@ def sim_with_assembler():
             num_agents=2,
             obs=ObsConfig(width=5, height=5, num_tokens=100),
             max_steps=100,
-            vibe_names=["neutral", "deposit", "withdraw"],
             resource_names=["iron", "steel"],
             actions=ActionsConfig(
                 noop=NoopActionConfig(),
                 move=MoveActionConfig(),
-                change_vibe=ChangeVibeActionConfig(number_of_vibes=3),
+                change_vibe=ChangeVibeActionConfig(
+                    vibes=[
+                        Vibe("😐", "neutral"),
+                        Vibe("📥", "deposit"),
+                        Vibe("📤", "withdraw"),
+                    ]
+                ),
             ),
             objects={
                 "wall": WallConfig(),

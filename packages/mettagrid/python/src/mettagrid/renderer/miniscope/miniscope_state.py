@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 
-from mettagrid.simulator.interface import Action
+from mettagrid.simulator.types import Action
 
 
 class RenderMode(str, Enum):

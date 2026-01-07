@@ -113,9 +113,10 @@ protected:
                        1,                               // group_id
                        "test_group",                    // group_name
                        100,                             // freeze_duration
-                       create_test_inventory_config(),  // resource_limits
-                       create_test_stats_rewards(),     // stats_rewards
-                       create_test_stats_reward_max(),  // stats_reward_max
+                       0,                               // initial_vibe
+                       create_test_inventory_config(),  // inventory_config
+                       create_test_stats_rewards(),     // stat_rewards
+                       create_test_stats_reward_max(),  // stat_reward_max
                        {});                             // initial_inventory
   }
 
@@ -145,7 +146,7 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   auto stats_reward_max = create_test_stats_reward_max();
   stats_reward_max["chest.heart.amount"] = 5.0f;
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, create_test_inventory_config(), rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0, create_test_inventory_config(), rewards, stats_reward_max);
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
 
@@ -315,7 +316,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   std::unordered_map<std::string, RewardType> stats_reward_max;
   stats_reward_max[std::string(TestItemStrings::ORE) + ".amount"] = 2.0f;  // Cap at 2.0 instead of 10.0
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -382,7 +383,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   stats_reward_max[std::string(TestItemStrings::HEART) + ".amount"] = 30.0f;  // Cap for HEART
   // LASER and ARMOR have no caps
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -439,7 +440,7 @@ TEST_F(MettaGridCppTest, SharedInventoryLimits) {
   auto rewards = create_test_stats_rewards();
   auto stats_reward_max = create_test_stats_reward_max();
 
-  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, inventory_config, rewards, stats_reward_max);
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0, inventory_config, rewards, stats_reward_max);
 
   auto resource_names = create_test_resource_names();
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
@@ -796,10 +797,13 @@ TEST_F(MettaGridCppTest, AssemblerProtocolObservationsEnabled) {
   auto resource_names = create_test_resource_names();
   std::unordered_map<std::string, ObservationType> proto_feature_ids;
   // Assign arbitrary, unique feature ids for protocol input/output per resource
+  // Use multi-token encoding with :p1, :p2 suffixes (default token_value_base=256 needs 2 tokens for uint16_t)
   for (size_t i = 0; i < resource_names.size(); ++i) {
     proto_feature_ids[std::string("protocol_input:") + resource_names[i]] = static_cast<ObservationType>(100 + i);
     proto_feature_ids[std::string("protocol_output:") + resource_names[i]] = static_cast<ObservationType>(120 + i);
     proto_feature_ids[std::string("inv:") + resource_names[i]] = static_cast<ObservationType>(140 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i] + ":p1"] = static_cast<ObservationType>(160 + i);
+    proto_feature_ids[std::string("inv:") + resource_names[i] + ":p2"] = static_cast<ObservationType>(180 + i);
   }
   ObservationEncoder encoder(true, resource_names, proto_feature_ids);
   assembler->set_obs_encoder(&encoder);

@@ -1,51 +1,57 @@
+{{- range .Values.pools }}
+---
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
-  name: eval-worker-nodepool
+  name: {{ .name }}
 spec:
+{{- if .replicas }}
+  replicas: {{ .replicas }}
+{{- end }}
   disruption:
     budgets:
-    - nodes: 10%
-    consolidateAfter: 15m
+    - nodes: 100%
+    consolidateAfter: 30s
     consolidationPolicy: WhenEmpty
   template:
     metadata:
       labels:
-        workload-type: eval-worker
+        workload-type: {{ .workload }}
     spec:
       expireAfter: 336h
+      terminationGracePeriod: 24h
       nodeClassRef:
         group: eks.amazonaws.com
         kind: NodeClass
         name: default
+
       requirements:
       - key: karpenter.sh/capacity-type
         operator: In
-        values:
-        - on-demand
+        values: ["on-demand"]
+
       - key: eks.amazonaws.com/instance-category
         operator: In
-        values:
-        - c
-        - m
-        - r
+        values: ["c", "m", "r"]
+
       - key: "eks.amazonaws.com/instance-cpu"
         operator: In
         values: ["4", "8", "12", "16"]
+
       - key: eks.amazonaws.com/instance-generation
         operator: Gt
-        values:
-        - "4"
+        values: ["4"]
+
       - key: kubernetes.io/arch
         operator: In
-        values:
-        - amd64
+        values: ["amd64"]
+
       - key: kubernetes.io/os
         operator: In
-        values:
-        - linux
-      terminationGracePeriod: 24h0m0s
+        values: ["linux"]
+
       taints:
       - key: workload-type
-        value: eval-worker
+        value: {{ .workload }}
         effect: NoSchedule
+{{- end }}
