@@ -106,11 +106,15 @@ class TournamentServerClient:
         method: str,
         path: str,
         response_type: type[T] | None = None,
+        timeout: float | None = None,
         **kwargs: Any,
     ) -> T | dict[str, Any]:
         headers = kwargs.pop("headers", {})
         if self._token:
             headers["X-Auth-Token"] = self._token
+
+        if timeout is not None:
+            kwargs["timeout"] = timeout
 
         response = self._http_client.request(method, path, headers=headers, **kwargs)
         response.raise_for_status()
@@ -146,19 +150,27 @@ class TournamentServerClient:
     def get_leaderboard(self, season_name: str) -> list[LeaderboardEntry]:
         return self._get(f"/tournament/seasons/{season_name}/leaderboard", list[LeaderboardEntry])
 
+    def get_my_policy_versions(
+        self,
+        name: str | None = None,
+        version: int | None = None,
+    ) -> list[PolicyVersionInfo]:
+        params: dict[str, Any] = {"mine": "true", "limit": 100}
+        if name is not None:
+            params["name_exact"] = name
+        if version is not None:
+            params["version"] = version
+        result = self._get("/stats/policy-versions", params=params)
+        entries = result.get("entries", [])
+        return [PolicyVersionInfo.model_validate(e) for e in entries]
+
     def lookup_policy_version(
         self,
         name: str,
         version: int | None = None,
     ) -> PolicyVersionInfo | None:
-        params: dict[str, Any] = {"mine": "true", "name_exact": name, "limit": 1}
-        if version is not None:
-            params["version"] = version
-        result = self._get("/stats/policy-versions", params=params)
-        entries = result.get("entries", [])
-        if not entries:
-            return None
-        return PolicyVersionInfo.model_validate(entries[0])
+        versions = self.get_my_policy_versions(name=name, version=version)
+        return versions[0] if versions else None
 
     def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionInfo:
         return self._get(f"/stats/policy-versions/{policy_version_id}", PolicyVersionInfo)
@@ -177,14 +189,25 @@ class TournamentServerClient:
             params={"mine": "true"} if mine else None,
         )
 
-    def get_presigned_upload_url(self, name: str) -> dict[str, Any]:
-        return self._post("/stats/policies/submit/presigned-url", json={"name": name})
+    def get_presigned_upload_url(self) -> dict[str, Any]:
+        return self._post("/stats/policies/submit/presigned-url", timeout=60.0)
 
-    def complete_policy_upload(self, upload_id: str, name: str, policy_spec: dict[str, Any]) -> dict[str, Any]:
+    def complete_policy_upload(self, upload_id: str, name: str) -> dict[str, Any]:
         return self._post(
             "/stats/policies/submit/complete",
-            json={"upload_id": upload_id, "name": name, "policy_spec": policy_spec},
+            timeout=120.0,
+            json={"upload_id": upload_id, "name": name},
         )
 
     def update_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> dict[str, Any]:
         return self._put(f"/stats/policies/versions/{policy_version_id}/tags", json=tags)
+
+    def get_policy_memberships(self, policy_version_id: uuid.UUID) -> list[dict[str, Any]]:
+        return self._get(f"/tournament/policies/{policy_version_id}/memberships", list[dict[str, Any]])
+
+    def get_my_memberships(self) -> dict[str, list[str]]:
+        """Get all season memberships for the user's policy versions.
+
+        Returns a mapping of policy_version_id -> list of season names.
+        """
+        return self._get("/tournament/my-memberships", dict[str, list[str]])
