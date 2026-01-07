@@ -95,34 +95,26 @@ class MembershipHistoryEntry(BaseModel):
     created_at: str
 
 
-class PoolDescriptionResponse(BaseModel):
+class PoolInfo(BaseModel):
     name: str
     description: str
 
 
-class SeasonDescriptionResponse(BaseModel):
-    summary: str
-    pools: list[PoolDescriptionResponse]
-
-
 class SeasonResponse(BaseModel):
     name: str
-    description: SeasonDescriptionResponse
-    pools: list[str]
+    summary: str
+    pools: list[PoolInfo]
 
     @classmethod
     def from_commissioner(cls, season_name: str) -> "SeasonResponse":
         if season_name not in SEASONS:
-            return cls(name=season_name, description=SeasonDescriptionResponse(summary="", pools=[]), pools=[])
+            return cls(name=season_name, summary="", pools=[])
         commissioner = SEASONS[season_name]()
         desc = commissioner.description
         return cls(
             name=season_name,
-            description=SeasonDescriptionResponse(
-                summary=desc.summary,
-                pools=[PoolDescriptionResponse(name=p.name, description=p.description) for p in desc.pools],
-            ),
-            pools=[p.name for p in desc.pools],
+            summary=desc.summary,
+            pools=[PoolInfo(name=p.name, description=p.description) for p in desc.pools],
         )
 
 
@@ -185,33 +177,34 @@ def create_tournament_router() -> APIRouter:
     @router.get("/seasons/{season_name}/policies")
     @timed_http_handler
     async def get_policies(
-        season_name: str, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+        season_name: str,
+        user: UserOrToken,
+        session: AsyncSession = Depends(get_session),
+        mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
     ) -> list[PolicySummary]:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
+        from metta.app_backend.models.policies import Policy
         from metta.app_backend.models.tournament import MatchStatus
 
-        policy_versions = (
-            (
-                await session.execute(
-                    select(PolicyVersion)
-                    .join(PolicyVersion.pool_players)
-                    .join(PoolPlayer.pool)
-                    .join(Pool.season)
-                    .where(Season.name == season_name)
-                    .options(
-                        selectinload(PolicyVersion.policy),
-                        selectinload(PolicyVersion.pool_players)
-                        .selectinload(PoolPlayer.pool)
-                        .selectinload(Pool.season),
-                    )
-                    .distinct()
-                )
+        query = (
+            select(PolicyVersion)
+            .join(PolicyVersion.pool_players)
+            .join(PoolPlayer.pool)
+            .join(Pool.season)
+            .where(Season.name == season_name)
+            .options(
+                selectinload(PolicyVersion.policy),
+                selectinload(PolicyVersion.pool_players).selectinload(PoolPlayer.pool).selectinload(Pool.season),
             )
-            .scalars()
-            .all()
+            .distinct()
         )
+
+        if mine:
+            query = query.join(PolicyVersion.policy).where(Policy.user_id == user)
+
+        policy_versions = (await session.execute(query)).scalars().all()
 
         if not policy_versions:
             return []
@@ -344,7 +337,7 @@ def create_tournament_router() -> APIRouter:
             for m, episode_id in rows
         ]
 
-    @router.post("/seasons/{season_name}/submit")
+    @router.post("/seasons/{season_name}/submissions")
     @timed_http_handler
     async def submit_policy(season_name: str, request: SubmitRequest, _user: UserOrToken) -> SubmitResponse:
         if season_name not in SEASONS:
@@ -353,9 +346,9 @@ def create_tournament_router() -> APIRouter:
         pool_names = await commissioner.submit(request.policy_version_id)
         return SubmitResponse(pools=pool_names)
 
-    @router.get("/players/{policy_version_id}/memberships")
+    @router.get("/policies/{policy_version_id}/memberships")
     @timed_http_handler
-    async def get_player_memberships(
+    async def get_policy_memberships(
         policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
     ) -> list[MembershipHistoryEntry]:
         changes = (

@@ -270,20 +270,15 @@ export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'fa
 
 export type MatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed'
 
-export type PoolDescription = {
+export type PoolInfo = {
   name: string
   description: string
 }
 
-export type SeasonDescription = {
-  summary: string
-  pools: PoolDescription[]
-}
-
 export type SeasonDetail = {
   name: string
-  description: SeasonDescription
-  pools: string[]
+  summary: string
+  pools: PoolInfo[]
 }
 
 export type PolicyVersionSummary = {
@@ -721,14 +716,15 @@ export class Repo {
   }
 
   async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {
-    return this.apiCallWithBody<SubmissionResponse>(`/tournament/seasons/${encodeURIComponent(seasonName)}/submit`, {
-      policy_version_id: policyVersionId,
-    })
+    return this.apiCallWithBody<SubmissionResponse>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/submissions`,
+      { policy_version_id: policyVersionId }
+    )
   }
 
-  async getPlayerMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
+  async getPolicyMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
     return this.apiCall<MembershipHistoryEntry[]>(
-      `/tournament/players/${encodeURIComponent(policyVersionId)}/memberships`
+      `/tournament/policies/${encodeURIComponent(policyVersionId)}/memberships`
     )
   }
 }
