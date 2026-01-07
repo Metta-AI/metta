@@ -4,6 +4,7 @@ import time
 from typing import Literal, TypedDict
 from uuid import UUID
 
+from opentelemetry import trace as otel_trace
 from kubernetes import (
     client,
     watch,  # type: ignore[attr-defined]
@@ -21,6 +22,7 @@ from metta.app_backend.job_runner.config import (
     get_dispatch_config,
 )
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
+from metta.common.otel.tracing import init_tracing, trace
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
@@ -116,6 +118,7 @@ def _get_job_info(pod: client.V1Pod) -> tuple[UUID, str] | None:
     return UUID(job_id_str), pod.metadata.name or "unknown"
 
 
+@trace("tournament.job.status_update")
 def _handle_pod_state(stats_client: StatsClient, pod: client.V1Pod):
     info = _get_job_info(pod)
     if not info or not pod.status:
@@ -123,6 +126,12 @@ def _handle_pod_state(stats_client: StatsClient, pod: client.V1Pod):
 
     job_id, pod_name = info
     phase = pod.status.phase
+
+    span = otel_trace.get_current_span()
+    if span.is_recording():
+        span.set_attribute("job.id", str(job_id))
+        span.set_attribute("pod.name", pod_name)
+        span.set_attribute("pod.phase", phase)
 
     if phase == "Succeeded":
         _update_job_status(stats_client, job_id, JobStatus.completed)
@@ -212,4 +221,5 @@ def _update_job_status(
 if __name__ == "__main__":
     init_logging()
     suppress_noisy_logs()
+    init_tracing(service_name="episode-job-watcher")
     run_watcher()
