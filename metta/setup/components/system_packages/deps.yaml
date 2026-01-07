@@ -12,14 +12,6 @@ packages:
     apt:
       name: docker.io
 
-  node:
-    brew:
-      name: node
-      version: "24"
-      installed_name: node@24
-    apt:
-      name: nodejs
-
   gh:
     brew:
       name: gh
