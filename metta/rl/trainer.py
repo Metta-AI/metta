@@ -144,13 +144,14 @@ class Trainer:
         self._prev_agent_step_for_step_callbacks: int = 0
 
     def _build_nodes(self) -> tuple[list[Any], dict[str, Any]]:
-        node_specs = discover_node_specs()
+        node_specs_all = discover_node_specs()
         nodes: dict[str, Any] = {}
-        for spec in node_specs:
+        for spec in node_specs_all:
             cfg = self._cfg.nodes.get(spec.key)
             if cfg is None or not getattr(cfg, "enabled", False):
                 continue
             nodes[spec.key] = cfg.create(self._policy, self._cfg, self._env, self._device, spec.key)
+        node_specs = [spec for spec in node_specs_all if spec.key in nodes]
         return node_specs, nodes
 
     @property

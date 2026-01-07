@@ -89,8 +89,8 @@ class CoreTrainingLoop:
 
         # Notify nodes of rollout start
         for name, node in self.nodes.items():
-            spec = self.node_specs.get(name)
-            if spec and spec.has_rollout:
+            spec = self.node_specs[name]
+            if spec.has_rollout:
                 node.on_rollout_start(context)
 
         # Get buffer for storing experience
@@ -200,8 +200,8 @@ class CoreTrainingLoop:
 
         # Notify nodes of training phase end
         for name, node in self.nodes.items():
-            spec = self.node_specs.get(name)
-            if spec and spec.has_train:
+            spec = self.node_specs[name]
+            if spec.has_train:
                 node.on_train_phase_end(context)
 
         # Collect statistics from all nodes
@@ -252,9 +252,7 @@ def _build_rollout_nodes(
     for spec in node_specs:
         if not spec.has_rollout:
             continue
-        node = nodes.get(spec.key)
-        if node is None:
-            continue
+        node = nodes[spec.key]
         name = f"rollout.{spec.key}"
         deps = (base_dep,)
         graph_nodes.append(
@@ -354,9 +352,7 @@ def _build_train_nodes(
     for spec in node_specs:
         if not spec.has_train:
             continue
-        node = nodes.get(spec.key)
-        if node is None:
-            continue
+        node = nodes[spec.key]
         name = f"train.{spec.key}"
         deps = [base_dep]
         if spec.has_rollout:
@@ -700,8 +696,8 @@ def _train_used_keys_fn(core: CoreTrainingLoop):
         used_keys: set[str] = set()
         policy_td = workspace["shared_loss_data"]["policy_td"]
         for name, node in core.nodes.items():
-            spec = core.node_specs.get(name)
-            if spec is None or not spec.has_train:
+            spec = core.node_specs[name]
+            if not spec.has_train:
                 continue
             if not node.cfg.enabled or not node.node_gate_allows("train", context):
                 continue
@@ -789,8 +785,8 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
 def _train_on_mb_end_fn(core: CoreTrainingLoop):
     def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
         for name, node in core.nodes.items():
-            spec = core.node_specs.get(name)
-            if spec and spec.has_train:
+            spec = core.node_specs[name]
+            if spec.has_train:
                 node.on_mb_end(context, workspace["mb_idx"])
         return {}
 
