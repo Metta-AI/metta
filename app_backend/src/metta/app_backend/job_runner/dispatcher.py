@@ -69,6 +69,27 @@ def create_episode_job(job: JobRequest) -> str:
             )
             volume_mounts.append(client.V1VolumeMount(name=vol_name, mount_path=container_path))
 
+    tolerations: list[client.V1Toleration] | None = (
+        [
+            client.V1Toleration(
+                key="workload-type",
+                operator="Equal",
+                value="jobs",
+                effect="NoSchedule",
+            )
+        ]
+        if not cfg.LOCAL_DEV
+        else None
+    )
+
+    node_selector = (
+        {
+            "workload-type": "jobs",
+        }
+        if not cfg.LOCAL_DEV
+        else None
+    )
+
     k8s_job = client.V1Job(
         metadata=client.V1ObjectMeta(
             name=job_name,
@@ -93,7 +114,9 @@ def create_episode_job(job: JobRequest) -> str:
                 spec=client.V1PodSpec(
                     restart_policy="Never",
                     service_account_name="episode-runner" if not cfg.LOCAL_DEV else None,
-                    volumes=volumes if volumes else None,
+                    volumes=volumes,
+                    tolerations=tolerations,
+                    node_selector=node_selector,
                     containers=[
                         client.V1Container(
                             name="worker",
@@ -124,17 +147,6 @@ def create_episode_job(job: JobRequest) -> str:
                             ),
                         )
                     ],
-                    tolerations=[
-                        client.V1Toleration(
-                            key="workload-type",
-                            operator="Equal",
-                            value="jobs",
-                            effect="NoSchedule",
-                        )
-                    ],
-                    node_selector={
-                        "workload-type": "jobs",
-                    },
                 ),
             ),
         ),
