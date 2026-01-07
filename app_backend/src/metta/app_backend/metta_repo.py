@@ -808,6 +808,7 @@ class MettaRepo:
         name_fuzzy: str | None = None,
         version: int | None = None,
         policy_version_ids: list[uuid.UUID] | None = None,
+        user_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
@@ -830,6 +831,10 @@ class MettaRepo:
             if version is not None:
                 where_conditions.append("pv.version = %s")
                 params.append(version)
+
+            if user_id is not None:
+                where_conditions.append("p.user_id = %s")
+                params.append(user_id)
 
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
 

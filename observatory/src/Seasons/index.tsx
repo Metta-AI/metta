@@ -383,8 +383,8 @@ export const SeasonsPage: FC = () => {
   }
 
   const seasonOptions = seasons.map((s) => ({ value: s.name, label: s.name }))
-  const poolNames = season?.pools || []
-  const poolOptions = poolNames.map((p) => ({ value: p, label: p }))
+  const poolNames = season?.pools.map((p) => p.name) || []
+  const poolOptions = poolNames.map((name) => ({ value: name, label: name }))
   const playerOptions = policies.map((p) => ({
     value: p.policy.id,
     label: formatPolicyDisplay(p),
@@ -430,12 +430,12 @@ export const SeasonsPage: FC = () => {
             placeholder="Select season..."
           />
         </div>
-        {season?.description && (
+        {season && (
           <div className="text-gray-500 text-sm">
-            {season.description.summary && <div>{season.description.summary}</div>}
-            {season.description.pools.length > 0 && (
+            {season.summary && <div>{season.summary}</div>}
+            {season.pools.length > 0 && (
               <div className="mt-1 ml-4 space-y-0.5">
-                {season.description.pools.map((pool) => (
+                {season.pools.map((pool) => (
                   <div key={pool.name}>
                     <span className="font-medium text-gray-600">{pool.name}:</span> {pool.description}
                   </div>

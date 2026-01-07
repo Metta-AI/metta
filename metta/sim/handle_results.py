@@ -31,7 +31,7 @@ from metta.rl.wandb import (
 from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
-from mettagrid.renderer.mettascope import METTASCOPE_REPLAY_URL_PREFIX
+from mettagrid.renderer.common import METTASCOPE_REPLAY_URL_PREFIX
 from mettagrid.simulator.multi_episode.summary import build_multi_episode_rollout_summaries
 from mettagrid.util.file import http_url
 

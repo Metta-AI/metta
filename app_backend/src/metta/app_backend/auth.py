@@ -12,7 +12,6 @@ def get_user_from_header(request: Request) -> str | None:
 
     user_id = request.headers.get("X-User-Id")
     auth_secret = request.headers.get("X-Auth-Secret")
-
     if user_id and auth_secret and auth_secret == settings.OBSERVATORY_AUTH_SECRET:
         return user_id
     return None
@@ -45,6 +44,7 @@ async def user_from_header_or_token_or_raise(request: Request) -> str:
 
 # Dependency types for use in route decorators
 UserOrToken = Annotated[str, Depends(user_from_header_or_token_or_raise)]
+OptionalUserOrToken = Annotated[str | None, Depends(user_from_header_or_token)]
 
 
 async def validate_token_via_login_service(token: str) -> str | None:

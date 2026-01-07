@@ -16,6 +16,24 @@ from metta.setup.tools.observatory.utils import LOCAL_METTA_POLICY_EVAL_IMG_NAME
 from metta.setup.utils import error, info
 
 console = Console()
+repo_root = get_repo_root()
+
+# Local dev configuration
+LOCALHOST = "127.0.0.1"
+POSTGRES_PORT = 5432
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = "password"
+POSTGRES_DB = "metta"
+SERVER_PORT = 8000
+PROCESS_COMPOSE_PORT = 8090
+
+LOCAL_DB_URI = f"postgres://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{LOCALHOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+LOCAL_BACKEND_URL = f"http://{LOCALHOST}:{SERVER_PORT}"
+LOCAL_BACKEND_URL_FROM_K8S = f"http://host.docker.internal:{SERVER_PORT}"
+LOCAL_MACHINE_TOKEN = "local-dev-token"
+LOCAL_K8S_CONTEXT = "orbstack"
+LOCAL_AWS_PROFILE = "softmax"
+DEBUG_USER_EMAIL = "localdev@example.com"
 
 
 def handle_errors(fn):
@@ -30,12 +48,6 @@ def handle_errors(fn):
             raise typer.Exit(0) from None
 
     return wrapper
-
-
-LOCAL_DB_URI = "postgres://postgres:password@127.0.0.1:5432/metta"
-LOCAL_BACKEND_URL = "http://127.0.0.1:8000"
-LOCAL_BACKEND_URL_FROM_K8S = "http://host.docker.internal:8000"
-LOCAL_MACHINE_TOKEN = "local-dev-token"
 
 
 HELP_TEXT = f"""
@@ -84,20 +96,62 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-repo_root = get_repo_root()
+
+def _base_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    return env
+
+
+def _local_dev_env() -> dict[str, str]:
+    env = _base_env()
+    env["STATS_DB_URI"] = LOCAL_DB_URI
+    env["DEBUG_USER_EMAIL"] = DEBUG_USER_EMAIL
+    env["RUN_MIGRATIONS"] = "true"
+    env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
+    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
+    env["LOCAL_DEV"] = "true"
+    env["LOCAL_DEV_K8S_CONTEXT"] = LOCAL_K8S_CONTEXT
+    env["LOCAL_DEV_AWS_PROFILE"] = LOCAL_AWS_PROFILE
+
+    aws_path = os.path.expanduser("~/.aws")
+    source_mounts = [
+        f"{aws_path}:/root/.aws",
+        f"{repo_root}/metta:/workspace/metta/metta",
+        f"{repo_root}/app_backend:/workspace/metta/app_backend",
+        f"{repo_root}/common:/workspace/metta/common",
+    ]
+    env["LOCAL_DEV_MOUNTS"] = ",".join(source_mounts)
+    return env
+
+
+def _postgres_env() -> dict[str, str]:
+    env = _base_env()
+    env["POSTGRES_HOST"] = LOCALHOST
+    env["POSTGRES_PORT"] = str(POSTGRES_PORT)
+    env["POSTGRES_USER"] = POSTGRES_USER
+    env["POSTGRES_PASSWORD"] = POSTGRES_PASSWORD
+    env["POSTGRES_DB"] = POSTGRES_DB
+    return env
 
 
 @app.command(name="up", help="Start all observatory services (postgres, server, frontend, watcher)")
 @handle_errors
 def up(
     services: Annotated[list[str] | None, typer.Argument(help="Services to start (default: all)")] = None,
+    tui: Annotated[bool, typer.Option("-t", "--tui", help="Enable TUI mode")] = False,
 ):
-    procfile = Path(__file__).parent / "Procfile.observatory"
-    cmd = ["honcho", "start", "-f", str(procfile)]
+    compose_file = Path(__file__).parent / "process-compose.yaml"
+    env = _postgres_env()
+    env["SERVER_HOST"] = LOCALHOST
+    env["SERVER_PORT"] = str(SERVER_PORT)
+    cmd = ["process-compose", "-f", str(compose_file), "-p", str(PROCESS_COMPOSE_PORT)]
+    if not tui:
+        cmd.append("-t=false")
     if services:
         cmd.extend(services)
     info("Starting observatory services...")
-    subprocess.run(cmd, cwd=repo_root, check=True)
+    subprocess.run(cmd, cwd=repo_root, env=env, check=True)
 
 
 @app.command(
@@ -109,43 +163,18 @@ def up(
 def postgres(ctx: typer.Context):
     cmd = ["docker", "compose", "-f", str(repo_root / "app_backend" / "docker-compose.dev.yml")]
     args = ctx.args if ctx.args else ["up"]
-    # Add --wait when running detached to ensure db is ready
     if "up" in args and "-d" in args and "--wait" not in args:
         args = args + ["--wait"]
     cmd.extend(args)
-    subprocess.run(cmd, check=True)
-
-
-def _update_env_with_local_dev_settings(env: dict[str, str]) -> None:
-    env["STATS_DB_URI"] = LOCAL_DB_URI
-    env["DEBUG_USER_EMAIL"] = "localdev@example.com"
-    env["RUN_MIGRATIONS"] = "true"
-    env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
-    env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN
-
-    # Local dev k8s settings
-    env["LOCAL_DEV"] = "true"
-    env["LOCAL_DEV_K8S_CONTEXT"] = "orbstack"
-    aws_path = os.path.expanduser("~/.aws")
-    source_mounts = [
-        f"{aws_path}:/root/.aws",
-        f"{repo_root}/metta:/workspace/metta/metta",
-        f"{repo_root}/app_backend:/workspace/metta/app_backend",
-        f"{repo_root}/common:/workspace/metta/common",
-    ]
-    env["LOCAL_DEV_MOUNTS"] = ",".join(source_mounts)
-    env["LOCAL_DEV_AWS_PROFILE"] = "softmax"
+    subprocess.run(cmd, env=_postgres_env(), check=True)
 
 
 @app.command(name="server", help="Run the backend server on host")
 @handle_errors
 def server():
-    env = os.environ.copy()
-    _update_env_with_local_dev_settings(env)
-
-    # For sending the jobs
+    env = _local_dev_env()
     env["HOST"] = "0.0.0.0"
-    env["PORT"] = "8000"
+    env["PORT"] = str(SERVER_PORT)
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL_FROM_K8S
 
     info("Starting backend server...")
@@ -159,13 +188,10 @@ def server():
 @app.command(name="watcher", help="Run the job watcher on host")
 @handle_errors
 def watcher():
-    env = os.environ.copy()
-    _update_env_with_local_dev_settings(env)
-
+    env = _local_dev_env()
     env["STATS_SERVER_URI"] = LOCAL_BACKEND_URL
 
     info("Starting watcher...")
-
     subprocess.run(
         ["uv", "run", "python", "-m", "metta.app_backend.job_runner.watcher"],
         env=env,
@@ -178,7 +204,7 @@ def watcher():
 def frontend(
     backend: Annotated[str, typer.Option("--backend", "-b", help="Select backend: local or prod")] = "local",
 ):
-    env = os.environ.copy()
+    env = _base_env()
 
     if backend == "local":
         env["VITE_API_URL"] = LOCAL_BACKEND_URL
@@ -192,14 +218,13 @@ def frontend(
     info("Starting Observatory frontend")
     info(f"API URL: {env.get('VITE_API_URL')}")
 
-    subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=get_repo_root() / "observatory")
+    subprocess.run(["pnpm", "run", "dev"], env=env, check=True, cwd=repo_root / "observatory")
 
 
 @app.command(name="tournament", help="Run the tournament commissioner")
 @handle_errors
 def tournament():
-    env = os.environ.copy()
-    _update_env_with_local_dev_settings(env)
+    env = _local_dev_env()
     subprocess.run(
         ["uv", "run", "python", str(repo_root / "app_backend/src/metta/app_backend/tournament/cli.py")],
         env=env,
