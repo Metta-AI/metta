@@ -1,15 +1,10 @@
 """Map component for miniscope renderer."""
 
-from typing import TYPE_CHECKING
-
 from mettagrid.renderer.miniscope.buffer import MapBuffer
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState, RenderMode
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class MapComponent(MiniscopeComponent):
@@ -17,7 +12,7 @@ class MapComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):

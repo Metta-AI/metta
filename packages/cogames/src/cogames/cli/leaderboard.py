@@ -12,7 +12,8 @@ from rich import box
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
+from cogames.cli.client import TournamentServerClient
+from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER
 
 
@@ -40,37 +41,16 @@ def _format_score(value: Any) -> str:
     return "—"
 
 
-def _load_token(login_server: str) -> str | None:
-    authenticator = CoGamesAuthenticator()
-    if not authenticator.has_saved_token(login_server):
-        console.print("[red]Error:[/red] Not authenticated.")
-        console.print("Please run: [cyan]cogames login[/cyan]")
-        return None
-
-    token = authenticator.load_token(login_server)
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server}")
-        return None
-    return token
+def _get_client(login_server: str, server: str) -> TournamentServerClient | None:
+    return TournamentServerClient.from_login(server_url=server, login_server=login_server)
 
 
-def _fetch_leaderboard(server: str, path: str, token: str) -> dict[str, Any]:
+def _fetch_leaderboard(client: TournamentServerClient, path: str) -> dict[str, Any]:
     try:
-        response = httpx.get(
-            f"{server}{path}",
-            headers={"X-Auth-Token": token},
-            timeout=30.0,
-        )
+        return client._get(path)
     except httpx.HTTPError as exc:
-        console.print(f"[red]Failed to reach {server}:[/red] {exc}")
+        console.print(f"[red]Failed to reach server:[/red] {exc}")
         raise typer.Exit(1) from exc
-
-    if response.status_code != 200:
-        console.print(f"[red]Request failed with status {response.status_code}[/red]")
-        console.print(f"[dim]{response.text}[/dim]")
-        raise typer.Exit(1)
-
-    return response.json()
 
 
 def _render_table(title: str, entries: list[dict[str, Any]]) -> None:
@@ -118,11 +98,13 @@ def submissions_cmd(
     ),
 ) -> None:
     """Fetch submissions tied to the authenticated user."""
-    token = _load_token(login_server)
-    if not token:
+    client = _get_client(login_server, server)
+    if not client:
         return
 
-    payload = _fetch_leaderboard(server, "/leaderboard/v2/users/me", token)
+    with client:
+        payload = _fetch_leaderboard(client, "/leaderboard/v2/users/me")
+
     if json_output:
         console.print(json.dumps(payload, indent=2))
         return
@@ -160,12 +142,14 @@ def leaderboard_cmd(
     ),
 ) -> None:
     """Display leaderboard entries (public or personal)."""
-    token = _load_token(login_server)
-    if not token:
+    client = _get_client(login_server, server)
+    if not client:
         return
 
     path = "/leaderboard/v2" if view == "public" else "/leaderboard/v2/users/me"
-    payload = _fetch_leaderboard(server, path, token)
+    with client:
+        payload = _fetch_leaderboard(client, path)
+
     if json_output:
         console.print(json.dumps(payload, indent=2))
         return

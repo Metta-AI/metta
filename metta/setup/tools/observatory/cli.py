@@ -92,12 +92,17 @@ repo_root = get_repo_root()
 def up(
     services: Annotated[list[str] | None, typer.Argument(help="Services to start (default: all)")] = None,
 ):
-    procfile = Path(__file__).parent / "Procfile.observatory"
-    cmd = ["honcho", "start", "-f", str(procfile)]
+    compose_file = Path(__file__).parent / "process-compose.yaml"
+    env = os.environ.copy()
+    env["POSTGRES_HOST"] = "127.0.0.1"
+    env["POSTGRES_PORT"] = "5432"
+    env["SERVER_HOST"] = "127.0.0.1"
+    env["SERVER_PORT"] = "8000"
+    cmd = ["process-compose", "-f", str(compose_file)]
     if services:
         cmd.extend(services)
     info("Starting observatory services...")
-    subprocess.run(cmd, cwd=repo_root, check=True)
+    subprocess.run(cmd, cwd=repo_root, env=env, check=True)
 
 
 @app.command(

@@ -23,25 +23,26 @@ Usage:
     metta run-monitor  # Monitor last 10 runs (fetch 50, display 10)
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import sys
 import threading
 import time
 from collections import deque
-from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Deque, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Deque, Optional
 
 import typer
+from dateutil import parser
 from rich.console import Console, Group
 from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
+from metta.adaptive.models import JobStatus, RunInfo
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
-
-if TYPE_CHECKING:
-    from metta.adaptive.models import JobStatus, RunInfo
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +123,8 @@ class RateLimiter:
         return float(len(self._acquired_times))
 
 
-def _get_status_color(status: "JobStatus") -> str:
+def _get_status_color(status: JobStatus) -> str:
     """Get color for run status."""
-    from metta.adaptive.models import JobStatus
-
     if status == JobStatus.COMPLETED:
         return "bright_blue"
     elif status == JobStatus.IN_TRAINING:
@@ -144,7 +143,7 @@ def _get_status_color(status: "JobStatus") -> str:
         return "white"
 
 
-def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_game/assembler.heart.created") -> Table:
+def make_rich_monitor_table(runs: list[RunInfo], score_metric: str = "env_game/assembler.heart.created") -> Table:
     """Create rich table for run monitoring."""
 
     # Create table
@@ -205,7 +204,7 @@ def make_rich_monitor_table(runs: list["RunInfo"], score_metric: str = "env_game
 def create_run_banner(
     group: Optional[str],
     name_filter: Optional[str],
-    runs: list["RunInfo"],
+    runs: list[RunInfo],
     display_limit: int = 10,
     score_metric: str = "env_game/assembler.heart.created",
     api_rpm: Optional[float] = None,
@@ -219,17 +218,12 @@ def create_run_banner(
             # Parse created_at if it's a string from WandB
             created_at = run.created_at
             if isinstance(created_at, str):
-                from dateutil import parser
-
                 created_at = parser.parse(created_at)
 
             if earliest_created is None or created_at < earliest_created:
                 earliest_created = created_at
 
     if earliest_created:
-        # Use timezone-aware current time to match WandB timestamps
-        from datetime import timezone
-
         current_time = datetime.now(timezone.utc) if earliest_created.tzinfo else datetime.now()
         runtime = current_time - earliest_created
         runtime_hours = runtime.total_seconds() / 3600.0
@@ -266,18 +260,15 @@ def create_run_banner(
     else:
         filter_desc = "all runs"
 
-    # Create inline banner with styled parts
-    from rich.text import Text as RichText
-
     # First line with fetch/display info
-    line1 = RichText(
+    line1 = Text(
         f"🔄 LIVE RUN MONITOR: {filter_desc} | Fetched: {total_runs} runs, "
         f"displaying at most {display_limit} runs | Score: {score_metric}. "
     )
     line1.append("Use --help to change limits.", style="dim")
 
     # Cost line with warning
-    cost_line = RichText(f"💰 Total Cost: ${total_cost:.2f} ")
+    cost_line = Text(f"💰 Total Cost: ${total_cost:.2f} ")
 
     banner_lines = [
         line1,
@@ -296,8 +287,6 @@ def create_run_banner(
             "─" * 100,
         ]
     )
-
-    from rich.console import Group
 
     return Group(*[Text(line) if isinstance(line, str) else line for line in banner_lines])
 
@@ -338,7 +327,7 @@ def live_monitor_runs(
     limiter = RateLimiter(max_rpm=max_rpm, burst_rpm=burst_rpm)
 
     # Simple cache for list_runs results to keep UI non-blocking when rate-limited
-    cached_all_runs: list["RunInfo"] = []
+    cached_all_runs: list[RunInfo] = []
     cached_at: float = 0.0
 
     def generate_display():
@@ -454,10 +443,6 @@ def live_monitor_runs_test(
     group: Optional[str] = None, refresh_interval: int = 30, clear_screen: bool = True, display_limit: int = 10
 ) -> None:
     """Test mode for live run monitoring with mock data."""
-    from datetime import datetime, timedelta
-
-    from metta.adaptive.models import JobStatus, RunInfo
-
     console = Console()
 
     def generate_test_runs():
