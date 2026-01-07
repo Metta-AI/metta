@@ -147,33 +147,33 @@ class CoreTrainingLoop:
 
         epochs_trained = 0
 
-        if "values" in self.experience.buffer.keys():
-            values_for_adv = self.experience.buffer["values"]
-            if values_for_adv.dim() > 2:
-                values_for_adv = values_for_adv.mean(dim=-1)
-            centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
-            advantages_full = compute_advantage(
-                values_for_adv,
-                centered_rewards,
-                self.experience.buffer["dones"],
-                torch.ones_like(values_for_adv),
-                torch.zeros_like(values_for_adv, device=self.device),
-                advantage_cfg.gamma,
-                advantage_cfg.gae_lambda,
-                self.device,
-                advantage_cfg.vtrace_rho_clip,
-                advantage_cfg.vtrace_c_clip,
-            )
-        else:
-            # Value-free setups still need a tensor shaped like the buffer for sampling.
-            advantages_full = torch.zeros(
-                self.experience.buffer.batch_size,
-                device=self.device,
-                dtype=torch.float32,
-            )
-        self.experience.buffer["advantages_full"] = advantages_full
-
         for _ in range(update_epochs):
+            if "values" in self.experience.buffer.keys():
+                values_for_adv = self.experience.buffer["values"]
+                if values_for_adv.dim() > 2:
+                    values_for_adv = values_for_adv.mean(dim=-1)
+                centered_rewards = self.experience.buffer["rewards"] - self.experience.buffer["reward_baseline"]
+                advantages_full = compute_advantage(
+                    values_for_adv,
+                    centered_rewards,
+                    self.experience.buffer["dones"],
+                    torch.ones_like(values_for_adv),
+                    torch.zeros_like(values_for_adv, device=self.device),
+                    advantage_cfg.gamma,
+                    advantage_cfg.gae_lambda,
+                    self.device,
+                    advantage_cfg.vtrace_rho_clip,
+                    advantage_cfg.vtrace_c_clip,
+                )
+            else:
+                # Value-free setups still need a tensor shaped like the buffer for sampling.
+                advantages_full = torch.zeros(
+                    self.experience.buffer.batch_size,
+                    device=self.device,
+                    dtype=torch.float32,
+                )
+            self.experience.buffer["advantages_full"] = advantages_full
+
             stop_update_epoch = False
             for mb_idx in range(self.experience.num_minibatches):
                 if mb_idx % self.accumulate_minibatches == 0:
@@ -764,9 +764,22 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
             return {}
 
         actual_max_grad_norm = float(workspace.get("max_grad_norm", 0.5))
+        for spec in core.node_specs_order:
+            if not spec.has_train:
+                continue
+            node = core.nodes.get(spec.key)
+            if node is None:
+                continue
+            if not node.cfg.enabled or not node.node_gate_allows("train", context):
+                continue
+            if hasattr(node.cfg, "max_grad_norm"):
+                actual_max_grad_norm = float(getattr(node.cfg, "max_grad_norm"))
+                break
 
         torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)
         core.optimizer.step()
+        if core.device.type == "cuda":
+            torch.cuda.synchronize()
 
         return {}
 
