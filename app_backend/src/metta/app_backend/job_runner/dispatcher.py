@@ -1,5 +1,6 @@
 import functools
 import logging
+import os
 
 from kubernetes import client
 from kubernetes.config.incluster_config import load_incluster_config
@@ -13,8 +14,33 @@ from metta.app_backend.job_runner.config import (
     get_dispatch_config,
 )
 from metta.app_backend.models.job_request import JobRequest, JobType
+from metta.common.otel.resource import build_resource_attributes, format_resource_attributes
 
 logger = logging.getLogger(__name__)
+
+
+def _get_otel_env_vars(service_name: str) -> list[client.V1EnvVar]:
+    resource_attributes = build_resource_attributes(include_service_name=False)
+    resource_attributes_str = format_resource_attributes(resource_attributes)
+
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://$(HOST_IP):4318")
+    env_vars = [
+        client.V1EnvVar(name="OTEL_SERVICE_NAME", value=service_name),
+        client.V1EnvVar(name="OTEL_TRACES_EXPORTER", value=os.environ.get("OTEL_TRACES_EXPORTER", "otlp")),
+        client.V1EnvVar(name="OTEL_LOGS_EXPORTER", value=os.environ.get("OTEL_LOGS_EXPORTER", "none")),
+        client.V1EnvVar(
+            name="OTEL_EXPORTER_OTLP_PROTOCOL",
+            value=os.environ.get("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf"),
+        ),
+        client.V1EnvVar(name="OTEL_RESOURCE_ATTRIBUTES", value=resource_attributes_str),
+        client.V1EnvVar(name="OTEL_EXPORTER_OTLP_ENDPOINT", value=otlp_endpoint),
+        client.V1EnvVar(name="LOG_JSON", value=os.environ.get("LOG_JSON", "true")),
+        client.V1EnvVar(
+            name="HOST_IP",
+            value_from=client.V1EnvVarSource(field_ref=client.V1ObjectFieldSelector(field_path="status.hostIP")),
+        ),
+    ]
+    return env_vars
 
 
 @functools.cache
@@ -135,6 +161,7 @@ def create_episode_job(job: JobRequest) -> str:
                                 client.V1EnvVar(name="STATS_SERVER_URI", value=cfg.STATS_SERVER_URI),
                                 client.V1EnvVar(name="MACHINE_TOKEN", value=cfg.MACHINE_TOKEN),
                             ]
+                            + _get_otel_env_vars("episode-runner")
                             + (
                                 [client.V1EnvVar(name="AWS_PROFILE", value=cfg.LOCAL_DEV_AWS_PROFILE)]
                                 if cfg.LOCAL_DEV and cfg.LOCAL_DEV_AWS_PROFILE
