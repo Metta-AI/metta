@@ -18,7 +18,7 @@ var
 
 proc heatmapVert*(fragmentWorldPos: var Vec2) =
   ## Generate a full-rect in world units to align heatmap with tile grid.
-  let corner = uvec2(gl_VertexID mod 2, gl_VertexID div 2)
+  let corner = ivec2(gl_VertexID mod 2, gl_VertexID div 2)
   let worldPos = vec2(
     float(corner.x) * uMapSize.x - 0.5,
     float(corner.y) * uMapSize.y - 0.5
