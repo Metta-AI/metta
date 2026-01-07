@@ -25,6 +25,12 @@ class UUIDResponse(BaseModel):
     id: uuid.UUID
 
 
+class PolicyVersionResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    version: int
+
+
 class PolicyCreate(BaseModel):
     name: str
     attributes: dict[str, Any] = Field(default_factory=dict)
@@ -112,7 +118,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
-    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> UUIDResponse:
+    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> PolicyVersionResponse:
         s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
         policy_id = await stats_repo.upsert_policy(name=name, user_id=user_id, attributes={})
         policy_version_id = await stats_repo.create_policy_version(
@@ -122,7 +128,10 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             policy_spec={},
             attributes={},
         )
-        return UUIDResponse(id=policy_version_id)
+        pv = await stats_repo.get_policy_version_with_name(policy_version_id)
+        if pv is None:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created policy version")
+        return PolicyVersionResponse(id=policy_version_id, name=pv.name, version=pv.version)
 
     @router.post("/policies")
     @timed_http_handler
@@ -192,7 +201,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit")
     @timed_http_handler
-    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> UUIDResponse:
+    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> PolicyVersionResponse:
         if not file.filename or not file.filename.endswith(".zip"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -242,7 +251,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit/complete")
     @timed_http_handler
-    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> UUIDResponse:
+    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> PolicyVersionResponse:
         s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
 
         try:
