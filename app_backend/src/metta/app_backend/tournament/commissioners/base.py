@@ -464,7 +464,9 @@ class CommissionerBase(ABC):
             session = get_db()
 
             pv_result = await session.execute(
-                select(PoolPlayer.id, PoolPlayer.policy_version_id).where(col(PoolPlayer.id).in_(request.pool_player_ids))
+                select(PoolPlayer.id, PoolPlayer.policy_version_id).where(
+                    col(PoolPlayer.id).in_(request.pool_player_ids)
+                )
             )
             pv_ids = {row[0]: row[1] for row in pv_result.all()}
 

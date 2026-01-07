@@ -4,13 +4,13 @@ import time
 from typing import Literal, TypedDict
 from uuid import UUID
 
-from opentelemetry import trace as otel_trace
 from kubernetes import (
     client,
     watch,  # type: ignore[attr-defined]
 )
 from kubernetes import config as kubernetes_config
 from kubernetes.client.rest import ApiException
+from opentelemetry import trace as otel_trace
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.health_server import start_health_server, update_heartbeat

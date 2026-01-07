@@ -1,12 +1,12 @@
 import json
-import uuid
 from subprocess import CompletedProcess
 from types import SimpleNamespace
+import uuid
 
 import pytest
 from opentelemetry import propagate, trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult, SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import SpanExportResult, SpanExporter, SimpleSpanProcessor
 
 from metta.sim import single_episode_runner
 from mettagrid import MettaGridConfig
