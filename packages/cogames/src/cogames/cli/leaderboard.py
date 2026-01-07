@@ -195,7 +195,7 @@ def _show_season_submissions(
 ) -> None:
     """Show submissions for a specific season."""
     try:
-        entries = client._get(f"/tournament/seasons/{season}/policies")
+        entries = client._get(f"/tournament/seasons/{season}/policies", params={"mine": "true"})
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             console.print(f"[red]Season '{season}' not found[/red]")
@@ -232,22 +232,32 @@ def _show_season_submissions(
     table = Table(title=f"Submissions in '{season}'", box=box.SIMPLE_HEAVY, show_lines=False, pad_edge=False)
     table.add_column("Policy", style="bold cyan")
     table.add_column("Version", justify="right")
-    table.add_column("Pools", style="white")
+    table.add_column("Pool", style="white")
+    table.add_column("Status", style="dim")
     table.add_column("Matches", justify="right")
     table.add_column("Entered", style="green")
 
     for entry in entries:
         policy = entry.get("policy", {})
         pools = entry.get("pools", [])
-        pool_names = [p.get("pool_name", "?") for p in pools]
-        total_matches = sum(p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0) for p in pools)
-        table.add_row(
-            policy.get("name", "?"),
-            str(policy.get("version", "?")),
-            ", ".join(pool_names) if pool_names else "—",
-            str(total_matches),
-            _format_timestamp(entry.get("entered_at")),
-        )
+        entered_at = _format_timestamp(entry.get("entered_at"))
+
+        for i, p in enumerate(pools):
+            pool_name = p.get("pool_name", "?")
+            status = "active" if p.get("active", True) else "retired"
+            matches = p.get("completed", 0) + p.get("failed", 0) + p.get("pending", 0)
+
+            if i == 0:
+                table.add_row(
+                    policy.get("name", "?"),
+                    str(policy.get("version", "?")),
+                    pool_name,
+                    status,
+                    str(matches),
+                    entered_at,
+                )
+            else:
+                table.add_row("", "", pool_name, status, str(matches), "")
 
     console.print(table)
 
