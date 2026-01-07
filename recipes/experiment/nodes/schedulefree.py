@@ -136,11 +136,11 @@ def sweep(sweep_name: str) -> SweepTool:
 
     Example usage:
         # Local test first:
-        uv run ./tools/run.py losses.schedulefree.sweep \\
+        uv run ./tools/run.py nodes.schedulefree.sweep \\
             sweep_name="schedulefree.test" -- local_test=True
 
         # Production sweep:
-        uv run ./tools/run.py losses.schedulefree.sweep \\
+        uv run ./tools/run.py nodes.schedulefree.sweep \\
             sweep_name="schedulefree.production" -- gpus=4 nodes=2
 
     Key ScheduleFree parameters:
@@ -185,7 +185,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.experiment.losses.schedulefree",
+        recipe="recipes.experiment.nodes.schedulefree",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
         metric_key="evaluator/eval_sweep/score",

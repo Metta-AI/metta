@@ -95,7 +95,7 @@ def train(
     # 4) [end .. inf)           : pure PPO (cloner gated off by teacher.steps).
     #
     # Mechanism:
-    # - We use TeacherConfig(mode="sliced_cloner") to enable the sliced cloner loss and supervisor actions.
+    # - We use TeacherConfig(mode="sliced_cloner") to enable the sliced cloner node and supervisor actions.
     # - We override teacher.py's default anneal (0..end) so annealing begins at bc_steps instead.
     teacher_proportion_path = "nodes.sliced_scripted_cloner.teacher_led_proportion"
     student_proportion_path = "nodes.sliced_scripted_cloner.student_led_proportion"

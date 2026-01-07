@@ -1,4 +1,4 @@
-"""Arena recipe with contrastive loss enabled and sparse rewards: ore -> battery -> heart."""
+"""Arena recipe with contrastive node enabled and sparse rewards: ore -> battery -> heart."""
 
 from typing import Optional, Sequence
 
@@ -95,7 +95,7 @@ def train(
     temperature: float = 0.07,
     contrastive_coef: float = 0.1,
 ) -> TrainTool:
-    """Train with sparse rewards and optional contrastive loss."""
+    """Train with sparse rewards and optional contrastive node."""
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     contrastive_config = ContrastiveConfig(

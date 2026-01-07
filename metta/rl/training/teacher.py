@@ -33,7 +33,7 @@ class TeacherConfig(Config):
     # Match mainline BC defaults: start at 20% teacher-led, anneal to 0.
     teacher_led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
     student_led_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
-    # Optional per-mode overrides applied to the selected teacher loss config.
+    # Optional per-mode overrides applied to the selected teacher node config.
     #
     # Example CLI usage:
     #   teacher.mode=eer_kickstarter teacher.policy_uri="s3://..." teacher.kwargs.r_lambda=0.25
@@ -130,7 +130,7 @@ def apply_teacher_phase(
         )
 
     elif teacher_cfg.mode == "sliced_cloner_no_ppo":
-        """This will anneal teacher-led and student-led loss proportions, thereby leaving the PPO critic proportions to
+        """This will anneal teacher-led and student-led node proportions, thereby leaving the PPO critic proportions to
         grow. PPO critic won't update weights because vf_coef is 0.0. PPO actor is disabled."""
         slicer = nodes["sliced_scripted_cloner"]
         slicer.enabled = True

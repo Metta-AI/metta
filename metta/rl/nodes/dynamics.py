@@ -26,12 +26,12 @@ class DynamicsConfig(NodeConfig):
         device: torch.device,
         instance_name: str,
     ) -> "Dynamics":
-        """Create Dynamics loss instance."""
+        """Create Dynamics node instance."""
         return Dynamics(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class Dynamics(NodeBase):
-    """The dynamics term in the Muesli loss."""
+    """The dynamics term in the Muesli objective."""
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         return {"returns_pred", "reward_pred"}

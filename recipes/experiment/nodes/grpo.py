@@ -20,7 +20,7 @@ from recipes.prod.arena_basic_easy_shaped import (
 def train(
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    """Train with GRPO loss (critic-free, group-based advantages).
+    """Train with GRPO node (critic-free, group-based advantages).
 
     GRPO eliminates the value network and computes advantages by comparing
     each trajectory's return against the mean return of a group of sampled
@@ -29,7 +29,7 @@ def train(
     """
     curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -65,7 +65,7 @@ def train(
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    """Train with GRPO loss on shaped rewards task.
+    """Train with GRPO node on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
@@ -74,7 +74,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     # Get the base shaped training tool
     base_tool = base_train_shaped(rewards=rewards)
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -110,7 +110,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
 
 def basic_easy_shaped() -> TrainTool:
-    """Train with GRPO loss on basic easy shaped rewards task.
+    """Train with GRPO node on basic easy shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
@@ -119,7 +119,7 @@ def basic_easy_shaped() -> TrainTool:
     # Get the base shaped training tool
     base_tool = arena_basic_easy_shaped_train()
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
