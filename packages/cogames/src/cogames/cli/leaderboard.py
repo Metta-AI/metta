@@ -252,7 +252,8 @@ def _show_season_submissions(
             is_last = i == len(pools) - 1
             prefix = "  └ " if is_last else "  ├ "
             status_style = "green" if is_active else "dim"
-            pool_info = f"{prefix}{pool_name} ([{status_style}]{status}[/{status_style}]): {matches} matches"
+            status_markup = f"[{status_style}]{status}[/{status_style}]"
+            pool_info = f"[not bold white]{prefix}{pool_name} ({status_markup}): {matches} matches[/]"
             table.add_row(pool_info, "", "")
 
     console.print(table)
