@@ -1,0 +1,55 @@
+// Using the latest edition, 2024, is blocked on our use of grpcio-tools as
+// the way to manage the protoc tool. That may be coming in v1.78.0. See
+// https://github.com/grpc/grpc/issues/40639,
+// https://github.com/grpc/grpc/pull/40957, and
+// https://github.com/grpc/grpc/commit/e153b5a64694bbefc5ca0f53784a6ac0f971366e
+edition = "2023";
+
+package metta.protobuf.sim;
+
+import "google/protobuf/struct.proto";
+
+// PureSingleEpisodeRunConfig doesn't add much over the
+// PureSingleEpisodeJob that it wraps. Maybe "device" and "allow_network"
+// should be separate command-line arguments? Or, be part of the ...Job
+// message?
+message PureSingleEpisodeRunConfig {
+    PureSingleEpisodeJob job = 1 [json_name="job"];
+    string device            = 2 [json_name="device"];
+    bool allow_network       = 3 [json_name="allow_network"];
+}
+
+// A PureSingleEpisodeJob describes the configuration of a single game
+// episode to run, with specifically limited side-effects.
+//
+// Running the episode does not result in side effects that are observable
+// over the network. The results of the episode are written to the local
+// filesystem as instructed by results_uri and replay_uri.
+message PureSingleEpisodeJob {
+    repeated string policy_uris = 1 [json_name="policy_uris"];
+
+    // Assignments is a list indexes into the policy_uris field to set
+    // which policy controls each agent.
+    //
+    // (It is important that this is explicit, else the results would have
+    // to include the choices we made when randomizing.)
+    repeated int32 assignments = 2 [json_name="assignments"];
+
+    // MettaGridConfig. It's a big one! Maybe we'll choose to port this to
+    // protobuf at some point, but for now it's a big opaque key/value
+    // (JSON) blob.
+    google.protobuf.Struct env_raw = 1000 [json_name="env"];
+
+    // Output "file://" URI. Contains EpisodeRolloutResult
+    string results_uri = 4 [json_name="results_uri"];
+    // Output "file://" URI for unspecified single-file replay format.
+    string replay_uri = 5 [json_name="replay_uri"];
+
+    // Caller-provided PRNG seed data.
+    bytes seed = 6 [json_name="seed"];
+
+    // Timeout for a policy to convert observations into actions.
+    //
+    // Maybe we'll choose to port this to google.protobuf.Duration.
+    int32 max_action_millis = 1001 [json_name="max_action_time_ms"];
+}

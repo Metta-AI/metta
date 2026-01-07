@@ -21,9 +21,17 @@
     ],
     "deny": []
   },
-  "mcpServers": {
-    "metta-pr-similarity": {
-      "command": "metta-pr-similarity-mcp"
-    }
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix \"$CLAUDE_FILE_PATHS\""
+          }
+        ]
+      }
+    ]
   }
 }

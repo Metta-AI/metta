@@ -8,10 +8,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
-    "lint": "pnpm run lint:eslint && pnpm run lint:prettier",
+    "lint": "pnpm run type-check && pnpm run lint:eslint && pnpm run lint:prettier",
     "lint:eslint": "eslint .",
     "lint:prettier": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
@@ -23,6 +23,7 @@
     "react-dom": "^19.1.0",
     "react-plotly.js": "^2.6.0",
     "react-router-dom": "^7.6.2",
+    "react-select": "^5.10.2",
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {

@@ -1,7 +1,6 @@
+import functools
 import logging
-import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Literal, TypedDict
 from uuid import UUID
 
@@ -9,8 +8,11 @@ from kubernetes import (
     client,
     watch,  # type: ignore[attr-defined]
 )
+from kubernetes import config as kubernetes_config
+from kubernetes.client.rest import ApiException
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.health_server import start_health_server, update_heartbeat
 from metta.app_backend.job_runner.config import (
     JOB_NAMESPACE,
     LABEL_APP,
@@ -18,80 +20,53 @@ from metta.app_backend.job_runner.config import (
     LABEL_JOB_ID,
     get_dispatch_config,
 )
-from metta.app_backend.job_runner.dispatcher import get_k8s_client
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
 
-HEALTH_PORT = 8080
-HEALTH_TIMEOUT_SECONDS = 120
 WATCH_TIMEOUT_SECONDS = 30
 
-_last_heartbeat: float = 0.0
-_heartbeat_lock = threading.Lock()
+
+@functools.cache
+def _get_k8s_clients() -> tuple[client.CoreV1Api, client.BatchV1Api]:
+    cfg = get_dispatch_config()
+    if cfg.LOCAL_DEV:
+        if not cfg.LOCAL_DEV_K8S_CONTEXT:
+            raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
+        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
+    else:
+        kubernetes_config.load_incluster_config()
+    return client.CoreV1Api(), client.BatchV1Api()
 
 
-def _update_heartbeat():
-    global _last_heartbeat
-    with _heartbeat_lock:
-        _last_heartbeat = time.time()
+# ADDED: Pod created (usually starts in Pending phase)
+# MODIFIED: Pod state changed (phase transitions, container status updates)
+# DELETED: Pod removed from cluster
+# BOOKMARK: Internal watch checkpoint (no actual change, just resourceVersion update)
+# ERROR: Watch stream error
+K8sPodWatchEventType = Literal["ADDED", "MODIFIED", "DELETED", "BOOKMARK", "ERROR"]
 
 
-def _is_healthy() -> bool:
-    with _heartbeat_lock:
-        return (time.time() - _last_heartbeat) < HEALTH_TIMEOUT_SECONDS
-
-
-class HealthHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/health" or self.path == "/healthz":
-            if _is_healthy():
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b"ok")
-            else:
-                self.send_response(503)
-                self.end_headers()
-                self.wfile.write(b"unhealthy: watch loop stale")
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def log_message(self, format, *args):
-        pass
-
-
-def _start_health_server():
-    server = HTTPServer(("0.0.0.0", HEALTH_PORT), HealthHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    logger.info(f"Health server started on port {HEALTH_PORT}")
-
-
-# kubernetes-stubs V1WatchEventDict uses Any for object; we define our own for V1Job typing
-class K8sJobWatchEvent(TypedDict):
-    type: Literal["ADDED", "MODIFIED", "DELETED"]
-    object: client.V1Job
+class K8sPodWatchEvent(TypedDict):
+    type: K8sPodWatchEventType
+    object: client.V1Pod
 
 
 def run_watcher():
     cfg = get_dispatch_config()
-    get_k8s_client()  # initialize cached client
+    _get_k8s_clients()
 
-    _start_health_server()
-    _update_heartbeat()  # mark healthy before blocking on auth
+    start_health_server()
 
-    # Pass token directly instead of writing to config file
     stats_client = StatsClient(backend_url=cfg.STATS_SERVER_URI, machine_token=cfg.MACHINE_TOKEN)
     stats_client._validate_authenticated()
-
     logger.info(f"Watcher started: stats_server_uri={cfg.STATS_SERVER_URI}, namespace={JOB_NAMESPACE}")
 
     try:
         while True:
             try:
-                watch_jobs(stats_client)
+                _watch_pods(stats_client)
             except Exception as e:
                 logger.error(f"Watch error, restarting: {e}", exc_info=True)
                 time.sleep(1)
@@ -99,88 +74,121 @@ def run_watcher():
         stats_client.close()
 
 
-def watch_jobs(stats_client: StatsClient):
+def _watch_pods(stats_client: StatsClient):
     label_selector = f"{LABEL_APP}={LABEL_APP_VALUE}"
-    batch_v1 = get_k8s_client()
+    core_v1, _ = _get_k8s_clients()
 
-    job_list = batch_v1.list_namespaced_job(namespace=JOB_NAMESPACE, label_selector=label_selector)
-    if not job_list.metadata or not job_list.metadata.resource_version:
-        logger.error(f"Invalid job list: {job_list}")
+    pod_list = core_v1.list_namespaced_pod(namespace=JOB_NAMESPACE, label_selector=label_selector)
+    if not pod_list.metadata or not pod_list.metadata.resource_version:
+        logger.error(f"Invalid pod list: {pod_list}")
         return
-    resource_version = job_list.metadata.resource_version
 
-    # Process any existing jobs that may have completed before watcher started
-    for k8s_job in job_list.items:
-        if not k8s_job.metadata or not k8s_job.metadata.labels:
-            continue
-        job_id_str = k8s_job.metadata.labels.get(LABEL_JOB_ID)
-        if job_id_str:
-            handle_job_state(stats_client, UUID(job_id_str), k8s_job)
+    for pod in pod_list.items:
+        _handle_pod_state(stats_client, pod)
 
-    logger.info(f"Starting watch from resourceVersion={resource_version}")
-    _update_heartbeat()
+    resource_version = pod_list.metadata.resource_version
+    logger.info(f"Starting pod watch from resourceVersion={resource_version}")
+    update_heartbeat()
 
     w = watch.Watch()
-    event: K8sJobWatchEvent
+    event: K8sPodWatchEvent
     for event in w.stream(  # type: ignore[assignment]
-        batch_v1.list_namespaced_job,
+        core_v1.list_namespaced_pod,
         namespace=JOB_NAMESPACE,
         label_selector=label_selector,
         resource_version=resource_version,
         timeout_seconds=WATCH_TIMEOUT_SECONDS,
     ):
-        _update_heartbeat()
-        event_type = event["type"]
-        k8s_job = event["object"]
-        if not k8s_job.metadata or not k8s_job.metadata.name or not k8s_job.metadata.labels:
-            logger.error(f"Invalid k8s job: {k8s_job}")
-            continue
-
-        job_id_str = k8s_job.metadata.labels.get(LABEL_JOB_ID)
-        if not job_id_str:
-            logger.error(f"Job {k8s_job.metadata.name} has no job ID label")
-            continue
-
-        job_id = UUID(job_id_str)
-        job_name = k8s_job.metadata.name
-
-        logger.debug(f"Event {event_type} for job {job_name} (id={job_id})")
-
+        update_heartbeat()
+        event_type, pod = event["type"], event["object"]
         if event_type in ("ADDED", "MODIFIED"):
-            handle_job_state(stats_client, job_id, k8s_job)
+            _handle_pod_state(stats_client, pod)
         elif event_type == "DELETED":
-            logger.info(f"Job {job_name} deleted")
+            _handle_pod_deleted(stats_client, pod)
 
 
-def handle_job_state(
-    stats_client: StatsClient,
-    job_id: UUID,
-    k8s_job: client.V1Job,
-):
-    if not (k8s_job.metadata and k8s_job.spec and k8s_job.status and k8s_job.metadata.name):
-        logger.error(f"Invalid k8s job: {k8s_job}")
+def _get_job_info(pod: client.V1Pod) -> tuple[UUID, str] | None:
+    if not pod.metadata or not pod.metadata.labels:
+        return None
+    job_id_str = pod.metadata.labels.get(LABEL_JOB_ID)
+    if not job_id_str:
+        return None
+    return UUID(job_id_str), pod.metadata.name or "unknown"
+
+
+def _handle_pod_state(stats_client: StatsClient, pod: client.V1Pod):
+    info = _get_job_info(pod)
+    if not info or not pod.status:
         return
 
-    status = k8s_job.status
-    job_name = k8s_job.metadata.name
-    backoff_limit = k8s_job.spec.backoff_limit or 0
+    job_id, pod_name = info
+    phase = pod.status.phase
 
-    if status.succeeded and status.succeeded > 0:
-        update_job_status(stats_client, job_id, JobStatus.completed)
-        delete_k8s_job(job_name)
-        logger.info(f"Job {job_id} completed")
-
-    elif status.failed and status.failed >= backoff_limit:
-        update_job_status(stats_client, job_id, JobStatus.failed, error="k8s job failed")
-        delete_k8s_job(job_name)
-        logger.info(f"Job {job_id} failed")
-
-    elif status.active and status.active > 0:
-        update_job_status(stats_client, job_id, JobStatus.running, worker=job_name)
-        logger.debug(f"Job {job_id} running")
+    if phase == "Succeeded":
+        _update_job_status(stats_client, job_id, JobStatus.completed)
+        _delete_k8s_job_for_pod(pod)
+        logger.info(f"Job {job_id} completed (pod {pod_name})")
+    elif phase == "Failed":
+        error = _get_pod_error(pod)
+        _update_job_status(stats_client, job_id, JobStatus.failed, error=error)
+        _delete_k8s_job_for_pod(pod)
+        logger.info(f"Job {job_id} failed (pod {pod_name}): {error}")
+    elif phase == "Running" and _is_container_running(pod):
+        _update_job_status(stats_client, job_id, JobStatus.running, worker=pod_name)
+        logger.debug(f"Job {job_id} running (pod {pod_name})")
 
 
-def update_job_status(
+def _handle_pod_deleted(stats_client: StatsClient, pod: client.V1Pod):
+    info = _get_job_info(pod)
+    if not info:
+        return
+
+    phase = pod.status.phase if pod.status else None
+    if phase in ("Succeeded", "Failed"):
+        return
+
+    job_id, pod_name = info
+    _update_job_status(stats_client, job_id, JobStatus.failed, error="Pod deleted unexpectedly")
+    logger.warning(f"Job {job_id} failed: pod {pod_name} deleted unexpectedly (phase={phase})")
+
+
+def _is_container_running(pod: client.V1Pod) -> bool:
+    if not pod.status or not pod.status.container_statuses:
+        return False
+    return any(cs.state and cs.state.running for cs in pod.status.container_statuses)
+
+
+def _get_pod_error(pod: client.V1Pod) -> str:
+    if pod.status and pod.status.container_statuses:
+        for cs in pod.status.container_statuses:
+            if cs.state and cs.state.terminated and cs.state.terminated.reason:
+                return cs.state.terminated.reason
+    return (pod.status.message if pod.status else None) or "Pod failed"
+
+
+def _get_job_name_for_pod(pod: client.V1Pod) -> str | None:
+    if not pod.metadata or not pod.metadata.owner_references:
+        return None
+    return next((ref.name for ref in pod.metadata.owner_references if ref.kind == "Job"), None)
+
+
+def _delete_k8s_job_for_pod(pod: client.V1Pod):
+    job_name = _get_job_name_for_pod(pod)
+    if not job_name:
+        return
+    try:
+        _, batch_v1 = _get_k8s_clients()
+        batch_v1.delete_namespaced_job(name=job_name, namespace=JOB_NAMESPACE, propagation_policy="Background")
+    except ApiException as e:
+        if e.status == 404:
+            logger.debug(f"K8s job {job_name} already deleted")
+        else:
+            logger.error(f"Failed to delete k8s job {job_name}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to delete k8s job {job_name}: {e}")
+
+
+def _update_job_status(
     stats_client: StatsClient,
     job_id: UUID,
     status: JobStatus,
@@ -192,22 +200,13 @@ def update_job_status(
         if current.status == status:
             return
         if current.status in (JobStatus.completed, JobStatus.failed):
+            # Job already in terminal state, but still update error if we have one (e.g., OOMKilled)
+            if error and not current.error:
+                stats_client.update_job(job_id, JobRequestUpdate(error=error))
             return
-
         stats_client.update_job(job_id, JobRequestUpdate(status=status, error=error, worker=worker))
     except Exception as e:
         logger.error(f"Failed to update job {job_id} status to {status}: {e}")
-
-
-def delete_k8s_job(job_name: str):
-    try:
-        get_k8s_client().delete_namespaced_job(
-            name=job_name,
-            namespace=JOB_NAMESPACE,
-            propagation_policy="Background",
-        )
-    except Exception as e:
-        logger.error(f"Failed to delete k8s job {job_name}: {e}")
 
 
 if __name__ == "__main__":

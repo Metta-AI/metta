@@ -121,7 +121,7 @@ def main(
             "--hb",
             help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
         ),
-    ] = 300,
+    ] = 1800,
     max_runtime_hours: Annotated[
         float,
         typer.Option(
@@ -301,6 +301,10 @@ def main(
     return
 
 
-if __name__ == "__main__":
+def cli_entry():
     init_logging()
     app()
+
+
+if __name__ == "__main__":
+    cli_entry()
