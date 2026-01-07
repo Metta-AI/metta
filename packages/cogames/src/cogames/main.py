@@ -36,7 +36,13 @@ from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.leaderboard import leaderboard_cmd, seasons_cmd, submissions_cmd
+from cogames.cli.client import TournamentServerClient
+from cogames.cli.leaderboard import (
+    leaderboard_cmd,
+    parse_policy_identifier,
+    seasons_cmd,
+    submissions_cmd,
+)
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -989,10 +995,84 @@ def upload_cmd(
     )
 
     if result:
-        console.print(f"\n[bold green]Uploaded {result.name} v{result.version}[/bold green]")
-        console.print(f"[dim]Policy version ID: {result.policy_version_id}[/dim]")
+        console.print(f"\n[bold green]Uploaded {result.name}[/bold green][dim]:v{result.version}[/dim]")
         console.print("\n[yellow]To submit to a tournament:[/yellow]")
-        console.print(f"  cogames submit {result.name} --season <season-name>")
+        console.print(f"  cogames submit {result.name}:v{result.version} --season <season-name>")
+
+
+@app.command(name="submit", help="Submit an uploaded policy to a tournament season")
+def submit_cmd(
+    policy_name: str = typer.Argument(
+        ...,
+        help="Policy name (e.g., 'my-policy' or 'my-policy:v3' for specific version)",
+    ),
+    season: str = typer.Option(
+        ...,
+        "--season",
+        help="Tournament season name (required)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Server URL",
+    ),
+) -> None:
+    """Submit an uploaded policy to a tournament season.
+
+    First upload your policy with 'cogames upload', then submit it to
+    a tournament season with this command.
+
+    Examples:
+      cogames submit my-policy --season beta
+      cogames submit my-policy:v3 --season beta
+    """
+    import httpx
+
+    client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
+    if not client:
+        raise typer.Exit(1)
+
+    try:
+        name, version = parse_policy_identifier(policy_name)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    version_str = f"[dim]:v{version}[/dim]" if version is not None else "[dim] (latest)[/dim]"
+    console.print(f"[bold]Submitting {name}[/bold]{version_str} to season '{season}'\n")
+
+    with client:
+        pv = client.lookup_policy_version(name=name, version=version)
+        if pv is None:
+            version_hint = f" v{version}" if version is not None else ""
+            console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
+            console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
+            raise typer.Exit(1)
+
+        try:
+            result = client.submit_to_season(season, pv.id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                console.print(f"[red]Season '{season}' not found[/red]")
+            elif exc.response.status_code == 409:
+                console.print(f"[red]Policy already submitted to season '{season}'[/red]")
+            else:
+                console.print(f"[red]Submit failed with status {exc.response.status_code}[/red]")
+                console.print(f"[dim]{exc.response.text}[/dim]")
+            raise typer.Exit(1) from exc
+        except httpx.HTTPError as exc:
+            console.print(f"[red]Submit failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    console.print(f"\n[bold green]Submitted to season '{season}'[/bold green]")
+    if result.pools:
+        console.print(f"[dim]Pools: {', '.join(result.pools)}[/dim]")
 
 
 @app.command(name="docs", help="Print documentation")

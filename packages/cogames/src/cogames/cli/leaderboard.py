@@ -17,6 +17,25 @@ from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER
 
 
+def parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+    """Parse 'name' or 'name:v3' into (name, version).
+
+    Accepts formats:
+    - 'my-policy' -> ('my-policy', None) - latest version
+    - 'my-policy:v3' -> ('my-policy', 3) - specific version
+    - 'my-policy:3' -> ('my-policy', 3) - specific version
+    """
+    if ":" in identifier:
+        name, version_str = identifier.rsplit(":", 1)
+        version_str = version_str.lstrip("v")
+        try:
+            version = int(version_str)
+        except ValueError:
+            raise ValueError(f"Invalid version format: {identifier}") from None
+        return name, version
+    return identifier, None
+
+
 def _format_timestamp(value: Optional[str]) -> str:
     """Format ISO timestamps for CLI output."""
     if not value:
