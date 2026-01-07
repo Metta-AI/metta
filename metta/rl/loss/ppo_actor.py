@@ -71,17 +71,16 @@ class PPOActor(Loss):
         cfg = self.cfg
 
         minibatch = shared_loss_data["sampled_mb"]
-        local_shared_loss_data = shared_loss_data
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        policy_td = local_shared_loss_data["policy_td"]
+        policy_td = shared_loss_data["policy_td"]
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
 
-        importance_sampling_ratio = local_shared_loss_data.get("importance_sampling_ratio", None)
+        importance_sampling_ratio = shared_loss_data.get("importance_sampling_ratio", None)
         if importance_sampling_ratio is None:
             logratio = torch.clamp(new_logprob - old_logprob, -10, 10)
             importance_sampling_ratio = logratio.exp()
@@ -92,17 +91,17 @@ class PPOActor(Loss):
             },
             batch_size=minibatch.batch_size,
         )
-        indices = local_shared_loss_data["indices"][:, 0]
+        indices = shared_loss_data["indices"][:, 0]
         self.replay.update(indices, update_td)
 
-        adv = local_shared_loss_data.get("advantages_pg", None)
+        adv = shared_loss_data.get("advantages_pg", None)
         if adv is None:
-            adv = local_shared_loss_data["advantages"]
+            adv = shared_loss_data["advantages"]
         adv = adv.detach()
 
         # Normalize advantages with distributed support, then apply prioritized weights
         adv = normalize_advantage_distributed(adv, cfg.norm_adv)
-        prio_weights = local_shared_loss_data["prio_weights"]
+        prio_weights = shared_loss_data["prio_weights"]
         adv = prio_weights * adv
 
         pg_loss1 = -adv * importance_sampling_ratio
