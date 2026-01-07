@@ -49,7 +49,6 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "pr-similarity": {"enabled": False},
         }
@@ -66,7 +65,6 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "pr-similarity": {"enabled": False},
         }
@@ -83,7 +81,6 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
             "pr-similarity": {"enabled": False},
             "binary-symlinks": {"enabled": True},
@@ -103,7 +100,6 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
             "tailscale": {"enabled": False, "expected_connection": "@stem.ai"},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
             "pr-similarity": {"enabled": True},
