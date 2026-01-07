@@ -1,7 +1,7 @@
 import
   genny, openGL, jsony, vmath, windy, silky,
   ../src/mettascope,
-  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes]
+  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes, panels]
 
 type
   ActionRequest* = object
@@ -47,11 +47,16 @@ proc init(dataDir: string, replay: string): RenderResponse =
 
 proc render(currentStep: int, replayStep: string): RenderResponse =
   try:
+    let hadAgentsBefore = common.replay.agents.len > 0
     common.replay.apply(replayStep)
     step = currentStep
     stepFloat = currentStep.float32
     previousStep = currentStep
     requestPython = false
+
+    # If agents were just loaded for the first time, refit the visible map
+    if not hadAgentsBefore and common.replay.agents.len > 0:
+      fitVisibleMap(worldMapZoomInfo)
     result = RenderResponse(shouldClose: false, actions: @[])
     while true:
       if window.closeRequested:
