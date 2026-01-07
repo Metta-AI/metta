@@ -773,7 +773,7 @@ def _train_optimizer_step_fn(core: CoreTrainingLoop):
             if not node.cfg.enabled or not node.node_gate_allows("train", context):
                 continue
             if hasattr(node.cfg, "max_grad_norm"):
-                actual_max_grad_norm = float(getattr(node.cfg, "max_grad_norm"))
+                actual_max_grad_norm = float(node.cfg.max_grad_norm)
                 break
 
         torch.nn.utils.clip_grad_norm_(core.policy.parameters(), actual_max_grad_norm)

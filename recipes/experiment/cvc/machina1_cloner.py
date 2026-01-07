@@ -106,17 +106,13 @@ def train(
     tt.scheduler.run_gates = [
         gate
         for gate in tt.scheduler.run_gates
-        if not (
-            gate.phase == "rollout" and gate.begin_at_step is not None and gate.node_name in ppo_gate_names
-        )
+        if not (gate.phase == "rollout" and gate.begin_at_step is not None and gate.node_name in ppo_gate_names)
     ]
     if not ppo_during_bc:
         # Optional: keep PPO gated off until bc_steps to run a pure-BC warmup.
         for loss_name in ("ppo_actor", "ppo_critic"):
             for phase in ("rollout", "train"):
-                tt.scheduler.run_gates.append(
-                    RunGate(node_name=loss_name, phase=phase, begin_at_step=bc_steps)
-                )
+                tt.scheduler.run_gates.append(RunGate(node_name=loss_name, phase=phase, begin_at_step=bc_steps))
 
     # Remove teacher.py's default anneal-from-zero rules; we re-add anneals starting at bc_steps.
     blocked_paths = {teacher_proportion_path, student_proportion_path}
