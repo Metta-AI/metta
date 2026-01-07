@@ -57,7 +57,6 @@ from metta.tools.utils.auto_config import (
 )
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.base import ParsedScheme
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = getRankAwareLogger(__name__)
@@ -281,58 +280,24 @@ class TrainTool(Tool):
         return trainer
 
     def _apply_resume_hints(self) -> None:
-        parsed: ParsedScheme | None = None
+        run_from_uri: str | None = None
         if self.initial_policy_uri:
             try:
                 parsed = resolve_uri(self.initial_policy_uri)
             except Exception:
                 parsed = None
+            if parsed and parsed.checkpoint_info:
+                run_from_uri = parsed.checkpoint_info[0]
 
-        run_from_uri = parsed.checkpoint_info[0] if parsed and parsed.checkpoint_info else None
-        if run_from_uri:
-            if self.run is None:
-                self.run = run_from_uri
-            elif self.run != run_from_uri:
-                run_from_uri = None
+        if run_from_uri and self.run is None:
+            self.run = run_from_uri
 
-        if run_from_uri:
-            checkpoint_dir, inferred_data_dir = self._infer_checkpoint_dir(parsed, run_from_uri)
-            if inferred_data_dir is not None and inferred_data_dir != self.system.data_dir:
-                self.system.data_dir = inferred_data_dir
-            candidate_dir = checkpoint_dir or (self.system.data_dir / run_from_uri / "checkpoints")
-            self._log_trainer_state_presence(candidate_dir)
+        if not self.run or (run_from_uri and self.run != run_from_uri):
             return
 
-        if self.run:
-            self._log_trainer_state_presence(self.system.data_dir / self.run / "checkpoints")
-
-    def _infer_checkpoint_dir(self, parsed: ParsedScheme | None, run_name: str) -> tuple[Path | None, Path | None]:
-        if parsed is None or parsed.local_path is None:
-            return None, None
-
-        local_path = parsed.local_path
-        checkpoint_dir = local_path if local_path.is_dir() else local_path.parent
-        if checkpoint_dir.name != "checkpoints":
-            return None, None
-
-        run_dir = checkpoint_dir.parent
-        if run_dir.name != run_name:
-            return None, None
-
-        return checkpoint_dir, run_dir.parent
-
-    def _log_trainer_state_presence(self, checkpoint_dir: Path) -> None:
-        trainer_state_path = checkpoint_dir / "trainer_state.pt"
+        trainer_state_path = self.system.data_dir / self.run / "checkpoints" / "trainer_state.pt"
         if trainer_state_path.exists():
-            logger.info(
-                "Trainer state found at %s; optimizer/curriculum state will be restored.",
-                trainer_state_path,
-            )
-        else:
-            logger.info(
-                "No trainer state found at %s; continuing with weights-only warm-start.",
-                trainer_state_path,
-            )
+            logger.info("Trainer state found at %s; optimizer/curriculum state will be restored.", trainer_state_path)
 
     def _register_components(
         self,
