@@ -7,7 +7,7 @@ import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 
-from metta.app_backend.auth import OptionalUserOrToken, UserOrToken
+from metta.app_backend.auth import CheckMaybeUser, CheckUser
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
@@ -135,11 +135,11 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies")
     @timed_http_handler
-    async def upsert_policy(policy: PolicyCreate, user: UserOrToken) -> UUIDResponse:
+    async def upsert_policy(policy: PolicyCreate, user: CheckUser) -> UUIDResponse:
         if policy.is_system_policy:
             user_id = "system"
         else:
-            user_id = user
+            user_id = user.id
 
         policy_id = await stats_repo.upsert_policy(name=policy.name, user_id=user_id, attributes=policy.attributes)
         return UUIDResponse(id=policy_id)
@@ -147,7 +147,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.post("/policies/{policy_id_str}/versions")
     @timed_http_handler
     async def create_policy_version(
-        policy_id_str: str, policy_version: PolicyVersionCreate, user: UserOrToken
+        policy_id_str: str, policy_version: PolicyVersionCreate, user: CheckUser
     ) -> UUIDResponse:
         policy_id = uuid.UUID(policy_id_str)
         policy_version_id = await stats_repo.create_policy_version(
@@ -170,7 +170,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/policies/{policy_id}")
     @timed_http_handler
-    async def get_policy_by_id(policy_id: str, user: UserOrToken) -> PublicPolicyVersionRow:
+    async def get_policy_by_id(policy_id: str, user: CheckUser) -> PublicPolicyVersionRow:
         """Get a single policy version by ID.
 
         Note: Despite the parameter name 'policy_id', this endpoint expects
@@ -193,7 +193,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.put("/policies/versions/{policy_version_id_str}/tags")
     @timed_http_handler
     async def update_policy_version_tags_route(
-        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], user: UserOrToken
+        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], user: CheckUser
     ) -> UUIDResponse:
         policy_version_id = uuid.UUID(policy_version_id_str)
         await stats_repo.upsert_policy_version_tags(policy_version_id, tags)
@@ -201,7 +201,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit")
     @timed_http_handler
-    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> PolicyVersionResponse:
+    async def submit_policy(file: UploadFile, user: CheckUser, name: str = Form(...)) -> PolicyVersionResponse:
         if not file.filename or not file.filename.endswith(".zip"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -209,7 +209,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             )
 
         submission_uuid = uuid.uuid4()
-        s3_key = f"cogames/submissions/{user}/{submission_uuid}.zip"
+        s3_key = f"cogames/submissions/{user.id}/{submission_uuid}.zip"
 
         with tempfile.SpooledTemporaryFile(max_size=100 * 1024 * 1024) as temp_file:
             while chunk := await file.read(8192):
@@ -225,15 +225,15 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                     ExtraArgs={"ContentType": "application/zip"},
                 )
 
-        return await _create_policy_version_from_s3_key(name=name, user_id=user, s3_key=s3_key)
+        return await _create_policy_version_from_s3_key(name=name, user_id=user.id, s3_key=s3_key)
 
     @router.post("/policies/submit/presigned-url")
     @timed_http_handler
-    async def get_submit_policy_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+    async def get_submit_policy_presigned_url(user: CheckUser) -> PresignedUploadUrlResponse:
         from botocore.config import Config
 
         upload_id = uuid.uuid4()
-        s3_key = f"cogames/submissions/{user}/{upload_id}.zip"
+        s3_key = f"cogames/submissions/{user.id}/{upload_id}.zip"
 
         session = aioboto3.Session()
         async with session.client("s3", config=Config(signature_version="s3v4")) as s3_client:  # type: ignore
@@ -251,8 +251,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit/complete")
     @timed_http_handler
-    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> PolicyVersionResponse:
-        s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
+    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: CheckUser) -> PolicyVersionResponse:
+        s3_key = f"cogames/submissions/{user.id}/{request.upload_id}.zip"
 
         try:
             session = aioboto3.Session()
@@ -261,11 +261,11 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
 
-        return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
+        return await _create_policy_version_from_s3_key(name=request.name, user_id=user.id, s3_key=s3_key)
 
     @router.post("/episodes/bulk_upload/presigned-url")
     @timed_http_handler
-    async def get_bulk_upload_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+    async def get_bulk_upload_presigned_url(user: CheckUser) -> PresignedUploadUrlResponse:
         from botocore.config import Config
 
         upload_id = uuid.uuid4()
@@ -289,7 +289,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def complete_bulk_upload(
         request: CompleteBulkUploadRequest,
-        user: UserOrToken,
+        user: CheckUser,
     ) -> BulkEpisodeUploadResponse:
         from metta.app_backend.episode_stats_db import (
             read_agent_metrics,
@@ -395,7 +395,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
-        user: OptionalUserOrToken,
+        user: CheckMaybeUser,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
@@ -412,7 +412,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             name_fuzzy=name_fuzzy,
             version=version,
             policy_version_ids=pv_uuids,
-            user_id=user if mine else None,
+            user_id=user.id if mine and user else None,
             limit=limit,
             offset=offset,
         )
@@ -434,13 +434,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.get("/policies/my-versions")
     @timed_http_handler
-    async def get_my_policy_versions(user: UserOrToken) -> MyPolicyVersionsResponse:
-        policy_versions = await stats_repo.get_user_policy_versions(user)
+    async def get_my_policy_versions(user: CheckUser) -> MyPolicyVersionsResponse:
+        policy_versions = await stats_repo.get_user_policy_versions(user.id)
         return MyPolicyVersionsResponse(entries=policy_versions)
 
     @router.post("/episodes/query", response_model=EpisodeQueryResponse)
     @timed_http_handler
-    async def query_episodes(request: EpisodeQueryRequest, user: UserOrToken) -> EpisodeQueryResponse:
+    async def query_episodes(request: EpisodeQueryRequest, user: CheckUser) -> EpisodeQueryResponse:
         episodes = await stats_repo.get_episodes(
             primary_policy_version_ids=request.primary_policy_version_ids,
             episode_ids=request.episode_ids,

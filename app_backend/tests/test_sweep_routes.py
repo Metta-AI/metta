@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from metta.app_backend.auth import User
 from metta.app_backend.metta_repo import MettaRepo, SweepRow
 from metta.app_backend.server import create_app
 
@@ -50,7 +51,7 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
         project="test_project",
         entity="test_entity",
         wandb_sweep_id="wandb_123",
-        user_id="test@example.com",
+        user_id="debug_user_id",
     )
 
 
@@ -96,7 +97,7 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
     mock_metta_repo.create_sweep.return_value = test_sweep_id
 
     # Mock the login service validation to return a valid user_id
-    mock_validate = AsyncMock(return_value="machine_user@example.com")
+    mock_validate = AsyncMock(return_value=User(id="machine_user_id", email="machine_user@example.com"))
 
     # Disable DEBUG_USER_EMAIL to test token-based auth
     with patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", None):
@@ -123,7 +124,7 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
                 project="test_project",
                 entity="test_entity",
                 wandb_sweep_id="wandb_123",
-                user_id="machine_user@example.com",
+                user_id="machine_user_id",
             )
 
 

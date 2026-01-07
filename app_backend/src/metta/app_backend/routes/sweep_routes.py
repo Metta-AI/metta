@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import CheckUser
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.route_logger import timed_http_handler
 
@@ -37,7 +37,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/{sweep_name}/create_sweep")
     @timed_http_handler
-    async def create_sweep(sweep_name: str, request: SweepCreateRequest, user: UserOrToken) -> SweepCreateResponse:
+    async def create_sweep(sweep_name: str, request: SweepCreateRequest, user: CheckUser) -> SweepCreateResponse:
         """Initialize a new sweep or return existing sweep info (idempotent)."""
         # Check if sweep already exists
         existing_sweep = await metta_repo.get_sweep_by_name(sweep_name)
@@ -51,14 +51,14 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
             project=request.project,
             entity=request.entity,
             wandb_sweep_id=request.wandb_sweep_id,
-            user_id=user,
+            user_id=user.id,
         )
 
         return SweepCreateResponse(created=True, sweep_id=sweep_id)
 
     @router.get("/{sweep_name}")
     @timed_http_handler
-    async def get_sweep(sweep_name: str, user: UserOrToken) -> SweepInfo:
+    async def get_sweep(sweep_name: str, user: CheckUser) -> SweepInfo:
         """Get sweep information by name."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
 
@@ -69,7 +69,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/{sweep_name}/runs/next")
     @timed_http_handler
-    async def get_next_run_id(sweep_name: str, user: UserOrToken) -> RunIdResponse:
+    async def get_next_run_id(sweep_name: str, user: CheckUser) -> RunIdResponse:
         """Get the next run ID for a sweep (atomic operation)."""
         sweep = await metta_repo.get_sweep_by_name(sweep_name)
 

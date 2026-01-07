@@ -10,7 +10,7 @@ from sqlmodel import col, select
 # pyright: reportArgumentType=false
 # SQLModel's Relationship() returns the target type, not SQLAlchemy's InstrumentedAttribute,
 # causing false positives on join() and selectinload() calls.
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import CheckMaybeUser, CheckUser
 from metta.app_backend.database import db_session
 from metta.app_backend.models.job_request import JobRequest
 from metta.app_backend.models.policies import Policy, PolicyVersion
@@ -124,23 +124,21 @@ def create_tournament_router() -> APIRouter:
 
     @router.get("/seasons")
     @timed_http_handler
-    async def list_seasons(_user: UserOrToken, session: AsyncSession = Depends(get_session)) -> list[SeasonResponse]:
+    async def list_seasons(session: AsyncSession = Depends(get_session)) -> list[SeasonResponse]:
         seasons = (await session.execute(select(Season))).scalars().all()
 
         return [SeasonResponse.from_commissioner(s.name) for s in seasons]
 
     @router.get("/seasons/{season_name}")
     @timed_http_handler
-    async def get_season(_user: UserOrToken, season_name: str) -> SeasonResponse:
+    async def get_season(season_name: str) -> SeasonResponse:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
         return SeasonResponse.from_commissioner(season_name)
 
     @router.get("/seasons/{season_name}/leaderboard")
     @timed_http_handler
-    async def get_leaderboard(
-        season_name: str, _user: UserOrToken, session: AsyncSession = Depends(get_session)
-    ) -> list[LeaderboardEntry]:
+    async def get_leaderboard(season_name: str, session: AsyncSession = Depends(get_session)) -> list[LeaderboardEntry]:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
 
@@ -179,7 +177,7 @@ def create_tournament_router() -> APIRouter:
     @timed_http_handler
     async def get_policies(
         season_name: str,
-        user: UserOrToken,
+        user: CheckMaybeUser,
         session: AsyncSession = Depends(get_session),
         mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
     ) -> list[PolicySummary]:
@@ -200,7 +198,10 @@ def create_tournament_router() -> APIRouter:
         )
 
         if mine:
-            query = query.join(PolicyVersion.policy).where(Policy.user_id == user)
+            if user:
+                query = query.join(PolicyVersion.policy).where(Policy.user_id == user.id)
+            else:
+                raise HTTPException(status_code=401, detail="Authentication required for mine=true")
 
         policy_versions = (await session.execute(query)).scalars().all()
 
@@ -267,7 +268,6 @@ def create_tournament_router() -> APIRouter:
     @timed_http_handler
     async def get_matches(
         season_name: str,
-        _user: UserOrToken,
         session: AsyncSession = Depends(get_session),
         limit: int = 50,
         offset: int = 0,
@@ -338,7 +338,7 @@ def create_tournament_router() -> APIRouter:
     @router.post("/seasons/{season_name}/submissions")
     @timed_http_handler
     async def submit_policy(
-        season_name: str, request: SubmitRequest, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+        season_name: str, request: SubmitRequest, _user: CheckUser, session: AsyncSession = Depends(get_session)
     ) -> SubmitResponse:
         if season_name not in SEASONS:
             raise HTTPException(status_code=404, detail="Season not found")
@@ -364,7 +364,7 @@ def create_tournament_router() -> APIRouter:
     @router.get("/policies/{policy_version_id}/memberships")
     @timed_http_handler
     async def get_policy_memberships(
-        policy_version_id: UUID, _user: UserOrToken, session: AsyncSession = Depends(get_session)
+        policy_version_id: UUID, session: AsyncSession = Depends(get_session)
     ) -> list[MembershipHistoryEntry]:
         changes = (
             (
@@ -399,9 +399,7 @@ def create_tournament_router() -> APIRouter:
 
     @router.get("/my-memberships")
     @timed_http_handler
-    async def get_my_memberships(
-        user: UserOrToken, session: AsyncSession = Depends(get_session)
-    ) -> dict[str, list[str]]:
+    async def get_my_memberships(user: CheckUser, session: AsyncSession = Depends(get_session)) -> dict[str, list[str]]:
         """Get all season memberships for the authenticated user's policy versions.
 
         Returns a mapping of policy_version_id -> list of season names.
@@ -413,7 +411,7 @@ def create_tournament_router() -> APIRouter:
                 .join(Pool.season)
                 .join(PoolPlayer.policy_version)
                 .join(PolicyVersion.policy)
-                .where(Policy.user_id == user)
+                .where(Policy.user_id == user.id)
                 .distinct()
             )
         ).all()

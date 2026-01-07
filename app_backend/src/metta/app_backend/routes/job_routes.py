@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import col, select
 
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import CheckUser
 from metta.app_backend.database import db_session
 from metta.app_backend.job_runner.dispatcher import dispatch_job
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
@@ -26,7 +26,7 @@ def create_job_router() -> APIRouter:
 
     @router.post("/batch")
     @timed_http_handler
-    async def create_jobs_batch(jobs: list[JobRequestCreate], user: UserOrToken) -> list[UUID]:
+    async def create_jobs_batch(jobs: list[JobRequestCreate], user: CheckUser) -> list[UUID]:
         if not jobs:
             return []
 
@@ -34,7 +34,7 @@ def create_job_router() -> APIRouter:
         db_jobs: list[JobRequest] = []
         async with db_session() as session:
             for job_create in jobs:
-                db_job = JobRequest(**job_create.model_dump(), user_id=user, status=JobStatus.pending)
+                db_job = JobRequest(**job_create.model_dump(), user_id=user.id, status=JobStatus.pending)
                 session.add(db_job)
                 db_jobs.append(db_job)
             await session.commit()
@@ -77,7 +77,7 @@ def create_job_router() -> APIRouter:
     @router.get("")
     @timed_http_handler
     async def list_jobs(
-        _user: UserOrToken,
+        _user: CheckUser,
         job_type: JobType | None = Query(default=None),
         statuses: list[JobStatus] | None = Query(default=None),
         job_id: UUID | None = Query(default=None),
@@ -97,7 +97,7 @@ def create_job_router() -> APIRouter:
 
     @router.get("/{job_id}")
     @timed_http_handler
-    async def get_job(job_id: UUID, _user: UserOrToken) -> JobRequest:
+    async def get_job(job_id: UUID, _user: CheckUser) -> JobRequest:
         async with db_session() as session:
             result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             row = result.scalar_one_or_none()
@@ -107,7 +107,7 @@ def create_job_router() -> APIRouter:
 
     @router.post("/{job_id}")
     @timed_http_handler
-    async def update_job(job_id: UUID, request: JobRequestUpdate, _user: UserOrToken) -> JobRequest:
+    async def update_job(job_id: UUID, request: JobRequestUpdate, _user: CheckUser) -> JobRequest:
         async with db_session() as session:
             result = await session.execute(select(JobRequest).where(JobRequest.id == job_id))
             job = result.scalar_one_or_none()
