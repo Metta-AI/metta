@@ -1,9 +1,12 @@
-from typing import Tuple
+from typing import (
+    Optional,
+    Tuple,
+)
 
 import torch
 
 
-def _get_cuda_capability() -> Tuple[int, int] | None:
+def _get_cuda_capability() -> Optional[Tuple[int, int]]:
     """Returns the major and minor version of the main device's CUDA capability"""
     if not torch.cuda.is_available():
         return None
