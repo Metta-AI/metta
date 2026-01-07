@@ -8,14 +8,6 @@ from metta.setup.utils import info, warning
 
 NVM_VERSION = "v0.40.1"
 NVM_INSTALL_URL = f"https://raw.githubusercontent.com/nvm-sh/nvm/{NVM_VERSION}/install.sh"
-BREW_NODE_PATHS = [
-    Path("/opt/homebrew/opt/node@24"),
-    Path("/opt/homebrew/opt/node@22"),
-    Path("/opt/homebrew/opt/node"),
-    Path("/home/linuxbrew/.linuxbrew/opt/node@24"),
-    Path("/home/linuxbrew/.linuxbrew/opt/node@22"),
-    Path("/home/linuxbrew/.linuxbrew/opt/node"),
-]
 
 
 @register_module
@@ -41,9 +33,6 @@ class JsToolchainSetup(SetupModule):
     def _node_available(self) -> bool:
         return shutil.which("node") is not None
 
-    def _get_brew_node_installations(self) -> list[Path]:
-        return [p for p in BREW_NODE_PATHS if p.exists()]
-
     def check_installed(self) -> bool:
         if not self._nvm_installed():
             return False
@@ -59,12 +48,22 @@ class JsToolchainSetup(SetupModule):
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
         info("Setting up JavaScript toolchain...")
 
-        brew_nodes = self._get_brew_node_installations()
-        if brew_nodes:
+        if brew_nodes := (
+            [
+                a
+                for a in [
+                    Path("/opt/homebrew/opt/node@24"),
+                    Path("/opt/homebrew/opt/node"),
+                    Path("/home/linuxbrew/.linuxbrew/opt/node@24"),
+                    Path("/home/linuxbrew/.linuxbrew/opt/node"),
+                ]
+                if a.exists()
+            ]
+        ):
             warning("Found brew-installed Node.js that may conflict with nvm:")
             for p in brew_nodes:
                 warning(f"  {p}")
-            warning("Recommend: brew uninstall node node@22 node@24")
+            warning("Recommend: `brew uninstall` those versions of node")
 
         if not self._nvm_installed():
             info(f"Installing nvm {NVM_VERSION}...")
