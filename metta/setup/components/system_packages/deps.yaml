@@ -15,10 +15,13 @@ packages:
   node:
     brew:
       name: node
-      version: "24"
-      installed_name: node@24
     apt:
       name: nodejs
+
+  corepack:
+    brew:
+      name: corepack
+    # apt: corepack comes bundled with nodejs
 
   gh:
     brew:
