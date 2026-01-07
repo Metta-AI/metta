@@ -38,13 +38,6 @@ EPISODE_STATS_SCHEMA = [
       metric VARCHAR NOT NULL,
       value REAL
   )""",
-    """CREATE TABLE episode_policy_metrics (
-      episode_id VARCHAR NOT NULL,
-      policy_version_id VARCHAR NOT NULL,
-      metric VARCHAR NOT NULL,
-      value REAL,
-      PRIMARY KEY (episode_id, policy_version_id, metric)
-  )""",
 ]
 
 
@@ -134,19 +127,6 @@ def insert_agent_metric(
     )
 
 
-def insert_policy_metric(
-    conn: duckdb.DuckDBPyConnection, episode_id: str, policy_version_id: str, metric: str, value: float
-) -> None:
-    """Insert a policy-level metric into the DuckDB database."""
-    conn.execute(
-        """
-        INSERT INTO episode_policy_metrics (episode_id, policy_version_id, metric, value)
-        VALUES (?, ?, ?, ?)
-        """,
-        [episode_id, policy_version_id, metric, value],
-    )
-
-
 def read_episodes(conn: duckdb.DuckDBPyConnection) -> list[tuple]:
     """Read all episodes from the DuckDB database.
 
@@ -190,23 +170,3 @@ def read_agent_metrics(conn: duckdb.DuckDBPyConnection, episode_id: str) -> list
         "SELECT agent_id, metric, value FROM episode_agent_metrics WHERE episode_id = ?", [episode_id]
     )
     return [(int(row[0]), row[1], float(row[2])) for row in result.fetchall()]
-
-
-def read_policy_metrics(conn: duckdb.DuckDBPyConnection, episode_id: str) -> list[tuple[str, str, float]]:
-    """Read policy metrics for a specific episode."""
-    if not _table_exists(conn, "episode_policy_metrics"):
-        return []
-    result = conn.execute(
-        "SELECT policy_version_id, metric, value FROM episode_policy_metrics WHERE episode_id = ?", [episode_id]
-    )
-    return [(row[0], row[1], float(row[2])) for row in result.fetchall()]
-
-
-def _table_exists(conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-    return (
-        conn.execute(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = ?",
-            [table_name],
-        ).fetchone()
-        is not None
-    )

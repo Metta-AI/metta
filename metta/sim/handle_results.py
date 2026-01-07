@@ -17,7 +17,6 @@ from metta.app_backend.episode_stats_db import (
     insert_agent_policy,
     insert_episode,
     insert_episode_tag,
-    insert_policy_metric,
 )
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.log_config import get_console, should_use_rich_console
@@ -368,22 +367,12 @@ def write_eval_results_to_observatory(
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
 
-                    policy_failure_steps: dict[int, int] = {}
-                    for agent_policy_idx, failure_step in zip(e.assignments, e.failure_steps or (), strict=False):
-                        if failure_step is None:
-                            continue
-                        pidx = int(agent_policy_idx)
-                        fstep = int(failure_step)
-                        policy_failure_steps[pidx] = min(fstep, policy_failure_steps.get(pidx, fstep))
-
-                    assigned_policy_indices = {int(idx) for idx in e.assignments}
-                    for policy_idx in assigned_policy_indices:
-                        pv_id = policy_version_ids[policy_idx]
-                        failure_step = policy_failure_steps.get(policy_idx)
-                        exception_flag = 1.0 if failure_step is not None else 0.0
-                        insert_policy_metric(conn, episode_id, pv_id, "exception_flag", exception_flag)
-                        if failure_step is not None:
-                            insert_policy_metric(conn, episode_id, pv_id, "exception_step", float(failure_step))
+                        failure_steps = e.failure_steps or []
+                        if agent_id < len(failure_steps):
+                            failure_step = failure_steps[agent_id]
+                            if failure_step is not None:
+                                insert_agent_metric(conn, episode_id, agent_id, "exception_flag", 1.0)
+                                insert_agent_metric(conn, episode_id, agent_id, "exception_step", float(failure_step))
 
             conn.execute("CHECKPOINT")
             logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")
