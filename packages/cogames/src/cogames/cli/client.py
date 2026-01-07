@@ -196,3 +196,6 @@ class TournamentServerClient:
 
     def update_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> dict[str, Any]:
         return self._put(f"/stats/policies/versions/{policy_version_id}/tags", json=tags)
+
+    def get_policy_memberships(self, policy_version_id: uuid.UUID) -> list[dict[str, Any]]:
+        return self._get(f"/tournament/policies/{policy_version_id}/memberships")
