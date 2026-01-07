@@ -92,6 +92,7 @@ supported_observatory_env_overrides = SupportedObservatoryEnvOverrides()
 
 
 def auto_stats_server_uri() -> str | None:
+    # Keep local import for slow-loading module (~500ms)
     from metta.setup.components.observatory_key import ObservatoryKeySetup
 
     return {

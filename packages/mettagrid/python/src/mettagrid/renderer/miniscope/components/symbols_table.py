@@ -1,14 +1,9 @@
 """Symbols table component for miniscope renderer."""
 
-from typing import TYPE_CHECKING
-
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class SymbolsTableComponent(MiniscopeComponent):
@@ -16,7 +11,7 @@ class SymbolsTableComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
         max_rows: int = 1000,
