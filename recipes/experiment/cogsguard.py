@@ -42,7 +42,6 @@ from mettagrid.config.mettagrid_config import (
     DamageConfig,
     GameConfig,
     GlobalObsConfig,
-    GridObjectConfig,
     InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
@@ -75,22 +74,6 @@ vibes = [
     Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
 ]
-
-
-class PylonConfig(GridObjectConfig):
-    radius: int
-
-
-class RoleStationConfig(GridObjectConfig):
-    role: str
-
-
-class ExtractorConfig(GridObjectConfig):
-    pass
-
-
-class ColonyConfig(GridObjectConfig):
-    pass
 
 
 class CogAssemblerConfig(CvCStationConfig):
