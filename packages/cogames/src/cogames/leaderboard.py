@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
+from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from mettagrid import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
-
-from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 
 
 def make_machina1_open_world_env(
