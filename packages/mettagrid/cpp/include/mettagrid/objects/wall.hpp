@@ -20,7 +20,8 @@ struct WallConfig : public GridObjectConfig {
 class Wall : public GridObject {
 public:
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, cfg.aoes);
+    GridObject::init(
+        cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, cfg.aoes, cfg.effective_name());
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
@@ -68,6 +69,7 @@ inline void bind_wall_config(py::module& m) {
            py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
+      .def_readwrite("name", &WallConfig::name)
       .def_readwrite("tag_ids", &WallConfig::tag_ids)
       .def_readwrite("initial_vibe", &WallConfig::initial_vibe)
       .def_readwrite("aoes", &WallConfig::aoes);
