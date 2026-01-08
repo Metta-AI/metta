@@ -4,11 +4,16 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "core/types.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
+
+// Forward declarations for AOEHelper
+class Grid;
+class GridObject;
 
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
@@ -47,25 +52,110 @@ public:
   }
 };
 
+// Configuration for Area of Effect (AOE) resource effects
+struct AOEEffectConfig {
+  unsigned int range = 1;                                             // Radius of effect (Chebyshev distance)
+  std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;  // Per-tick resource changes
+  std::vector<int> target_tag_ids;  // If non-empty, only affect objects with these tags
+  bool same_faction_only = false;   // Only affect objects in same faction
+  bool different_faction_only = false;  // Only affect objects in different factions
+
+  AOEEffectConfig() = default;
+  AOEEffectConfig(unsigned int range,
+                  const std::unordered_map<InventoryItem, InventoryDelta>& resource_deltas,
+                  const std::vector<int>& target_tag_ids = {},
+                  bool same_faction_only = false,
+                  bool different_faction_only = false)
+      : range(range),
+        resource_deltas(resource_deltas),
+        target_tag_ids(target_tag_ids),
+        same_faction_only(same_faction_only),
+        different_faction_only(different_faction_only) {}
+};
+
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
+  std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe) {}
+      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
 
   virtual ~GridObjectConfig() = default;
 };
 
+// Helper class for managing AOE effects on grid objects
+class AOEHelper {
+public:
+  AOEHelper() = default;
+
+  // Initialize with grid reference and owner
+  void init(Grid* grid, GridObject* owner) {
+    _grid = grid;
+    _owner = owner;
+  }
+
+  // Set the AOE config (call from object constructor)
+  void set_config(const AOEEffectConfig* config) {
+    _config = config;
+  }
+
+  // Check if this helper has AOE configured
+  bool has_aoe() const {
+    return _config != nullptr && _grid != nullptr;
+  }
+
+  // Register AOE effects at the given location
+  void register_effects(GridCoord r, GridCoord c);
+
+  // Unregister AOE effects (call on removal)
+  void unregister_effects();
+
+  // Get the config
+  const AOEEffectConfig* config() const {
+    return _config;
+  }
+
+  // Get the owner object
+  GridObject* owner() const {
+    return _owner;
+  }
+
+  // Check if this AOE is currently registered
+  bool is_registered() const {
+    return _registered;
+  }
+
+  // Get the center location
+  GridCoord location_r() const {
+    return _location_r;
+  }
+  GridCoord location_c() const {
+    return _location_c;
+  }
+
+private:
+  const AOEEffectConfig* _config = nullptr;
+  Grid* _grid = nullptr;
+  GridObject* _owner = nullptr;
+  bool _registered = false;
+  GridCoord _location_r = 0;
+  GridCoord _location_c = 0;
+};
+
 class GridObject : public HasVibe {
+private:
+  std::vector<AOEEffectConfig> _aoe_configs;
+
 public:
   GridObjectId id{};
   GridLocation location{};
   TypeId type_id{};
   std::string type_name;
   std::vector<int> tag_ids;
+  std::vector<AOEHelper> aoes;  // AOE effect helpers (one per config)
 
   virtual ~GridObject() = default;
 
@@ -73,12 +163,27 @@ public:
             const std::string& object_type_name,
             const GridLocation& object_location,
             const std::vector<int>& tags,
-            ObservationType object_vibe = 0) {
+            ObservationType object_vibe = 0,
+            const std::vector<AOEEffectConfig>& aoe_configs = {}) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;
+    if (!aoe_configs.empty()) {
+      _aoe_configs = aoe_configs;
+      aoes.resize(_aoe_configs.size());
+      for (size_t i = 0; i < _aoe_configs.size(); ++i) {
+        aoes[i].set_config(&_aoe_configs[i]);
+      }
+    }
+  }
+
+  // Called when this object is removed. Override for cleanup.
+  virtual void on_remove() {
+    for (auto& aoe : aoes) {
+      aoe.unregister_effects();
+    }
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const {

@@ -1041,6 +1041,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
   py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
 
+  bind_aoe_effect_config(m);
   bind_wall_config(m);
 
   // ##MettaGridConfig

@@ -344,6 +344,23 @@ class GlobalObsConfig(Config):
     goal_obs: bool = Field(default=False)
 
 
+class AOEEffectConfig(Config):
+    """Configuration for Area of Effect resource effects.
+
+    AOE effects apply resource deltas to agents within range each tick.
+    """
+
+    range: int = Field(default=1, ge=0, description="Radius of effect (Chebyshev distance)")
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict, description="Per-tick resource changes (positive=gain, negative=loss)"
+    )
+    target_tags: list[str] = Field(
+        default_factory=list, description="If non-empty, only affect objects with these tags"
+    )
+    same_faction_only: bool = Field(default=False, description="Only affect objects in the same faction")
+    different_faction_only: bool = Field(default=False, description="Only affect objects in different factions")
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -362,6 +379,7 @@ class GridObjectConfig(Config):
         default=None,
         description="Name of faction this object belongs to. Adds 'faction:{name}' tag automatically.",
     )
+    aoes: list[AOEEffectConfig] = Field(default_factory=list, description="List of AOE effects this object emits")
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":

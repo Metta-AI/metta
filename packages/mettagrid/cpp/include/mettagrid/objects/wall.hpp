@@ -20,7 +20,7 @@ struct WallConfig : public GridObjectConfig {
 class Wall : public GridObject {
 public:
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe, cfg.aoes);
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
@@ -40,6 +40,26 @@ public:
 
 namespace py = pybind11;
 
+inline void bind_aoe_effect_config(py::module& m) {
+  py::class_<AOEEffectConfig, std::shared_ptr<AOEEffectConfig>>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int,
+                    const std::unordered_map<InventoryItem, InventoryDelta>&,
+                    const std::vector<int>&,
+                    bool,
+                    bool>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("target_tag_ids") = std::vector<int>(),
+           py::arg("same_faction_only") = false,
+           py::arg("different_faction_only") = false)
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas)
+      .def_readwrite("target_tag_ids", &AOEEffectConfig::target_tag_ids)
+      .def_readwrite("same_faction_only", &AOEEffectConfig::same_faction_only)
+      .def_readwrite("different_faction_only", &AOEEffectConfig::different_faction_only);
+}
+
 inline void bind_wall_config(py::module& m) {
   py::class_<WallConfig, GridObjectConfig, std::shared_ptr<WallConfig>>(m, "WallConfig")
       .def(py::init<TypeId, const std::string&, ObservationType>(),
@@ -49,7 +69,8 @@ inline void bind_wall_config(py::module& m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("tag_ids", &WallConfig::tag_ids)
-      .def_readwrite("initial_vibe", &WallConfig::initial_vibe);
+      .def_readwrite("initial_vibe", &WallConfig::initial_vibe)
+      .def_readwrite("aoes", &WallConfig::aoes);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_WALL_HPP_
