@@ -8,6 +8,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
@@ -251,6 +252,21 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
+
+            # Convert AOE configs
+            cpp_aoes = []
+            for aoe_cfg in object_config.aoes:
+                cpp_aoe = CppAOEEffectConfig()
+                cpp_aoe.range = aoe_cfg.range
+                cpp_aoe.resource_deltas = {
+                    resource_name_to_id[name]: delta for name, delta in aoe_cfg.resource_deltas.items()
+                }
+                cpp_aoe.target_tag_ids = [tag_name_to_id[tag] for tag in aoe_cfg.target_tags if tag in tag_name_to_id]
+                cpp_aoe.same_faction_only = aoe_cfg.same_faction_only
+                cpp_aoe.different_faction_only = aoe_cfg.different_faction_only
+                cpp_aoes.append(cpp_aoe)
+            cpp_wall_config.aoes = cpp_aoes
+
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
         elif isinstance(object_config, AssemblerConfig):
