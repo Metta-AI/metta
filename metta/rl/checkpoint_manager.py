@@ -12,6 +12,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.util.file import write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
