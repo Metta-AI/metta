@@ -917,19 +917,7 @@ def diagnose_cmd(
     no_plots: bool = typer.Option(False, "--no-plots", help="Skip generating plots"),
 ) -> None:
     policy_spec = get_policy_spec(ctx, policy)
-
-    if policy_spec.data_path is None:
-        console.print("[yellow]Warning: policy has no weights file; diagnostics may not be meaningful.[/yellow]")
-
-    try:
-        script_path = _resolve_run_evaluation_script()
-    except FileNotFoundError as exc:
-        console.print(f"[red]Error locating run_evaluation.py: {exc}[/red]")
-        raise typer.Exit(1) from exc
-
-    def _append_arg(flag: str, value: Optional[str]) -> None:
-        if value:
-            cmd.extend([flag, value])
+    script_path = _resolve_run_evaluation_script()
 
     cmd = [sys.executable, str(script_path)]
     cmd.extend(["--mission-set", mission_set])
@@ -947,8 +935,10 @@ def diagnose_cmd(
     cmd.extend(["--repeats", str(repeats)])
     cmd.extend(["--jobs", str(jobs)])
 
-    _append_arg("--output", str(output) if output else None)
-    _append_arg("--plot-dir", str(plot_dir) if plot_dir else None)
+    if output:
+        cmd.extend(["--output", str(output)])
+    if plot_dir:
+        cmd.extend(["--plot-dir", str(plot_dir)])
     if no_plots:
         cmd.append("--no-plots")
 
@@ -958,12 +948,7 @@ def diagnose_cmd(
 
     console.print("[cyan]Running diagnostic evaluation...[/cyan]")
     console.print(f"[dim]{' '.join(cmd)}[/dim]")
-
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
-        console.print(f"[red]Diagnostic evaluation failed: {exc}[/red]")
-        raise typer.Exit(1) from exc
+    subprocess.run(cmd, check=True)
 
 
 @app.command(name="validate-policy", help="Validate the policy loads and runs a single step")
