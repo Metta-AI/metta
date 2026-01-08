@@ -1,34 +1,38 @@
 # Torch Profiler Summary
 
-Run: `relh.machina_1.perf.1223.2`
-Trace: `torch_profiles/trace_relh.machina_1.perf.1223.2_epoch_1.json.gz`
-Source machine: `relh-sandbox-4` (AWS `g6.12xlarge`, L4 x4)
-Captured epoch: 1
-Parsed on: 2025-12-23
+Run: `relh.machina_1.perf.1223.2` Trace: `torch_profiles/trace_relh.machina_1.perf.1223.2_epoch_1.json.gz` Source
+machine: `relh-sandbox-4` (AWS `g6.12xlarge`, L4 x4) Captured epoch: 1 Parsed on: 2025-12-23
 
 Notes:
-- The profiler trace is large (~1GB compressed, ~20GB raw) and sums durations across many threads, so totals can exceed wall-clock time. Use rankings to identify repeated or sync-heavy ops rather than interpreting absolute totals.
+
+- The profiler trace is large (~1GB compressed, ~20GB raw) and sums durations across many threads, so totals can exceed
+  wall-clock time. Use rankings to identify repeated or sync-heavy ops rather than interpreting absolute totals.
 - This analysis uses only `ph="X"` events (duration events) in the trace.
 
 ## Key signals (high confidence)
 
-1) **Frequent CPU↔GPU sync points**
+1. **Frequent CPU↔GPU sync points**
    - `aten::item` + `aten::_local_scalar_dense` dominate CPU op time (31k+ calls).
    - CUDA runtime shows substantial `cudaStreamSynchronize` and `cudaDeviceSynchronize` time.
 
-   These are strong indicators that the training loop (or loss/metrics) is frequently forcing synchronous GPU reads or blocking on GPU work.
+   These are strong indicators that the training loop (or loss/metrics) is frequently forcing synchronous GPU reads or
+   blocking on GPU work.
 
-2) **Heavy scatter/index and mutation ops**
-   - `aten::index_put_`, `aten::_index_put_impl_`, `aten::index_copy_`, `aten::index_select` are high in the CPU op list.
-   - This points to non-trivial gather/scatter logic on the hot path (likely in losses, experience assembly, or stats updates).
+2. **Heavy scatter/index and mutation ops**
+   - `aten::index_put_`, `aten::_index_put_impl_`, `aten::index_copy_`, `aten::index_select` are high in the CPU op
+     list.
+   - This points to non-trivial gather/scatter logic on the hot path (likely in losses, experience assembly, or stats
+     updates).
 
-3) **Many allocations / fills**
+3. **Many allocations / fills**
    - `aten::empty`, `aten::fill_`, `aten::empty_like`, `aten::resize_`, `aten::empty_strided` show up frequently.
-   - Suggests repeated allocation + fill cycles during training, which may indicate missing buffer reuse or avoidable tensor reconstruction.
+   - Suggests repeated allocation + fill cycles during training, which may indicate missing buffer reuse or avoidable
+     tensor reconstruction.
 
-4) **Kernel mix looks typical for ViT**
+4. **Kernel mix looks typical for ViT**
    - Attention kernels (fmha cutlass), layer norm, and GEMMs dominate GPU kernel time.
-   - No obviously pathological kernel stands out on GPU; the bottleneck appears more CPU/synchronization/overhead-driven.
+   - No obviously pathological kernel stands out on GPU; the bottleneck appears more
+     CPU/synchronization/overhead-driven.
 
 ## Top categories by total duration (microseconds)
 
@@ -98,38 +102,45 @@ GeluCUDAKernelImpl                   1,287,868 us  (2,302 calls)
 
 ## Likely bottleneck candidates (hypotheses)
 
-These are *probable* issues suggested by the trace; they should be confirmed by code inspection and/or targeted profiling.
+These are _probable_ issues suggested by the trace; they should be confirmed by code inspection and/or targeted
+profiling.
 
-1) **Scalar extraction in hot path**
-   - The `aten::item` / `_local_scalar_dense` pattern typically comes from code like `loss.item()`, `float(tensor)`, `tensor.cpu().numpy()` inside loops or per‑minibatch logging.
+1. **Scalar extraction in hot path**
+   - The `aten::item` / `_local_scalar_dense` pattern typically comes from code like `loss.item()`, `float(tensor)`,
+     `tensor.cpu().numpy()` inside loops or per‑minibatch logging.
    - This forces a GPU→CPU sync each time and can dominate training time.
 
-2) **Scatter/gather-heavy updates**
-   - Frequent `index_put_` / `index_copy_` / `index_select` can indicate costly tensor assembly in losses or experience storage (e.g., per‑step per‑agent writes).
+2. **Scatter/gather-heavy updates**
+   - Frequent `index_put_` / `index_copy_` / `index_select` can indicate costly tensor assembly in losses or experience
+     storage (e.g., per‑step per‑agent writes).
    - This could explain why “train” time is dominating instead of rollout.
 
-3) **Repeated allocations / buffer churn**
-   - Very high counts of `empty` / `fill_` / `empty_like` / `resize_` suggests many tensors are allocated each step or minibatch.
+3. **Repeated allocations / buffer churn**
+   - Very high counts of `empty` / `fill_` / `empty_like` / `resize_` suggests many tensors are allocated each step or
+     minibatch.
    - Potential wins from caching and reusing buffers (or reworking loops to avoid small allocations).
 
-4) **Synchronization overhead**
-   - Significant `cudaStreamSynchronize` and `cudaDeviceSynchronize` time indicates blocking synchronization likely caused by scalar reads, debug checks, or synchronous logging.
+4. **Synchronization overhead**
+   - Significant `cudaStreamSynchronize` and `cudaDeviceSynchronize` time indicates blocking synchronization likely
+     caused by scalar reads, debug checks, or synchronous logging.
 
 ## Suggested next steps (for follow‑up profiling)
 
-1) **Audit for scalar syncs**
-   - Find and batch/disable `.item()`, `float(tensor)`, `tensor.cpu().numpy()` usage in the training/optimizer/loss logging path.
+1. **Audit for scalar syncs**
+   - Find and batch/disable `.item()`, `float(tensor)`, `tensor.cpu().numpy()` usage in the training/optimizer/loss
+     logging path.
 
-2) **Inspect index/scatter paths in losses**
-   - Look for loops and `index_put_` in loss code and in experience/advantage computation. Consider vectorized alternatives.
+2. **Inspect index/scatter paths in losses**
+   - Look for loops and `index_put_` in loss code and in experience/advantage computation. Consider vectorized
+     alternatives.
 
-3) **Reduce allocations in training loop**
+3. **Reduce allocations in training loop**
    - Reuse buffers where possible. Pay attention to per‑minibatch TensorDict construction.
 
-4) **Add lightweight profiler schedule**
+4. **Add lightweight profiler schedule**
    - Use a short torch.profiler schedule to avoid multi‑GB traces and reduce capture overhead.
 
 ## Additional notes
 
-- A second trace exists for epoch 3 (`trace_relh.machina_1.perf.1223.2_epoch_3.json.gz`), but it has not been analyzed yet. If needed, we can repeat the summary on that file to verify consistency.
-
+- A second trace exists for epoch 3 (`trace_relh.machina_1.perf.1223.2_epoch_3.json.gz`), but it has not been analyzed
+  yet. If needed, we can repeat the summary on that file to verify consistency.

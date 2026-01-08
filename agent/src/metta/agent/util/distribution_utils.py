@@ -5,6 +5,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
 
+
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits during inference.
