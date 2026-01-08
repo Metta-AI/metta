@@ -9,8 +9,8 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.slot import apply_slot_routing
 from metta.rl.loss.teacher_policy import load_teacher_policy
+from metta.rl.slot import apply_slot_routing
 from metta.rl.training import ComponentContext
 
 # Keep: heavy module + manages circular dependency (loss <-> trainer)
