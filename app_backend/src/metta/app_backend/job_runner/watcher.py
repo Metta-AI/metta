@@ -22,7 +22,7 @@ from metta.app_backend.job_runner.config import (
     get_dispatch_config,
 )
 from metta.app_backend.models.job_request import JobRequestUpdate, JobStatus
-from metta.common.otel.tracing import init_tracing, trace
+from metta.common.otel.tracing import init_otel_tracing, trace
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 
 logger = logging.getLogger(__name__)
@@ -221,5 +221,5 @@ def _update_job_status(
 if __name__ == "__main__":
     init_logging()
     suppress_noisy_logs()
-    init_tracing(service_name="episode-job-watcher")
+    init_otel_tracing(service_name="job-watcher")
     run_watcher()
