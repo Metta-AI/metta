@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from metta.common.util.cuda import is_cuda_supported
+from metta.common.cuda_utils import is_cuda_supported
 from metta.rl.advantage import compute_delta_lambda, td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
 
 

@@ -4,8 +4,7 @@ import torch
 from cortex.blocks import PostUpBlock
 from cortex.cells.slstm import sLSTMCell
 from cortex.config import PostUpBlockConfig, sLSTMCellConfig
-
-from metta.common.util.cuda import is_cuda_supported
+from cortex.cuda_utils import is_cuda_supported
 
 
 def get_test_device():

@@ -5,9 +5,8 @@ import torch
 from cortex.blocks import PreUpBlock
 from cortex.cells.mlstm import mLSTMCell
 from cortex.config import PreUpBlockConfig, mLSTMCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.utils import TRITON_AVAILABLE
-
-from metta.common.util.cuda import is_cuda_supported
 
 
 def get_test_device():

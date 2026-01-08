@@ -16,8 +16,7 @@ from cortex import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
-
-from metta.common.util.cuda import is_cuda_supported
+from cortex.cuda_utils import is_cuda_supported
 
 
 def _stack_with_column(d_hidden: int = 64, k: int = 3):

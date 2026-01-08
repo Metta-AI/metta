@@ -10,6 +10,8 @@ from typing import Callable
 import torch
 from torch._dynamo import disable
 
+from cortex.cuda_utils import is_cuda_supported
+
 logger = logging.getLogger(__name__)
 
 _disable_triton_env = os.getenv("CORTEX_DISABLE_TRITON") or os.getenv("CORTEX_FORCE_PYTORCH")
@@ -21,7 +23,7 @@ else:
     try:
         import triton  # noqa: F401
 
-        TRITON_AVAILABLE = torch.cuda.is_available()
+        TRITON_AVAILABLE = is_cuda_supported()
     except ImportError:
         TRITON_AVAILABLE = False
 
@@ -51,7 +53,7 @@ def select_backend(
     allow_cuda: bool = False,
 ) -> Callable:
     """Select CUDA, Triton, or PyTorch backend with lazy loading support."""
-    cuda_fn_resolved = _lazy_import(cuda_fn) if (cuda_fn and torch.cuda.is_available()) else None
+    cuda_fn_resolved = _lazy_import(cuda_fn) if (cuda_fn and is_cuda_supported()) else None
     triton_fn_resolved = _lazy_import(triton_fn) if (triton_fn and TRITON_AVAILABLE) else None
     pytorch_fn_resolved = _lazy_import(pytorch_fn)
 

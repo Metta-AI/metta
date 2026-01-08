@@ -8,9 +8,8 @@ import pytest
 import torch
 from cortex.cells.xl import XLCell
 from cortex.config import AxonConfig, XLCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from tensordict import TensorDict
-
-from metta.common.util.cuda import is_cuda_supported
 
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
 pytestmark = (

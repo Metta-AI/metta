@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 
 import torch
+from cortex.cuda_utils import is_cuda_supported
 
 
 @dataclass(frozen=True)
@@ -89,4 +90,4 @@ def measure_callable(
 def ensure_device(device: Optional[str] = None) -> str:
     if device:
         return device
-    return "cuda" if torch.cuda.is_available() else "cpu"
+    return "cuda" if is_cuda_supported() else "cpu"

@@ -6,10 +6,9 @@ reference implementation, verifying both forward and backward passes.
 
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.utils import TRITON_AVAILABLE
-
-from metta.common.util.cuda import is_cuda_supported
 
 
 def get_test_device():

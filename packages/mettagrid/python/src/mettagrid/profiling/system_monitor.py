@@ -9,6 +9,8 @@ import psutil
 import torch
 from typing_extensions import TypeVar
 
+from mettagrid.util.cuda import is_cuda_supported
+
 T = TypeVar("T")
 
 
@@ -142,7 +144,7 @@ class SystemMonitor:
         self._has_gpu = False
 
         # Try PyTorch CUDA
-        if torch.cuda.is_available():
+        if is_cuda_supported():
             self._has_gpu = True
             self._gpu_backend = "cuda"
             gpu_count = torch.cuda.device_count()

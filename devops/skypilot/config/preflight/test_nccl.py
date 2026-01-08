@@ -13,6 +13,8 @@ from typing import Any, Optional
 import torch
 import torch.distributed as dist
 
+from metta.common.cuda_utils import is_cuda_supported
+
 
 def measure_p2p_bandwidth(
     device: torch.device,
@@ -441,7 +443,7 @@ def get_gpu_diagnostics(node_index: int) -> dict[str, Any]:
         "nccl_version": None,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "not set"),
         "gpu_count": 0,
-        "pytorch_cuda_available": torch.cuda.is_available(),
+        "pytorch_cuda_available": is_cuda_supported(),
         "pytorch_cuda_version": (getattr(getattr(torch, "version", None), "cuda", None)),
         "gpu_topology": None,
         "errors": [],
@@ -823,7 +825,7 @@ def test_nccl_communication() -> bool:
 def test_single_gpu() -> bool:
     """Test single GPU functionality."""
     try:
-        if not torch.cuda.is_available():
+        if not is_cuda_supported():
             return False
 
         device = torch.device("cuda:0")
@@ -1039,7 +1041,7 @@ def main():
     test_results = []
 
     # Single GPU test
-    if torch.cuda.is_available():
+    if is_cuda_supported():
         if IS_GPU0:
             print(f"\n  🔧 Node {node_index}: Running single GPU tests...")
         if test_single_gpu():

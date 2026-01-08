@@ -5,9 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
-
-from metta.common.util.cuda import is_cuda_supported
 
 try:
     from cortex.kernels.triton.rtu import rtu_stream_diag_triton as _rtu_triton_stream

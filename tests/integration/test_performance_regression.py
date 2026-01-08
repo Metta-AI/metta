@@ -14,7 +14,7 @@ import time
 import numpy as np
 import pytest
 
-from metta.common.util.cuda import is_cuda_supported
+from metta.common.cuda_utils import is_cuda_supported
 from mettagrid import PufferMettaGridEnv
 from mettagrid.mettagrid_c import (
     dtype_actions,

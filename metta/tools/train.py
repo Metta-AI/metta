@@ -16,6 +16,7 @@ from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.cogworks.curriculum import Curriculum
+from metta.common.cuda_utils import is_cuda_supported
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -364,7 +365,7 @@ class TrainTool(Tool):
             trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
-        if not torch.cuda.is_available():
+        if not is_cuda_supported():
             return
 
         # Opportunistically enable flash attention when available

@@ -16,6 +16,7 @@ from cortex.blocks.registry import build_block, register_block
 from cortex.cells import build_cell
 from cortex.cells.base import MemoryCell
 from cortex.config import BlockConfig, ColumnBlockConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.types import MaybeState, ResetMask, Tensor
 
 
@@ -150,7 +151,7 @@ class ColumnBlock(BaseBlock):
         expert_states: list[TensorDict | None] = [None] * num_experts
 
         # Parallelize with CUDA streams unless disabled or under graph capture
-        can_parallel = num_experts > 1 and x.is_cuda and torch.cuda.is_available()
+        can_parallel = num_experts > 1 and x.is_cuda and is_cuda_supported()
 
         if can_parallel:
             # Lazily create one stream per expert on the input tensor's device.

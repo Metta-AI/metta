@@ -11,6 +11,7 @@ from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.common.cuda_utils import is_cuda_supported
 from mettagrid.base_config import Config
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
@@ -63,7 +64,7 @@ class PolicyAutoBuilder(Policy):
         device: torch.device,
     ):
         self.to(device)
-        if torch.cuda.is_available():
+        if is_cuda_supported():
             self._configure_sdp()
         logs = []
         for _, value in self.components.items():

@@ -2,11 +2,10 @@ import os
 
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.stacks.hf import build_llama_stack_from_model
 from transformers import AutoModelForCausalLM, LlamaConfig, LlamaForCausalLM
 from transformers.cache_utils import DynamicCache
-
-from metta.common.util.cuda import is_cuda_supported
 
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
 pytestmark = (

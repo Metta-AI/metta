@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Sequence
 
 import torch
+from cortex.cuda_utils import is_cuda_supported
 
 if __package__ in (None, ""):
     _FILE = Path(__file__).resolve()
@@ -62,7 +63,7 @@ def _resolve_indices(requested: Sequence[int] | None, total: int) -> List[int]:
 
 
 def _print_device_info(device: str) -> None:
-    if device == "cuda" and torch.cuda.is_available():
+    if device == "cuda" and is_cuda_supported():
         print(f"Device: {torch.cuda.get_device_name(0)}")
         print(f"CUDA Version: {torch.version.cuda}")
     else:
@@ -149,7 +150,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         return 2
 
     device = ensure_device(args.device)
-    if device == "cuda" and not torch.cuda.is_available():
+    if device == "cuda" and not is_cuda_supported():
         print("Warning: CUDA is not available; falling back to CPU.", file=sys.stderr)
         device = "cpu"
 

@@ -4,10 +4,9 @@ import pytest
 import torch
 from cortex.cells.lstm import LSTMCell
 from cortex.config import LSTMCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.utils import TRITON_AVAILABLE
-
-from metta.common.util.cuda import is_cuda_supported
 
 
 def get_test_device():

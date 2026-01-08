@@ -13,8 +13,8 @@ from cortex.blocks import ColumnBlock, build_block
 from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.types import MaybeState, ResetMask, Tensor
-from metta.common.util.cuda import is_cuda_supported
 
 logger = logging.getLogger(__name__)
 

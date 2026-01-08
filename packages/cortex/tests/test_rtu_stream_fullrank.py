@@ -14,9 +14,8 @@ import os
 import numpy as np
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.rtu.rtu_stream_fullrank import rtu_stream_full_pytorch
-
-from metta.common.util.cuda import is_cuda_supported
 
 # Skip this module entirely by default (slow).
 # Set RUN_SLOW_CORTEX_TESTS=1 to enable; otherwise keep skipped.

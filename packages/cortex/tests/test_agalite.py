@@ -8,10 +8,9 @@ import pytest
 import torch
 from cortex.cells.agalite import AGaLiTeCell
 from cortex.config import AGaLiTeCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.agalite import discounted_sum_pytorch
 from tensordict import TensorDict
-
-from metta.common.util.cuda import is_cuda_supported
 
 
 def _device():

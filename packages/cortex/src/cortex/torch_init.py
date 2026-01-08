@@ -13,9 +13,11 @@ import random
 import numpy as np
 import torch
 
+from cortex.cuda_utils import is_cuda_supported
+
 
 def set_tf32_precision(enabled: bool, /) -> None:
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         return
 
     # For now, we ALWAYS use the legacy allow_tf32 API as torch._inductor appears to have an issue with the newer
