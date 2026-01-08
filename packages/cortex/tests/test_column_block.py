@@ -1,3 +1,4 @@
+import pytest
 import torch
 from cortex import (
     AxonLayer,
@@ -145,7 +146,7 @@ def test_auto_block_forward_and_state():
     # Devices with unsupported capability will fail
     # on the initialization of the GPU Context
     if not is_cuda_supported():
-        return
+        pytest.skip("CUDA not supported")
 
     d_hidden = 32
     block = build_column_auto_block(d_hidden=d_hidden, pattern="AXMSM^X^S^")
