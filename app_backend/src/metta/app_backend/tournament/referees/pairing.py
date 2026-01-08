@@ -68,7 +68,7 @@ class PairingReferee(RefereeBase):
                     existing = config_counts[key]
                     needed = self.matches_per_config - existing
                     for match_i in range(needed):
-                        map_seed_offset = c_idx * self.matches_per_config + match_i + existing
+                        map_seed_offset = c_idx * 1000 + match_i + existing
                         pending.append((existing, pp1, pp2, config, map_seed_offset))
                         existing += 1
 
