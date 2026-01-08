@@ -65,7 +65,7 @@ class MettaGridPufferEnv(PufferEnv):
       https://github.com/PufferAI/PufferLib/blob/main/pufferlib/environments.py
     """
 
-    metadata = {"render_modes": ["ansi"]}
+    metadata = {"render_modes": ["ansi", "none"]}
 
     def __init__(
         self,
@@ -74,12 +74,16 @@ class MettaGridPufferEnv(PufferEnv):
         supervisor_policy_spec: Optional[PolicySpec] = None,
         buf: Any = None,
         seed: int = 0,
+        render_mode: Optional[str] = None,
     ):
         # Support both Simulation and MettaGridConfig for backwards compatibility
         self._simulator = simulator
         self._current_cfg = cfg
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
+        self._render_mode = "ansi"
+        if render_mode is not None:
+            self.render_mode = render_mode
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -252,11 +256,27 @@ class MettaGridPufferEnv(PufferEnv):
 
     @property
     def render_mode(self) -> str:
-        """PufferLib render mode - returns 'ansi' for text-based rendering."""
-        return "ansi"
+        return self._render_mode
+
+    @render_mode.setter
+    def render_mode(self, value: str) -> None:
+        normalized = self._normalize_render_mode(value)
+        self._render_mode = normalized
+
+    @staticmethod
+    def _normalize_render_mode(value: str) -> str:
+        if value == "auto":
+            return "none"
+        if value in {"human", "ansi", "unicode"}:
+            return "ansi"
+        if value == "none":
+            return "none"
+        raise ValueError(f"Invalid render_mode: {value}")
 
     def render(self) -> str:
         """Render the current state as unicode text."""
+        if self._render_mode == "none":
+            return ""
         from mettagrid.renderer.miniscope.buffer import MapBuffer
         from mettagrid.renderer.miniscope.symbol import DEFAULT_SYMBOL_MAP
 
