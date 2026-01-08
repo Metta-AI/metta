@@ -357,7 +357,6 @@ def write_eval_results_to_observatory(
                     for key, value in sim_config.episode_tags.items():
                         insert_episode_tag(conn, episode_id, key, value)
 
-                    failure_steps = e.failure_steps or []
                     for agent_id in range(len(e.assignments)):
                         pv_id = policy_version_ids[e.assignments[agent_id]]
 
@@ -367,12 +366,6 @@ def write_eval_results_to_observatory(
                         agent_metrics = e.stats["agent"][agent_id]
                         for metric_name, metric_value in agent_metrics.items():
                             insert_agent_metric(conn, episode_id, agent_id, metric_name, metric_value)
-
-                        if failure_steps:
-                            failure_step = failure_steps[agent_id]
-                            if failure_step is not None:
-                                insert_agent_metric(conn, episode_id, agent_id, "exception_flag", 1.0)
-                                insert_agent_metric(conn, episode_id, agent_id, "exception_step", float(failure_step))
 
             conn.execute("CHECKPOINT")
             logger.info(f"Uploading evaluation results to observatory (DuckDB size: {duckdb_path})")

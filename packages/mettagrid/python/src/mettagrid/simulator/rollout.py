@@ -50,43 +50,22 @@ class Rollout:
             policy.reset()
 
         self._step_count = 0
-        self._failed_agents: list[bool] = [False] * len(policies)
-        self._agent_failure_steps: list[int | None] = [None] * len(policies)
 
     def step(self) -> None:
         """Execute one step of the rollout."""
         if self._step_count % 100 == 0:
             logger.debug(f"Step {self._step_count}")
 
-        for i, policy in enumerate(self._policies):
-            if self._failed_agents[i]:
-                action = self._config.game.actions.noop.Noop()
-                self._agents[i].set_action(action)
-                continue
-
+        for i in range(len(self._policies)):
             start_time = time.time()
-            try:
-                action = policy.step(self._agents[i].observation)
-            except Exception:
-                logger.exception(
-                    "Policy %s failed at step %s",
-                    policy.__class__.__name__,
-                    self._step_count,
+            action = self._policies[i].step(self._agents[i].observation)
+            end_time = time.time()
+            if (end_time - start_time) > self._max_action_time_ms:
+                logger.warning(
+                    f"Action took {end_time - start_time} seconds, exceeding max of {self._max_action_time_ms}ms"
                 )
-                self._failed_agents[i] = True
-                self._agent_failure_steps[i] = self._step_count
                 action = self._config.game.actions.noop.Noop()
-            else:
-                elapsed_ms = (time.time() - start_time) * 1000
-                if elapsed_ms > self._max_action_time_ms:
-                    logger.warning(
-                        "Action took %.0fms, exceeding max of %sms",
-                        elapsed_ms,
-                        self._max_action_time_ms,
-                    )
-                    action = self._config.game.actions.noop.Noop()
-                    self._timeout_counts[i] += 1
-
+                self._timeout_counts[i] += 1
             self._agents[i].set_action(action)
 
         if self._renderer is not None:
@@ -107,8 +86,3 @@ class Rollout:
     def timeout_counts(self) -> list[int]:
         """Return the timeout counts for each agent."""
         return self._timeout_counts
-
-    @property
-    def agent_failure_steps(self) -> list[int | None]:
-        """Return the step indices where agents first failed (None if never failed)."""
-        return self._agent_failure_steps

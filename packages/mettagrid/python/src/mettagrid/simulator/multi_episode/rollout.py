@@ -31,7 +31,6 @@ class EpisodeRolloutResult(BaseModel):
     replay_path: str | None
     steps: int
     max_steps: int
-    failure_steps: list[int | None] | None = None
 
 
 class MultiEpisodeRolloutResult(BaseModel):
@@ -129,7 +128,6 @@ def multi_episode_rollout(
             replay_path=replay_path,
             steps=rollout._sim.current_step,
             max_steps=rollout._sim.config.game.max_steps,
-            failure_steps=list(rollout.agent_failure_steps),
         )
 
         episode_results.append(result)
