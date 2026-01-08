@@ -132,7 +132,7 @@ class CoreTrainingLoop:
                 td["t_in_row"] = t_in_row
                 self.add_last_action_to_td(td)
                 ensure_sequence_metadata(td, batch_size=td.batch_size.numel(), time_steps=1)
-                self._inject_slot_metadata(td)
+                self._inject_slot_metadata(td, training_env_id)
 
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
