@@ -8,7 +8,6 @@ from typing import Literal
 from uuid import UUID
 
 from opentelemetry import trace as otel_trace
-from opentelemetry.propagate import inject
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.status import Status, StatusCode
 from pydantic import BaseModel
@@ -483,18 +482,15 @@ class CommissionerBase(ABC):
             match_id = match.id
             span.set_attribute("match.id", str(match_id))
 
-            trace_context: dict[str, str] = {}
-            inject(trace_context)
-
             # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
             job_spec = dict(
                 policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
                 assignments=request.assignments,
                 env=request.env.model_dump(),
-                replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
+                # TODO: uncomment this when collecting replays stop causing OOMs
+                replay_uri=None,  # f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
                 seed=request.seed,
                 episode_tags=request.episode_tags,
-                trace_context=trace_context,
             )
 
             stats_client = StatsClient(settings.STATS_SERVER_URI, machine_token=settings.MACHINE_TOKEN)

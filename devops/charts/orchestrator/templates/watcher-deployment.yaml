@@ -53,16 +53,10 @@ spec:
           value: "http://$(HOST_IP):4318"
         - name: OTEL_EXPORTER_OTLP_PROTOCOL
           value: "http/protobuf"
-        - name: OTEL_TRACES_EXPORTER
-          value: "otlp"
-        - name: OTEL_LOGS_EXPORTER
-          value: "none"
+        - name: OTEL_TRACES_ENABLED
+          value: "true"
         - name: OTEL_SERVICE_NAME
           value: "episode-job-watcher"
-        - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "deployment.environment={{ .Values.datadog.env }},service.version={{ .Values.image.tag }}"
-        - name: LOG_JSON
-          value: "true"
         resources:
           {{- toYaml .Values.watcher.resources | nindent 10 }}
 {{- end }}
