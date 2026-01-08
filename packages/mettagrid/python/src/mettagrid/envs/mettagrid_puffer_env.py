@@ -81,9 +81,7 @@ class MettaGridPufferEnv(PufferEnv):
         self._current_cfg = cfg
         self._current_seed = seed
         self._supervisor_policy_spec = supervisor_policy_spec
-        self._render_mode = "ansi"
-        if render_mode is not None:
-            self.render_mode = render_mode
+        self._render_mode = render_mode or "ansi"
 
         # Initialize shared buffers FIRST (before super().__init__)
         # because PufferLib may access them during initialization
@@ -260,18 +258,7 @@ class MettaGridPufferEnv(PufferEnv):
 
     @render_mode.setter
     def render_mode(self, value: str) -> None:
-        normalized = self._normalize_render_mode(value)
-        self._render_mode = normalized
-
-    @staticmethod
-    def _normalize_render_mode(value: str) -> str:
-        if value == "auto":
-            return "none"
-        if value in {"human", "ansi", "unicode"}:
-            return "ansi"
-        if value == "none":
-            return "none"
-        raise ValueError(f"Invalid render_mode: {value}")
+        self._render_mode = value
 
     def render(self) -> str:
         """Render the current state as unicode text."""
