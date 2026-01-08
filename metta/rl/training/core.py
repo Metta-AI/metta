@@ -3,7 +3,7 @@ from typing import Any
 
 import torch
 from pydantic import ConfigDict
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import compute_advantage, compute_delta_lambda
@@ -589,6 +589,7 @@ def _train_sample_mb_fn(core: CoreTrainingLoop):
             batch_size=context.config.batch_size,
             advantages=workspace["advantages_full"],
         )
+        shared_loss_mb_data["advantages_full"] = NonTensorData(workspace["advantages_full"])
         workspace["shared_loss_data"] = shared_loss_mb_data
         workspace["loss_values"] = {}
         return {}
