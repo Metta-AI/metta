@@ -188,14 +188,17 @@ class CoreTrainingLoop:
         context.training_env_id = last_env_id
         return RolloutResult(raw_infos=raw_infos, agent_steps=total_steps, training_env_id=last_env_id)
 
-    def _inject_slot_metadata(self, td: TensorDict) -> None:
+    def _inject_slot_metadata(self, td: TensorDict, env_slice: slice | None = None) -> None:
         ctx = self.context
         slot_ids = ctx.slot_id_per_agent
         if slot_ids is None:
             return
 
         num_agents = ctx.env.policy_env_info.num_agents
-        num_envs = td.batch_size.numel() // num_agents
+        if env_slice is None:
+            num_envs = td.batch_size.numel() // num_agents
+        else:
+            num_envs = env_slice.stop - env_slice.start
         device = td.device
 
         def _expand(meta: torch.Tensor) -> torch.Tensor:
