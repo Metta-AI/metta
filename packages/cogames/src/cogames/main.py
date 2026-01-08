@@ -100,6 +100,15 @@ def _resolve_mettascope_script() -> Path:
     )
 
 
+def _resolve_run_evaluation_script() -> Path:
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
+    if not script_path.exists():
+        raise FileNotFoundError(
+            f"run_evaluation.py not found at {script_path}. Please run from the metta repo checkout."
+        )
+    return script_path
+
+
 app = typer.Typer(
     help="CoGames - Multi-agent cooperative and competitive games",
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -864,6 +873,97 @@ app.command(
     name="leaderboard",
     help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
+
+
+@app.command(name="diagnose", help="Run diagnostic evals for a policy checkpoint")
+def diagnose_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Argument(
+        ...,
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    mission_set: Literal["diagnostic_evals", "integrated_evals", "spanning_evals", "all"] = typer.Option(
+        "diagnostic_evals",
+        "--mission-set",
+        "-S",
+        help="Eval suite to run for diagnostics",
+    ),
+    experiments: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--experiments",
+        "-m",
+        help="Specific experiments to run (subset of the mission set)",
+    ),
+    cogs: Optional[list[int]] = typer.Option(  # noqa: B008
+        None,
+        "--cogs",
+        "-c",
+        help="Agent counts to test (default depends on eval suite)",
+    ),
+    steps: int = typer.Option(1000, "--steps", help="Max steps per episode"),
+    seed: int = typer.Option(42, "--seed", help="Random seed"),
+    repeats: int = typer.Option(3, "--repeats", help="Runs per case"),
+    jobs: int = typer.Option(0, "--jobs", help="Max parallel cases (0 = CPU count)"),
+    output: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--output",
+        help="Output JSON file for results",
+    ),
+    plot_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--plot-dir",
+        help="Directory to save plots",
+    ),
+    no_plots: bool = typer.Option(False, "--no-plots", help="Skip generating plots"),
+) -> None:
+    policy_spec = get_policy_spec(ctx, policy)
+
+    if policy_spec.data_path is None:
+        console.print("[yellow]Warning: policy has no weights file; diagnostics may not be meaningful.[/yellow]")
+
+    try:
+        script_path = _resolve_run_evaluation_script()
+    except FileNotFoundError as exc:
+        console.print(f"[red]Error locating run_evaluation.py: {exc}[/red]")
+        raise typer.Exit(1) from exc
+
+    def _append_arg(flag: str, value: Optional[str]) -> None:
+        if value:
+            cmd.extend([flag, value])
+
+    cmd = [sys.executable, str(script_path)]
+    cmd.extend(["--mission-set", mission_set])
+
+    if experiments:
+        cmd.append("--experiments")
+        cmd.extend(experiments)
+
+    if cogs:
+        cmd.append("--cogs")
+        cmd.extend(str(c) for c in cogs)
+
+    cmd.extend(["--steps", str(steps)])
+    cmd.extend(["--seed", str(seed)])
+    cmd.extend(["--repeats", str(repeats)])
+    cmd.extend(["--jobs", str(jobs)])
+
+    _append_arg("--output", str(output) if output else None)
+    _append_arg("--plot-dir", str(plot_dir) if plot_dir else None)
+    if no_plots:
+        cmd.append("--no-plots")
+
+    cmd.extend(["--agent", f"class={policy_spec.class_path}"])
+    if policy_spec.data_path:
+        cmd.extend(["--checkpoint", policy_spec.data_path])
+
+    console.print("[cyan]Running diagnostic evaluation...[/cyan]")
+    console.print(f"[dim]{' '.join(cmd)}[/dim]")
+
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[red]Diagnostic evaluation failed: {exc}[/red]")
+        raise typer.Exit(1) from exc
 
 
 @app.command(name="validate-policy", help="Validate the policy loads and runs a single step")
