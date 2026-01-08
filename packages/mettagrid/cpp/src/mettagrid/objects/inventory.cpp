@@ -136,28 +136,16 @@ void Inventory::enforce_all_limits() {
 
   // For each limit, check if we need to drop excess
   for (SharedInventoryLimit* limit : unique_limits) {
-<<<<<<< HEAD
     InventoryDelta excess = limit->amount - limit->effective_limit(this->_inventory);
     if (excess <= 0) {
       continue;  // No excess
     }
 
-=======
-    InventoryQuantity effective = limit->effective_limit(this->_inventory);
-    if (limit->amount <= effective) {
-      continue;  // No excess
-    }
-
-    // Need to drop (limit->amount - effective) worth of resources
-    InventoryQuantity excess = limit->amount - effective;
-
->>>>>>> 1b89cb8e96 (feat: enforce inventory limits in cpp)
     // Find resources belonging to this limit and drop excess
     for (auto& [item, item_limit] : this->_limits) {
       if (item_limit != limit) continue;
 
       InventoryQuantity current = this->amount(item);
-<<<<<<< HEAD
 
       // Drop up to 'excess' from this item
       InventoryDelta to_drop = std::min(static_cast<InventoryDelta>(current), excess);
@@ -169,28 +157,6 @@ void Inventory::enforce_all_limits() {
       }
 
       if (excess <= 0) break;
-=======
-      if (current == 0) continue;
-
-      // Drop up to 'excess' from this item
-      InventoryQuantity to_drop = std::min(current, excess);
-      if (to_drop > 0) {
-        // Update directly without triggering recursive enforce
-        this->_inventory[item] -= to_drop;
-        if (this->_inventory[item] == 0) {
-          this->_inventory.erase(item);
-        }
-        limit->amount -= to_drop;
-        excess -= to_drop;
-
-        // Notify owner
-        if (_owner) {
-          _owner->on_inventory_change(item, -static_cast<InventoryDelta>(to_drop));
-        }
-      }
-
-      if (excess == 0) break;
->>>>>>> 1b89cb8e96 (feat: enforce inventory limits in cpp)
     }
   }
 }

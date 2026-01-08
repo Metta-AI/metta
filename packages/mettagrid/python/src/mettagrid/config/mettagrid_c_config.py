@@ -22,6 +22,8 @@ from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
+from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
+from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
 
 
@@ -442,10 +444,6 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Process attack - always add to map
     action_params = process_action_config("attack", actions_config.attack)
     attack_cfg = actions_config.attack
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     # Always convert full attack config (enabled only controls standalone actions, not vibe-triggered)
     action_params["defense_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()}
     action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
@@ -460,63 +458,38 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         success_loot,
         attack_cfg.success.freeze,
     )
-<<<<<<< HEAD
-=======
-    if attack_cfg.enabled:
-        action_params["defense_resources"] = {
-            resource_name_to_id[k]: v for k, v in attack_cfg.defense_resources.items()
-        }
-        action_params["armor_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.armor_resources.items()}
-        action_params["weapon_resources"] = {resource_name_to_id[k]: v for k, v in attack_cfg.weapon_resources.items()}
-        # Convert loot list from names to IDs if specified
-        if attack_cfg.loot is not None:
-            loot_ids = []
-            for name in attack_cfg.loot:
-                if name not in resource_name_to_id:
-                    raise ValueError(f"Loot resource '{name}' not found in resource_names")
-                loot_ids.append(resource_name_to_id[name])
-            action_params["loot"] = loot_ids
-        else:
-            action_params["loot"] = None
-    else:
-        action_params["defense_resources"] = {}
-        action_params["armor_resources"] = {}
-        action_params["weapon_resources"] = {}
-        action_params["loot"] = None
->>>>>>> 0a9e131de1 (Fix lint errors: shorten line length and reformat)
-=======
->>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     action_params["enabled"] = attack_cfg.enabled
     # Convert vibes from names to IDs (validate all vibe names exist)
     for vibe in attack_cfg.vibes:
         if vibe not in vibe_name_to_id:
             raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibes")
     action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes]
-<<<<<<< HEAD
-<<<<<<< HEAD
     # Convert vibe_bonus from names to IDs
     for vibe in attack_cfg.vibe_bonus:
         if vibe not in vibe_name_to_id:
             raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibe_bonus")
     action_params["vibe_bonus"] = {vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items()}
-=======
-=======
-    # Convert vibes from names to IDs
-    action_params["vibes"] = [vibe_name_to_id[vibe] for vibe in attack_cfg.vibes if vibe in vibe_name_to_id]
-    # Convert vibe_bonus from names to IDs
-    action_params["vibe_bonus"] = {
-        vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items() if vibe in vibe_name_to_id
-    }
->>>>>>> 9249d8778a (Fix C++ benchmark compilation: add armor/weapon_resources params)
->>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
-=======
-    # Convert vibe_bonus from names to IDs
-    for vibe in attack_cfg.vibe_bonus:
-        if vibe not in vibe_name_to_id:
-            raise ValueError(f"Unknown vibe name '{vibe}' in attack.vibe_bonus")
-    action_params["vibe_bonus"] = {vibe_name_to_id[vibe]: bonus for vibe, bonus in attack_cfg.vibe_bonus.items()}
->>>>>>> e24ab9b87d (Add test for swapping positions with frozen agents)
     actions_cpp_params["attack"] = CppAttackActionConfig(**action_params)
+
+    # Process transfer - vibes are derived from vibe_transfers keys in C++
+    transfer_cfg = actions_config.transfer
+    vibe_transfers_cpp = {}
+    seen_vibes: set[str] = set()
+    for vt in transfer_cfg.vibe_transfers:
+        if vt.vibe not in vibe_name_to_id:
+            raise ValueError(f"Unknown vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        if vt.vibe in seen_vibes:
+            raise ValueError(f"Duplicate vibe name '{vt.vibe}' in transfer.vibe_transfers")
+        seen_vibes.add(vt.vibe)
+        vibe_id = vibe_name_to_id[vt.vibe]
+        target_deltas = {resource_name_to_id[k]: v for k, v in vt.target.items()}
+        actor_deltas = {resource_name_to_id[k]: v for k, v in vt.actor.items()}
+        vibe_transfers_cpp[vibe_id] = CppVibeTransferEffect(target_deltas, actor_deltas)
+    actions_cpp_params["transfer"] = CppTransferActionConfig(
+        required_resources={resource_name_to_id[k]: int(v) for k, v in transfer_cfg.required_resources.items()},
+        vibe_transfers=vibe_transfers_cpp,
+        enabled=transfer_cfg.enabled,
+    )
 
     # Process change_vibe - always add to map
     action_params = process_action_config("change_vibe", actions_config.change_vibe)

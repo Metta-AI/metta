@@ -252,24 +252,9 @@ class AttackActionConfig(ActionConfig):
         default_factory=dict,
         description="Resources on attacker that increase damage. Maps resource name to weight.",
     )
-<<<<<<< HEAD
-<<<<<<< HEAD
     success: AttackOutcome = Field(
         default_factory=AttackOutcome,
         description="Outcome when attack succeeds.",
-=======
-    loot: Optional[list[str]] = Field(
-        default=None,
-        description="Resources to steal (in order). None=steal all, []=steal nothing.",
-    )
-    target_locations: list[Literal["1", "2", "3", "4", "5", "6", "7", "8", "9"]] = Field(
-        default_factory=lambda: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
->>>>>>> 0a9e131de1 (Fix lint errors: shorten line length and reformat)
-=======
-    success: AttackOutcome = Field(
-        default_factory=AttackOutcome,
-        description="Outcome when attack succeeds.",
->>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     )
     vibes: list[str] = Field(
         default_factory=list,
@@ -278,8 +263,6 @@ class AttackActionConfig(ActionConfig):
     vibe_bonus: dict[str, int] = Field(
         default_factory=dict,
         description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
-<<<<<<< HEAD
-=======
     )
 
     def _actions(self) -> list[Action]:
@@ -317,11 +300,10 @@ class TransferActionConfig(ActionConfig):
     vibe_transfers: list[VibeTransfer] = Field(
         default_factory=list,
         description="List of vibe transfer configs specifying actor/target resource effects",
->>>>>>> a259917e44 (Fix C++ benchmark compilation: add armor/weapon_resources params)
     )
 
     def _actions(self) -> list[Action]:
-        # Attack only triggers via move, no standalone actions
+        # Transfer doesn't create standalone actions - it's triggered by move
         return []
 
 
@@ -335,11 +317,12 @@ class ActionsConfig(Config):
     noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
 
     def actions(self) -> list[Action]:
         return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.change_vibe]],
+            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
             [],
         )
 
