@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from torch._dynamo import disable
+from torch.profiler import record_function
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.column.routers import GlobalContextRouter, TokenRefiner
