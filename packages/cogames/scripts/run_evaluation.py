@@ -30,7 +30,7 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
-from cogames.cli.policy import _parse_policy_spec
+from cogames.cli.policy import parse_policy_spec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 matplotlib.use("Agg")
@@ -1241,7 +1241,7 @@ def main():
 
     configs: List[AgentConfig] = []
     if args.policy:
-        policy_spec = _parse_policy_spec(args.policy).to_policy_spec()
+        policy_spec = parse_policy_spec(args.policy).to_policy_spec()
         configs.append(
             AgentConfig(
                 key="custom",
