@@ -168,7 +168,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         if "/" in value or "\\" in value:
             return True
         # Common checkpoint suffixes
-        if value.endswith(".zip") or value.endswith(":latest") or ":v" in value:
+        if value.endswith(".zip") or value.endswith(":latest") or re.search(r":v\d+", value):
             return True
         return False
 
