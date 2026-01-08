@@ -35,79 +35,13 @@ class SingleEpisodeJob(BaseModel):
 logger = logging.getLogger(__name__)
 
 
-def _run_episode(job_id: UUID, job: SingleEpisodeJob, stats_client: StatsClient) -> None:
-    local_results_uri = "file://results.json"
-    local_replay_uri = "file://replay.json.z"
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python -m metta.sim.single_episode_runner <job_id>")
+        sys.exit(1)
 
-    with tempfile.NamedTemporaryFile(delete=True) as temp_file:
-        pure_job_spec = {
-            "job": PureSingleEpisodeJob(
-                policy_uris=job.policy_uris,
-                assignments=job.assignments,
-                env=job.env,
-                results_uri=local_results_uri,
-                replay_uri=local_replay_uri,
-                seed=job.seed,
-                max_action_time_ms=job.max_action_time_ms,
-            ).model_dump(),
-            "device": "cpu",
-            "allow_network": True,
-        }
-        temp_file.write(json.dumps(pure_job_spec).encode("utf-8"))
-        temp_file.flush()
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "metta.sim.pure_single_episode_runner",
-                temp_file.name,
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            if result.returncode < 0:
-                signal_num = -result.returncode
-                raise RuntimeError(f"Killed by signal {signal_num}")
-            error_output = result.stderr or result.stdout or "No output"
-            if len(error_output) > 200000:
-                error_output = error_output[:200000] + "\n... (truncated)"
-            raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
+    job_id = UUID(sys.argv[1])
 
-    for src, dest, content_type in [
-        (local_replay_uri, job.replay_uri, "application/x-compress"),
-        (local_results_uri, job.results_uri, "application/json"),
-    ]:
-        if dest is not None:
-            copy_data(src, dest, content_type=content_type)
-
-    results = PureSingleEpisodeResult.model_validate_json(read(local_results_uri))
-
-    policy_version_ids: list[uuid.UUID | None] = []
-    stats_server_uri = os.environ["STATS_SERVER_URI"]
-    for policy_uri in job.policy_uris:
-        parsed = parse_uri(policy_uri, allow_none=False)
-        if parsed.scheme != "metta":
-            policy_version_ids.append(None)
-        else:
-            policy_version = MettaSchemeResolver(stats_server_uri).get_policy_version(policy_uri)
-            policy_version_ids.append(policy_version.id)
-
-    episode_tags = {"job_id": str(job_id), **job.episode_tags}
-    episode_id = write_single_episode_to_observatory(
-        replay_uri=job.replay_uri,
-        assignments=job.assignments,
-        episode_tags=episode_tags,
-        policy_version_ids=policy_version_ids,
-        results=results,
-        stats_client=stats_client,
-    )
-
-    stats_client.update_job(job_id, JobRequestUpdate(result={"episode_id": str(episode_id)}))
-    logger.info(f"Completed job {job_id}")
-
-
-def run_episode(job_id: UUID) -> None:
     observatory_auth_config.save_token(os.environ["MACHINE_TOKEN"], os.environ["STATS_SERVER_URI"])
 
     stats_client = StatsClient.create(os.environ["STATS_SERVER_URI"])
@@ -117,22 +51,84 @@ def run_episode(job_id: UUID) -> None:
         logger.info(f"Started job {job_id}")
 
         job = SingleEpisodeJob.model_validate(job_data.job)
-        _run_episode(job_id, job, stats_client)
+
+        local_results_uri = "file://results.json"
+        local_replay_uri = "file://replay.json.z"
+
+        with tempfile.NamedTemporaryFile(delete=True) as temp_file:
+            pure_job_spec = {
+                "job": PureSingleEpisodeJob(
+                    policy_uris=job.policy_uris,
+                    assignments=job.assignments,
+                    env=job.env,
+                    results_uri=local_results_uri,
+                    replay_uri=local_replay_uri,
+                    seed=job.seed,
+                    max_action_time_ms=job.max_action_time_ms,
+                ).model_dump(),
+                "device": "cpu",
+                "allow_network": True,
+            }
+            temp_file.write(json.dumps(pure_job_spec).encode("utf-8"))
+            temp_file.flush()
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "metta.sim.pure_single_episode_runner",
+                    temp_file.name,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                if result.returncode < 0:
+                    # Killed by signal (e.g., OOMKilled sends SIGKILL=-9)
+                    signal_num = -result.returncode
+                    raise RuntimeError(f"Killed by signal {signal_num}")
+                error_output = result.stderr or result.stdout or "No output"
+                if len(error_output) > 200000:
+                    error_output = error_output[:200000] + "\n... (truncated)"
+                raise RuntimeError(f"pure_single_episode_runner failed (exit {result.returncode}):\n{error_output}")
+
+        for src, dest, content_type in [
+            (local_replay_uri, job.replay_uri, "application/x-compress"),
+            (local_results_uri, job.results_uri, "application/json"),
+        ]:
+            if dest is not None:
+                copy_data(src, dest, content_type=content_type)
+
+        results = PureSingleEpisodeResult.model_validate_json(read(local_results_uri))
+
+        policy_version_ids: list[uuid.UUID | None] = []
+        stats_server_uri = os.environ["STATS_SERVER_URI"]
+        for policy_uri in job.policy_uris:
+            parsed = parse_uri(policy_uri, allow_none=False)
+            if parsed.scheme != "metta":
+                policy_version_ids.append(None)
+            else:
+                policy_version = MettaSchemeResolver(stats_server_uri).get_policy_version(policy_uri)
+                policy_version_ids.append(policy_version.id)
+
+        episode_tags = {"job_id": str(job_id), **job.episode_tags}
+        episode_id = write_single_episode_to_observatory(
+            replay_uri=job.replay_uri,
+            assignments=job.assignments,
+            episode_tags=episode_tags,
+            policy_version_ids=policy_version_ids,
+            results=results,
+            stats_client=stats_client,
+        )
+
+        stats_client.update_job(job_id, JobRequestUpdate(result={"episode_id": str(episode_id)}))
+        logger.info(f"Completed job {job_id}")
+
     except Exception as e:
         logger.exception(f"Job {job_id} failed")
         stats_client.update_job(job_id, JobRequestUpdate(result={"error": str(e)}))
         raise
     finally:
         stats_client.close()
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python -m metta.sim.single_episode_runner <job_id>")
-        sys.exit(1)
-
-    job_id = UUID(sys.argv[1])
-    run_episode(job_id)
 
 
 if __name__ == "__main__":
