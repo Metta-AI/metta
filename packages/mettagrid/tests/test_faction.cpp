@@ -10,6 +10,9 @@
 #include "objects/faction_config.hpp"
 #include "objects/inventory_config.hpp"
 
+// Global resource names for tests
+static std::vector<std::string> test_resource_names = {"gold", "silver"};
+
 // Test helper to create a basic Faction config
 FactionConfig create_test_faction_config(const std::string& name, InventoryQuantity limit = 100) {
   FactionConfig config;
@@ -22,14 +25,16 @@ FactionConfig create_test_faction_config(const std::string& name, InventoryQuant
 // Simple GridObject subclass for testing that is also Alignable
 class TestGridObject : public GridObject, public Alignable {
 public:
-  TestGridObject() = default;
+  TestGridObject(const std::string& type = "test_object") {
+    this->type_name = type;
+  }
 };
 
 void test_faction_creation() {
   std::cout << "Testing Faction creation..." << std::endl;
 
   FactionConfig config = create_test_faction_config("test_faction");
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   assert(faction.name == "test_faction");
   assert(faction.memberCount() == 0);
@@ -44,7 +49,7 @@ void test_faction_initial_inventory() {
   config.initial_inventory[0] = 50;
   config.initial_inventory[1] = 25;
 
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   assert(faction.inventory.amount(0) == 50);
   assert(faction.inventory.amount(1) == 25);
@@ -56,7 +61,7 @@ void test_faction_add_member() {
   std::cout << "Testing Faction addMember..." << std::endl;
 
   FactionConfig config = create_test_faction_config("test_faction");
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
@@ -78,7 +83,7 @@ void test_faction_remove_member() {
   std::cout << "Testing Faction removeMember..." << std::endl;
 
   FactionConfig config = create_test_faction_config("test_faction");
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
@@ -104,7 +109,7 @@ void test_alignable_set_faction() {
   std::cout << "Testing Alignable setFaction..." << std::endl;
 
   FactionConfig config = create_test_faction_config("test_faction");
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj;
 
@@ -125,7 +130,7 @@ void test_alignable_clear_faction() {
   std::cout << "Testing Alignable clearFaction..." << std::endl;
 
   FactionConfig config = create_test_faction_config("test_faction");
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj;
   obj.setFaction(&faction);
@@ -148,8 +153,8 @@ void test_alignable_switch_faction() {
 
   FactionConfig config1 = create_test_faction_config("faction1");
   FactionConfig config2 = create_test_faction_config("faction2");
-  Faction faction1(config1);
-  Faction faction2(config2);
+  Faction faction1(config1, &test_resource_names);
+  Faction faction2(config2, &test_resource_names);
 
   TestGridObject obj;
   obj.setFaction(&faction1);
@@ -170,7 +175,7 @@ void test_faction_inventory_access() {
 
   FactionConfig config = create_test_faction_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj;
   obj.setFaction(&faction);
@@ -193,7 +198,7 @@ void test_multiple_objects_share_faction() {
 
   FactionConfig config = create_test_faction_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Faction faction(config);
+  Faction faction(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
@@ -211,6 +216,97 @@ void test_multiple_objects_share_faction() {
   std::cout << "✓ Multiple objects sharing faction test passed" << std::endl;
 }
 
+void test_faction_aligned_counts() {
+  std::cout << "Testing Faction aligned counts tracking..." << std::endl;
+
+  FactionConfig config = create_test_faction_config("test_faction");
+  Faction faction(config, &test_resource_names);
+
+  // Create objects with different types
+  TestGridObject charger1("charger");
+  TestGridObject charger2("charger");
+  TestGridObject extractor1("extractor");
+
+  // Initially no aligned counts
+  assert(faction.aligned_counts().empty());
+
+  // Add objects via setFaction (which passes type_name)
+  charger1.setFaction(&faction);
+  assert(faction.aligned_counts().count("charger") == 1);
+  assert(faction.aligned_counts().at("charger") == 1);
+  assert(faction.stats.get("aligned.charger") == 1.0f);
+
+  charger2.setFaction(&faction);
+  assert(faction.aligned_counts().at("charger") == 2);
+  assert(faction.stats.get("aligned.charger") == 2.0f);
+
+  extractor1.setFaction(&faction);
+  assert(faction.aligned_counts().at("extractor") == 1);
+  assert(faction.stats.get("aligned.extractor") == 1.0f);
+
+  // Remove a charger
+  charger1.clearFaction();
+  assert(faction.aligned_counts().at("charger") == 1);
+  assert(faction.stats.get("aligned.charger") == 1.0f);
+
+  std::cout << "✓ Faction aligned counts tracking test passed" << std::endl;
+}
+
+void test_faction_held_stats() {
+  std::cout << "Testing Faction held duration stats..." << std::endl;
+
+  FactionConfig config = create_test_faction_config("test_faction");
+  Faction faction(config, &test_resource_names);
+
+  TestGridObject charger1("charger");
+  TestGridObject charger2("charger");
+
+  charger1.setFaction(&faction);
+  charger2.setFaction(&faction);
+
+  // Initially no held stats
+  assert(faction.stats.get("aligned.charger.held") == 0.0f);
+
+  // Simulate one tick
+  faction.update_held_stats();
+  assert(faction.stats.get("aligned.charger.held") == 2.0f);
+
+  // Simulate another tick
+  faction.update_held_stats();
+  assert(faction.stats.get("aligned.charger.held") == 4.0f);
+
+  // Remove one charger and simulate tick
+  charger1.clearFaction();
+  faction.update_held_stats();
+  assert(faction.stats.get("aligned.charger.held") == 5.0f);
+
+  std::cout << "✓ Faction held duration stats test passed" << std::endl;
+}
+
+void test_faction_stats_tracker() {
+  std::cout << "Testing Faction StatsTracker..." << std::endl;
+
+  FactionConfig config = create_test_faction_config("test_faction");
+  Faction faction(config, &test_resource_names);
+
+  // Test basic stats operations
+  faction.stats.incr("custom.stat");
+  assert(faction.stats.get("custom.stat") == 1.0f);
+
+  faction.stats.add("custom.stat", 5.0f);
+  assert(faction.stats.get("custom.stat") == 6.0f);
+
+  faction.stats.set("custom.stat", 10.0f);
+  assert(faction.stats.get("custom.stat") == 10.0f);
+
+  // Test to_dict
+  auto stats_dict = faction.stats.to_dict();
+  assert(stats_dict.count("custom.stat") == 1);
+  assert(stats_dict.at("custom.stat") == 10.0f);
+
+  std::cout << "✓ Faction StatsTracker test passed" << std::endl;
+}
+
 int main() {
   std::cout << "Running Faction tests..." << std::endl;
   std::cout << "================================================" << std::endl;
@@ -224,6 +320,9 @@ int main() {
   test_alignable_switch_faction();
   test_faction_inventory_access();
   test_multiple_objects_share_faction();
+  test_faction_aligned_counts();
+  test_faction_held_stats();
+  test_faction_stats_tracker();
 
   std::cout << "================================================" << std::endl;
   std::cout << "All Faction tests passed! ✓" << std::endl;
