@@ -188,6 +188,9 @@ class CheckpointManager:
             tmp_path = Path(tmp_file.name)
             torch.save(state, tmp_path)
             tmp_path.replace(self.checkpoint_dir / "trainer_state.pt")
+            if self._remote_prefix:
+                remote_path = f"{self.output_uri.rstrip('/')}/trainer_state.pt"
+                write_file(remote_path, str(self.checkpoint_dir / "trainer_state.pt"))
 
         if is_schedulefree:
             optimizer.train()
