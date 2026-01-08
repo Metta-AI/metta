@@ -10,6 +10,7 @@
 #include "objects/collective_config.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/inventory.hpp"
+#include "systems/stats_tracker.hpp"
 
 // Forward declaration
 class Alignable;
@@ -20,11 +21,10 @@ private:
 
 public:
   std::string name;
+  StatsTracker stats;
 
-  explicit Collective(const CollectiveConfig& cfg,
-                      const std::vector<std::string>* resource_names = nullptr,
-                      const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
-      : HasInventory(cfg.inventory_config, resource_names, feature_ids), name(cfg.name) {
+  explicit Collective(const CollectiveConfig& cfg, const std::vector<std::string>* resource_names)
+      : HasInventory(cfg.inventory_config), name(cfg.name), stats(resource_names) {
     // Set initial inventory (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
       if (amount > 0) {
@@ -58,6 +58,17 @@ public:
   // Get the number of members
   size_t memberCount() const {
     return _members.size();
+  }
+
+  // Track stats when inventory changes
+  void on_inventory_change(InventoryItem item, InventoryDelta delta) override {
+    if (delta == 0) return;
+    // We may want to track these by collective name, but that would make them clunkier for calculating reward.
+    if (delta > 0) {
+      stats.add("collective." + stats.resource_name(item) + ".deposited", delta);
+    } else {
+      stats.add("collective." + stats.resource_name(item) + ".withdrawn", -delta);
+    }
   }
 };
 

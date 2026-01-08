@@ -10,6 +10,9 @@
 #include "objects/collective_config.hpp"
 #include "objects/inventory_config.hpp"
 
+// Test resource names for StatsTracker
+std::vector<std::string> test_resource_names = {"resource0", "resource1"};
+
 // Test helper to create a basic Collective config
 CollectiveConfig create_test_collective_config(const std::string& name, InventoryQuantity limit = 100) {
   CollectiveConfig config;
@@ -29,7 +32,7 @@ void test_collective_creation() {
   std::cout << "Testing Collective creation..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   assert(collective.name == "test_collective");
   assert(collective.memberCount() == 0);
@@ -44,7 +47,7 @@ void test_collective_initial_inventory() {
   config.initial_inventory[0] = 50;
   config.initial_inventory[1] = 25;
 
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   assert(collective.inventory.amount(0) == 50);
   assert(collective.inventory.amount(1) == 25);
@@ -56,7 +59,7 @@ void test_collective_add_member() {
   std::cout << "Testing Collective addMember..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
@@ -78,7 +81,7 @@ void test_collective_remove_member() {
   std::cout << "Testing Collective removeMember..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
@@ -104,7 +107,7 @@ void test_alignable_set_collective() {
   std::cout << "Testing Alignable setCollective..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj;
 
@@ -125,7 +128,7 @@ void test_alignable_clear_collective() {
   std::cout << "Testing Alignable clearCollective..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj;
   obj.setCollective(&collective);
@@ -148,8 +151,8 @@ void test_alignable_switch_collective() {
 
   CollectiveConfig config1 = create_test_collective_config("collective1");
   CollectiveConfig config2 = create_test_collective_config("collective2");
-  Collective collective1(config1);
-  Collective collective2(config2);
+  Collective collective1(config1, &test_resource_names);
+  Collective collective2(config2, &test_resource_names);
 
   TestGridObject obj;
   obj.setCollective(&collective1);
@@ -170,7 +173,7 @@ void test_collective_inventory_access() {
 
   CollectiveConfig config = create_test_collective_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj;
   obj.setCollective(&collective);
@@ -193,7 +196,7 @@ void test_multiple_objects_share_collective() {
 
   CollectiveConfig config = create_test_collective_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   TestGridObject obj1;
   TestGridObject obj2;
