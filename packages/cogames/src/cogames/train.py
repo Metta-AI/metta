@@ -4,28 +4,32 @@ import logging
 import math
 import multiprocessing
 import platform
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import Any, Callable, Optional
 
 import psutil
+import torch
 from rich.console import Console
 
-from cogames.cli.mission import MAP_MISSION_DELIMITER
-from cogames.policy.interfaces import TrainablePolicy
+import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
 from cogames.policy.signal_handler import DeferSigintContextManager
-from cogames.policy.utils import (
-    find_policy_checkpoints,
+from mettagrid import MettaGridConfig, PufferMettaGridEnv
+from mettagrid.envs.early_reset_handler import EarlyResetHandler
+from mettagrid.envs.stats_tracker import StatsTracker
+from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.policy.loader import (
     get_policy_class_shorthand,
     initialize_or_load_policy,
-    resolve_policy_data_path,
 )
-from mettagrid import MettaGridConfig, MettaGridEnv
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME
+from mettagrid.simulator import Simulator
+from mettagrid.util.stats_writer import NoopStatsWriter
 from pufferlib import pufferl
 from pufferlib import vector as pvector
 from pufferlib.pufferlib import set_buffers
-
-if TYPE_CHECKING:
-    import torch
 
 logger = logging.getLogger("cogames.pufferlib")
 
@@ -75,7 +79,7 @@ def _resolve_vector_counts(
 def train(
     env_cfg: Optional[MettaGridConfig],
     policy_class_path: str,
-    device: "torch.device",
+    device: torch.device,
     initial_weights_path: Optional[str],
     num_steps: int,
     checkpoints_path: Path,
@@ -87,9 +91,8 @@ def train(
     vector_batch_size: Optional[int] = None,
     vector_num_workers: Optional[int] = None,
     env_cfg_supplier: Optional[Callable[[], MettaGridConfig]] = None,
+    log_outputs: bool = False,
 ) -> None:
-    import pufferlib.pytorch  # noqa: F401 - ensure modules register with torch
-
     console = Console()
 
     if env_cfg is None and env_cfg_supplier is None:
@@ -172,26 +175,8 @@ def train(
         envs_per_worker,
     )
 
-    def _clone_cfg() -> MettaGridConfig:
-        if env_cfg_supplier is not None:
-            supplied = env_cfg_supplier()
-            if not isinstance(supplied, MettaGridConfig):
-                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
-            return supplied.model_copy(deep=True)
-        assert env_cfg is not None
-        return env_cfg.model_copy(deep=True)
-
-    base_cfg = _clone_cfg()
-
-    def env_creator(
-        cfg: Optional[MettaGridConfig] = None,
-        buf: Optional[Any] = None,
-        seed: Optional[int] = None,
-    ):
-        target_cfg = cfg.model_copy(deep=True) if cfg is not None else _clone_cfg()
-        env = MettaGridEnv(env_cfg=target_cfg)
-        set_buffers(env, buf)
-        return env
+    env_creator = _EnvCreator(env_cfg, env_cfg_supplier)
+    base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
         env_creator,
@@ -203,22 +188,17 @@ def train(
     )
 
     resolved_initial_weights = initial_weights_path
-    if initial_weights_path is not None:
-        try:
-            resolved_initial_weights = resolve_policy_data_path(initial_weights_path)
-        except FileNotFoundError as exc:
-            console.print(f"[yellow]Initial weights not found ({exc}). Continuing with random initialization.[/yellow]")
-            resolved_initial_weights = None
 
     policy = initialize_or_load_policy(
-        policy_class_path,
-        resolved_initial_weights,
-        vecenv.driver_env,
-        device,
+        PolicyEnvInterface.from_mg_cfg(vecenv.driver_env.env_cfg),
+        PolicySpec(
+            class_path=policy_class_path,
+            data_path=resolved_initial_weights,
+        ),
     )
-    assert isinstance(policy, TrainablePolicy), (
-        f"Policy class {policy_class_path} must implement TrainablePolicy interface"
-    )
+    network = policy.network()
+    assert network is not None, f"Policy {policy_class_path} must be trainable (network() returned None)"
+    network.to(device)
 
     use_rnn = getattr(policy, "is_recurrent", lambda: False)()
     if not use_rnn:
@@ -228,17 +208,10 @@ def train(
 
     env_name = "cogames.cogs_vs_clips"
 
-    if use_rnn:
-        learning_rate = 0.0003
-        bptt_horizon = 1
-        optimizer = "adam"
-        adam_eps = 1e-8
-        logger.info("Using RNN-specific hyperparameters: lr=0.0003, bptt=1, optimizer=adam")
-    else:
-        learning_rate = 0.015
-        bptt_horizon = 1
-        optimizer = "muon"
-        adam_eps = 1e-12
+    learning_rate = 0.00092
+    bptt_horizon = 64 if use_rnn else 1
+    optimizer = "adam"
+    adam_eps = 1e-8
 
     total_agents = max(1, getattr(vecenv, "num_agents", 1))
     num_envs = max(1, getattr(vecenv, "num_envs", 1))
@@ -302,7 +275,7 @@ def train(
         vf_coef=2.0,
         vf_clip_coef=0.2,
         max_grad_norm=1.5,
-        ent_coef=0.001,
+        ent_coef=0.01,
         adam_beta1=0.95,
         adam_beta2=0.999,
         adam_eps=adam_eps,
@@ -315,29 +288,42 @@ def train(
     )
 
     trainer = pufferl.PuffeRL(train_args, vecenv, policy.network())
+    if log_outputs:
+        console.clear()
+        console.print("[dim]Evaluation stats will stream below; disabling Rich dashboard.[/dim]")
+        trainer.print_dashboard = lambda *_, **__: None  # type: ignore[assignment]
 
     training_diverged = False
 
     with DeferSigintContextManager():
         try:
             while trainer.global_step < num_steps:
-                trainer.evaluate()
-                trainer.train()
+                eval_stats = trainer.evaluate()
+                if log_outputs and eval_stats:
+                    console.log(f"Evaluation: {datetime.now(UTC)}")
+                    console.log(dict(eval_stats))
+                trainer_stats = trainer.train()
+                if log_outputs and trainer_stats:
+                    console.log(f"Training: {datetime.now(UTC)}")
+                    console.log(dict(trainer_stats))
                 # Check for NaN in network parameters after each training step
                 network = policy.network()
                 has_nan = False
+                if network is None:
+                    continue
                 for name, param in network.named_parameters():
                     if param.grad is not None and not param.grad.isfinite().all():
-                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}")
+                        logger.error(f"NaN/Inf detected in gradients for parameter: {name}", exc_info=True)
                         has_nan = True
                     if not param.isfinite().all():
-                        logger.error(f"NaN/Inf detected in parameter: {name}")
+                        logger.error(f"NaN/Inf detected in parameter: {name}", exc_info=True)
                         has_nan = True
 
                 if has_nan:
                     logger.error(
                         f"Training diverged at step {trainer.global_step}! "
-                        "Stopping early to prevent saving corrupted checkpoint."
+                        "Stopping early to prevent saving corrupted checkpoint.",
+                        exc_info=True,
                     )
                     training_diverged = True
                     break
@@ -368,7 +354,10 @@ def train(
             )
             console.print("=" * 80, style="bold green")
 
-        checkpoints = find_policy_checkpoints(checkpoints_path, env_name)
+        checkpoints = sorted(
+            {path.parent for path in checkpoints_path.rglob(POLICY_SPEC_FILENAME)},
+            key=lambda path: path.stat().st_mtime,
+        )
 
         if checkpoints and not training_diverged:
             final_checkpoint = checkpoints[-1]
@@ -387,7 +376,7 @@ def train(
 
             # Build the command with game name if provided
             policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"{policy_class_arg}{MAP_MISSION_DELIMITER}{final_checkpoint}"
+            policy_arg = f"class={policy_class_arg},data={final_checkpoint}"
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
@@ -411,3 +400,44 @@ def train(
 
         console.print("=" * 80, style="bold green")
         console.print()
+
+
+class _EnvCreator:
+    """Picklable environment factory for vectorized training."""
+
+    def __init__(
+        self,
+        env_cfg: Optional[MettaGridConfig],
+        env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+    ) -> None:
+        self._env_cfg = env_cfg
+        self._env_cfg_supplier = env_cfg_supplier
+
+    def clone_cfg(self) -> MettaGridConfig:
+        if self._env_cfg_supplier is not None:
+            supplied = self._env_cfg_supplier()
+            if not isinstance(supplied, MettaGridConfig):  # pragma: no cover - defensive
+                raise TypeError("env_cfg_supplier must return a MettaGridConfig")
+            return supplied.model_copy(deep=True)
+        assert self._env_cfg is not None
+        return self._env_cfg.model_copy(deep=True)
+
+    def __call__(
+        self,
+        cfg: Optional[MettaGridConfig] = None,
+        buf: Optional[Any] = None,
+        seed: Optional[int] = None,
+    ) -> PufferMettaGridEnv:
+        target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
+
+        # If this mission uses MapGen and the builder seed is unset, derive a deterministic
+        # MapGen seed from the per-env seed provided by the vectorized runner.
+        map_builder = getattr(target_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config) and seed is not None and map_builder.seed is None:
+            map_builder.seed = seed
+        simulator = Simulator()
+        simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
+        simulator.add_event_handler(EarlyResetHandler())
+        env = PufferMettaGridEnv(simulator, target_cfg, buf=buf, seed=seed if seed is not None else 0)
+        set_buffers(env, buf)
+        return env

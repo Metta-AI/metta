@@ -1,141 +1,151 @@
 """GUI renderer using mettascope."""
 
 import json
+import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import numpy as np
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.renderer import Renderer
+from mettagrid.simulator.types import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
+
+logger = logging.getLogger(__name__)
 
 
 class MettascopeRenderer(Renderer):
     """Renderer for GUI mode using mettascope."""
 
     def __init__(self):
-        nim_root, _nim_search_paths = _resolve_nim_root()
+        super().__init__()
+        nim_root = _resolve_nim_root()
         nim_bindings_path = nim_root / "bindings" / "generated" if nim_root else None
         sys.path.insert(0, str(nim_bindings_path))
-        import mettascope2
+        import mettascope
 
-        self._mettascope = mettascope2
-        self._should_continue = True
-        self._env = None
-        # Store the data directory for mettascope
+        self._mettascope = mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
-        # Store user actions persistently
-        self._user_actions = {}  # Dict mapping agent_id -> (action_id, action_param)
-        self._current_step = 0
 
-    def on_episode_start(self, env: "MettaGridEnv") -> None:
+    def on_episode_start(self) -> None:
+        # Get the GameConfig from MettaGridConfig
+        game_config = self._sim.config.game
+        game_config_dict = game_config.model_dump(mode="json", exclude_none=True)
+
         initial_replay = {
             "version": 2,
-            "action_names": env.action_names,
-            "item_names": env.resource_names,
-            "type_names": env.object_type_names,
-            "map_size": [env.map_width, env.map_height],
-            "num_agents": env.num_agents,
+            "action_names": list(self._sim.action_ids.keys()),
+            "item_names": self._sim.resource_names,
+            "type_names": self._sim.object_type_names,
+            "map_size": [
+                self._sim.map_width,
+                self._sim.map_height,
+            ],
+            "num_agents": self._sim.num_agents,
             "max_steps": 0,
-            "mg_config": env.mg_config.model_dump(mode="json"),
+            "mg_config": {
+                "label": "MettaGrid Replay",
+                "game": game_config_dict,
+            },
             "objects": [],
         }
 
-        # mettascope2.init requires data_dir and replay arguments
-        self.response = self._mettascope.init(self._data_dir, json.dumps(initial_replay))
-        self._should_continue = not self.response.should_close
-        self._env = env
-        self._user_actions = {}
-        self._current_step = 0
+        # mettascope.init requires data_dir and replay arguments
+        json_str = json.dumps(initial_replay, allow_nan=False)
+        self.response = self._mettascope.init(self._data_dir, json_str)
 
     def render(self) -> None:
         """Render current state and capture user input."""
-        assert self._env is not None
         # Generate replay data for current state
         grid_objects = []
-        total_rewards = self._env.get_episode_rewards()
+        total_rewards = self._sim.episode_rewards
 
         # Use zeros as placeholders for actions/rewards since we're rendering the current state
-        placeholder_actions = np.zeros((self._env.num_agents, 2), dtype=np.int32)
-        placeholder_rewards = np.zeros(self._env.num_agents)
+        placeholder_actions = np.zeros((self._sim.num_agents, 2), dtype=np.int32)
+        placeholder_rewards = np.zeros(self._sim.num_agents)
 
-        for grid_object in self._env.grid_objects().values():
+        # To optimize, we only send walls on the first step because they don't change.
+        ignore_types = []
+        if self._sim.current_step > 0:
+            ignore_types = ["wall"]
+
+        for grid_object in self._sim.grid_objects(ignore_types=ignore_types).values():
             grid_objects.append(
                 format_grid_object(
-                    grid_object, placeholder_actions, self._env.action_success, placeholder_rewards, total_rewards
+                    grid_object,
+                    placeholder_actions,
+                    self._sim.action_success,
+                    placeholder_rewards,
+                    total_rewards,
                 )
             )
 
-        step_replay = {"step": self._current_step, "objects": grid_objects}
+        step_replay = {"step": self._sim.current_step, "objects": grid_objects}
 
         # Render and get user input
-        self.response = self._mettascope.render(self._current_step, json.dumps(step_replay))
+        self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
         if self.response.should_close:
-            self._should_continue = False
+            self._sim.end_episode()
             return
 
-        # Store user actions to be applied in the next step
+        # Apply user actions immediately (overriding any policy actions)
         if self.response.actions:
             for action in self.response.actions:
-                self._user_actions[action.agent_id] = (action.action_id, action.argument)
+                # ctypes c_char_p returns bytes, we need to decode immediately
+                # before the memory gets freed
+                action_name_raw = action.action_name
 
-        self._current_step += 1
+                if isinstance(action_name_raw, bytes):
+                    # Find null terminator and decode only up to there
+                    null_idx = action_name_raw.find(b"\x00")
+                    if null_idx > 0:
+                        action_name = action_name_raw[:null_idx].decode("utf-8", errors="ignore")
+                    else:
+                        action_name = action_name_raw.decode("utf-8", errors="ignore")
+                elif isinstance(action_name_raw, str):
+                    action_name = action_name_raw
+                else:
+                    print(f"WARNING: Unexpected action_name type: {type(action_name_raw)}")
+                    continue
 
-    def get_user_actions(self) -> dict[int, tuple[int, int]]:
-        """Get the current user actions for all agents.
+                if not action_name:
+                    continue
 
-        Returns:
-            Dictionary mapping agent_id to (action_id, action_param)
-        """
-        return self._user_actions.copy()
-
-    def on_step(
-        self,
-        current_step: int,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        infos: Dict[str, Any],
-    ) -> None:
-        pass
-
-    def should_continue(self) -> bool:
-        return self._should_continue
-
-    def on_episode_end(self, infos: Dict[str, Any]) -> None:
-        self._env = None
-
-
-# Find the Nim bindings. Published wheels bundle the generated artifacts under
-# ``mettagrid/nim/mettascope`` (because our PEP‑517 backend copies the Nim
-# project into ``python/src`` during the build).  Editable installs, however,
-# serve the package straight from the repository checkout where the canonical
-# sources remain in ``packages/mettagrid/nim/mettascope`` and the copy step
-# never runs.  To support both layouts we try the packaged location first and,
-# if it is missing the bindings, walk upwards looking for the repository copy.
-package_root = Path(__file__).resolve().parent
+                try:
+                    self._sim.agent(action.agent_id).set_action(Action(name=action_name))
+                except KeyError as e:
+                    logger.error("Unknown action '%s' - %s", action_name, e)
+                    available_actions = [a for a in self._sim.action_ids.keys() if "change_vibe" in a]
+                    logger.error("Available change_vibe actions: %s", available_actions)
+                    continue
 
 
-def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
-    search_paths: list[Path] = []
+# Find the Nim bindings. Two possible locations:
+#
+# Source: packages/mettagrid/nim/mettascope/bindings/generated
+#   - The canonical location where `nim build` outputs bindings
+#   - Present when running from a repo checkout
+#
+# Packaged: <site-packages>/mettagrid/nim/mettascope/bindings/generated
+#   - Created by PEP-517 backend copying nim/ into python/src/mettagrid/ during wheel build
+#   - The copy becomes part of the installed package
+_python_package_root = Path(__file__).resolve().parent.parent
 
-    packaged = package_root / "nim" / "mettascope"
-    search_paths.append(packaged)
-    if (packaged / "bindings" / "generated").exists():
-        return packaged, search_paths
 
-    current = package_root
-    for _ in range(8):
-        candidate = current / "packages" / "mettagrid" / "nim" / "mettascope"
-        search_paths.append(candidate)
-        if candidate.exists():
-            return candidate, search_paths
-        if current == current.parent:
-            break
-        current = current.parent
-    return None, search_paths
+def _resolve_nim_root() -> Optional[Path]:
+    # Source location (repo checkout): packages/mettagrid/nim/mettascope
+    # This will not exist when installed in packaged form
+    source = _python_package_root.parent.parent.parent / "nim" / "mettascope"
+
+    # Packaged location (installed wheel): <site-packages>/mettagrid/nim/mettascope
+    packaged = _python_package_root / "nim" / "mettascope"
+
+    for root in [source, packaged]:
+        if (root / "bindings" / "generated").exists():
+            return root
+
+    return None
 
 
 # # Type stubs for static analysis
@@ -145,7 +155,7 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 #     def init(replay: Any) -> Any: ...
 #     def render(step: int, replay_step: Any) -> Any: ...
 
-#     class Mettascope2Error(Exception): ...
+#     class MettascopeError(Exception): ...
 # else:
 #     # Runtime import
 #     if nim_bindings_path and nim_bindings_path.exists():
@@ -153,32 +163,32 @@ def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
 #         sys.path.insert(0, str(nim_bindings_path))
 
 #         try:
-#             # Import the mettascope2 module
-#             import mettascope2
+#             # Import the mettascope module
+#             import mettascope
 
 #             # Verify the module has the expected attributes
-#             required_attrs = ["init", "render", "Mettascope2Error"]
-#             missing_attrs = [attr for attr in required_attrs if not hasattr(mettascope2, attr)]
+#             required_attrs = ["init", "render", "MettascopeError"]
+#             missing_attrs = [attr for attr in required_attrs if not hasattr(mettascope, attr)]
 
 #             if missing_attrs:
 #                 # List what attributes are actually available
-#                 available_attrs = [attr for attr in dir(mettascope2) if not attr.startswith("_")]
+#                 available_attrs = [attr for attr in dir(mettascope) if not attr.startswith("_")]
 #                 raise ImportError(
-#                     f"mettascope2 module is missing required attributes: {missing_attrs}. "
+#                     f"mettascope module is missing required attributes: {missing_attrs}. "
 #                     f"Available attributes: {available_attrs or 'none'}. "
 #                     f"The Nim bindings may need to be regenerated."
 #                 )
 
 #             # Re-export the functions and classes
 #             def init(replay):
-#                 return mettascope2.init(data_dir=str(nim_root / "data"), replay=replay)
+#                 return mettascope.init(data_dir=str(nim_root / "data"), replay=replay)
 
-#             render = mettascope2.render
-#             Mettascope2Error = mettascope2.Mettascope2Error
+#             render = mettascope.render
+#             MettascopeError = mettascope.MettascopeError
 
 #         except ImportError as e:
 #             raise ImportError(
-#                 f"Failed to import mettascope2 from {nim_bindings_path}: {e}. "
+#                 f"Failed to import mettascope from {nim_bindings_path}: {e}. "
 #                 "Ensure the Nim bindings have been properly generated."
 #             ) from e
 #         finally:

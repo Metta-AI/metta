@@ -20,7 +20,11 @@ class Random(Scene[RandomConfig]):
         height, width, config = self.height, self.width, self.config
 
         if isinstance(config.agents, int):
-            agents = ["agent.agent"] * config.agents
+            # If team assignment is enabled, use the instance_id as team identifier
+            if getattr(self, "use_instance_id_for_team_assignment", False) and self.instance_id is not None:
+                agents = [f"agent.team_{self.instance_id}"] * config.agents
+            else:
+                agents = ["agent.agent"] * config.agents
         elif isinstance(config.agents, dict):
             agents = ["agent." + str(agent) for agent, na in config.agents.items() for _ in range(na)]
         else:
@@ -35,13 +39,14 @@ class Random(Scene[RandomConfig]):
         symbols = []
         for obj_name, count in config.objects.items():
             symbols.extend([obj_name] * count)
-        symbols.extend(agents)
 
-        if not config.too_many_is_ok and len(symbols) > empty_count:
-            raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
-        else:
-            # everything will be filled with symbols, oh well
-            symbols = symbols[:empty_count]
+        if len(symbols) > empty_count:
+            if not config.too_many_is_ok:
+                raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
+            # Cap to available space when too_many_is_ok=True
+            symbols = list(np.random.choice(symbols, size=empty_count, replace=False))
+
+        symbols.extend(agents)
 
         if not symbols:
             return

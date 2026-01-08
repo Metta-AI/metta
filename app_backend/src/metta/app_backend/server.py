@@ -1,4 +1,10 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 import asyncio
 import logging
@@ -10,19 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
-from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
-    dashboard_routes,
-    entity_routes,
     eval_task_routes,
-    leaderboard_routes,
-    score_routes,
-    scorecard_routes,
+    job_routes,
     sql_routes,
     stats_routes,
     sweep_routes,
-    token_routes,
+    tournament_routes,
 )
 
 
@@ -58,8 +59,6 @@ def setup_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-
     # Configure scorecard performance logger specifically
     scorecard_logger = logging.getLogger("dashboard_performance")
     scorecard_logger.setLevel(logging.INFO)
@@ -75,10 +74,6 @@ def setup_logging():
     # Configure scorecard logger
     scorecard_routes_logger = logging.getLogger("policy_scorecard_routes")
     scorecard_routes_logger.setLevel(logging.INFO)
-
-    # Configure leaderboard updater logger
-    leaderboard_updater_logger = logging.getLogger("leaderboard_updater")
-    leaderboard_updater_logger.setLevel(logging.INFO)
 
     # Configure metta repo logger
     metta_repo_logger = logging.getLogger("metta_repo")
@@ -114,58 +109,49 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],  # Frontend URLs
+        allow_origins=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://observatory.softmax-research.net",
+        ],  # Frontend URLs
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     # Create routers with the provided StatsRepo
-    dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
-    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
-    token_router = token_routes.create_token_router(stats_repo)
-    policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo)
-    score_router = score_routes.create_score_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
-    entity_router = entity_routes.create_entity_router(stats_repo)
+    jobs_router = job_routes.create_job_router()
+    tournament_router = tournament_routes.create_tournament_router()
 
-    app.include_router(dashboard_router)
     app.include_router(eval_task_router)
-    app.include_router(leaderboard_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
-    app.include_router(token_router)
-    app.include_router(policy_scorecard_router, prefix="/scorecard")
-    app.include_router(score_router)
-    # TODO: remove this once we're confident we've migrated all clients to use the /scorecard prefix
-    app.include_router(policy_scorecard_router, prefix="/heatmap")
     app.include_router(sweep_router)
-    app.include_router(entity_router)
+    app.include_router(jobs_router)
+    app.include_router(tournament_router)
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
-        user_id = await user_from_header_or_token(request, stats_repo)
+        user_id = await user_from_header_or_token(request)
         return WhoAmIResponse(user_email=user_id or "unknown")
 
     return app
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, run_leaderboard_updater, stats_db_uri
+    from metta.app_backend.config import settings
 
-    stats_repo = MettaRepo(stats_db_uri)
+    stats_repo = MettaRepo(settings.STATS_DB_URI)
     app = create_app(stats_repo)
-    leaderboard_updater = LeaderboardUpdater(stats_repo)
 
     # Start the updater in an async context
     async def main():
-        if run_leaderboard_updater:
-            await leaderboard_updater.start()
         # Run uvicorn in a way that doesn't block
-        config = uvicorn.Config(app, host=host, port=port)
+        config = uvicorn.Config(app, host=settings.HOST, port=settings.PORT)
         server = uvicorn.Server(config)
         await server.serve()
 

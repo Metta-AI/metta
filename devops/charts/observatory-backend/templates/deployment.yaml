@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: {{ .Release.Name }}
 spec:
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -20,11 +21,23 @@ spec:
           - secretRef:
               name: {{ .Values.secret_name }}
           env:
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.secrets.anthropic }}
-                  key: api-key
+          - name: EPISODE_RUNNER_IMAGE
+            value: "{{ .Values.episodeRunnerImage.registry }}/{{ .Values.episodeRunnerImage.name }}:{{ .Values.episodeRunnerImage.tag }}"
+          - name: STATS_SERVER_URI
+            value: "https://{{ .Values.host }}"
+          {{- if .Values.env }}
+          {{- range $key, $value := .Values.env }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.secrets.machineToken }}
+          - name: MACHINE_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.machineToken }}
+                key: token
+          {{- end }}
           resources:
             requests:
               memory: "1Gi"
@@ -32,14 +45,24 @@ spec:
               memory: "4Gi"
           ports:
             - containerPort: 8000
+          startupProbe:
+            httpGet:
+              path: /whoami
+              port: 8000
+            periodSeconds: 5
+            failureThreshold: 60 # allow up to 60*5 seconds = 5 minutes (accounting for uv sync)
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /whoami
               port: 8000
-            failureThreshold: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /whoami
               port: 8000
+            periodSeconds: 5
+            failureThreshold: 2
             timeoutSeconds: 3
-            periodSeconds: 1

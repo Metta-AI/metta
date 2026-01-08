@@ -1,7 +1,14 @@
 import
-  std/[times, tables],
-  boxy, windy, vmath, fidget2,
+  std/[times, tables, os, strutils, pathnorm],
+  boxy, windy, vmath, silky,
   replays
+
+var rootDir* = "packages/mettagrid/nim/mettascope/"
+var dataDir* = rootDir / "data"
+
+proc setDataDir*(path: string) =
+  dataDir = path.normalizePath
+  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object
@@ -9,47 +16,6 @@ type
     y*: int32
     w*: int32
     h*: int32
-
-  PanelType* = enum
-    GlobalHeader
-    GlobalFooter
-    GlobalTimeline
-
-    WorldMap
-    Minimap
-    AgentTable
-    AgentTraces
-    EnvironmentInfo
-    ObjectInfo
-
-  Panel* = ref object
-    panelType*: PanelType
-    rect*: IRect
-    name*: string            ## The name of the panel.
-    header*: Node            ## The header of the panel.
-    node*: Node              ## The node of the panel.
-    parentArea*: Area        ## The parent area of the panel.
-
-    pos*: Vec2
-    vel*: Vec2
-    zoom*: float32 = 10
-    zoomVel*: float32
-    minZoom*: float32 = 2
-    maxZoom*: float32 = 1000
-    scrollArea*: Rect
-    hasMouse*: bool = false
-
-  AreaLayout* = enum
-    Horizontal
-    Vertical
-
-  Area* = ref object
-    node*: Node              ## The node of the area.
-    layout*: AreaLayout      ## The layout of the area.
-    areas*: seq[Area]        ## The subareas in the area (0 or 2)
-    panels*: seq[Panel]      ## The panels in the area.
-    split*: float32          ## The split percentage of the area.
-    selectedPanelNum*: int   ## The index of the selected panel in the area.
 
   Settings* = object
     showFogOfWar* = false
@@ -64,18 +30,10 @@ type
     Realtime
 
 var
+  sk*: Silky
+  bxy*: Boxy
+  window*: Window
   frame*: int
-
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
-
-  worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  objectInfoPanel*: Panel
-  environmentInfoPanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -85,7 +43,7 @@ var
   previousStep*: int = -1
   replay*: Replay
   play*: bool
-  playSpeed*: float32 = 0.1
+  playSpeed*: float32 = 10.0
   lastSimTime*: float64 = epochTime()
   playMode* = Historical
 
@@ -95,43 +53,44 @@ var
   # Command line arguments.
   commandLineReplay*: string = ""
 
+
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
-    argument*: int
+    actionName*: cstring
 
-  DestinationType* = enum
+  ObjectiveKind* = enum
     Move # Move to a specific position.
     Bump # Bump an object at a specific position to interact with it.
+    Vibe # Execute a specific vibe action.
 
-  Destination* = object
-    pos*: IVec2
-    destinationType*: DestinationType
-    approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
-    repeat*: bool ## If true, this destination will be re-queued at the end when completed.
-
-  PathActionType* = enum
-    PathMove # Move to a position.
-    PathBump # Bump at current position.
+  Objective* = object
+    case kind*: ObjectiveKind
+    of Move, Bump:
+      pos*: IVec2
+      approachDir*: IVec2 ## Direction to approach from for Bump actions (e.g., ivec2(-1, 0) means approach from the left).
+    of Vibe:
+      vibeActionId*: int
+    repeat*: bool ## If true, this objective will be re-queued at the end when completed.
 
   PathAction* = object
-    actionType*: PathActionType
-    pos*: IVec2 ## Target position for PathMove, or bump target for PathBump.
-    bumpDir*: IVec2 ## Direction to bump for PathBump actions.
+    case kind*: ObjectiveKind
+    of Move:
+      pos*: IVec2 ## Target position for move.
+    of Bump:
+      bumpPos*: IVec2 ## Bump target position.
+      bumpDir*: IVec2 ## Direction to bump for bump actions.
+    of Vibe:
+      vibeActionId*: int
 
 var
   requestActions*: seq[ActionRequest]
 
-  followSelection*: bool = false
-  mouseCaptured*: bool = false
-  mouseCapturedPanel*: Panel = nil
-
 var
   ## Path queue for each agent. Maps agentId to a sequence of path actions.
   agentPaths* = initTable[int, seq[PathAction]]()
-  ## Destination queue for each agent. Maps agentId to a sequence of destinations.
-  agentDestinations* = initTable[int, seq[Destination]]()
+  ## Objective queue for each agent. Maps agentId to a sequence of objectives.
+  agentObjectives* = initTable[int, seq[Objective]]()
   ## Track mouse down position to distinguish clicks from drags.
   mouseDownPos*: Vec2
 
@@ -162,12 +121,6 @@ proc xy*(rect: IRect): IVec2 =
 proc wh*(rect: IRect): IVec2 =
   ivec2(rect.w, rect.h)
 
-proc logicalMousePos*(window: Window): Vec2 =
-  window.mousePos.vec2 / window.contentScale
-
-proc logicalMouseDelta*(window: Window): Vec2 =
-  window.mouseDelta.vec2 / window.contentScale
-
 proc getAgentById*(agentId: int): Entity =
   ## Get an agent by ID. Asserts the agent exists.
   for obj in replay.objects:
@@ -188,3 +141,9 @@ proc getObjectAtLocation*(pos: IVec2): Entity =
     if obj.location.at(step).xy == pos:
       return obj
   return nil
+
+proc getVibeName*(vibeId: int): string =
+  if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
+    result = replay.config.game.vibeNames[vibeId]
+  else:
+    raise newException(ValueError, "Vibe with ID " & $vibeId & " does not exist")

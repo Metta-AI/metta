@@ -7,46 +7,34 @@
 #include <string>
 #include <vector>
 
+#include "config/observation_features.hpp"
 #include "core/grid_object.hpp"
 #include "objects/constants.hpp"
 
 // #MettaGridConfig
 struct WallConfig : public GridObjectConfig {
-  WallConfig(TypeId type_id, const std::string& type_name, bool swappable, const std::vector<int>& tag_ids = {})
-      : GridObjectConfig(type_id, type_name, tag_ids), swappable(swappable) {}
-
-  bool swappable;
+  WallConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
+      : GridObjectConfig(type_id, type_name, initial_vibe) {}
 };
 
 class Wall : public GridObject {
 public:
-  bool _swappable;
-
   Wall(GridCoord r, GridCoord c, const WallConfig& cfg) {
-    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer), cfg.tag_ids);
-    this->_swappable = cfg.swappable;
+    GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c), cfg.tag_ids, cfg.initial_vibe);
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.reserve(2 + tag_ids.size());
-    features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
-
-    if (_swappable) {
-      // Only emit the swappable observation feature when True to reduce the number of tokens.
-      features.push_back({ObservationFeature::Swappable, static_cast<ObservationType>(1)});
-    }
+    features.reserve(1 + tag_ids.size() + (this->vibe != 0 ? 1 : 0));
 
     // Emit tag features
     for (int tag_id : tag_ids) {
       features.push_back({ObservationFeature::Tag, static_cast<ObservationType>(tag_id)});
     }
 
-    return features;
-  }
+    if (this->vibe != 0) features.push_back({ObservationFeature::Vibe, static_cast<ObservationType>(this->vibe)});
 
-  bool swappable() const override {
-    return this->_swappable;
+    return features;
   }
 };
 
@@ -54,12 +42,14 @@ namespace py = pybind11;
 
 inline void bind_wall_config(py::module& m) {
   py::class_<WallConfig, GridObjectConfig, std::shared_ptr<WallConfig>>(m, "WallConfig")
-      .def(py::init<TypeId, const std::string&, bool, const std::vector<int>&>(),
-           py::arg("type_id"), py::arg("type_name"), py::arg("swappable"), py::arg("tag_ids") = std::vector<int>{})
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
-      .def_readwrite("swappable", &WallConfig::swappable)
-      .def_readwrite("tag_ids", &WallConfig::tag_ids);
+      .def_readwrite("tag_ids", &WallConfig::tag_ids)
+      .def_readwrite("initial_vibe", &WallConfig::initial_vibe);
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_WALL_HPP_

@@ -26,7 +26,6 @@ Implementation notes:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import Field
@@ -37,6 +36,7 @@ from metta.adaptive.utils import (
     create_training_job,
     generate_run_id,
 )
+from metta.sweep.schedulers.state import SchedulerState
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -46,10 +46,10 @@ class AsyncCappedSchedulerConfig(Config):
     """Configuration for the asynchronous optimizing scheduler."""
 
     max_trials: int = 10
-    recipe_module: str = "experiments.recipes.arena"
+    recipe_module: str = "recipes.experiment.arena"
     train_entrypoint: str = "train"
     eval_entrypoint: str = "evaluate"
-    train_overrides: dict[str, Any] = Field(default_factory=dict)
+    base_overrides: dict[str, Any] = Field(default_factory=dict)
     eval_overrides: dict[str, Any] = Field(default_factory=dict)
     stats_server_uri: str | None = None
     gpus: int = 1
@@ -64,131 +64,31 @@ class AsyncCappedSchedulerConfig(Config):
     min_suggestion_distance: float = 0.0  # optional distance floor for external use
 
 
-@dataclass
-class AsyncSchedulerState:
-    """State tracking for the asynchronous scheduler.
-
-    - runs_in_training: run_ids currently training
-    - runs_in_eval: run_ids currently evaluating
-    - runs_completed: run_ids finished (COMPLETED/FAILED/STALE)
-    - in_progress_suggestions: map run_id -> suggestion dict (as recorded at dispatch time)
-    """
-
-    runs_in_training: set[str] = field(default_factory=set)
-    runs_in_eval: set[str] = field(default_factory=set)
-    runs_completed: set[str] = field(default_factory=set)
-    runs_pending_force_eval: set[str] = field(default_factory=set)
-    in_progress_suggestions: dict[str, dict[str, Any]] = field(default_factory=dict)
-
-    def model_dump(self) -> dict[str, Any]:
-        return {
-            "runs_in_training": list(self.runs_in_training),
-            "runs_in_eval": list(self.runs_in_eval),
-            "runs_completed": list(self.runs_completed),
-            "in_progress_suggestions": self.in_progress_suggestions,
-            "runs_pending_force_eval": list(self.runs_pending_force_eval),
-        }
-
-    @classmethod
-    def model_validate(cls, data: dict[str, Any]) -> "AsyncSchedulerState":
-        return cls(
-            runs_in_training=set(data.get("runs_in_training", [])),
-            runs_in_eval=set(data.get("runs_in_eval", [])),
-            runs_completed=set(data.get("runs_completed", [])),
-            in_progress_suggestions=dict(data.get("in_progress_suggestions", {})),
-            runs_pending_force_eval=set(data.get("runs_pending_force_eval", [])),
-        )
-
-
 class AsyncCappedOptimizingScheduler:
     """Asynchronous scheduler with capped eval concurrency and CL fantasies."""
 
-    def __init__(self, config: AsyncCappedSchedulerConfig, state: AsyncSchedulerState | None = None):
+    def __init__(self, config: AsyncCappedSchedulerConfig, state: SchedulerState | None = None):
+        # Keep local import for slow loading ProteinOptimizer (~500ms)
         from metta.sweep.optimizer.protein import ProteinOptimizer
 
         self.config = config
         self.optimizer = ProteinOptimizer(config.protein_config)
-        self.state = state or AsyncSchedulerState()
-        self._state_initialized = False
+        self.state = state or SchedulerState()
         logger.info(
             "[AsyncCappedOptimizingScheduler] Initialized (max_trials=%s, max_concurrent_evals=%s)",
             config.max_trials,
             config.max_concurrent_evals,
         )
 
-    # ---------- State management ----------
-    def _update_state_from_runs(self, runs: list[RunInfo]) -> None:
-        if not runs:
-            return
-
-        run_by_id = {r.run_id: r for r in runs}
-
-        # Initialize from runs once (resume support)
-        if not self._state_initialized:
-            self.state.runs_in_training.clear()
-            self.state.runs_in_eval.clear()
-            self.state.runs_completed.clear()
-
-            for run in runs:
-                status = run.status
-                if (
-                    status == JobStatus.IN_TRAINING
-                    or status == JobStatus.PENDING
-                    or status == JobStatus.TRAINING_DONE_NO_EVAL
-                ):
-                    self.state.runs_in_training.add(run.run_id)
-                if status == JobStatus.IN_EVAL:
-                    if self.config.force_eval:
-                        logger.info(
-                            "[AsyncCappedOptimizingScheduler] force_eval=True: will re-dispatch eval for %s",
-                            run.run_id,
-                        )
-                        self.state.runs_pending_force_eval.add(run.run_id)
-                    else:
-                        self.state.runs_in_eval.add(run.run_id)
-                if status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
-                    self.state.runs_completed.add(run.run_id)
-
-                # Recover suggestion for in-progress runs from summary if present
-                if status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
-                    suggestion = self._extract_suggestion(run)
-                    if suggestion is not None:
-                        self.state.in_progress_suggestions[run.run_id] = suggestion
-
-            self._state_initialized = True
-
-        # Transition updates
-        for run_id in list(self.state.runs_in_training):
-            if run_id in run_by_id:
-                st = run_by_id[run_id].status
-                if st == JobStatus.IN_EVAL:
-                    self.state.runs_in_training.discard(run_id)
-                    self.state.runs_in_eval.add(run_id)
-                elif st in (JobStatus.FAILED, JobStatus.STALE):
-                    self.state.runs_in_training.discard(run_id)
-                    self.state.runs_completed.add(run_id)
-
-        for run_id in list(self.state.runs_in_eval):
-            if run_id in run_by_id:
-                st = run_by_id[run_id].status
-                if st in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.STALE):
-                    self.state.runs_in_eval.discard(run_id)
-                    self.state.runs_completed.add(run_id)
-
-        # Cleanup in_progress suggestions for completed runs
-        for run_id in list(self.state.in_progress_suggestions.keys()):
-            if run_id in self.state.runs_completed:
-                del self.state.in_progress_suggestions[run_id]
-
     # ---------- Scheduling ----------
     def schedule(self, runs: list[RunInfo], available_training_slots: int) -> list[JobDefinition]:
         jobs: list[JobDefinition] = []
 
         # Update state
-        self._update_state_from_runs(runs)
+        self.state.refresh(runs, force_eval=self.config.force_eval)
 
         # Eval scheduling: honor max_concurrent_evals
-        eval_capacity = max(0, self.config.max_concurrent_evals - len(self.state.runs_in_eval))
+        eval_capacity = self.state.eval_capacity(self.config.max_concurrent_evals)
         # First, schedule any forced re-evaluations
         if eval_capacity > 0 and self.state.runs_pending_force_eval:
             for run_id in list(self.state.runs_pending_force_eval):
@@ -207,8 +107,7 @@ class AsyncCappedOptimizingScheduler:
                     eval_overrides=self.config.eval_overrides,
                 )
                 jobs.append(job)
-                self.state.runs_in_eval.add(run_id)
-                self.state.runs_pending_force_eval.discard(run_id)
+                self.state.mark_eval_scheduled(run_id)
                 eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling forced re-evaluation for %s", run_id)
         # Then, schedule normal eval candidates up to remaining capacity
@@ -226,8 +125,7 @@ class AsyncCappedOptimizingScheduler:
                     eval_overrides=self.config.eval_overrides,
                 )
                 jobs.append(job)
-                self.state.runs_in_training.discard(candidate.run_id)
-                self.state.runs_in_eval.add(candidate.run_id)
+                self.state.mark_eval_scheduled(candidate.run_id)
                 eval_capacity -= 1
                 logger.info("[AsyncCappedOptimizingScheduler] Scheduling evaluation for %s", candidate.run_id)
 
@@ -281,7 +179,7 @@ class AsyncCappedOptimizingScheduler:
             trial_num = base_trial_num + i + 1
             run_id = generate_run_id(self.config.experiment_id, trial_num)
 
-            merged_overrides = dict(self.config.train_overrides)
+            merged_overrides = dict(self.config.base_overrides)
             merged_overrides.update(suggestion)
             job = create_training_job(
                 run_id=run_id,
@@ -297,8 +195,7 @@ class AsyncCappedOptimizingScheduler:
             jobs.append(job)
 
             # Update state tracking
-            self.state.runs_in_training.add(run_id)
-            self.state.in_progress_suggestions[run_id] = suggestion
+            self.state.mark_training_scheduled(run_id, suggestion)
             logger.info("[AsyncCappedOptimizingScheduler] Scheduling training %s", run_id)
 
         return jobs
@@ -340,13 +237,6 @@ class AsyncCappedOptimizingScheduler:
                 except Exception:
                     continue
         return obs
-
-    def _extract_suggestion(self, run: RunInfo) -> dict[str, Any] | None:
-        if run.summary and isinstance(run.summary, dict):
-            sg = run.summary.get("sweep/suggestion")
-            if isinstance(sg, dict):
-                return dict(sg)
-        return None
 
     def _build_constant_liar_fantasies(
         self, runs: list[RunInfo], observations: list[dict[str, Any]]

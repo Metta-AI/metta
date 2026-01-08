@@ -69,9 +69,9 @@ def make_monitor_table(
             cost = summary.get("sweep/cost")
 
             # Backwards compatibility: check old observation field
-            if score is None and hasattr(run, "observation") and run.observation:
-                score = run.observation.score
-                cost = run.observation.cost
+            if score is None and hasattr(run, "observation") and (run_observation := getattr(run, "observation", None)):
+                score = run_observation.score
+                cost = run_observation.cost
 
             score_str = f"{float(score):.4f}" if score is not None else "N/A"
             cost_str = f"${float(cost):.2f}" if cost is not None else "N/A"

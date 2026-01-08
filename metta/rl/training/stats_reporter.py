@@ -1,21 +1,17 @@
 """Statistics reporting and aggregation."""
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from contextlib import nullcontext
 from typing import Any, ContextManager, Optional, Protocol
-from uuid import UUID
 
 import numpy as np
 import torch
 from pydantic import Field
 
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.stats import accumulate_rollout_stats, compute_timing_stats, process_training_stats
 from metta.rl.training.component import TrainerComponent
-from metta.rl.utils import should_run
 from mettagrid.base_config import Config
 
 logger = logging.getLogger(__name__)
@@ -44,13 +40,10 @@ def _to_scalar(value: Any) -> Optional[float]:
 def build_wandb_payload(
     processed_stats: dict[str, Any],
     timing_info: dict[str, Any],
-    weight_stats: dict[str, Any],
     grad_stats: dict[str, float],
     system_stats: dict[str, Any],
     memory_stats: dict[str, Any],
-    parameters: dict[str, Any],
     hyperparameters: dict[str, Any],
-    evals: EvalRewardSummary,
     *,
     agent_step: int,
     epoch: int,
@@ -63,8 +56,6 @@ def build_wandb_payload(
         "epoch_steps_per_second": timing_info.get("epoch_steps_per_second", 0.0),
         **processed_stats.get("overview", {}),
     }
-    for category, score in evals.category_scores.items():
-        overview[f"{category}_score"] = score
     if "reward" in overview:
         overview["reward_vs_total_time"] = overview["reward"]
 
@@ -91,19 +82,9 @@ def build_wandb_payload(
     _update(experience_stats, prefix="experience/")
 
     _update(processed_stats.get("environment_stats", {}))
-    _update(parameters, prefix="parameters/")
     _update(hyperparameters, prefix="hyperparameters/")
-
-    eval_metrics = evals.to_wandb_metrics_format()
-    for key, value in eval_metrics.items():
-        scalar = _to_scalar(value)
-        if scalar is None:
-            continue
-        payload[f"eval_{key}"] = scalar
-
     _update(system_stats)
     _update({f"trainer_memory/{k}": v for k, v in memory_stats.items()})
-    _update(weight_stats)
     _update(grad_stats)
     _update(timing_info.get("timing_stats", {}))
 
@@ -114,13 +95,15 @@ class StatsReporterConfig(Config):
     """Configuration for stats reporting."""
 
     report_to_wandb: bool = True
-    report_to_stats_client: bool = True
     report_to_console: bool = True
     grad_mean_variance_interval: int = 50
     interval: int = 1
     """How often to report stats (in epochs)"""
-    analyze_weights_interval: int = 0
-    """How often to compute weight metrics (0 disables)."""
+    rolling_window: int = Field(default=5, ge=1, description="Number of epochs for metric rolling averages")
+    default_zero_metrics: tuple[str, ...] = Field(
+        default_factory=lambda: ("env_game/assembler.heart.created",),
+        description="Environment metrics that should be logged as 0 when missing.",
+    )
 
 
 class StatsReporterState(Config):
@@ -128,10 +111,9 @@ class StatsReporterState(Config):
 
     rollout_stats: dict = Field(default_factory=lambda: defaultdict(list))
     grad_stats: dict = Field(default_factory=dict)
-    eval_scores: EvalRewardSummary = Field(default_factory=EvalRewardSummary)
-    stats_run_id: Optional[UUID] = None
     area_under_reward: float = 0.0
     """Cumulative area under the reward curve"""
+    rolling_stats: dict[str, deque[float]] = Field(default_factory=dict)
 
 
 class NoOpStatsReporter(TrainerComponent):
@@ -140,10 +122,9 @@ class NoOpStatsReporter(TrainerComponent):
     def __init__(self):
         """Initialize no-op stats reporter."""
         # Create a minimal config for the no-op reporter
-        config = StatsReporterConfig(report_to_wandb=False, report_to_stats_client=False, interval=999999)
+        config = StatsReporterConfig(report_to_wandb=False, interval=999999)
         super().__init__(epoch_interval=config.interval)
         self.wandb_run = None
-        self.stats_run_id = None
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:
         pass
@@ -165,30 +146,24 @@ class StatsReporter(TrainerComponent):
     def from_config(
         cls,
         config: Optional[StatsReporterConfig],
-        stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ) -> TrainerComponent:
         """Create a StatsReporter from optional config, returning no-op if None."""
         if config is None:
             return NoOpStatsReporter()
-        return cls(config=config, stats_client=stats_client, wandb_run=wandb_run)
+        return cls(config=config, wandb_run=wandb_run)
 
     def __init__(
         self,
         config: StatsReporterConfig,
-        stats_client: Optional[StatsClient] = None,
         wandb_run: Optional[WandbRun] = None,
     ):
         super().__init__(epoch_interval=config.interval)
         self._config = config
-        self._stats_client = stats_client
         self._wandb_run = wandb_run
         self._state = StatsReporterState()
         self._latest_payload: dict[str, float] | None = None
-
-        # Initialize stats run if client is available
-        if self._stats_client and self._config.report_to_stats_client:
-            self._initialize_stats_run()
+        self._state.rolling_stats = {}
 
     @property
     def wandb_run(self) -> WandbRun | None:
@@ -201,30 +176,6 @@ class StatsReporter(TrainerComponent):
     def register(self, context) -> None:  # type: ignore[override]
         super().register(context)
         context.stats_reporter = self
-
-    def _initialize_stats_run(self) -> None:
-        """Initialize stats run with the stats client."""
-        if not self._stats_client:
-            return
-
-        # Extract wandb attributes with defaults
-        name = url = "unknown"
-        description: Optional[str] = None
-        tags: Optional[list[str]] = None
-
-        if self._wandb_run:
-            name = self._wandb_run.name or name
-            url = self._wandb_run.url
-            if self._wandb_run.tags:
-                tags = list(self._wandb_run.tags)
-            description = self._wandb_run.notes
-
-        try:
-            result = self._stats_client.create_training_run(name=name, url=url, description=description, tags=tags)
-            self._state.stats_run_id = result.id
-            logger.info(f"Created stats run with ID: {self._state.stats_run_id}")
-        except Exception as e:
-            logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
     @property
     def state(self) -> StatsReporterState:
@@ -277,11 +228,6 @@ class StatsReporter(TrainerComponent):
             self.clear_rollout_stats()
             self.clear_grad_stats()
 
-    def update_eval_scores(self, scores: EvalRewardSummary) -> None:
-        self._state.eval_scores = scores
-        if self._context is not None:
-            self.context.latest_eval_scores = scores
-
     def clear_rollout_stats(self) -> None:
         """Clear rollout statistics."""
         self._state.rollout_stats.clear()
@@ -293,42 +239,6 @@ class StatsReporter(TrainerComponent):
 
     def update_grad_stats(self, grad_stats: dict[str, float]) -> None:
         self._state.grad_stats = grad_stats
-
-    def create_epoch(
-        self,
-        run_id: UUID,
-        start_epoch: int,
-        end_epoch: int,
-        attributes: dict[str, Any] | None = None,
-    ) -> Optional[UUID]:
-        if not self._stats_client or not self._config.report_to_stats_client:
-            return None
-
-        try:
-            result = self._stats_client.create_epoch(
-                run_id=run_id,
-                start_training_epoch=start_epoch,
-                end_training_epoch=end_epoch,
-                attributes=attributes or {},
-            )
-            return result.id
-        except Exception as e:
-            logger.warning(f"Failed to create epoch: {e}", exc_info=True)
-            return None
-
-    def finalize(self, status: str = "completed") -> None:
-        """Finalize stats reporting.
-
-        Args:
-            status: Final status of the training run
-        """
-        if self._stats_client and self._state.stats_run_id and self._config.report_to_stats_client:
-            try:
-                self._stats_client.update_training_run_status(self._state.stats_run_id, status)
-                logger.info(f"Training run status updated to '{status}'")
-            except Exception as e:
-                logger.warning(f"Failed to update training run status: {e}", exc_info=True)
-        self._latest_payload = None
 
     def on_step(self, infos: dict[str, Any] | list[dict[str, Any]]) -> None:
         """Accumulate step infos.
@@ -362,19 +272,10 @@ class StatsReporter(TrainerComponent):
         )
 
     def on_training_complete(self) -> None:
-        """Handle training completion.
-
-        Args:
-        """
-        self.finalize(status="completed")
+        pass
 
     def on_failure(self) -> None:
-        """Handle training failure.
-
-        Args:
-            trainer: The trainer instance
-        """
-        self.finalize(status="failed")
+        pass
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -417,32 +318,71 @@ class StatsReporter(TrainerComponent):
             trainer_config=trainer_cfg,
         )
 
+        overview = processed.setdefault("overview", {})
+        avg_reward = getattr(getattr(self.context, "state", None), "avg_reward", None)
+        if avg_reward is None:
+            avg_reward_tensor = torch.tensor(0.0, dtype=torch.float32)
+        else:
+            avg_reward_tensor = torch.as_tensor(avg_reward)
+            if avg_reward_tensor.numel() == 0:
+                avg_reward_tensor = torch.tensor(0.0, dtype=torch.float32)
+        avg_reward_tensor = avg_reward_tensor.detach().cpu()
+        overview["avg_reward_estimate"] = float(avg_reward_tensor.mean().item())
+        overview["avg_reward_estimate_min"] = float(avg_reward_tensor.min().item())
+        overview["avg_reward_estimate_max"] = float(avg_reward_tensor.max().item())
+
+        # Ensure certain env metrics always exist (e.g., env_game/assembler.heart.created) so rolling
+        # averages and wandb logs see zeros instead of missing keys.
+        env_stats = processed.setdefault("environment_stats", {})
+        if isinstance(env_stats, dict):
+            for key in self._config.default_zero_metrics:
+                env_stats.setdefault(key, 0.0)
+
+        self._augment_with_rolling_averages(processed)
+
         timing_info = compute_timing_stats(timer=timer, agent_step=agent_step)
         self._normalize_steps_per_second(timing_info, agent_step)
 
-        weight_stats = self._collect_weight_stats(policy=policy, epoch=epoch)
         system_stats = self._collect_system_stats()
         memory_stats = self._collect_memory_stats()
-        parameters = self._collect_parameters(
-            experience=experience,
-            optimizer=optimizer,
-            timing_info=timing_info,
-        )
-        hyperparameters = self._collect_hyperparameters(trainer_cfg=trainer_cfg, parameters=parameters)
+        hyperparameters = self._collect_hyperparameters(optimizer=optimizer)
 
         return build_wandb_payload(
             processed_stats=processed,
             timing_info=timing_info,
-            weight_stats=weight_stats,
             grad_stats=self._state.grad_stats,
             system_stats=system_stats,
             memory_stats=memory_stats,
-            parameters=parameters,
             hyperparameters=hyperparameters,
-            evals=self._state.eval_scores,
             agent_step=agent_step,
             epoch=epoch,
         )
+
+    def _augment_with_rolling_averages(self, processed: dict[str, Any]) -> None:
+        env_stats = processed.get("environment_stats")
+        if not isinstance(env_stats, dict):
+            return
+
+        tracked_keys = set(self._config.default_zero_metrics)
+        for key in list(self._state.rolling_stats.keys()):
+            if key not in tracked_keys:
+                del self._state.rolling_stats[key]
+        window = self._config.rolling_window
+
+        for key in tracked_keys:
+            value = env_stats.get(key)
+            scalar = _to_scalar(value)
+            history = self._state.rolling_stats.get(key)
+            if history is None:
+                history = deque(maxlen=window)
+                self._state.rolling_stats[key] = history
+            if scalar is None:
+                scalar = history[-1] if history else None
+            if scalar is None:
+                continue
+            history.append(scalar)
+            env_stats.setdefault(key, scalar)
+            env_stats[f"{key}.avg"] = sum(history) / len(history)
 
     def _normalize_steps_per_second(self, timing_info: dict[str, Any], agent_step: int) -> None:
         """Adjust SPS to account for agent steps accumulated before a resume."""
@@ -471,33 +411,6 @@ class StatsReporter(TrainerComponent):
         if isinstance(timing_stats, dict):
             timing_stats["timing_cumulative/sps"] = sps
 
-    def _collect_weight_stats(self, *, policy: Any, epoch: int) -> dict[str, float]:
-        interval = self._config.analyze_weights_interval
-        if not interval:
-            policy_config = getattr(policy, "config", None)
-            interval = getattr(policy_config, "analyze_weights_interval", 0) if policy_config else 0
-
-        if not interval or not should_run(epoch, interval):
-            return {}
-
-        if not hasattr(policy, "compute_weight_metrics"):
-            return {}
-
-        weight_stats: dict[str, float] = {}
-        try:
-            for metrics in policy.compute_weight_metrics():
-                name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key == "name":
-                        continue
-                    scalar = _to_scalar(value)
-                    if scalar is None:
-                        continue
-                    weight_stats[f"weights/{key}/{name}"] = scalar
-        except Exception as exc:  # pragma: no cover - safeguard against model-specific failures
-            logger.warning("Failed to compute weight metrics: %s", exc, exc_info=True)
-        return weight_stats
-
     def _collect_system_stats(self) -> dict[str, Any]:
         system_monitor = getattr(self.context, "system_monitor", None)
         if system_monitor is None:
@@ -518,69 +431,19 @@ class StatsReporter(TrainerComponent):
             logger.debug("Memory monitor stats failed: %s", exc, exc_info=True)
             return {}
 
-    def _collect_parameters(
-        self,
-        *,
-        experience: Any,
-        optimizer: torch.optim.Optimizer,
-        timing_info: dict[str, Any],
-    ) -> dict[str, Any]:
-        learning_rate = getattr(self.context.config.optimizer, "learning_rate", 0)
-        if optimizer and optimizer.param_groups:
-            learning_rate = optimizer.param_groups[0].get("lr", learning_rate)
-
-        parameters: dict[str, Any] = {
-            "learning_rate": learning_rate,
-            "epoch_steps": timing_info.get("epoch_steps", 0),
-            "num_minibatches": getattr(experience, "num_minibatches", 0),
-        }
-
-        # Add ScheduleFree optimizer information
-        if optimizer and optimizer.param_groups:
-            param_group = optimizer.param_groups[0]
-            is_schedulefree = "train_mode" in param_group
-
-            if is_schedulefree:
-                scheduled_lr = param_group.get("scheduled_lr")
-                if scheduled_lr is not None:
-                    parameters["schedulefree_scheduled_lr"] = scheduled_lr
-                lr_max = param_group.get("lr_max")
-                if lr_max is not None:
-                    parameters["schedulefree_lr_max"] = lr_max
-
-        return parameters
-
-    def _collect_hyperparameters(
-        self,
-        *,
-        trainer_cfg: Any,
-        parameters: dict[str, Any],
-    ) -> dict[str, Any]:
+    def _collect_hyperparameters(self, *, optimizer: torch.optim.Optimizer) -> dict[str, Any]:
         hyperparameters: dict[str, Any] = {}
-        if "learning_rate" in parameters:
-            hyperparameters["learning_rate"] = parameters["learning_rate"]
-
-        optimizer_cfg = getattr(trainer_cfg, "optimizer", None)
-        if optimizer_cfg:
-            hyperparameters["optimizer_type"] = optimizer_cfg.type
-            if "schedulefree" in optimizer_cfg.type:
-                warmup_steps = getattr(optimizer_cfg, "warmup_steps", None)
-                if warmup_steps is not None:
-                    hyperparameters["schedulefree_warmup_steps"] = warmup_steps
-
-        losses = getattr(trainer_cfg, "losses", None)
-        loss_configs = getattr(losses, "loss_configs", {}) if losses else {}
-        ppo_cfg = loss_configs.get("ppo") if isinstance(loss_configs, dict) else None
-        if ppo_cfg is not None:
-            for attr in (
-                "clip_coef",
-                "vf_clip_coef",
-                "ent_coef",
-                "l2_reg_loss_coef",
-                "l2_init_loss_coef",
-            ):
-                value = getattr(ppo_cfg, attr, None)
-                if value is None:
-                    continue
-                hyperparameters[f"ppo_{attr}"] = value
+        param_groups = optimizer.param_groups
+        if not param_groups:
+            return hyperparameters
+        param_group = param_groups[0]
+        learning_rate = param_group.get("lr")
+        if learning_rate is not None:
+            hyperparameters["learning_rate"] = learning_rate
+        scheduled_lr = param_group.get("scheduled_lr")
+        if scheduled_lr is not None:
+            hyperparameters["schedulefree_scheduled_lr"] = scheduled_lr
+        lr_max = param_group.get("lr_max")
+        if lr_max is not None:
+            hyperparameters["schedulefree_lr_max"] = lr_max
         return hyperparameters

@@ -8,6 +8,15 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+SIDEBAR_WIDTH = 46
+"""Default character width allocated to the sidebar stack."""
+
+LAYOUT_PADDING = 4
+"""Horizontal padding between the map column and sidebar."""
+
+RESERVED_VERTICAL_LINES = 6
+"""Terminal rows reserved for static chrome (header/footer, spacing)."""
+
 
 class MiniscopePanel:
     """Panel container for miniscope display areas."""
@@ -38,11 +47,7 @@ class MiniscopePanel:
         self._rich_content: Optional[Union[Table, Panel, Text]] = None
 
     def set_content(self, content: Union[List[str], Table, Panel, Text]) -> None:
-        """Set the panel content.
-
-        Args:
-            content: Either list of strings or Rich renderable object
-        """
+        """Set panel contents from plain text or a Rich renderable."""
         if isinstance(content, list):
             self._content = content
             self._rich_content = None
@@ -51,11 +56,7 @@ class MiniscopePanel:
             self._rich_content = content
 
     def get_content(self) -> List[str]:
-        """Get the panel content as list of strings.
-
-        Returns:
-            List of strings representing the panel content
-        """
+        """Return panel content as a list of strings."""
         if self._rich_content:
             # Convert Rich object to strings
             console = Console(width=self.width or 80, legacy_windows=False)
@@ -65,40 +66,24 @@ class MiniscopePanel:
         return self._content
 
     def get_rich_content(self) -> Optional[Union[Table, Panel, Text]]:
-        """Get the Rich renderable content if available.
-
-        Returns:
-            Rich renderable object or None
-        """
+        """Return the current Rich renderable content, if any."""
         return self._rich_content
 
     def clear(self) -> None:
-        """Clear the panel content."""
+        """Reset stored content."""
         self._content = []
         self._rich_content = None
 
     def is_empty(self) -> bool:
-        """Check if panel has content.
-
-        Returns:
-            True if panel is empty
-        """
+        """Return True when the panel stores no content."""
         return not self._content and not self._rich_content
 
     def size(self) -> tuple[Optional[int], Optional[int]]:
-        """Get the panel size as (width, height).
-
-        Returns:
-            Tuple of (width, height) where None indicates dynamic sizing
-        """
+        """Return the configured (width, height)."""
         return (self.width, self.height)
 
     def render(self) -> List[str]:
-        """Render the panel to list of strings.
-
-        Returns:
-            List of strings with proper padding/truncation
-        """
+        """Render panel content and apply width/height constraints."""
         lines = self.get_content()
 
         # Apply height constraints
@@ -144,35 +129,53 @@ class PanelLayout:
         self.header = MiniscopePanel("header", height=2)
         self.footer = MiniscopePanel("footer", height=2)
         self.map_view = MiniscopePanel("map_view")
-        self.sidebar = MiniscopePanel("sidebar", width=46)
 
-        # Register panels
+        # Sidebar configuration
+        self._sidebar_width = SIDEBAR_WIDTH
+        self._sidebar_panels: dict[str, MiniscopePanel] = {}
+        self._sidebar_order: list[str] = []
+
+        # Register core panels
         self.panels["header"] = self.header
         self.panels["footer"] = self.footer
         self.panels["map_view"] = self.map_view
-        self.panels["sidebar"] = self.sidebar
 
         # Live display for smooth updates without flicker
         self._live: Optional[Live] = None
 
     def get_panel(self, name: str) -> Optional[MiniscopePanel]:
-        """Get a panel by name.
-
-        Args:
-            name: Panel name
-
-        Returns:
-            Panel instance or None
-        """
+        """Look up a panel by name."""
         return self.panels.get(name)
 
     def add_panel(self, panel: MiniscopePanel) -> None:
-        """Add a custom panel.
-
-        Args:
-            panel: Panel to add
-        """
+        """Register a custom panel."""
         self.panels[panel.name] = panel
+
+    def register_sidebar_panel(self, name: str, title: Optional[str] = None) -> MiniscopePanel:
+        """Create or return a named sidebar panel."""
+        if name in self._sidebar_panels:
+            panel = self._sidebar_panels[name]
+            if title is not None:
+                panel.title = title
+            return panel
+
+        panel = MiniscopePanel(name=f"sidebar.{name}", width=self._sidebar_width, title=title)
+        self._sidebar_panels[name] = panel
+        self._sidebar_order.append(name)
+        self.panels[panel.name] = panel
+        return panel
+
+    def get_sidebar_panel(self, name: str) -> Optional[MiniscopePanel]:
+        """Fetch a sidebar panel by logical name."""
+        return self._sidebar_panels.get(name)
+
+    def reset_sidebar_panels(self) -> None:
+        """Remove all registered sidebar panels."""
+        for panel in self._sidebar_panels.values():
+            if panel.name in self.panels:
+                del self.panels[panel.name]
+        self._sidebar_panels.clear()
+        self._sidebar_order.clear()
 
     def clear_all(self) -> None:
         """Clear all panel contents."""
@@ -191,6 +194,29 @@ class PanelLayout:
             self._live.stop()
             self._live = None
 
+    def _compose_sidebar_content(self) -> Union[str, Text]:
+        """Build the renderable content for the sidebar stack."""
+        combined_lines: list[str] = []
+
+        for name in self._sidebar_order:
+            panel = self._sidebar_panels.get(name)
+            if not panel:
+                continue
+
+            lines = panel.render()
+            if not lines:
+                continue
+
+            if combined_lines:
+                combined_lines.append("")
+
+            combined_lines.extend(lines)
+
+        if not combined_lines:
+            return ""
+
+        return Text("\n".join(combined_lines))
+
     def render_to_console(self) -> None:
         """Render the complete layout to console using Rich Table."""
         # Create main layout table with header, map/info panes, and footer
@@ -201,16 +227,30 @@ class PanelLayout:
         header_content = self.header.get_rich_content() or "\n".join(self.header.get_content())
         layout.add_row(header_content)
 
-        # Create horizontal layout for map (left) and info pane (right)
+        # Get sidebar content to determine if we need to show it
+        sidebar_content = self._compose_sidebar_content()
+
+        # Create horizontal layout - conditionally include sidebar
         main_row = Table.grid(padding=0, expand=True)
-        main_row.add_column(ratio=1)  # Map pane (left, flexible width)
-        main_row.add_column(width=46)  # Info pane (right, fixed width)
 
-        # Get content for map and sidebar
         map_content = self.map_view.get_rich_content() or "\n".join(self.map_view.render())
-        sidebar_content = self.sidebar.get_rich_content() or "\n".join(self.sidebar.render())
 
-        main_row.add_row(map_content, sidebar_content)
+        if sidebar_content:
+            # Show map + border + sidebar
+            main_row.add_column(ratio=1, overflow="ignore")  # Map column
+            main_row.add_column(width=1, no_wrap=True, overflow="ignore")  # Border column
+            main_row.add_column(width=self._sidebar_width, no_wrap=True, overflow="ignore")  # Sidebar column
+
+            # Count lines in map to match height
+            map_lines = str(map_content).count("\n") + 1 if map_content else 1
+            border_content = "\n".join(["|"] * map_lines)
+
+            main_row.add_row(map_content, border_content, sidebar_content)
+        else:
+            # Show map only (full width)
+            main_row.add_column(ratio=1, overflow="ignore")  # Map column only
+            main_row.add_row(map_content)
+
         layout.add_row(main_row)
 
         # Add footer

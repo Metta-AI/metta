@@ -1,4 +1,6 @@
 import { useState } from 'react'
+
+import { Button } from './components/Button'
 import { Repo } from './repo'
 
 interface Props {
@@ -109,9 +111,9 @@ export function AIQueryBuilder({ repo, onQueryGenerated }: Props) {
           disabled={loading}
         />
         <div className="ai-query-buttons">
-          <button className="btn btn-primary" onClick={generateQuery} disabled={loading || !description.trim()}>
+          <Button size="sm" theme="primary" onClick={generateQuery} disabled={loading || !description.trim()}>
             {loading ? 'Generating...' : 'Generate Query'}
-          </button>
+          </Button>
         </div>
 
         {error && <div className="error-message">{error}</div>}

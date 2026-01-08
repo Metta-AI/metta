@@ -15,6 +15,7 @@ on:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-4core
+    timeout-minutes: 20 # up from default of 10 minutes
     permissions:
       id-token: write
       contents: read
@@ -22,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Build Docker image
         id: build-image
@@ -31,11 +34,19 @@ jobs:
           dockerfile: home/Dockerfile
           aws_role: ${{ vars.AWS_ROLE }}
 
-      - name: Deploy helm chart
+      - name: Configure EKS
         if: github.ref == 'refs/heads/main'
-        run: |
-          cp home/links.yaml devops/charts/home/
+        uses: ./.github/actions/eks-configure
 
-          aws eks update-kubeconfig --name main --region us-east-1
-          helm upgrade -n default home ./devops/charts/home \
-            --set image.tag=${{ steps.build-image.outputs.tag }}
+      - name: Prepare home deployment
+        if: github.ref == 'refs/heads/main'
+        run: cp home/links.yaml devops/charts/home/
+
+      - name: Deploy with Helm
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: default
+          release: home
+          chart: ./devops/charts/home
+          image_tag: ${{ steps.build-image.outputs.tag }}

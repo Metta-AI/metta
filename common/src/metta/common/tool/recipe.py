@@ -6,6 +6,8 @@ A Recipe represents a module that defines tool makers - functions that return to
 from __future__ import annotations
 
 import importlib
+import importlib.util
+import logging
 from types import ModuleType
 from typing import Any, Callable, Optional
 
@@ -32,6 +34,9 @@ def is_tool_maker(obj: Any) -> TypeIs[ToolMaker]:
         return False
 
 
+logger = logging.getLogger(__name__)
+
+
 class Recipe:
     """Represents a recipe module that can provide tool makers."""
 
@@ -46,7 +51,12 @@ class Recipe:
 
     @property
     def short_name(self) -> str:
-        return self.module_name.replace("experiments.recipes.", "")
+        """Get short name by removing recipes.prod. or recipes.experiment. prefix."""
+        name = self.module_name
+        for prefix in ["recipes.prod.", "recipes.experiment."]:
+            if name.startswith(prefix):
+                return name[len(prefix) :]
+        return name
 
     def _build_tool_maps(self) -> None:
         """Build maker_name->tool_maker and tool_class_name->makers maps."""
@@ -72,12 +82,17 @@ class Recipe:
 
     @classmethod
     def load(cls, module_path: str) -> Optional["Recipe"]:
-        """Try to load a recipe from a module path. e.g. 'experiments.recipes.arena'"""
+        """Try to load a recipe from a module path. e.g. 'recipes.experiment.arena'"""
+        if importlib.util.find_spec(module_path) is None:
+            return None
+
         try:
             module = importlib.import_module(module_path)
-            return cls(module)
-        except ImportError:
+        except Exception as exc:  # pragma: no cover - best-effort import guard
+            logger.debug("Skipping recipe %s due to import failure: %s", module_path, exc)
             return None
+
+        return cls(module)
 
     def get_explicit_tool_makers(self) -> dict[str, ToolMaker]:
         """Returns only tool makers explicitly defined in this recipe."""

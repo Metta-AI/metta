@@ -5,9 +5,6 @@ from metta.cogworks.curriculum.task_generator import Span
 
 arena = eb.make_arena(num_agents=24)
 
-# disable swap
-arena.game.actions.swap.enabled = False
-
 # make a set of training tasks for the arena
 arena_tasks = cc.bucketed(arena)
 

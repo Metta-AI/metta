@@ -17,7 +17,7 @@ if defined(emscripten):
     --clang.cpp.linkerexe:emcc
   --listCmd
 
-  --gc:arc
+  --gc:orc
   --exceptions:goto
   --define:noSignalHandler
   --debugger:native

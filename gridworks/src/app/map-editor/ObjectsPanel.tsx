@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, useEffect, useRef } from "react";
 
 import { useDrawer } from "@/components/MapViewer/hooks";
-import { BACKGROUND_MAP_COLOR, Drawer, objectNames } from "@/lib/draw/Drawer";
+import { Drawer, objectNames } from "@/lib/draw/Drawer";
 import { MettaObject } from "@/lib/MettaGrid";
 
 const SelectableButton: FC<{
@@ -49,18 +49,12 @@ const ObjectIcon: FC<{
     canvas.height = scaledSize;
 
     ctx.scale(scaledSize, scaledSize);
-
-    drawer.drawObject(ctx, MettaObject.fromObjectName(0, 0, name)!);
+    if (name === "empty") {
+      drawer.drawTile({ ctx, tile: "wall.49", c: 0, r: 0, scale: 1 });
+    } else {
+      drawer.drawObject(ctx, MettaObject.fromObjectName(0, 0, name)!);
+    }
   }, [name, drawer]);
-
-  if (name === "empty") {
-    return (
-      <div
-        className="h-8 w-8"
-        style={{ backgroundColor: BACKGROUND_MAP_COLOR }}
-      />
-    );
-  }
 
   return (
     <canvas
@@ -106,7 +100,7 @@ const GroupedObjectEntry: FC<{
       <div className="mx-1 font-mono text-xs tracking-wider text-gray-600 uppercase">
         {groupName}
       </div>
-      <div className="flex">
+      <div className="flex gap-0.5">
         {names.map((name) => (
           <SelectableButton
             key={name}
@@ -140,7 +134,7 @@ export const ObjectsPanel: FC<{
     mine: /mine_(\w+)/,
     generator: /generator_(\w+)/,
     chest: /chest_(\w+)/,
-    clipped_extractor: /clipped_(\w+)_extractor/,
+    clipped_extractor: /(\w+)_extractor.clipped/,
     extractor: /(\w+)_extractor/,
     ex_dep: /(\w+)_ex_dep/,
   };

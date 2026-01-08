@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,11 +7,18 @@ name = "metta-common"
 version = "0.1.0"
 description = "Common utilities for metta packages"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-requires-python = "==3.11.7"
-license = "MIT"
+license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
-dependencies = ["rich>=14.1", "wandb>=0.21.2"]
+dependencies = [
+  "rich>=14.1",
+  "tenacity>=9.0.0",
+  "wandb>=0.22.3",
+  "cogames",
+  "opentelemetry-api>=1.22.0",
+  "opentelemetry-sdk>=1.22.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.22.0",
+]
 
 [project.scripts]
 tool = "metta.common.tool.run_tool:cli_entry"
@@ -44,3 +51,6 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.common"]
+
+[tool.uv.sources]
+cogames = { workspace = true }

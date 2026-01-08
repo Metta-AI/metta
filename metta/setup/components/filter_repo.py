@@ -108,18 +108,19 @@ class FilterRepoSetup(SetupModule):
     def run(self, args: list[str]) -> None:
         """Run filter-repo commands via metta."""
         if not args:
-            error("Usage: metta run filter-repo <filter|inspect|push> ...")
+            error("Usage: metta run filter-repo <package> [options]")
             error("""
-            This runs the sync_package.py script. Examples:
-              metta run filter-repo filter . packages/mettagrid/ mettascope/
-              metta run filter-repo inspect /tmp/filtered-repo-xyz/filtered
-              metta run filter-repo push /tmp/filtered-repo-xyz/filtered git@github.com:org/repo.git
+            This runs the push_child_repo.py script. Examples:
+              metta run filter-repo mettagrid --dry-run
+              metta run filter-repo cogames --yes
+
+            Note: You can also use 'metta publish <package>' directly.
             """)
             return
-        # Run the sync_package.py script with provided arguments
-        script_path = self.repo_root / "devops" / "git" / "sync_package.py"
+        # Forward to push_child_repo.py script
+        script_path = self.repo_root / "devops" / "git" / "push_child_repo.py"
         if not script_path.exists():
-            error(f"sync_package.py not found at {script_path}")
+            error(f"push_child_repo.py not found at {script_path}")
             return
 
         try:

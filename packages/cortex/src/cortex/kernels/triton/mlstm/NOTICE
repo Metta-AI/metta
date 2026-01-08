@@ -1,0 +1,15 @@
+NXAI mLSTM Kernels
+Copyright (c) NXAI GmbH.
+
+This product includes materials developed at NXAI that are licensed under the NXAI Community License, Copyright © NXAI GmbH, All Rights Reserved.
+
+This product includes software from the triton project (https://github.com/triton-lang/triton/) licensed under the MIT License.
+Copyright 2018-2020 Philippe Tillet.
+Copyright 2020-2022 OpenAI.
+
+This product includes software from Dao-AILab (https://github.com/Dao-AILab/flash-attention) licensed under the BSD-3-Clause License.
+Copyright (c) 2022, the respective contributors, as shown by the AUTHORS file.
+All rights reserved.
+
+This product includes software from Songlin Yang (https://github.com/sustcsonglin/flash-linear-attention) licensed under the MIT License.
+Copyright (c) 2024 Songlin Yang.

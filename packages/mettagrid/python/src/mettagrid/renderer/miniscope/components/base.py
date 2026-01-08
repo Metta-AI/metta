@@ -1,13 +1,15 @@
 """Base component class for miniscope renderer."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.simulator.simulator import Simulation
 
 
 class MiniscopeComponent(ABC):
@@ -15,7 +17,7 @@ class MiniscopeComponent(ABC):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -26,7 +28,7 @@ class MiniscopeComponent(ABC):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        self._env = env
+        self._sim = sim
         self._state = state
         self._panels = panels
         self._panel: Optional[MiniscopePanel] = None
@@ -35,18 +37,18 @@ class MiniscopeComponent(ABC):
         self._console = Console()
 
     @property
-    def env(self) -> MettaGridEnv:
+    def env(self) -> "Simulation":
         """Get the environment."""
-        return self._env
+        return self._sim
 
     @property
     def state(self) -> MiniscopeState:
-        """Get the state."""
+        """Return the shared renderer state."""
         return self._state
 
     @property
     def panels(self) -> PanelLayout:
-        """Get the panel layout."""
+        """Return the panel layout registry."""
         return self._panels
 
     def _set_panel(self, panel: MiniscopePanel) -> None:
@@ -69,19 +71,16 @@ class MiniscopeComponent(ABC):
         Returns:
             Padded lines
         """
-        if width is None:
-            return lines
         return [line[:width].ljust(width) for line in lines]
 
+    def _table_to_lines(self, renderable: RenderableType) -> List[str]:
+        """Render a Rich table or other renderable to plain text lines."""
+        with self._console.capture() as capture:
+            self._console.print(renderable)
+        return capture.get().split("\n")
+
     def handle_input(self, ch: str) -> bool:
-        """Handle user input for this component.
-
-        Args:
-            ch: The character input from the user
-
-        Returns:
-            True if the input was handled by this component, False otherwise
-        """
+        """Handle user input for this component."""
         return False
 
     @abstractmethod

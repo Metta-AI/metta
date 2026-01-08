@@ -7,17 +7,8 @@ from typing import Any
 import numpy as np
 import torch
 
-from metta.common.wandb.context import WandbRun
-from metta.eval.eval_request_config import EvalResults
-from metta.rl.evaluate import upload_replay_html
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import Experience
-from metta.rl.wandb import (
-    POLICY_EVALUATOR_EPOCH_METRIC,
-    POLICY_EVALUATOR_METRIC_PREFIX,
-    POLICY_EVALUATOR_STEP_METRIC,
-    setup_policy_evaluator_metrics,
-)
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.util.dict_utils import unroll_nested_dict
 
@@ -59,7 +50,7 @@ def accumulate_rollout_stats(
 
 
 def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
-    """Filter movement metrics to only keep core values, removing derived stats."""
+    """Filter verbose environment metrics while keeping core values."""
     filtered = {}
 
     # Core movement metrics we want to keep (without any suffix)
@@ -69,14 +60,18 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
         "env_agent/movement.direction.down",
         "env_agent/movement.direction.left",
         "env_agent/movement.direction.right",
-        "env_agent/movement.sequential_rotations",
-        "env_agent/movement.rotation.to_up",
-        "env_agent/movement.rotation.to_down",
-        "env_agent/movement.rotation.to_left",
-        "env_agent/movement.rotation.to_right",
     }
+    noisy_prefixes = (
+        "env_reward_estimates/",
+        "env_timing_per_epoch/",
+        "env_timing_cumulative/",
+    )
 
     for key, value in stats.items():
+        if key.startswith("env_attributes/"):
+            continue
+        if key.startswith(noisy_prefixes):
+            continue
         # Check if this is a core metric (exact match)
         if key in core_metrics:
             filtered[key] = value
@@ -194,46 +189,3 @@ def compute_timing_stats(
         "steps_per_second": steps_per_second,
         "timing_stats": timing_stats,
     }
-
-
-def process_policy_evaluator_stats(
-    policy_uri: str, eval_results: EvalResults, run: WandbRun, epoch: int, agent_step: int, should_finish_run: bool
-) -> None:
-    metrics_to_log: dict[str, float] = {
-        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
-        for k, v in eval_results.scores.to_wandb_metrics_format().items()
-    }
-    metrics_to_log.update(
-        {
-            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
-            for category, score in eval_results.scores.category_scores.items()
-        }
-    )
-    if not metrics_to_log:
-        logger.warning("No metrics to log for policy evaluator")
-        return
-
-    try:
-        try:
-            setup_policy_evaluator_metrics(run)
-        except Exception:
-            logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
-            pass
-
-        run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
-        logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {policy_uri}")
-        if eval_results.replay_urls:
-            try:
-                upload_replay_html(
-                    replay_urls=eval_results.replay_urls,
-                    agent_step=agent_step,  # type: ignore
-                    epoch=epoch,  # type: ignore
-                    wandb_run=run,
-                    step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
-                    epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
-                )
-            except Exception as e:
-                logger.error(f"Failed to upload replays for {policy_uri}: {e}", exc_info=True)
-    finally:
-        if should_finish_run:
-            run.finish()

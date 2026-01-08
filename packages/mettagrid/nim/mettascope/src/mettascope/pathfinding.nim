@@ -1,20 +1,24 @@
 import
-  std/[algorithm, tables],
+  std/[algorithm, tables, sets, heapqueue],
   vmath,
   common, replays
 
 type
-  PathNode = object
-    pos: IVec2
-    gCost: int
-    hCost: int
-    parent: int
+  PathNode* = object
+    pos*: IVec2
+    gCost*: int
+    hCost*: int
+    parent*: int
 
-proc fCost(node: PathNode): int =
+proc fCost*(node: PathNode): int =
   ## Calculate the total cost of a node.
   node.gCost + node.hCost
 
-proc heuristic(a, b: IVec2): int =
+proc `<`(a, b: PathNode): bool =
+  ## Comparison for heap (min-heap based on fCost).
+  a.fCost < b.fCost
+
+proc heuristic*(a, b: IVec2): int =
   ## Calculate the Manhattan distance heuristic.
   abs(a.x - b.x) + abs(a.y - b.y)
 
@@ -24,7 +28,7 @@ proc isWalkablePos*(pos: IVec2): bool =
     return false
   let obj = getObjectAtLocation(pos)
   if obj != nil:
-    let typeName = replay.typeNames[obj.typeId]
+    let typeName = obj.typeName
     if typeName != "agent":
       return false
   return true
@@ -35,17 +39,15 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
     return @[]
   if not isWalkablePos(goal):
     return @[]
-  var openList: seq[PathNode] = @[PathNode(pos: start, gCost: 0, hCost: heuristic(start, goal), parent: -1)]
-  var closedSet: seq[IVec2] = @[]
+  var openHeap = initHeapQueue[PathNode]()
+  openHeap.push(PathNode(pos: start, gCost: 0, hCost: heuristic(start, goal), parent: -1))
+  var closedSet = initHashSet[IVec2]()
   var allNodes: seq[PathNode] = @[]
-  while openList.len > 0:
-    var currentIdx = 0
-    for i in 1 ..< openList.len:
-      if openList[i].fCost < openList[currentIdx].fCost:
-        currentIdx = i
-    let current = openList[currentIdx]
-    openList.delete(currentIdx)
-    closedSet.add(current.pos)
+  while openHeap.len > 0:
+    let current = openHeap.pop()
+    if current.pos in closedSet:
+      continue
+    closedSet.incl(current.pos)
     let currentNodeIdx = allNodes.len
     allNodes.add(current)
     if current.pos == goal:
@@ -72,55 +74,46 @@ proc findPath*(start, goal: IVec2): seq[IVec2] =
       if not isWalkablePos(neighborPos):
         continue
       let newGCost = current.gCost + 1
-      var foundInOpen = false
-      for i in 0 ..< openList.len:
-        if openList[i].pos == neighborPos:
-          foundInOpen = true
-          if newGCost < openList[i].gCost:
-            openList[i].gCost = newGCost
-            openList[i].parent = currentNodeIdx
-          break
-      if not foundInOpen:
-        openList.add(PathNode(
-          pos: neighborPos,
-          gCost: newGCost,
-          hCost: heuristic(neighborPos, goal),
-          parent: currentNodeIdx
-        ))
+      openHeap.push(PathNode(
+        pos: neighborPos,
+        gCost: newGCost,
+        hCost: heuristic(neighborPos, goal),
+        parent: currentNodeIdx
+      ))
   return @[]
 
 proc clearPath*(agentId: int) =
-  ## Clear the path and destination for an agent.
+  ## Clear the path and objectives for an agent.
   agentPaths.del(agentId)
-  agentDestinations.del(agentId)
+  agentObjectives.del(agentId)
 
 
 proc recomputePath*(agentId: int, currentPos: IVec2) =
-  ## Recompute the path for an agent through all their queued destinations.
-  if not agentDestinations.hasKey(agentId) or agentDestinations[agentId].len == 0:
+  ## Recompute the path for an agent through all their queued objectives.
+  if not agentObjectives.hasKey(agentId) or agentObjectives[agentId].len == 0:
     agentPaths.del(agentId)
     return
-  
-  # Compute path actions through all destinations.
+
+  # Compute path actions through all path-based objectives (Move/Bump).
   var pathActions: seq[PathAction] = @[]
   var lastPos = currentPos
-  
-  for destIdx, dest in agentDestinations[agentId]:
-    case dest.destinationType
+
+  for objIdx, objective in agentObjectives[agentId]:
+    case objective.kind
     of Move:
-      # For moving, path directly to the destination.
-      let movePath = findPath(lastPos, dest.pos)
+      # For moving, path directly to the objective.
+      let movePath = findPath(lastPos, objective.pos)
       if movePath.len == 0:
         clearPath(agentId)
         return
-      # Convert positions to PathMove actions.
+      # Convert positions to move actions.
       for pos in movePath:
         if pos != lastPos:
-          pathActions.add(PathAction(actionType: PathMove, pos: pos))
-      lastPos = dest.pos
+          pathActions.add(PathAction(kind: Move, pos: pos))
+      lastPos = objective.pos
     of Bump:
       # For bumping, path to the specified approach position.
-      let approachPos = ivec2(dest.pos.x + dest.approachDir.x, dest.pos.y + dest.approachDir.y)
+      let approachPos = ivec2(objective.pos.x + objective.approachDir.x, objective.pos.y + objective.approachDir.y)
       if not isWalkablePos(approachPos):
         # Approach position is not walkable, clear path.
         clearPath(agentId)
@@ -133,17 +126,22 @@ proc recomputePath*(agentId: int, currentPos: IVec2) =
           return
         for pos in movePath:
           if pos != lastPos:
-            pathActions.add(PathAction(actionType: PathMove, pos: pos))
+            pathActions.add(PathAction(kind: Move, pos: pos))
       # Add the bump action.
       pathActions.add(PathAction(
-        actionType: PathBump,
-        pos: dest.pos,
-        bumpDir: ivec2(dest.pos.x - approachPos.x, dest.pos.y - approachPos.y),
+        kind: Bump,
+        bumpPos: objective.pos,
+        bumpDir: ivec2(objective.pos.x - approachPos.x, objective.pos.y - approachPos.y),
       ))
       lastPos = approachPos
-  
+    of Vibe:
+      # Add vibe as a path action to maintain synchronization.
+      pathActions.add(PathAction(
+        kind: Vibe,
+        vibeActionId: objective.vibeActionId
+      ))
+
   if pathActions.len > 0:
     agentPaths[agentId] = pathActions
   else:
     clearPath(agentId)
-

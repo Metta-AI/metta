@@ -1,37 +1,79 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
 
+#include <cassert>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/attack.hpp"
+#include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
+#include "actions/transfer.hpp"
 #include "core/grid_object.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/usable.hpp"
 
-// Forward declaration
 struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
-      : ActionHandler(cfg, "move"), _game_config(game_config) {}
+  explicit Move(const MoveActionConfig& cfg, [[maybe_unused]] const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _allowed_directions(cfg.allowed_directions) {
+    // Build direction name to orientation mapping
+    _direction_map["north"] = Orientation::North;
+    _direction_map["south"] = Orientation::South;
+    _direction_map["west"] = Orientation::West;
+    _direction_map["east"] = Orientation::East;
+    _direction_map["northwest"] = Orientation::Northwest;
+    _direction_map["northeast"] = Orientation::Northeast;
+    _direction_map["southwest"] = Orientation::Southwest;
+    _direction_map["southeast"] = Orientation::Southeast;
+  }
 
-  unsigned char max_arg() const override {
-    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
+  std::vector<Action> create_actions() override {
+    std::vector<Action> actions;
+    // Create actions in the order specified by the config
+    for (const std::string& direction : _allowed_directions) {
+      auto it = _direction_map.find(direction);
+      if (it != _direction_map.end()) {
+        actions.emplace_back(this, "move_" + direction, static_cast<ActionArg>(it->second));
+      }
+    }
+    return actions;
+  }
+
+  void set_action_handlers(const std::unordered_map<std::string, ActionHandler*>& handlers) {
+    _handlers = handlers;
+
+    // Build vibe->handler map from handlers' vibes fields
+    _vibe_handlers.clear();
+    for (const auto& [name, handler] : handlers) {
+      if (name == "attack") {
+        Attack* attack = dynamic_cast<Attack*>(handler);
+        if (attack) {
+          for (ObservationType vibe : attack->get_vibes()) {
+            _vibe_handlers[vibe] = handler;
+          }
+        }
+      } else if (name == "transfer") {
+        Transfer* transfer = dynamic_cast<Transfer*>(handler);
+        if (transfer) {
+          for (ObservationType vibe : transfer->get_vibes()) {
+            _vibe_handlers[vibe] = handler;
+          }
+        }
+      }
+    }
   }
 
 protected:
   bool _handle_action(Agent& actor, ActionArg arg) override {
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
-
-    // Validate the direction based on diagonal support
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
-      return false;
-    }
 
     GridLocation current_location = actor.location;
     GridLocation target_location = current_location;
@@ -50,54 +92,64 @@ protected:
     target_location.r = static_cast<GridCoord>(static_cast<int>(target_location.r) + dr);
     target_location.c = static_cast<GridCoord>(static_cast<int>(target_location.c) + dc);
 
-    // Update orientation to face the movement direction (even if movement fails)
-    actor.orientation = move_direction;
-
     if (!_grid->is_valid_location(target_location)) {
       return false;
     }
 
-    // `Move` is actually `MoveOrUse`, so we need to check if the target location is empty and if the object is usable.
-    // In the future, we may want to split 'Move' and 'MoveOrUse', if we want to allow agents to run into usable
-    // objects without using them.
-    if (!_grid->is_empty(target_location.r, target_location.c)) {
-      // Check the AgentLayer first for other agents
-      GridLocation agent_location = {target_location.r, target_location.c, GridLayer::AgentLayer};
-      GridObject* target_agent = _grid->object_at(agent_location);
-      if (target_agent) {
-        Usable* usable_agent = dynamic_cast<Usable*>(target_agent);
-        if (usable_agent) {
-          return usable_agent->onUse(actor, arg);
-        }
-      }
+    // Get target object (may be nullptr if empty)
+    GridObject* target_object = _grid->object_at(target_location);
 
-      // Then check the ObjectLayer for other usable objects
-      GridLocation object_location = {target_location.r, target_location.c, GridLayer::ObjectLayer};
-      GridObject* target_object = _grid->object_at(object_location);
-      if (target_object) {
-        Usable* usable_object = dynamic_cast<Usable*>(target_object);
-        if (usable_object) {
-          return usable_object->onUse(actor, arg);
-        }
+    // Check if vibe-specific action override applies (from handler's vibes)
+    auto vibe_handler_it = _vibe_handlers.find(actor.vibe);
+    if (vibe_handler_it != _vibe_handlers.end()) {
+      ActionHandler* handler = vibe_handler_it->second;
+      // Let the handler decide if target is valid
+      Attack* attack_handler = dynamic_cast<Attack*>(handler);
+      if (attack_handler && attack_handler->try_attack(actor, target_object)) {
+        return true;
       }
-
-      return false;
+      Transfer* transfer_handler = dynamic_cast<Transfer*>(handler);
+      if (transfer_handler && transfer_handler->try_transfer(actor, target_object)) {
+        return true;
+      }
     }
 
-    // Move the agent
-    return _grid->move_object(actor, target_location);
+    // If location is empty, move
+    if (_grid->is_empty(target_location.r, target_location.c)) {
+      return _grid->move_object(actor, target_location);
+    }
+
+    // Swap with frozen agents (must check before usable since Agent is Usable)
+    Agent* target_agent = dynamic_cast<Agent*>(target_object);
+    if (target_agent && target_agent->frozen > 0) {
+      bool swapped = _grid->swap_objects(actor, *target_agent);
+      if (swapped) {
+        actor.stats.incr("actions.swap");
+      }
+      return swapped;
+    }
+
+    // Try to use the object at target location
+    if (target_object) {
+      Usable* usable_object = dynamic_cast<Usable*>(target_object);
+      if (usable_object) {
+        return usable_object->onUse(actor, arg);
+      }
+    }
+
+    return false;
   }
 
   std::string variant_name(ActionArg arg) const override {
     Orientation move_direction = static_cast<Orientation>(arg);
-    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
-      return ActionHandler::variant_name(arg);
-    }
     return std::string(action_name()) + "_" + OrientationFullNames[static_cast<size_t>(move_direction)];
   }
 
 private:
-  const GameConfig* _game_config;
+  std::vector<std::string> _allowed_directions;
+  std::unordered_map<std::string, Orientation> _direction_map;
+  std::unordered_map<std::string, ActionHandler*> _handlers;
+  std::unordered_map<ObservationType, ActionHandler*> _vibe_handlers;  // vibe -> handler map
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_

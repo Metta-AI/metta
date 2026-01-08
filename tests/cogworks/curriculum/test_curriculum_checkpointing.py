@@ -160,8 +160,8 @@ class TestCurriculumStateSerialization:
         assert "task_tracker" in state
         assert "outcomes" in state
         assert "counter" in state
-        assert "p_fast" in state
-        assert "p_slow" in state
+        assert "per_task_fast" in state
+        assert "per_task_slow" in state
 
         # Verify task tracker state
         task_tracker_state = state["task_tracker"]

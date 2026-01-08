@@ -21,13 +21,6 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 logger = logging.getLogger(__name__)
 
 
-def get_algorithm_hypers_discriminator(v):
-    """Discriminator function for algorithm hypers types."""
-    if isinstance(v, dict) and "type" in v:
-        return v["type"]
-    return None
-
-
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
@@ -227,7 +220,7 @@ class CurriculumConfig(Config):
 
     task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task ID to generate")
-    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
+    num_active_tasks: int = Field(default=64, gt=0, description="Number of active tasks to maintain")
 
     # Curriculum behavior options
     min_presentations_for_eviction: int = Field(

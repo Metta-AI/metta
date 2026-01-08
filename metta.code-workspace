@@ -9,8 +9,15 @@
     },
   ],
   "settings": {
-    "ruff.enable": true,
-    "ruff.nativeServer": "on",
+    "emeraldwalk.runonsave": {
+      "commands": [
+        {
+          "match": ".*",
+          "isAsync": false,
+          "cmd": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix ${file}",
+        },
+      ],
+    },
     "terminal.integrated.profiles.osx": {
       "metta-0": {
         "path": "bash",
@@ -134,7 +141,7 @@
     },
     "vim.textwidth": 120,
     "eslint.useFlatConfig": true,
-    "eslint.workingDirectories": ["./mettascope", "./observatory", "./gridworks"],
+    "eslint.workingDirectories": ["./observatory", "./gridworks"],
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
@@ -147,14 +154,7 @@
     "[json]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
-    "python.testing.pytestArgs": [
-      "-v",
-      "-s",
-      "./tests",
-      "./packages/mettagrid/tests",
-      "./mettascope/tests",
-      "./agent/tests",
-    ],
+    "python.testing.pytestArgs": ["-v", "-s", "./tests", "./packages/mettagrid/tests", "./agent/tests"],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.autoTestDiscoverOnSaveEnabled": false,

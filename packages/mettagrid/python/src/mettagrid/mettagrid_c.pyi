@@ -1,6 +1,5 @@
-from typing import Optional, Sequence, Tuple, TypeAlias, TypedDict
+from typing import Optional, TypeAlias, TypedDict
 
-import gymnasium as gym
 import numpy as np
 
 # Type alias for clarity
@@ -40,7 +39,7 @@ class PackedCoordinate:
         ...
 
     @staticmethod
-    def unpack(packed: int) -> Optional[Tuple[int, int]]:
+    def unpack(packed: int) -> Optional[tuple[int, int]]:
         """Unpack byte into (row, col) tuple or None if empty.
         Args:
             packed: Packed coordinate byte
@@ -56,11 +55,33 @@ class PackedCoordinate:
 
 class GridObjectConfig: ...
 
+class LimitDef:
+    def __init__(
+        self,
+        resources: list[int] = [],
+        base_limit: int = 0,
+        modifiers: dict[int, int] = {},
+    ) -> None: ...
+    resources: list[int]
+    base_limit: int
+    modifiers: dict[int, int]
+
+class InventoryConfig:
+    def __init__(self) -> None: ...
+    limit_defs: list[LimitDef]
+
+class DamageConfig:
+    def __init__(self) -> None: ...
+    threshold: dict[int, int]
+    resources: dict[int, int]
+    def enabled(self) -> bool: ...
+
 class WallConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, swappable: bool = False): ...
+    def __init__(self, type_id: int, type_name: str, initial_vibe: int = 0): ...
     type_id: int
     type_name: str
-    swappable: bool
+    tag_ids: list[int]
+    initial_vibe: int
 
 class AgentConfig(GridObjectConfig):
     def __init__(
@@ -70,115 +91,172 @@ class AgentConfig(GridObjectConfig):
         group_id: int = ...,
         group_name: str = ...,
         freeze_duration: int = 0,
-        action_failure_penalty: float = 0,
-        resource_limits: dict[int, int] = {},
+        initial_vibe: int = 0,
+        inventory_config: InventoryConfig = ...,
         stat_rewards: dict[str, float] = {},
         stat_reward_max: dict[str, float] = {},
-        group_reward_pct: float = 0,
         initial_inventory: dict[int, int] = {},
+        inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
+        diversity_tracked_resources: list[int] | None = None,
+        initial_vibe: int = 0,
+        damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
     type_name: str
+    tag_ids: list[int]
+    initial_vibe: int
     group_id: int
     group_name: str
     freeze_duration: int
-    action_failure_penalty: float
-    resource_limits: dict[int, int]
-    stat_rewards: dict[str, float]  # Added this
-    stat_reward_max: dict[str, float]  # Added this
-    group_reward_pct: float
+    inventory_config: InventoryConfig
+    stat_rewards: dict[str, float]
+    stat_reward_max: dict[str, float]
     initial_inventory: dict[int, int]
-
-class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        max_conversions: int,
-        conversion_ticks: int,
-        cooldown_time: Sequence[int],
-        initial_resource_count: int = 0,
-        recipe_details_obs: bool = False,
-    ) -> None: ...
-    type_id: int
-    type_name: str
-    input_resources: dict[int, int]
-    output_resources: dict[int, int]
-    max_output: int
-    max_conversions: int
-    conversion_ticks: int
-    cooldown_time: list[int]
-    initial_resource_count: int
-    recipe_details_obs: bool
+    inventory_regen_amounts: dict[int, dict[int, int]]
+    diversity_tracked_resources: list[int]
+    initial_vibe: int
+    damage_config: DamageConfig
 
 class ActionConfig:
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
     ) -> None: ...
     required_resources: dict[int, int]
-    consumed_resources: dict[int, float]
+    consumed_resources: dict[int, int]
 
-class Recipe:
-    def __init__(
-        self,
-        input_resources: dict[int, int] = {},
-        output_resources: dict[int, int] = {},
-        cooldown: int = 0,
-    ) -> None: ...
+class Protocol:
+    def __init__(self) -> None: ...
+    min_agents: int
+    vibes: list[int]
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
 
-class ClipperConfig:
+class InventoryConfig:
     def __init__(
         self,
-        unclipping_recipes: list[Recipe],
-        length_scale: float,
-        cutoff_distance: float,
-        clip_rate: float,
+        limits: list[tuple[list[int], int]] = [],
     ) -> None: ...
-    unclipping_recipes: list[Recipe]
-    length_scale: float
-    cutoff_distance: float
-    clip_rate: float
+    limits: list[tuple[list[int], int]]
+
+class AssemblerConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    protocols: list[Protocol]
+    allow_partial_usage: bool
+    max_uses: int
+    clip_immune: bool
+    start_clipped: bool
+    chest_search_distance: int
+    initial_vibe: int
+
+class ChestConfig(GridObjectConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+    type_id: int
+    type_name: str
+    tag_ids: list[int]
+    vibe_transfers: dict[int, dict[int, int]]
+    initial_inventory: dict[int, int]
+    inventory_config: InventoryConfig
+    initial_vibe: int
+
+class ClipperConfig:
+    def __init__(self) -> None: ...
+    unclipping_protocols: list[Protocol]
+    length_scale: int
+    scaled_cutoff_distance: int
+    clip_period: int
+
+class CollectiveConfig:
+    def __init__(self, name: str = "") -> None: ...
+    name: str
+    inventory_config: InventoryConfig
+    initial_inventory: dict[int, int]
+
+class AttackOutcome:
+    def __init__(
+        self,
+        actor_inv_delta: dict[int, int] = {},
+        target_inv_delta: dict[int, int] = {},
+        loot: list[int] = [],
+        freeze: int = 0,
+    ) -> None: ...
+    actor_inv_delta: dict[int, int]
+    target_inv_delta: dict[int, int]
+    loot: list[int]
+    freeze: int
 
 class AttackActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
+        consumed_resources: dict[int, int] = {},
         defense_resources: dict[int, int] = {},
+        armor_resources: dict[int, int] = {},
+        weapon_resources: dict[int, int] = {},
+        success: AttackOutcome = ...,
+        enabled: bool = True,
+        vibes: list[int] = [],
+        vibe_bonus: dict[int, int] = {},
     ) -> None: ...
     defense_resources: dict[int, int]
+    armor_resources: dict[int, int]
+    weapon_resources: dict[int, int]
+    success: AttackOutcome
+    enabled: bool
+    vibes: list[int]
+    vibe_bonus: dict[int, int]
 
-class ChangeGlyphActionConfig(ActionConfig):
+class MoveActionConfig(ActionConfig):
+    def __init__(
+        self,
+        allowed_directions: list[str] = ["north", "south", "west", "east"],
+        required_resources: dict[int, int] = {},
+        consumed_resources: dict[int, int] = {},
+    ) -> None: ...
+    allowed_directions: list[str]
+
+class VibeTransferEffect:
+    def __init__(
+        self,
+        target_deltas: dict[int, int] = {},
+        actor_deltas: dict[int, int] = {},
+    ) -> None: ...
+    target_deltas: dict[int, int]
+    actor_deltas: dict[int, int]
+
+class TransferActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
-        number_of_glyphs: int = ...,
+        vibe_transfers: dict[int, VibeTransferEffect] = {},
+        enabled: bool = True,
     ) -> None: ...
-    number_of_glyphs: int
+    vibe_transfers: dict[int, VibeTransferEffect]
+    enabled: bool
 
-class ResourceModConfig(ActionConfig):
+class ChangeVibeActionConfig(ActionConfig):
     def __init__(
         self,
         required_resources: dict[int, int] = {},
-        consumed_resources: dict[int, float] = {},
-        modifies: dict[int, float] = {},
-        agent_radius: int = 0,
-        converter_radius: int = 0,
-        scales: bool = False,
+        consumed_resources: dict[int, int] = {},
+        number_of_vibes: int = ...,
     ) -> None: ...
-    modifies: dict[int, float]
-    agent_radius: int
-    converter_radius: int
-    scales: bool
+    number_of_vibes: int
 
 class GlobalObsConfig:
     def __init__(
@@ -186,12 +264,14 @@ class GlobalObsConfig:
         episode_completion_pct: bool = True,
         last_action: bool = True,
         last_reward: bool = True,
-        visitation_counts: bool = False,
+        compass: bool = False,
+        goal_obs: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
-    visitation_counts: bool
+    compass: bool
+    goal_obs: bool
 
 class GameConfig:
     def __init__(
@@ -202,19 +282,19 @@ class GameConfig:
         obs_width: int,
         obs_height: int,
         resource_names: list[str],
+        vibe_names: list[str],
         num_observation_tokens: int,
         global_obs: GlobalObsConfig,
+        feature_ids: dict[str, int],
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
-        resource_loss_prob: float = 0.0,
         tag_id_map: dict[int, str] | None = None,
-        track_movement_metrics: bool = False,
-        recipe_details_obs: bool = False,
-        allow_diagonals: bool = False,
+        collectives: dict[str, CollectiveConfig] | None = None,
+        protocol_details_obs: bool = True,
         reward_estimates: Optional[dict[str, float]] = None,
-        inventory_regen_amounts: dict[int, int] | None = None,
         inventory_regen_interval: int = 0,
         clipper: Optional[ClipperConfig] = None,
+        token_value_base: int = 256,
     ) -> None: ...
     num_agents: int
     max_steps: int
@@ -222,18 +302,18 @@ class GameConfig:
     obs_width: int
     obs_height: int
     resource_names: list[str]
+    vibe_names: list[str]
     num_observation_tokens: int
     global_obs: GlobalObsConfig
-    resource_loss_prob: float
-    # FEATURE FLAGS
-    track_movement_metrics: bool
-    recipe_details_obs: bool
-    allow_diagonals: bool
-    reward_estimates: Optional[dict[str, float]]
+    feature_ids: dict[str, int]
     tag_id_map: dict[int, str]
-    inventory_regen_amounts: dict[int, int]
+    collectives: dict[str, CollectiveConfig]
+    # FEATURE FLAGS
+    protocol_details_obs: bool
+    reward_estimates: Optional[dict[str, float]]
     inventory_regen_interval: int
     clipper: Optional[ClipperConfig]
+    token_value_base: int
 
 class MettaGrid:
     obs_width: int
@@ -243,15 +323,17 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    action_space: gym.spaces.Discrete
-    observation_space: gym.spaces.Box
-    initial_grid_hash: int
+    object_type_names: list[str]
 
     def __init__(self, env_cfg: GameConfig, map: list, seed: int) -> None: ...
-    def reset(self) -> Tuple[np.ndarray, dict]: ...
-    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]: ...
+    def step(self) -> None: ...
     def set_buffers(
-        self, observations: np.ndarray, terminals: np.ndarray, truncations: np.ndarray, rewards: np.ndarray
+        self,
+        observations: np.ndarray,
+        terminals: np.ndarray,
+        truncations: np.ndarray,
+        rewards: np.ndarray,
+        actions: np.ndarray,
     ) -> None: ...
     def grid_objects(
         self,
@@ -261,12 +343,13 @@ class MettaGrid:
         max_col: int = -1,
         ignore_types: list[str] = [],
     ) -> dict[int, dict]: ...
-    def action_names(self) -> list[str]: ...
-    def action_catalog(self) -> list[dict[str, int | str]]: ...
+    def observations(self) -> np.ndarray: ...
+    def terminals(self) -> np.ndarray: ...
+    def truncations(self) -> np.ndarray: ...
+    def rewards(self) -> np.ndarray: ...
+    def masks(self) -> np.ndarray: ...
+    def actions(self) -> np.ndarray: ...
     def get_episode_rewards(self) -> np.ndarray: ...
     def get_episode_stats(self) -> EpisodeStats: ...
     def action_success(self) -> list[bool]: ...
-    def object_type_names(self) -> list[str]: ...
-    def resource_names(self) -> list[str]: ...
-    def feature_spec(self) -> dict[str, dict[str, float | int]]: ...
     def set_inventory(self, agent_id: int, inventory: dict[int, int]) -> None: ...

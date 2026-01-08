@@ -1,37 +1,29 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+FROM ubuntu:22.04
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+WORKDIR /workspace
+
+COPY . /workspace/metta
+
+WORKDIR /workspace/metta
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
+    build-essential \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bazel for mettagrid build
-RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
+COPY .python-version pyproject.toml uv.lock ./
+RUN uv python install
 
-# Set working directory
-WORKDIR /app
+RUN bash install.sh --profile softmax-docker --non-interactive
+RUN uv sync --frozen
 
-# Copy entire project structure
-COPY . .
-
-# Install dependencies using uv
-RUN cd app_backend && uv sync --frozen
-
-# Set working directory to app_backend
-WORKDIR /app/app_backend
-
-# Expose port
+WORKDIR /workspace/metta/app_backend
 EXPOSE 8000
-
-# Set environment variables
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
-# Run the application
-CMD ["uv", "run", "python", "src/metta/app_backend/server.py"]
+CMD ["uv", "run", "--no-sync", "python", "src/metta/app_backend/server.py"]

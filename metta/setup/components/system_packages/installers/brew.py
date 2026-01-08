@@ -65,7 +65,7 @@ class BrewInstaller(PackageInstaller[BrewPackageConfig]):
             self._install_cmd(["brew", "tap", tap_name])
 
         if to_install:
-            full_install_names = [p.fully_specified_name for p in packages]
+            full_install_names = [p.fully_specified_name for p in to_install]
             info(f"Installing {full_install_names}...")
             self._install_cmd(["brew", "install", *full_install_names])
 

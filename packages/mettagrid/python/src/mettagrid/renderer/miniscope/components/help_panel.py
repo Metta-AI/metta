@@ -5,11 +5,10 @@ from typing import List
 from rich import box
 from rich.table import Table
 
-from mettagrid import MettaGridEnv
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class HelpPanelComponent(MiniscopeComponent):
@@ -17,26 +16,30 @@ class HelpPanelComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the help panel component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.sidebar)
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("help")
+        assert sidebar_panel is not None
+        self._set_panel(sidebar_panel)
 
-    def update(self) -> List[str]:
-        """Render the help panel.
+    def update(self) -> None:
+        """Render the help panel."""
+        panel = self._panel
+        assert panel is not None
+        if not self.state.is_sidebar_visible("help"):
+            panel.clear()
+            return
 
-        Returns:
-            List of strings representing the help panel
-        """
         lines = []
         width = self._width if self._width else 70
         lines.append("=" * width)
@@ -51,10 +54,9 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append("  j/l     - Move camera/cursor left/right (1 space)")
         lines.append("  I/K     - Move camera/cursor up/down (10 spaces)")
         lines.append("  J/L     - Move camera/cursor left/right (10 spaces)")
-        lines.append("  o       - Cycle mode: Follow → Pan → Select → Follow")
-        lines.append("    Follow: Camera tracks selected agent")
-        lines.append("    Pan: Free camera movement")
-        lines.append("    Select: Move cursor to inspect objects")
+        lines.append("  f       - Follow mode (camera tracks selected agent)")
+        lines.append("  p       - Pan mode (free camera movement)")
+        lines.append("  t       - Select mode (move cursor to inspect objects)")
         lines.append("")
 
         # Agent control section
@@ -64,7 +66,7 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append("  m       - Toggle manual mode for selected agent")
         lines.append("  w/a/s/d - Move selected agent (North/West/South/East)")
         lines.append("  r       - Rest (no action)")
-        lines.append("  e       - Change glyph/emote")
+        lines.append("  e       - Change vibe/emote")
         lines.append("")
 
         # Simulation section
@@ -80,11 +82,20 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append("  ?       - Show this help")
         lines.append("  q       - Quit")
         lines.append("")
+
+        # Sidebar toggle section
+        lines.append("📚 SIDEBAR PANELS")
+        lines.append("-" * 30)
+        lines.append("  1       - Toggle Agent info")
+        lines.append("  2       - Toggle Object info")
+        lines.append("  3       - Toggle Symbols list")
+        lines.append("")
+
         lines.append("=" * width)
         lines.append(" " * ((width - 24) // 2) + "Press any key to continue")
         lines.append("=" * width)
 
-        return lines
+        panel.set_content(lines)
 
     def render_as_table(self) -> List[str]:
         """Render the help panel as a Rich table.
@@ -108,7 +119,9 @@ class HelpPanelComponent(MiniscopeComponent):
         table.add_row("", "j/l", "Move camera/cursor left/right (1 space)")
         table.add_row("", "I/K", "Move camera/cursor up/down (10 spaces)")
         table.add_row("", "J/L", "Move camera/cursor left/right (10 spaces)")
-        table.add_row("", "o", "Cycle mode: Follow → Pan → Select")
+        table.add_row("", "f", "Switch to Follow mode")
+        table.add_row("", "p", "Switch to Pan mode")
+        table.add_row("", "t", "Switch to Select mode")
         table.add_row("", "", "")
 
         # Agent control
@@ -116,7 +129,7 @@ class HelpPanelComponent(MiniscopeComponent):
         table.add_row("", "m", "Toggle manual mode")
         table.add_row("", "w/a/s/d", "Move agent (North/West/South/East)")
         table.add_row("", "r", "Rest (no action)")
-        table.add_row("", "e", "Change glyph/emote")
+        table.add_row("", "e", "Change vibe/emote")
         table.add_row("", "", "")
 
         # Simulation
@@ -127,5 +140,11 @@ class HelpPanelComponent(MiniscopeComponent):
         # System
         table.add_row("System", "?", "Show help")
         table.add_row("", "q", "Quit")
+        table.add_row("", "", "")
+
+        # Sidebar toggles
+        table.add_row("Sidebar", "1", "Toggle Agent info")
+        table.add_row("", "2", "Toggle Object info")
+        table.add_row("", "3", "Toggle Symbols list")
 
         return self._table_to_lines(table)

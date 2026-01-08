@@ -4,6 +4,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.policy.token_encoder import coordinates
 
 
 def _zero_masked_features(td: TensorDict, features: torch.Tensor) -> torch.Tensor:
@@ -130,10 +131,7 @@ class ObsAttrEmbedFourier(nn.Module):
         )
         feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
-        # coords_byte packs x/y into the high/low nibble
-        coords_byte = observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
-        y_coord_indices = (coords_byte & 0x0F).float()
+        x_coord_indices, y_coord_indices = coordinates(observations, torch.float32)
 
         # Normalize to [-1, 1] using known grid range (0-10)
         x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0

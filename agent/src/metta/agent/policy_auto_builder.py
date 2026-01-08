@@ -1,39 +1,44 @@
 import logging
 from collections import OrderedDict
 from contextlib import ExitStack
-from typing import Any
+from functools import partial
+from typing import Any, Optional
 
 import torch
-import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictSequential
 from torch.nn.parameter import UninitializedParameter
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.policy import Policy
 from mettagrid.base_config import Config
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger("metta_agent")
 
 
-def log_on_master(*args, **argv):
+def log_on_master_with_level(log_level: str | int, *args, **argv) -> None:
     if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        logger.info(*args, **argv)
+        logger.log(log_level, *args, **argv)
 
 
-class PolicyAutoBuilder(nn.Module):
+log_on_master = partial(log_on_master_with_level, logging.INFO)
+
+
+class PolicyAutoBuilder(Policy):
     """Generic policy builder for use with configs."""
 
-    def __init__(self, env, config: Config = None):
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface, config: Config | None = None):
+        super().__init__(policy_env_info)
         self.config = config
 
         self.components = OrderedDict()
         for component_config in self.config.components:
             name = component_config.name
-            self.components[name] = component_config.make_component(env)
+            self.components[name] = component_config.make_component(policy_env_info)
 
         self.action_probs = self.config.action_probs_config.make_component()
-        self.network = TensorDictSequential(self.components, inplace=True)
+        self._sequential_network = TensorDictSequential(self.components, inplace=True)
         self._sdpa_context = ExitStack()
 
         self._total_params = sum(
@@ -42,34 +47,35 @@ class PolicyAutoBuilder(nn.Module):
             if param.requires_grad and not isinstance(param, UninitializedParameter)
         )
 
-    def forward(self, td: TensorDict, action: torch.Tensor = None):
-        td = self.network(td)
+    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+        td = self._sequential_network(td)
+        self.action_probs(td, action)
+        # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
-            values = td["values"]
-            td["values"] = values.reshape(td.batch_size.numel())
-        td = self.action_probs(td, action)
+            td["values"] = td["values"].flatten()
+        if "h_values" in td.keys():
+            td["h_values"] = td["h_values"].flatten()
         return td
 
     def initialize_to_environment(
         self,
-        env,
+        policy_env_info: PolicyEnvInterface,
         device: torch.device,
     ):
         self.to(device)
-        if device.type == "cuda":
+        if torch.cuda.is_available():
             self._configure_sdp()
-            torch.set_float32_matmul_precision("medium")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):
-                logs.append(value.initialize_to_environment(env, device))
+                logs.append(value.initialize_to_environment(policy_env_info, device))
         if hasattr(self, "action_probs"):
             if hasattr(self.action_probs, "initialize_to_environment"):
-                self.action_probs.initialize_to_environment(env, device)
+                self.action_probs.initialize_to_environment(policy_env_info, device)
 
         for log in logs:
             if log is not None:
-                log_on_master(log)
+                log_on_master_with_level(logging.DEBUG, log)
 
     def _configure_sdp(self) -> None:
         self._sdpa_context.close()
@@ -157,3 +163,11 @@ class PolicyAutoBuilder(nn.Module):
                 spec.update(layer.get_agent_experience_spec())
 
         return spec
+
+    def network(self) -> torch.nn.Module:
+        """Return the sequential component stack used for inference and training."""
+        return self._sequential_network
+
+    @property
+    def device(self) -> torch.device:
+        return next(self.parameters()).device

@@ -1,11 +1,11 @@
-type: mettagrid.map_builder.ascii.AsciiMapBuilder
+type: mettagrid.map_builder.ascii.AsciiMapBuilder.Config
 map_data: |-
   #####################
   #####################
   #####################
   #####################
   ####...#######...####
-  ####.c....@....o.####
+  ####.C....@....O.####
   ####...##...##...####
   #####.#.......#.#####
   #####.#...+...#.#####
@@ -15,20 +15,20 @@ map_data: |-
   #####.#...=...#.#####
   #####.#.......#.#####
   ####...##...##...####
-  ####.g....@....s.####
+  ####.G....@....S.####
   ####...#######...####
   #####################
   #####################
   #####################
   #####################
-char_to_name_map:
+char_to_map_name:
   "#": wall
   ".": empty
-  "c": carbon_ex_dep
   "@": agent.agent
-  "o": oxygen_ex_dep
   "+": charger
   "&": assembler
   "=": chest
-  "g": germanium_ex_dep
-  "s": silicon_ex_dep
+  "C": carbon_extractor
+  "O": oxygen_extractor
+  "G": germanium_extractor
+  "S": silicon_extractor

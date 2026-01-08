@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -11,7 +11,7 @@ from tensordict import TensorDict
 from torchrl.data import Composite
 
 from metta.agent.components.utils import zero_long
-from metta.rl.training import EnvironmentMetaData
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 from .config import MambaBackboneConfig
 
@@ -19,10 +19,6 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .wrapper import MambaConfig as _WrapperConfigType
-    from .wrapper import MambaWrapperModel as _WrapperModelType
-else:
-    _WrapperConfigType = Any
-    _WrapperModelType = Any
 
 _WRAPPER_TYPES: Optional[Tuple[type, type]] = None
 
@@ -75,7 +71,7 @@ class _CacheWrapper:
 class MambaBackboneComponent(nn.Module):
     """Streaming-friendly Mamba backbone matching the policy wrapper contract."""
 
-    def __init__(self, config: MambaBackboneConfig, env: Optional[EnvironmentMetaData] = None):
+    def __init__(self, config: MambaBackboneConfig, env: Optional[PolicyEnvInterface] = None):
         super().__init__()
         self.config = config
         self.in_key = config.in_key
@@ -344,7 +340,7 @@ class MambaBackboneComponent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite({})
 
-    def initialize_to_environment(self, env: EnvironmentMetaData, device: torch.device) -> Optional[str]:
+    def initialize_to_environment(self, env: PolicyEnvInterface, device: torch.device) -> Optional[str]:
         self._env_states.clear()
         return None
 

@@ -32,7 +32,7 @@
     // Group all pytest-related packages together
     {
       "description": "Group pytest ecosystem updates",
-      "matchPackageNames": ["pytest", "pytest-cov", "pytest-xdist", "pytest-benchmark", "pytest-asyncio", "pytest-testmon"],
+      "matchPackageNames": ["pytest", "pytest-xdist", "pytest-benchmark", "pytest-asyncio", "pytest-testmon"],
       "groupName": "pytest",
       "commitMessageTopic": "pytest ecosystem"
     },

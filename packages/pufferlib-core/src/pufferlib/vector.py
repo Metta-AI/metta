@@ -42,14 +42,14 @@ def send_precheck(vecenv, actions):
 
 def reset(vecenv, seed=42):
     vecenv.async_reset(seed)
-    obs, rewards, terminals, truncations, infos, env_ids, masks = vecenv.recv()
+    obs, rewards, terminals, truncations, teacher_actions, infos, env_ids, masks = vecenv.recv()
     return obs, infos
 
 
 def step(vecenv, actions):
     actions = np.asarray(actions)
     vecenv.send(actions)
-    obs, rewards, terminals, truncations, infos, env_ids, masks = vecenv.recv()
+    obs, rewards, terminals, truncations, teacher_actions, infos, env_ids, masks = vecenv.recv()
     return obs, rewards, terminals, truncations, infos  # include env_ids or no?
 
 
@@ -82,6 +82,7 @@ class Serial:
                 rewards=self.rewards[ptr:end],
                 terminals=self.terminals[ptr:end],
                 truncations=self.truncations[ptr:end],
+                teacher_actions=self.teacher_actions[ptr:end],
                 masks=self.masks[ptr:end],
                 actions=self.actions[ptr:end],
             )
@@ -139,7 +140,7 @@ class Serial:
             actions = np.ascontiguousarray(actions)
 
         actions = send_precheck(self, actions)
-        rewards, dones, truncateds, self.infos = [], [], [], []
+        rewards, dones, truncateds, teacher_actions, self.infos = [], [], [], [], []
         ptr = 0
         for idx, env in enumerate(self.envs):
             end = ptr + self.agents_per_env[idx]
@@ -170,6 +171,7 @@ class Serial:
             self.rewards,
             self.terminals,
             self.truncations,
+            self.teacher_actions,
             self.infos,
             self.agent_ids,
             self.masks,
@@ -206,6 +208,7 @@ def _worker_process(
         rewards=np.ndarray(shape, dtype=np.float32, buffer=shm["rewards"])[worker_idx],
         terminals=np.ndarray(shape, dtype=bool, buffer=shm["terminals"])[worker_idx],
         truncations=np.ndarray(shape, dtype=bool, buffer=shm["truncateds"])[worker_idx],
+        teacher_actions=np.ndarray((*shape, *atn_shape), dtype=atn_dtype, buffer=shm["teacher_actions"])[worker_idx],
         masks=np.ndarray(shape, dtype=bool, buffer=shm["masks"])[worker_idx],
         actions=atn_arr,
     )
@@ -345,6 +348,7 @@ class Multiprocessing:
             rewards=RawArray("f", num_agents),
             terminals=RawArray("b", num_agents),
             truncateds=RawArray("b", num_agents),
+            teacher_actions=RawArray(atn_ctype, num_agents * int(np.prod(atn_shape))),
             masks=RawArray("b", num_agents),
             semaphores=RawArray("c", num_workers),
             notify=RawArray("b", num_workers),
@@ -358,6 +362,7 @@ class Multiprocessing:
             rewards=np.ndarray(shape, dtype=np.float32, buffer=self.shm["rewards"]),
             terminals=np.ndarray(shape, dtype=bool, buffer=self.shm["terminals"]),
             truncations=np.ndarray(shape, dtype=bool, buffer=self.shm["truncateds"]),
+            teacher_actions=np.ndarray((*shape, *atn_shape), dtype=atn_dtype, buffer=self.shm["teacher_actions"]),
             masks=np.ndarray(shape, dtype=bool, buffer=self.shm["masks"]),
             semaphores=np.ndarray(num_workers, dtype=np.uint8, buffer=self.shm["semaphores"]),
             notify=np.ndarray(num_workers, dtype=bool, buffer=self.shm["notify"]),
@@ -483,6 +488,7 @@ class Multiprocessing:
         r = buf["rewards"][w_slice].ravel()
         d = buf["terminals"][w_slice].ravel()
         t = buf["truncations"][w_slice].ravel()
+        ta = buf["teacher_actions"][w_slice].ravel()
 
         infos = []
         for i in s_range:
@@ -494,7 +500,7 @@ class Multiprocessing:
         m = buf["masks"][w_slice].ravel()
         self.batch_mask = m
 
-        return o, r, d, t, infos, agent_ids, m
+        return o, r, d, t, ta, infos, agent_ids, m
 
     def send(self, actions):
         actions = send_precheck(self, actions).reshape(self.atn_batch_shape)
@@ -621,7 +627,7 @@ class Ray:
             env_id = [self.async_handles.index(e) for e in ready]
             recvs = self.ray.get(ready)
 
-        o, r, d, t, infos, ids, m = zip(*recvs, strict=False)
+        o, r, d, t, ta, infos, ids, m = zip(*recvs, strict=False)
         self.prev_env_id = env_id
 
         infos = [i for ii in infos for i in ii]
@@ -632,7 +638,7 @@ class Ray:
         t = np.stack(t, axis=0).ravel()
         m = np.stack(m, axis=0).ravel()
         agent_ids = self.agent_ids[env_id].ravel()
-        return o, r, d, t, infos, agent_ids, m
+        return o, r, d, t, ta, infos, agent_ids, m
 
     def send(self, actions):
         actions = send_precheck(self, actions).reshape(self.atn_batch_shape)

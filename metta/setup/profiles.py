@@ -6,10 +6,10 @@ from metta.common.util.constants import METTA_AWS_ACCOUNT_ID, METTA_SKYPILOT_URL
 
 
 class UserType(Enum):
-    EXTERNAL = "external"
-    CLOUD = "cloud"
     SOFTMAX = "softmax"
     SOFTMAX_DOCKER = "softmax-docker"
+    EXTERNAL = "external"
+    CLOUD = "cloud"
     CUSTOM = "custom"
 
     @property
@@ -39,69 +39,73 @@ class ProfileConfig(TypedDict):
 PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
     UserType.EXTERNAL: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": True},
+            "uv": {"enabled": True},
+            "js-toolchain": {"enabled": True},
             "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": False},
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.CLOUD: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": True},
+            "uv": {"enabled": True},
+            "js-toolchain": {"enabled": True},
             "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": True},
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": True},
+            "pr-similarity": {"enabled": False},
         }
     },
     UserType.SOFTMAX_DOCKER: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
-            "nodejs": {"enabled": False},
-            "githooks": {"enabled": True},
-            "mettascope": {"enabled": False},
+            "uv": {"enabled": True},
+            "js-toolchain": {"enabled": False},
+            "githooks": {"enabled": False},
             "observatory-key": {"enabled": False},
             "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "notebookwidgets": {"enabled": False},
             "scratchpad": {"enabled": False},
+            "pr-similarity": {"enabled": False},
+            "binary-symlinks": {"enabled": True},
         }
     },
     UserType.SOFTMAX: {
         "components": {
+            "bootstrap": {"enabled": True},
             "system": {"enabled": True},
-            "core": {"enabled": True},
+            "uv": {"enabled": True},
             "codeclip": {"enabled": True},
             "apps": {"enabled": True},
-            "nodejs": {"enabled": True},
+            "js-toolchain": {"enabled": True},
             "githooks": {"enabled": True},
-            "mettascope": {"enabled": True},
             "observatory-key": {"enabled": True, "expected_connection": "@stem.ai"},
             "aws": {"enabled": True, "expected_connection": METTA_AWS_ACCOUNT_ID},
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
-            "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
-            "notebookwidgets": {"enabled": False},
+            "tailscale": {"enabled": False, "expected_connection": "@stem.ai"},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
+            "docker-compose": {"enabled": True},
+            "pr-similarity": {"enabled": True},
+            "ide-extensions": {"enabled": True},
+            "binary-symlinks": {"enabled": True},
         }
     },
 }

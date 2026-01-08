@@ -15,7 +15,7 @@ cc_binary(
     srcs=["test_stats_tracker.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -28,7 +28,7 @@ cc_binary(
     srcs=["test_grid_object.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -49,7 +49,7 @@ cc_binary(
     srcs=["test_mettagrid.cpp"] + [":mettagrid_sources"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Icpp", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",  # For pybind11 headers
         "@googletest//:gtest_main",
@@ -62,7 +62,7 @@ cc_binary(
     srcs=["test_observations.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
@@ -75,10 +75,34 @@ cc_binary(
     srcs=["test_clipper.cpp"],
     copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
     # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
-    linkstatic=False,
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
     deps=[
         "//:mettagrid_lib",
         "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+cc_binary(
+    name="test_has_inventory_bin",
+    srcs=["test_has_inventory.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    # linkopts=["-fsanitize=address"],  # Disabled - causes issues on macOS
+    linkstatic=True,  # Changed to True to ensure all symbols are linked
+    deps=[
+        "//:mettagrid_lib",
+        "@googletest//:gtest_main",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+cc_binary(
+    name="test_collective_bin",
+    srcs=["test_collective.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=True,
+    deps=[
+        "//:mettagrid_lib",
         "@rules_python//python/cc:current_py_cc_libs",
     ],
 )
@@ -129,6 +153,24 @@ py_test(
     size="small",
 )
 
+py_test(
+    name="test_has_inventory",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_has_inventory_bin"],
+    data=[":test_has_inventory_bin"],
+    size="small",
+)
+
+py_test(
+    name="test_collective",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_collective_bin"],
+    data=[":test_collective_bin"],
+    size="small",
+)
+
 # Test suite that runs all tests
 test_suite(
     name="tests_all",
@@ -138,5 +180,7 @@ test_suite(
         ":test_mettagrid",
         ":test_observations",
         ":test_clipper",
+        ":test_has_inventory",
+        ":test_collective",
     ],
 )

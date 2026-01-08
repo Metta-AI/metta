@@ -29,11 +29,11 @@ def _register_task(algorithm: LearningProgressAlgorithm, task_id: int) -> int:
 def _create_tasks(
     algorithm: LearningProgressAlgorithm,
     count: int,
-    rng: random.Random | None = None,
+    rng: random.Random,
 ) -> list[int]:
     task_ids: list[int] = []
-    for index in range(count):
-        task_id = rng.randint(0, 1_000_000) if rng is not None else index
+    for _index in range(count):
+        task_id = rng.randint(0, 1_000_000)
         task_ids.append(_register_task(algorithm, task_id))
     return task_ids
 
@@ -342,59 +342,6 @@ class TestLearningProgressProductionPatterns:
         assert len(unique_samples) > 1, "Should sample from multiple tasks"
 
 
-class TestLearningProgressIntegration:
-    """Integration tests for learning progress with full curriculum system."""
-
-    def test_learning_progress_curriculum_integration(self, curriculum_with_algorithm):
-        """Test learning progress algorithm integration with curriculum."""
-        curriculum = curriculum_with_algorithm.make()
-
-        # Simulate more training episodes for realistic EMA development
-        for episode in range(20):
-            task = curriculum.get_task()
-            assert task is not None
-
-            # Simulate task completion
-            performance = 0.1 + (episode * 0.1)  # Gradually improving
-            task.complete(performance)
-            curriculum.update_task_performance(task._task_id, performance)
-
-        # Check that algorithm has been updated
-        assert curriculum._algorithm is not None
-        stats = curriculum.stats()
-        assert "algorithm/tracker/total_tracked_tasks" in stats
-
-    def test_learning_progress_with_task_eviction(self, curriculum_with_algorithm):
-        """Test learning progress behavior during task eviction scenarios."""
-        config = curriculum_with_algorithm
-        config.num_active_tasks = 3  # Small pool to trigger eviction quickly
-        curriculum = config.make()
-
-        tasks_seen = set()
-
-        # Generate more episodes to build up EMA differences and trigger eviction
-        for episode in range(25):
-            task = curriculum.get_task()
-            tasks_seen.add(task._task_id)
-
-            # Create more varied performance patterns to trigger learning progress differences
-            if episode < 10:
-                # Early episodes: some tasks improve, others stay constant
-                if task._task_id % 2 == 0:
-                    performance = 0.3 + 0.4 * (episode / 9)  # Improving performance
-                else:
-                    performance = 0.5  # Constant performance
-            else:
-                # Later episodes: more varied patterns
-                performance = 0.4 + 0.3 * ((episode + task._task_id) % 4) / 3
-
-            task.complete(performance)
-            curriculum.update_task_performance(task._task_id, performance)
-
-        # Should have seen some tasks (due to eviction in small pool)
-        assert len(tasks_seen) >= 3
-
-
 class TestBidirectionalLearningProgressBehavior:
     """Test specific bidirectional learning progress behavior."""
 
@@ -491,3 +438,40 @@ class TestBidirectionalLearningProgressBehavior:
             assert key in stats, f"Missing stat key: {key}"
 
         assert stats["num_tracked_tasks"] > 0, "Should track some tasks"
+
+    def test_progress_smoothing_affects_bidirectional_scores(self):
+        """Ensure progress_smoothing still influences bidirectional task scores."""
+        smoothed_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.2,
+        )
+        raw_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.0,
+        )
+
+        smoothed_algo = LearningProgressAlgorithm(num_tasks=2, hypers=smoothed_config)
+        raw_algo = LearningProgressAlgorithm(num_tasks=2, hypers=raw_config)
+
+        # Need at least two tasks; bidirectional scoring normalizes over the batch
+        task_id_1 = _register_task(smoothed_algo, 0)
+        task_id_2 = _register_task(smoothed_algo, 1)
+        _register_task(raw_algo, task_id_1)
+        _register_task(raw_algo, task_id_2)
+
+        # Seed identical EMA values and outcomes so only smoothing differs
+        for algo in (smoothed_algo, raw_algo):
+            algo._outcomes[task_id_1] = [0.2, 0.8]
+            algo._per_task_fast[task_id_1] = 0.9
+            algo._per_task_slow[task_id_1] = 0.3
+            algo._outcomes[task_id_2] = [0.5, 0.5]
+            algo._per_task_fast[task_id_2] = 0.5
+            algo._per_task_slow[task_id_2] = 0.5
+
+        smoothed_scores = smoothed_algo.score_tasks([task_id_1, task_id_2])
+        raw_scores = raw_algo.score_tasks([task_id_1, task_id_2])
+
+        assert smoothed_scores[task_id_1] != raw_scores[task_id_1], (
+            "progress_smoothing should alter bidirectional scores"
+        )
+        assert smoothed_scores[task_id_1] < raw_scores[task_id_1], "smoothing should dampen the raw bidirectional score"

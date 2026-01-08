@@ -1,3 +1,3 @@
-"""Low-level fused operators used by Metta."""
+"""Low-level fused operators used by Metta (no current extensions)."""
 
-__all__ = ["agalite_kernels"]
+__all__: list[str] = []

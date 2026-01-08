@@ -6,6 +6,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 - AWS credentials configured with `softmax` profile
 - SkyPilot CLI installed and configured. This results in a ~/.sky/config.yaml
+- Bazel 7.0.0 or newer
 
 If you have successfully run `./devops/skypilot/install.sh` or `metta install`, these should be handled.
 
@@ -13,19 +14,19 @@ You can run this command to confirm your connectivity to the Softmax skypilot se
 authenticated.
 
 ```bash
-sky api info
+uv run sky api info
 ```
 
 ## Usage
 
 ```bash
-./devops/skypilot/launch.py <COMMAND> run=<RUN_ID> [COMMAND_ARGS...] [OPTIONS]
+./devops/skypilot/launch.py <TOOL_PATH> run=<RUN_ID> [COMMAND_ARGS...] [OPTIONS]
 ```
 
 ### Required Parameters
 
-- `COMMAND`: The main command to execute (e.g., `train`, `eval`)
-- `run=<RUN_ID>`: Unique identifier for the run (required parameter)
+- `TOOL_PATH`: The main command to execute (e.g., `arena.train`, `arena.evaluate`)
+- `run=<RUN_ID>`: Unique identifier for the run (will be generated automatically if not provided)
 
 ### Optional Parameters
 
@@ -48,31 +49,33 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 1. **Launch a training run with default parameters:**
 
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_001
+   devops/skypilot/launch.py arena.train run=my_experiment_001
    ```
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   devops/skypilot/launch.py train run=my_experiment_002 trainer.optimizer.learning_rate=0.001 trainer.rollout.batch_size=32
+   devops/skypilot/launch.py arena.train run=my_experiment_002 trainer.lr=0.001
    ```
+
+Refer to `./tools/run.py` for more examples of run parameters.
 
 ### Resource Configuration
 
 3. **Use multiple GPUs:**
 
    ```bash
-   devops/skypilot/launch.py train run=gpu_experiment --gpus 4
+   devops/skypilot/launch.py arena.train run=gpu_experiment --gpus 4
    ```
 
 4. **Multi-node training:**
 
    ```bash
-   devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
+   devops/skypilot/launch.py arena.train run=distributed_training --nodes 2 --gpus 8
    ```
 
 5. **Use on-demand instances (more reliable but costlier):**
    ```bash
-   devops/skypilot/launch.py train run=critical_experiment --no-spot
+   devops/skypilot/launch.py arena.train run=critical_experiment --no-spot
    ```
 
 ### Time Management
@@ -80,12 +83,12 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 6. **Quick 30-minute experiment:**
 
    ```bash
-   devops/skypilot/launch.py train run=quick_test --max-runtime-hours 0.5
+   devops/skypilot/launch.py arena.train run=quick_test --max-runtime-hours 0.5
    ```
 
 7. **Long-running job with 8-hour limit:**
    ```bash
-   devops/skypilot/launch.py train run=long_experiment ---max-runtime-hours 8 --gpus 2
+   devops/skypilot/launch.py arena.train run=long_experiment ---max-runtime-hours 8 --gpus 2
    ```
 
 ### Advanced Usage
@@ -93,18 +96,18 @@ There's a [web dashboard](https://skypilot-api.softmax-research.net/) that displ
 8. **Launch multiple identical experiments:**
 
    ```bash
-   devops/skypilot/launch.py train run=ablation_study --copies 5 ---max-runtime-hours 2
+   devops/skypilot/launch.py arena.train run=ablation_study --copies 5 ---max-runtime-hours 2
    ```
 
 9. **Use specific git commit:**
 
    ```bash
-   devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
+   devops/skypilot/launch.py arena.train run=reproducible_exp --git-ref abc123def
    ```
 
 10. **Preview configuration before launching:**
     ```bash
-    devops/skypilot/launch.py train run=test_config --confirm
+    devops/skypilot/launch.py arena.train run=test_config --confirm
     ```
 
 The `--confirm` flag displays a detailed job summary before launching:
@@ -130,7 +133,7 @@ Should we launch this task? (Y/n):
 
 11. **Dry run:**
     ```bash
-    devops/skypilot/launch.py train run=test_config --dry-run
+    devops/skypilot/launch.py arena.train run=test_config --dry-run
     ```
 
 The `--dry-run` flag allows you to preview the configuration that will be used before launching.
@@ -149,29 +152,29 @@ It will output the complete YAML configuration that would be used for the deploy
 
 ```bash
 # List all jobs with status
-sky jobs queue
+uv run sky jobs queue
 
 # View job logs
-sky jobs logs <JOB_ID>
+uv run sky jobs logs <JOB_ID>
 
 # View controller logs (for debugging)
-sky jobs logs <JOB_ID> --controller
+uv run sky jobs logs <JOB_ID> --controller
 
 # Stream logs in real-time
-sky jobs logs <JOB_ID> --follow
+uv run sky jobs logs <JOB_ID> --follow
 ```
 
 ### Canceling Jobs
 
 ```bash
 # Cancel a specific job
-sky jobs cancel <JOB_ID>
+uv run sky jobs cancel <JOB_ID>
 
 # Cancel all jobs
-sky jobs cancel --all
+uv run sky jobs cancel --all
 
 # Cancel jobs by name pattern
-sky jobs cancel -n "experiment_*"
+uv run sky jobs cancel -n "experiment_*"
 ```
 
 ### Job Status
@@ -229,9 +232,9 @@ echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/
 
 #### Launching
 
-- `lt run=<NAME>` - Quick launch training jobs
+- `lt <TOOL_PATH> run=<NAME>` - Quick launch training jobs
   ```bash
-  lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
+  lt arena.train run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py arena.train run=my_experiment_001
   ```
 
 ## Sandboxes
@@ -242,63 +245,34 @@ terminate after completion, sandboxes remain running until you stop them.
 ### Quick Start
 
 ```bash
-# Create sandbox with main branch
+# Launch a new sandbox
 ./devops/skypilot/sandbox.py
+```
 
-# Check if you have any existing sandboxes
-./devops/skypilot/sandbox.py --check
+### Checking Sandbox Status
 
-# Force create new sandbox (even if one exists)
-./devops/skypilot/sandbox.py --new
-
-# Connect to your sandbox
-ssh <sandbox-name>
+```bash
+# Show existing sandboxes and management commands
+./devops/skypilot/sandbox.py
 ```
 
 ### Creating a Sandbox
 
 ```bash
-# Show existing sandboxes and management commands
-./devops/skypilot/sandbox.py
-
-# Launch a new sandbox with 1 GPU (default)
-./devops/skypilot/sandbox.py --new
+# Launch a new sandbox
+./devops/skypilot/sandbox.py new
 
 # Launch with multiple GPUs
-./devops/skypilot/sandbox.py --new --gpus 4
+./devops/skypilot/sandbox.py new --gpus 4
 
 # Launch with specific git branch
-./devops/skypilot/sandbox.py --new --git-ref feature/my-branch
+./devops/skypilot/sandbox.py new --git-ref feature/my-branch
 
 # Increase wait timeout for cluster initialization
-./devops/skypilot/sandbox.py --new --wait-timeout 600
-```
+./devops/skypilot/sandbox.py new --wait-timeout 600
 
-### Checking Sandbox Status
-
-The `--check` mode provides a quick overview of your sandboxes without creating a new sandbox if none exist:
-
-```bash
-./devops/skypilot/sandbox.py --check
-```
-
-Example output:
-
-```
-Found 2 sandbox(es) for user alice:
-  • alice-sandbox-1 (running) [L4:1]
-  • alice-sandbox-2 (stopped) [L4:4]
-
-Summary:
-  1 running
-  1 stopped
-
-📦 Manage sandboxes:
-  Launch new:     ./devops/skypilot/sandbox.py --new
-  Connect:        ssh alice-sandbox-1
-  Restart:        sky start alice-sandbox-2
-  Stop:           sky stop alice-sandbox-1
-  Delete:         sky down alice-sandbox-1
+# Connect to your sandbox
+ssh <sandbox-name>
 ```
 
 ### Managing Sandboxes
@@ -308,19 +282,19 @@ Summary:
 ssh <sandbox-name>
 
 # Stop sandbox (preserves data, saves costs)
-sky stop <sandbox-name>
+uv run sky stop <sandbox-name>
 
 # Restart a stopped sandbox
-sky start <sandbox-name>
+uv run sky start <sandbox-name>
 
 # Delete sandbox completely
-sky down <sandbox-name>
+uv run sky down <sandbox-name>
 
 # Check logs if sandbox is stuck in INIT
-sky logs <sandbox-name>
+uv run sky logs <sandbox-name>
 
 # Retry launch for stuck clusters
-sky launch -c <sandbox-name> --no-setup
+uv run sky launch -c <sandbox-name> --no-setup
 ```
 
 ### Cost Management
@@ -335,12 +309,12 @@ sky launch -c <sandbox-name> --no-setup
 To disable auto-stop:
 
 ```bash
-sky autostop --cancel <sandbox-name>
+uv run sky autostop --cancel <sandbox-name>
 ```
 
 ## Configuration
 
-The script uses `./devops/skypilot/config/sk_train.yaml` as the base configuration. This file defines:
+The script uses `./devops/skypilot/config/skypilot_run.yaml` as the base configuration. This file defines:
 
 - Default resource requirements (CPU, GPU, memory)
 - Docker image settings
@@ -358,16 +332,16 @@ The following environment variables are automatically set:
 
 ```bash
 # Check cluster status
-sky status
+uv run sky status
 
 # View detailed resource availability
-sky show-gpus
+uv run sky show-gpus
 
 # Check SkyPilot configuration
-sky check
+uv run sky check
 
 # View job details
-sky jobs queue -a
+uv run sky jobs queue -a
 ```
 
 ## Best Practices
@@ -375,7 +349,7 @@ sky jobs queue -a
 1. **Use descriptive run IDs**: Include date, user name, experiment type, and key parameters
 
    ```bash
-   lt run=2024_01_15_bert_lr_sweep_001
+   lt arena.train run=2024_01_15_bert_lr_sweep_001
    ```
 
 2. **Set appropriate timeouts**: Always use `---max-runtime-hours` to prevent runaway costs

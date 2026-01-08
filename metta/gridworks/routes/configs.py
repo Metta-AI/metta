@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.util.fs import get_repo_root
-from metta.gridworks.common import ErrorResult, dump_config_with_implicit_info
+from metta.gridworks.common import extend_config
 from metta.gridworks.configs.registry import ConfigMaker, ConfigMakerKind, ConfigMakerRegistry
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool
@@ -13,7 +13,7 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.base_config import Config
 from mettagrid.config import MettaGridConfig
-from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+from mettagrid.map_builder.map_builder import MapBuilderConfig
 from mettagrid.mapgen.utils.storable_map import StorableMap, StorableMapDict
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def make_configs_router() -> APIRouter:
     repo_root = get_repo_root()
     registry = ConfigMakerRegistry(
         root_dirs=[
-            repo_root / "experiments",
+            repo_root / "recipes",
             repo_root / "packages/cogames/src/cogames",
         ]
     )
@@ -36,12 +36,12 @@ def make_configs_router() -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Config {path} not found")
         return cfg
 
-    def config_to_map_builder(cfg: Config | list[Config]) -> AnyMapBuilderConfig:
+    def config_to_map_builder(cfg: Config | list[Config]) -> MapBuilderConfig:
         if isinstance(cfg, MettaGridConfig):
             return cfg.game.map_builder
         if isinstance(cfg, SimulationConfig):
             return cfg.env.game.map_builder
-        if isinstance(cfg, PlayTool) or isinstance(cfg, ReplayTool):
+        if isinstance(cfg, (PlayTool, ReplayTool)):
             return cfg.sim.env.game.map_builder
         if isinstance(cfg, CurriculumConfig):
             return cfg.make().get_task().get_env_cfg().game.map_builder
@@ -52,11 +52,11 @@ def make_configs_router() -> APIRouter:
             status_code=400, detail=f"Config of type {type(cfg)} can't be converted to a MapBuilderConfig"
         )
 
-    def config_to_map_builder_by_name(cfg: Config | list[Config] | dict[str, Config], name: str) -> AnyMapBuilderConfig:
+    def config_to_map_builder_by_name(cfg: Config | list[Config] | dict[str, Config], name: str) -> MapBuilderConfig:
         if isinstance(cfg, EvaluateTool):
             return config_to_map_builder_by_name(list(cfg.simulations), name)
 
-        if isinstance(cfg, ReplayTool) or isinstance(cfg, PlayTool):
+        if isinstance(cfg, (ReplayTool, PlayTool)):
             return config_to_map_builder_by_name(cfg.sim, name)
 
         if isinstance(cfg, list):
@@ -80,15 +80,15 @@ def make_configs_router() -> APIRouter:
         return result
 
     @router.get("/get")
-    async def get_config(path: str) -> dict | ErrorResult:
+    async def get_config(path: str) -> dict:
         cfg = get_config_maker_or_404(path)
         return {
             "maker": cfg.to_dict(),
-            "config": dump_config_with_implicit_info(cfg.maker()),
+            "config": extend_config(cfg.maker()),
         }
 
     @router.get("/get-map")
-    async def get_map(path: str, name: str | None = None) -> StorableMapDict | ErrorResult:
+    async def get_map(path: str, name: str | None = None) -> StorableMapDict:
         cfg = get_config_maker_or_404(path)
 
         if name:

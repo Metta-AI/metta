@@ -1,22 +1,23 @@
 import pytest
 
 import mettagrid.builder.envs as eb
+from metta.common.tests_support import run_tool_in_process
 from metta.common.util.fs import get_repo_root
 from metta.sim.simulation_config import SimulationConfig
-from metta.tests_support import run_tool_in_process
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
-from mettagrid import MettaGridEnv
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     GameConfig,
     MettaGridConfig,
+    MoveActionConfig,
+    NoopActionConfig,
 )
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
+from mettagrid.simulator import Simulation
 
 
 class TestComprehensiveEnvironmentIntegration:
@@ -27,7 +28,7 @@ class TestComprehensiveEnvironmentIntegration:
     @staticmethod
     def make_debug_env(name: str) -> MettaGridConfig:
         """Create debug environments programmatically using the new system."""
-        if name == "tiny_two_altars":
+        if name == "tiny_two_assemblers":
             return MettaGridConfig(
                 label=name,
                 game=GameConfig(
@@ -35,12 +36,11 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
+                        "assembler": building.assembler_assembler,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -68,8 +68,8 @@ class TestComprehensiveEnvironmentIntegration:
                         "wall": building.wall,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -95,13 +95,12 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -129,14 +128,13 @@ class TestComprehensiveEnvironmentIntegration:
                     max_steps=100,
                     objects={
                         "wall": building.wall,
-                        "altar": building.altar,
-                        "mine_red": building.mine_red,
-                        "generator_red": building.generator_red,
+                        "assembler": building.assembler_assembler,
+                        "mine_red": building.assembler_mine_red,
+                        "generator_red": building.assembler_generator_red,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
-                        rotate=ActionConfig(),
-                        get_items=ActionConfig(),
+                        move=MoveActionConfig(),
+                        noop=NoopActionConfig(),
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
@@ -159,7 +157,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_programmatic_env_creation(self):
         """Test that debug environments can be created programmatically."""
-        for env_name in ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]:
             env_config = self.make_debug_env(env_name)
             assert env_config is not None, f"Failed to create environment {env_name}"
             assert env_config.game.num_agents == 2, f"Environment {env_name} should have 2 agents"
@@ -167,7 +165,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_debug_env_validation(self):
         """Test that programmatically created debug environments are valid."""
-        env_config = self.make_debug_env("tiny_two_altars")
+        env_config = self.make_debug_env("tiny_two_assemblers")
 
         # Validate essential components
         assert hasattr(env_config, "game"), "Environment missing game config"
@@ -178,7 +176,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         # Validate actions are properly configured
         assert env_config.game.actions.move is not None, "Move action not configured"
-        assert env_config.game.actions.rotate is not None, "Rotate action not configured"
+        assert env_config.game.actions.noop is not None, "Noop action not configured"
 
     def test_environment_integration_with_new_recipes(self):
         """Test that environments work with the new recipe system."""
@@ -190,29 +188,23 @@ class TestComprehensiveEnvironmentIntegration:
         assert nav_env.game.num_agents == 2
 
         # Test that they have expected components
-        assert "altar" in arena_env.game.objects
-        assert "altar" in nav_env.game.objects
+        assert "assembler" in arena_env.game.objects
+        assert "assembler" in nav_env.game.objects
         assert arena_env.game.actions.move is not None
         assert nav_env.game.actions.move is not None
 
     def test_programmatic_env_with_mettagrid(self):
         """Test that programmatically created environments work with MettaGridEnv."""
 
-        env_config = self.make_debug_env("tiny_two_altars")
-        env = MettaGridEnv(env_config)
+        cfg = self.make_debug_env("tiny_two_assemblers")
+        sim = Simulation(cfg)
 
-        try:
-            obs, info = env.reset()
-            assert obs is not None, "Environment reset failed to return observation"
-            assert obs.shape[0] == 2, "Observation should be for 2 agents"
-            assert env.action_space is not None, "Action space not configured"
-        finally:
-            env.close()
+        assert len(sim.observations()) == 2, "Observation should be for 2 agents"
 
     def test_simulation_config_creation(self):
         """Test creating simulation configs from environments."""
 
-        for env_name in ["tiny_two_altars", "simple_obstacles"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles"]:
             env_config = self.make_debug_env(env_name)
             sim_config = SimulationConfig(suite="test", name=f"sim_{env_name}", env=env_config)
 
@@ -235,7 +227,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     def test_agents_count_in_environments(self):
         """Test that each debug environment has exactly 2 agents."""
-        for env_name in ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]:
+        for env_name in ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]:
             env_config = self.make_debug_env(env_name)
             assert env_config.game.num_agents == 2, (
                 f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
@@ -247,7 +239,7 @@ class TestComprehensiveEnvironmentIntegration:
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
-        "env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]
+        "env_name", ["tiny_two_assemblers", "simple_obstacles", "resource_collection", "mixed_objects"]
     )
     def test_recipe_based_training_validation(self, env_name, monkeypatch, capsys):
         """Test basic training validation with the new recipe-based system."""
@@ -260,7 +252,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         args = [
-            "experiments.recipes.navigation.train",
+            "recipes.experiment.navigation.train",
             f"run={run_name}",
             "trainer.total_timesteps=50",
             "wandb=off",
@@ -308,7 +300,7 @@ class TestComprehensiveEnvironmentIntegration:
         }
 
         train_args = [
-            "experiments.recipes.arena.train",
+            "recipes.experiment.arena.train",
             f"run={run_name}",
             "trainer.total_timesteps=100",
             "wandb=off",
@@ -325,7 +317,7 @@ class TestComprehensiveEnvironmentIntegration:
 
         # Test simulation tool configuration
         sim_args = [
-            "experiments.recipes.arena.evaluate",
+            "recipes.experiment.arena.evaluate",
             "policy_uri=mock://test",  # Use mock policy
             "--dry-run",
         ]

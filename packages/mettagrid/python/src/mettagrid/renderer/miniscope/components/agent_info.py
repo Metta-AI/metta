@@ -1,18 +1,14 @@
 """Agent info panel component for miniscope renderer."""
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import numpy as np
-from rich import box
-from rich.table import Table
 
-from mettagrid import MettaGridEnv
-from mettagrid.core import BoundingBox
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
 from mettagrid.renderer.miniscope.symbol import get_symbol_for_object
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class AgentInfoComponent(MiniscopeComponent):
@@ -20,7 +16,7 @@ class AgentInfoComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -31,136 +27,141 @@ class AgentInfoComponent(MiniscopeComponent):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.sidebar)
-
-    def _get_object_type_names(self) -> list[str]:
-        """Get object type names from state."""
-        return self.state.object_type_names if self.state else []
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("agent_info")
+        assert sidebar_panel is not None
+        self._set_panel(sidebar_panel)
 
     def _get_resource_names(self) -> list[str]:
         """Get resource names from state."""
-        return self.state.resource_names if self.state else []
+        resource_names = self.state.resource_names
+        assert resource_names is not None
+        return resource_names
 
     def _get_symbol_map(self) -> dict[str, str]:
         """Get symbol map from state."""
-        return self.state.symbol_map if self.state else {}
+        symbol_map = self.state.symbol_map
+        assert symbol_map is not None
+        return symbol_map
 
-    def _get_glyphs(self) -> Optional[list[str]]:
-        """Get glyphs from state."""
-        return self.state.glyphs if self.state else None
+    def _get_vibes(self) -> Optional[list[str]]:
+        """Get vibes from state."""
+        return self.state.vibes
 
-    def update(self) -> List[str]:
-        """Render the agent info panel using current environment and state.
+    def update(self) -> None:
+        """Render the agent info panel using current environment and state."""
+        panel = self._panel
+        assert panel is not None
+        if not self.state.is_sidebar_visible("agent_info"):
+            panel.clear()
+            return
 
-        Returns:
-            List of strings representing the rendered panel
-        """
-        if not self.env or not self.state:
-            return ["[Agent Info: No environment or state]"]
+        grid_objects = self._sim.grid_objects()
 
-        # Get grid objects from environment
-        bbox = BoundingBox(
-            min_row=0,
-            max_row=self.env.map_height,
-            min_col=0,
-            max_col=self.env.map_width,
-        )
-        grid_objects = self.env.grid_objects(bbox)
-
-        table = self._build_table(
+        lines = self._build_lines(
             grid_objects,
             self.state.selected_agent,
             self.state.total_rewards,
             self.state.manual_agents,
         )
-        return table
+        panel.set_content(lines)
 
-    def _build_table(
+    def _build_lines(
         self,
         grid_objects: Dict[int, dict],
         selected_agent: Optional[int],
         total_rewards: Optional[np.ndarray],
         manual_agents: set[int],
-    ) -> Table:
-        """Build the agent info table.
+    ) -> list[str]:
+        """Build fixed-width lines for agent info display."""
+        width = self._width if self._width else 40
+        width = max(24, width)
 
-        Returns:
-            Rich Table object
-        """
-        table = Table(
-            title="Agent Info",
-            show_header=False,
-            box=box.ROUNDED,
-            padding=(0, 1),
-            width=self._width,
-        )
-        table.add_column("Key", style="cyan", no_wrap=True, width=12)
-        table.add_column("Value", style="white")
+        lines: list[str] = []
+        header = "Agent Info"
+        lines.append(header[:width].ljust(width))
+        lines.append("-" * min(width, 40))
+
+        label_width = min(18, max(8, width - 16))
 
         if selected_agent is None:
-            table.add_row("Status", "No agent selected")
+            lines.append(self._format_entry("Status", "No agent selected", width, label_width))
+            return lines
+
+        agent_obj = None
+        for obj in grid_objects.values():
+            if obj.get("agent_id") == selected_agent:
+                agent_obj = obj
+                break
+
+        if agent_obj is None:
+            lines.append(self._format_entry("Status", f"Agent {selected_agent} not found", width, label_width))
+            return lines
+
+        reward = 0.0
+        if total_rewards is not None and selected_agent < len(total_rewards):
+            reward = float(total_rewards[selected_agent])
+
+        symbol_map = self._get_symbol_map()
+        agent_symbol = ""
+        if symbol_map:
+            agent_symbol = get_symbol_for_object(agent_obj, symbol_map)
+
+        vibes = self._get_vibes()
+        vibe_id = agent_obj.get("vibe")
+        vibe_text = ""
+        if vibe_id is not None:
+            if isinstance(vibe_id, int) and vibes and 0 <= vibe_id < len(vibes):
+                vibe_text = f"{vibe_id} {vibes[vibe_id]}"
+            elif isinstance(vibe_id, str):
+                vibe_text = vibe_id
+
+        mode_text = "MANUAL" if selected_agent in manual_agents else "Policy"
+
+        entries: list[tuple[str, str]] = []
+        agent_value = f"{selected_agent} {agent_symbol}".strip()
+        entries.append(("Agent", agent_value))
+        entries.append(("Mode", mode_text))
+        entries.append(("Reward", f"{reward:.2f}"))
+        if vibe_text:
+            entries.append(("Vibe", vibe_text))
+
+        inventory = agent_obj.get("inventory", {}) if agent_obj else {}
+        resource_names = self._get_resource_names()
+
+        if not inventory or not isinstance(inventory, dict):
+            entries.append(("Inventory", "(empty)"))
         else:
-            # Find the agent in grid_objects
-            agent_obj = None
-            for obj in grid_objects.values():
-                if obj.get("agent_id") == selected_agent:
-                    agent_obj = obj
-                    break
-
-            if agent_obj is None:
-                table.add_row("Agent", str(selected_agent))
-                table.add_row("Status", "(not found)")
-            else:
-                # Build inventory display
-                reward = (
-                    total_rewards[selected_agent]
-                    if total_rewards is not None and selected_agent < len(total_rewards)
-                    else 0.0
-                )
-
-                # Get agent symbol
-                agent_symbol = ""
-                symbol_map = self._get_symbol_map()
-                object_type_names = self._get_object_type_names()
-                if symbol_map and object_type_names:
-                    agent_symbol = get_symbol_for_object(agent_obj, object_type_names, symbol_map)
-                    agent_symbol = f" {agent_symbol}"
-
-                table.add_row("Agent", f"{selected_agent}{agent_symbol}")
-                table.add_row("Reward", f"{reward:.1f}")
-
-                # Show manual mode status
-                if selected_agent in manual_agents:
-                    table.add_row("Mode", "MANUAL")
+            first_resource = True
+            for resource_id, amount in sorted(inventory.items()):
+                if amount <= 0:
+                    continue
+                if resource_id >= len(resource_names):
+                    resource_name = str(resource_id)
                 else:
-                    table.add_row("Mode", "Policy")
-
-                # Show glyph if available
-                glyph_id = agent_obj.get("glyph")
-                glyphs = self._get_glyphs()
-                # glyph_id could be an int or a string emoji
-                if glyph_id is not None:
-                    if isinstance(glyph_id, int) and glyphs and 0 <= glyph_id < len(glyphs):
-                        glyph_symbol = glyphs[glyph_id]
-                        table.add_row("Glyph", f"{glyph_id} {glyph_symbol}")
-                    elif isinstance(glyph_id, str):
-                        # Direct emoji string
-                        table.add_row("Glyph", glyph_id)
-
-                inventory = agent_obj.get("inventory", {})
-                if not inventory or not isinstance(inventory, dict):
-                    table.add_row("Inventory", "(empty)")
+                    resource_name = resource_names[resource_id]
+                value_text = f"{resource_name}: {amount}"
+                if first_resource:
+                    entries.append(("Inventory", value_text))
+                    first_resource = False
                 else:
-                    # Show resources with amounts (inventory is dict of resource_id -> amount)
-                    has_items = False
-                    for resource_id, amount in sorted(inventory.items()):
-                        resource_names = self._get_resource_names()
-                        if resource_id < len(resource_names) and amount > 0:
-                            resource_name = resource_names[resource_id]
-                            table.add_row(resource_name, str(amount))
-                            has_items = True
-                    if not has_items:
-                        table.add_row("Inventory", "(empty)")
+                    entries.append(("", value_text))
 
-        return table
+            if first_resource:
+                entries.append(("Inventory", "(empty)"))
+
+        for label, value in entries:
+            lines.append(self._format_entry(label, value, width, label_width))
+
+        return lines
+
+    def _format_entry(self, label: str, value: str, width: int, label_width: int) -> str:
+        """Format a key/value entry with aligned value column."""
+        label = label[:label_width]
+        value_width = max(1, width - label_width - 2)
+        trimmed_value = value[:value_width]
+        if label:
+            formatted = f"{label:<{label_width}}: {trimmed_value}"
+        else:
+            formatted = f"{' ':<{label_width}}  {trimmed_value}"
+        return formatted[:width].ljust(width)

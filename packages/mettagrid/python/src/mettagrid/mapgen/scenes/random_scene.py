@@ -1,11 +1,11 @@
 import numpy as np
 
 from mettagrid.base_config import Config
-from mettagrid.mapgen.scene import ChildrenAction, Scene, SceneConfig
+from mettagrid.mapgen.scene import AnySceneConfig, ChildrenAction, Scene, SceneConfig
 
 
 class RandomSceneCandidate(Config):
-    scene: SceneConfig
+    scene: AnySceneConfig
     weight: float = 1
 
 

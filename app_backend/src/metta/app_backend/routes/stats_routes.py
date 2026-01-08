@@ -1,64 +1,58 @@
+import tempfile
 import uuid
-from typing import Any
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import aioboto3
+import duckdb
+from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.route_logger import timed_route
+from metta.app_backend.auth import OptionalUserOrToken, UserOrToken
+from metta.app_backend.metta_repo import (
+    EpisodeWithTags,
+    MettaRepo,
+    PolicyRow,
+    PolicyVersionWithName,
+    PublicPolicyVersionRow,
+)
+from metta.app_backend.route_logger import timed_http_handler
+
+OBSERVATORY_S3_BUCKET = "observatory-private"
 
 
 # Request/Response Models
-class PolicyIdResponse(BaseModel):
-    policy_ids: dict[str, uuid.UUID]
+class UUIDResponse(BaseModel):
+    id: uuid.UUID
 
 
-class TrainingRunCreate(BaseModel):
+class PolicyVersionResponse(BaseModel):
+    id: uuid.UUID
     name: str
-    attributes: dict[str, str] = Field(default_factory=dict)
-    url: str | None = None
-    description: str | None = None
-    tags: list[str] | None = None
-
-
-class TrainingRunResponse(BaseModel):
-    id: uuid.UUID
-
-
-class EpochCreate(BaseModel):
-    start_training_epoch: int
-    end_training_epoch: int
-    attributes: dict[str, Any] = Field(default_factory=dict)
-
-
-class EpochResponse(BaseModel):
-    id: uuid.UUID
+    version: int
 
 
 class PolicyCreate(BaseModel):
     name: str
-    description: str | None = None
-    url: str | None = None
-    epoch_id: uuid.UUID | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    is_system_policy: bool = False
 
 
-class PolicyResponse(BaseModel):
-    id: uuid.UUID
+class PolicyVersionCreate(BaseModel):
+    policy_spec: dict[str, Any] = Field(default_factory=dict)
+    git_hash: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    s3_path: str | None = None
 
 
 class EpisodeCreate(BaseModel):
-    agent_policies: dict[int, uuid.UUID]
+    agent_policy_versions: dict[int, uuid.UUID]
     # agent_id -> metric_name -> metric_value
     agent_metrics: dict[int, dict[str, float]]
-    primary_policy_id: uuid.UUID
-    sim_suite: str
-    env_name: str
-    stats_epoch: uuid.UUID | None = None
+    primary_policy_id: uuid.UUID | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
-    tags: list[str] | None = None
+    tags: list[tuple[str, str]] = Field(default_factory=list)
     thumbnail_url: str | None = None
 
 
@@ -66,131 +60,394 @@ class EpisodeResponse(BaseModel):
     id: uuid.UUID
 
 
+class BulkEpisodeUploadResponse(BaseModel):
+    """Response for bulk episode upload."""
+
+    episodes_created: int
+    duckdb_s3_uri: str
+
+
+class PresignedUploadUrlResponse(BaseModel):
+    """Response containing presigned URL for direct S3 upload."""
+
+    upload_url: str
+    s3_key: str
+    upload_id: uuid.UUID
+
+
+class CompleteBulkUploadRequest(BaseModel):
+    """Request to complete a bulk upload."""
+
+    upload_id: uuid.UUID
+
+
+class CompletePolicySubmitRequest(BaseModel):
+    """Request to complete a policy submission after uploading to S3."""
+
+    upload_id: uuid.UUID
+    name: str
+
+
+class MyPolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+
+
+class EpisodeQueryRequest(BaseModel):
+    primary_policy_version_ids: Optional[list[uuid.UUID]] = None
+    episode_ids: Optional[list[uuid.UUID]] = None
+    tag_filters: Optional[dict[str, Optional[list[str]]]] = None
+    limit: Optional[int] = 200
+    offset: int = 0
+
+
+class EpisodeQueryResponse(BaseModel):
+    episodes: list[EpisodeWithTags]
+
+
+class PoliciesResponse(BaseModel):
+    entries: list[PolicyRow]
+    total_count: int
+
+
+class PolicyVersionsResponse(BaseModel):
+    entries: list[PublicPolicyVersionRow]
+    total_count: int
+
+
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
-    # Create the user-or-token authentication dependency
-    user_or_token = Depends(create_user_or_token_dependency(stats_repo))
+    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> PolicyVersionResponse:
+        s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
+        policy_id = await stats_repo.upsert_policy(name=name, user_id=user_id, attributes={})
+        policy_version_id = await stats_repo.create_policy_version(
+            policy_id=policy_id,
+            s3_path=s3_path,
+            git_hash=None,
+            policy_spec={},
+            attributes={},
+        )
+        pv = await stats_repo.get_policy_version_with_name(policy_version_id)
+        if pv is None:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created policy version")
+        return PolicyVersionResponse(id=policy_version_id, name=pv.name, version=pv.version)
 
-    @router.get("/policies/ids", response_model=PolicyIdResponse)
-    @timed_route("get_policy_ids")
-    async def get_policy_ids(
-        policy_names: list[str] = Query(default=[]), user: str = user_or_token
-    ) -> PolicyIdResponse:
-        """Get policy IDs for given policy names."""
+    @router.post("/policies")
+    @timed_http_handler
+    async def upsert_policy(policy: PolicyCreate, user: UserOrToken) -> UUIDResponse:
+        if policy.is_system_policy:
+            user_id = "system"
+        else:
+            user_id = user
+
+        policy_id = await stats_repo.upsert_policy(name=policy.name, user_id=user_id, attributes=policy.attributes)
+        return UUIDResponse(id=policy_id)
+
+    @router.post("/policies/{policy_id_str}/versions")
+    @timed_http_handler
+    async def create_policy_version(
+        policy_id_str: str, policy_version: PolicyVersionCreate, user: UserOrToken
+    ) -> UUIDResponse:
+        policy_id = uuid.UUID(policy_id_str)
+        policy_version_id = await stats_repo.create_policy_version(
+            policy_id=policy_id,
+            s3_path=policy_version.s3_path,
+            git_hash=policy_version.git_hash,
+            policy_spec=policy_version.policy_spec,
+            attributes=policy_version.attributes,
+        )
+        return UUIDResponse(id=policy_version_id)
+
+    @router.get("/policies/versions/{policy_version_id_str}")
+    @timed_http_handler
+    async def get_policy_version(policy_version_id_str: str) -> PolicyVersionWithName:
+        policy_version_id = uuid.UUID(policy_version_id_str)
+        policy_version = await stats_repo.get_policy_version_with_name(policy_version_id)
+        if policy_version is None:
+            raise HTTPException(status_code=404, detail=f"Policy version {policy_version_id} not found")
+        return policy_version
+
+    @router.get("/policies/{policy_id}")
+    @timed_http_handler
+    async def get_policy_by_id(policy_id: str, user: UserOrToken) -> PublicPolicyVersionRow:
+        """Get a single policy version by ID.
+
+        Note: Despite the parameter name 'policy_id', this endpoint expects
+        a policy_version_id (UUID). This naming matches the frontend's convention.
+
+        The frontend page at /alignmentleague/policy/[id] relies on this endpoint.
+        """
         try:
-            policy_ids = await stats_repo.get_policy_ids(policy_names)
-            return PolicyIdResponse(policy_ids=policy_ids)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get policy IDs: {str(e)}") from e
+            policy_version_id = uuid.UUID(policy_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid UUID format: {policy_id}") from None
 
-    @router.post("/training-runs", response_model=TrainingRunResponse)
-    @timed_route("create_training_run")
-    async def create_training_run(training_run: TrainingRunCreate, user: str = user_or_token) -> TrainingRunResponse:
-        """Create a new training run."""
-        try:
-            run_id = await stats_repo.create_training_run(
-                name=training_run.name,
-                user_id=user,
-                attributes=training_run.attributes,
-                url=training_run.url,
-                description=training_run.description,
-                tags=training_run.tags,
-            )
-            return TrainingRunResponse(id=run_id)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
+        policy_version = await stats_repo.get_public_policy_version_by_id(policy_version_id)
 
-    @router.patch("/training-runs/{run_id}/status", status_code=204)
-    @timed_route("update_training_run_status")
-    async def update_training_run_status(run_id: str, status_update: dict[str, str], user: str = user_or_token) -> None:
-        """Update the status of a training run."""
-        # Validate status value first, outside try block so HTTPExceptions can bubble up
-        status = status_update.get("status")
-        if not status:
-            raise HTTPException(status_code=400, detail="Missing 'status' field")
+        if policy_version is None:
+            raise HTTPException(status_code=404, detail=f"Policy version {policy_id} not found")
 
-        valid_statuses = {"running", "completed", "failed"}
-        if status not in valid_statuses:
+        return policy_version
+
+    @router.put("/policies/versions/{policy_version_id_str}/tags")
+    @timed_http_handler
+    async def update_policy_version_tags_route(
+        policy_version_id_str: str, tags: Annotated[dict[str, str], Body(...)], user: UserOrToken
+    ) -> UUIDResponse:
+        policy_version_id = uuid.UUID(policy_version_id_str)
+        await stats_repo.upsert_policy_version_tags(policy_version_id, tags)
+        return UUIDResponse(id=policy_version_id)
+
+    @router.post("/policies/submit")
+    @timed_http_handler
+    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> PolicyVersionResponse:
+        if not file.filename or not file.filename.endswith(".zip"):
             raise HTTPException(
-                status_code=400, detail=f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be a .zip file",
             )
 
-        try:
-            run_id_uuid = uuid.UUID(run_id)
-            await stats_repo.update_training_run_status(run_id_uuid, status)
+        submission_uuid = uuid.uuid4()
+        s3_key = f"cogames/submissions/{user}/{submission_uuid}.zip"
 
-        except ValueError as e:
-            error_msg = str(e)
-            if (
-                "invalid literal for int()" in error_msg
-                or "badly formed hexadecimal" in error_msg
-                or "UUID" in error_msg
-            ):
-                raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-            elif "not found" in error_msg.lower():
-                raise HTTPException(status_code=404, detail=error_msg) from e
-            else:
-                # Let other ValueErrors bubble up to be handled appropriately
-                raise HTTPException(status_code=400, detail=f"Validation error: {error_msg}") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to update training run status: {str(e)}") from e
+        with tempfile.SpooledTemporaryFile(max_size=100 * 1024 * 1024) as temp_file:
+            while chunk := await file.read(8192):
+                temp_file.write(chunk)
+            temp_file.seek(0)
 
-    @router.post("/training-runs/{run_id}/epochs", response_model=EpochResponse)
-    @timed_route("create_epoch")
-    async def create_epoch(run_id: str, epoch: EpochCreate, user: str = user_or_token) -> EpochResponse:
-        """Create a new policy epoch."""
-        try:
-            run_id_uuid = uuid.UUID(run_id)
-            epoch_id = await stats_repo.create_epoch(
-                run_id=run_id_uuid,
-                start_training_epoch=epoch.start_training_epoch,
-                end_training_epoch=epoch.end_training_epoch,
-                attributes=epoch.attributes,
+            session = aioboto3.Session()
+            async with session.client("s3") as s3_client:  # type: ignore
+                await s3_client.upload_fileobj(
+                    temp_file,
+                    OBSERVATORY_S3_BUCKET,
+                    s3_key,
+                    ExtraArgs={"ContentType": "application/zip"},
+                )
+
+        return await _create_policy_version_from_s3_key(name=name, user_id=user, s3_key=s3_key)
+
+    @router.post("/policies/submit/presigned-url")
+    @timed_http_handler
+    async def get_submit_policy_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+        from botocore.config import Config
+
+        upload_id = uuid.uuid4()
+        s3_key = f"cogames/submissions/{user}/{upload_id}.zip"
+
+        session = aioboto3.Session()
+        async with session.client("s3", config=Config(signature_version="s3v4")) as s3_client:  # type: ignore
+            presigned_url = await s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": OBSERVATORY_S3_BUCKET,
+                    "Key": s3_key,
+                    "ContentType": "application/zip",
+                },
+                ExpiresIn=3600,
             )
-            return EpochResponse(id=epoch_id)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create policy epoch: {str(e)}") from e
 
-    @router.post("/policies", response_model=PolicyResponse)
-    @timed_route("create_policy")
-    async def create_policy(policy: PolicyCreate, user: str = user_or_token) -> PolicyResponse:
-        """Create a new policy."""
-        try:
-            policy_id = await stats_repo.create_policy(
-                name=policy.name, description=policy.description, url=policy.url, epoch_id=policy.epoch_id
-            )
-            return PolicyResponse(id=policy_id)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create policy: {str(e)}") from e
+        return PresignedUploadUrlResponse(upload_url=presigned_url, s3_key=s3_key, upload_id=upload_id)
 
-    @router.post("/episodes", response_model=EpisodeResponse)
-    @timed_route("record_episode")
-    async def record_episode(episode: EpisodeCreate, user: str = user_or_token) -> EpisodeResponse:
-        """Record a new episode with agent policies and metrics."""
-        eval_name = f"{episode.sim_suite}/{episode.env_name}"
+    @router.post("/policies/submit/complete")
+    @timed_http_handler
+    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> PolicyVersionResponse:
+        s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
+
         try:
-            episode_id = await stats_repo.record_episode(
-                agent_policies=episode.agent_policies,
-                agent_metrics=episode.agent_metrics,
-                primary_policy_id=episode.primary_policy_id,
-                eval_name=eval_name,
-                stats_epoch=episode.stats_epoch,
-                replay_url=episode.replay_url,
-                attributes=episode.attributes,
-                eval_task_id=episode.eval_task_id,
-                tags=episode.tags,
-                thumbnail_url=episode.thumbnail_url,
-            )
-            return EpisodeResponse(id=episode_id)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
+            session = aioboto3.Session()
+            async with session.client("s3") as s3_client:  # type: ignore
+                await s3_client.head_object(Bucket=OBSERVATORY_S3_BUCKET, Key=s3_key)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to record episode: {str(e)}") from e
+            raise HTTPException(status_code=400, detail=f"Uploaded submission not found in S3: {str(e)}") from e
+
+        return await _create_policy_version_from_s3_key(name=request.name, user_id=user, s3_key=s3_key)
+
+    @router.post("/episodes/bulk_upload/presigned-url")
+    @timed_http_handler
+    async def get_bulk_upload_presigned_url(user: UserOrToken) -> PresignedUploadUrlResponse:
+        from botocore.config import Config
+
+        upload_id = uuid.uuid4()
+        s3_key = f"episodes/{upload_id}.duckdb"
+
+        session = aioboto3.Session()
+        async with session.client("s3", config=Config(signature_version="s3v4")) as s3_client:  # type: ignore
+            presigned_url = await s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": OBSERVATORY_S3_BUCKET,
+                    "Key": s3_key,
+                    "ContentType": "application/octet-stream",
+                },
+                ExpiresIn=3600,
+            )
+
+        return PresignedUploadUrlResponse(upload_url=presigned_url, s3_key=s3_key, upload_id=upload_id)
+
+    @router.post("/episodes/bulk_upload/complete")
+    @timed_http_handler
+    async def complete_bulk_upload(
+        request: CompleteBulkUploadRequest,
+        user: UserOrToken,
+    ) -> BulkEpisodeUploadResponse:
+        from metta.app_backend.episode_stats_db import (
+            read_agent_metrics,
+            read_agent_policies,
+            read_episode_tags,
+            read_episodes,
+        )
+
+        upload_id = request.upload_id
+        s3_key = f"episodes/{upload_id}.duckdb"
+        s3_uri = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".duckdb") as temp_file:
+            temp_file_path = temp_file.name
+
+        session = aioboto3.Session()
+        async with session.client("s3") as s3_client:  # type: ignore
+            await s3_client.download_file(OBSERVATORY_S3_BUCKET, s3_key, temp_file_path)
+
+        conn = duckdb.connect(temp_file_path, read_only=True)
+
+        episodes = read_episodes(conn)
+
+        episodes_created = 0
+        for episode_row in episodes:
+            episode_id = uuid.UUID(episode_row[0]) if isinstance(episode_row[0], str) else episode_row[0]
+            primary_pv_id = uuid.UUID(episode_row[1]) if isinstance(episode_row[1], str) and episode_row[1] else None
+            replay_url = episode_row[2]
+            thumbnail_url = episode_row[3]
+            attributes = episode_row[4] or {}
+            eval_task_id = uuid.UUID(episode_row[5]) if isinstance(episode_row[5], str) and episode_row[5] else None
+
+            tags = read_episode_tags(conn, str(episode_id))
+
+            agent_policy_map_str = read_agent_policies(conn, str(episode_id))
+            agent_policy_map = {agent_id: uuid.UUID(pv_id) for agent_id, pv_id in agent_policy_map_str.items()}
+
+            agent_metrics_result = read_agent_metrics(conn, str(episode_id))
+
+            policy_metrics: dict[uuid.UUID, dict[str, float]] = {}
+            for agent_id, metric_name, metric_value in agent_metrics_result:
+                if metric_name != "reward":
+                    continue
+
+                pv_id = agent_policy_map.get(int(agent_id))
+                if pv_id is None:
+                    continue
+
+                if pv_id not in policy_metrics:
+                    policy_metrics[pv_id] = {}
+
+                if metric_name not in policy_metrics[pv_id]:
+                    policy_metrics[pv_id][metric_name] = 0.0
+
+                policy_metrics[pv_id][metric_name] += float(metric_value)
+
+            policy_agent_counts: dict[uuid.UUID, int] = {}
+            for _agent_id, pv_id in agent_policy_map.items():
+                policy_agent_counts[pv_id] = policy_agent_counts.get(pv_id, 0) + 1
+
+            policy_versions = [(pv_id, count) for pv_id, count in policy_agent_counts.items()]
+            policy_metrics_list = [
+                (pv_id, metric_name, value)
+                for pv_id, metrics in policy_metrics.items()
+                for metric_name, value in metrics.items()
+            ]
+
+            await stats_repo.record_episode(
+                id=episode_id,
+                data_uri=s3_uri,
+                primary_pv_id=primary_pv_id,
+                replay_url=replay_url,
+                attributes=attributes,
+                eval_task_id=eval_task_id,
+                thumbnail_url=thumbnail_url,
+                tags=tags,
+                policy_versions=policy_versions,
+                policy_metrics=policy_metrics_list,
+            )
+
+            episodes_created += 1
+
+        conn.close()
+
+        return BulkEpisodeUploadResponse(episodes_created=episodes_created, duckdb_s3_uri=s3_uri)
+
+    @router.get("/policies")
+    @timed_http_handler
+    async def get_policies(
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        entries, total_count = await stats_repo.get_policies(
+            name_exact=name_exact,
+            name_fuzzy=name_fuzzy,
+            limit=limit,
+            offset=offset,
+        )
+        return PoliciesResponse(entries=entries, total_count=total_count)
+
+    @router.get("/policy-versions")
+    @timed_http_handler
+    async def get_policy_versions(
+        user: OptionalUserOrToken,
+        name_exact: Optional[str] = None,
+        name_fuzzy: Optional[str] = None,
+        version: Optional[int] = None,
+        policy_version_ids: Optional[list[str]] = Query(default=None),
+        mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
+        limit: int = 50,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        if mine and not user:
+            raise HTTPException(status_code=401, detail="Authentication required for mine=true")
+        pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
+        entries, total_count = await stats_repo.get_policy_versions(
+            name_exact=name_exact,
+            name_fuzzy=name_fuzzy,
+            version=version,
+            policy_version_ids=pv_uuids,
+            user_id=user if mine else None,
+            limit=limit,
+            offset=offset,
+        )
+        return PolicyVersionsResponse(entries=entries, total_count=total_count)
+
+    @router.get("/policies/{policy_id}/versions")
+    @timed_http_handler
+    async def get_versions_for_policy(
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> PolicyVersionsResponse:
+        entries, total_count = await stats_repo.get_versions_for_policy(
+            policy_id=policy_id,
+            limit=limit,
+            offset=offset,
+        )
+        return PolicyVersionsResponse(entries=entries, total_count=total_count)
+
+    @router.get("/policies/my-versions")
+    @timed_http_handler
+    async def get_my_policy_versions(user: UserOrToken) -> MyPolicyVersionsResponse:
+        policy_versions = await stats_repo.get_user_policy_versions(user)
+        return MyPolicyVersionsResponse(entries=policy_versions)
+
+    @router.post("/episodes/query", response_model=EpisodeQueryResponse)
+    @timed_http_handler
+    async def query_episodes(request: EpisodeQueryRequest, user: UserOrToken) -> EpisodeQueryResponse:
+        episodes = await stats_repo.get_episodes(
+            primary_policy_version_ids=request.primary_policy_version_ids,
+            episode_ids=request.episode_ids,
+            tag_filters=request.tag_filters,
+            limit=request.limit,
+            offset=request.offset,
+        )
+        return EpisodeQueryResponse(episodes=episodes)
 
     return router

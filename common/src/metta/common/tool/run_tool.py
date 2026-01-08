@@ -1,7 +1,14 @@
 #!/usr/bin/env -S uv run
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
 """Runner that takes a function that creates a ToolConfig,
 invokes the function, and then runs the tool defined by the config."""
 
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
+
+# Configure PyTorch globally before any other imports
 import argparse
 import copy
 import functools
@@ -13,47 +20,33 @@ import signal
 import sys
 import tempfile
 import traceback
-import warnings
 from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 from rich.console import Console
-from typing_extensions import TypeVar
 
 from metta.common.tool import Tool
 from metta.common.tool.recipe_registry import recipe_registry
-from metta.common.tool.tool_path import resolve_and_load_tool_maker
-from metta.common.tool.tool_registry import tool_registry
-from metta.common.util.log_config import init_logging
+from metta.common.tool.schema import get_pydantic_field_info
+from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
+from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.rl.system_config import seed_everything
-from mettagrid.base_config import Config
+from metta.rl.torch_init import (
+    configure_torch_for_determinism,
+    configure_torch_globally_for_performance,
+    seed_everything_distributed_aware,
+)
 
 logger = logging.getLogger(__name__)
+
+_KNOWN_TOOLS = {"train", "evaluate", "evaluate_remote", "play", "replay", "sweep"}
 
 # --------------------------------------------------------------------------------------
 # Environment setup
 # --------------------------------------------------------------------------------------
 
-
-def init_mettagrid_system_environment() -> None:
-    """Initialize environment variables for headless operation."""
-    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
-    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-    os.environ.setdefault("MPLBACKEND", "Agg")
-    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
-    os.environ.setdefault("DISPLAY", "")
-
-    # Suppress deprecation warnings
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
-    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
-    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
-
-    # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
-    logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
-
-
-T = TypeVar("T", bound=Config)
+# This should be called early.
+configure_torch_globally_for_performance()
 
 # --------------------------------------------------------------------------------------
 # Output handling
@@ -71,7 +64,7 @@ def output_error(message: str) -> None:
     if sys.stdout.isatty():
         print(message, file=sys.stderr)
     else:
-        logger.error(message.strip())
+        logger.error(message.strip(), exc_info=True)
 
 
 def output_exception(message: str) -> None:
@@ -200,65 +193,6 @@ def type_parse(value: Any, annotation: Any) -> Any:
         return value
     adapter = TypeAdapter(annotation)
     return adapter.validate_python(value)
-
-
-def get_pydantic_field_info(model_class: type[BaseModel], prefix: str = "") -> list[tuple[str, str, Any, bool]]:
-    """Recursively get field information from a Pydantic model.
-    Returns list of (path, type_str, default, required) tuples.
-    """
-    fields_info = []
-
-    for field_name, field in model_class.model_fields.items():
-        field_path = f"{prefix}.{field_name}" if prefix else field_name
-        annotation = field.annotation
-
-        # Get the origin type if it's a generic
-        origin = getattr(annotation, "__origin__", None)
-
-        # Handle Optional types
-        if origin is type(None):
-            actual_type = annotation
-        elif hasattr(annotation, "__args__"):
-            # For Optional[X], Union[X, None], etc.
-            args = getattr(annotation, "__args__", ())
-            non_none_types = [arg for arg in args if arg is not type(None)]
-            if non_none_types:
-                actual_type = non_none_types[0] if len(non_none_types) == 1 else annotation
-            else:
-                actual_type = annotation
-        else:
-            actual_type = annotation
-
-        # Check if it's a nested Pydantic model
-        try:
-            if inspect.isclass(actual_type) and issubclass(actual_type, BaseModel):
-                # Add the parent field first (before nested fields for better ordering)
-                type_name = actual_type.__name__
-                # Don't show the full default object representation for complex models
-                if field.default is not None and not callable(field.default):
-                    default_val = f"<{type_name} instance>"
-                else:
-                    default_val = field.default_factory if field.default_factory else None
-                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-                fields_info.append((field_path, type_name, default_val, is_required))
-
-                # Then recursively get nested fields
-                nested_fields = get_pydantic_field_info(actual_type, field_path)
-                fields_info.extend(nested_fields)
-            else:
-                # Regular field
-                type_name = getattr(actual_type, "__name__", str(actual_type))
-                default_val = field.default if field.default is not None else field.default_factory
-                is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-                fields_info.append((field_path, type_name, default_val, is_required))
-        except (TypeError, AttributeError):
-            # For complex types that can't be inspected
-            type_name = str(annotation).replace("typing.", "")
-            default_val = field.default if field.default is not None else field.default_factory
-            is_required = field.is_required() if hasattr(field, "is_required") else (default_val is None)
-            fields_info.append((field_path, type_name, default_val, is_required))
-
-    return fields_info
 
 
 def list_tool_arguments(tool_maker: Any, console: Console) -> None:
@@ -392,26 +326,6 @@ def list_tool_arguments(tool_maker: Any, console: Console) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def list_all_recipes(console: Console) -> None:
-    """List all available recipes and their tools."""
-    console.print("\n[bold cyan]Available Recipes:[/bold cyan]\n")
-
-    recipes = recipe_registry.get_all()
-
-    if not recipes:
-        console.print("[yellow]No recipes found.[/yellow]")
-        return
-
-    for recipe in sorted(recipes, key=lambda r: r.module_name):
-        maker_names = recipe.get_all_tool_maker_names()
-
-        if maker_names:
-            console.print(f"[bold]{recipe.short_name}[/bold]")
-            for maker_name in sorted(maker_names):
-                console.print(f"  └─ {maker_name}")
-            console.print()
-
-
 def list_module_tools(module_path: str, console: Console) -> bool:
     """List all tools available in a module. Returns True if successful."""
     # Try to load recipe (handles both short and full paths)
@@ -470,7 +384,7 @@ constructor/function vs configuration overrides based on introspection.
         nargs="?",
         help=(
             "Path or shorthand to the tool maker (function or Tool class). Examples: "
-            "'experiments.recipes.arena.train', 'arena.train', or two-part "
+            "'recipes.experiment.arena.train', 'arena.train', or two-part "
             "'train arena' (equivalent to 'arena.train')."
         ),
     )
@@ -511,7 +425,7 @@ constructor/function vs configuration overrides based on introspection.
         )
         return 2
     # Support shorthand syntax for tool path:
-    #  - Allow omitting 'experiments.recipes.' prefix, e.g. 'arena.train'
+    #  - Allow omitting 'recipes.prod.' or 'recipes.experiment.' prefix, e.g. 'arena.train'
     #  - Allow two-part form 'train arena' as sugar for 'arena.train'
 
     # Exit on ctrl+c with proper exit code
@@ -536,7 +450,7 @@ constructor/function vs configuration overrides based on introspection.
 
         # Check if it's a bare tool name (like 'train', 'evaluate')
         # If it's a known tool type, list all recipes that support it
-        if tool_path in tool_registry.name_to_tool:
+        if tool_path in _KNOWN_TOOLS:
             console.print(f"\n[bold]Recipes supporting '{tool_path}':[/bold]\n")
             recipes = recipe_registry.get_all()
             found_any = False
@@ -559,19 +473,12 @@ constructor/function vs configuration overrides based on introspection.
         # If listing failed, continue to show error below
 
     # Try two-part form first if next arg looks like a module name (not key=value)
-    tool_maker = None
-    args_consumed = 0
 
-    if raw_positional_args and ("=" not in raw_positional_args[0]) and (not raw_positional_args[0].startswith("-")):
-        # Try 'train arena' → 'arena.train'
-        two_part_path = f"{raw_positional_args[0]}.{tool_path}"
-        tool_maker = resolve_and_load_tool_maker(two_part_path)
-        if tool_maker:
-            args_consumed = 1
+    second_token = raw_positional_args[0] if raw_positional_args else None
+    resolved_tool_path, args_consumed = parse_two_token_syntax(tool_path, second_token)
 
-    # If two-part didn't work, try single form
-    if not tool_maker:
-        tool_maker = resolve_and_load_tool_maker(tool_path)
+    # Try to load the tool maker with the resolved path
+    tool_maker = resolve_and_load_tool_maker(resolved_tool_path)
 
     # Rebuild the arg list to parse (skip consumed args)
     all_args = raw_positional_args[args_consumed:] + unknown_args
@@ -627,6 +534,10 @@ constructor/function vs configuration overrides based on introspection.
                 # Prefer nested group if provided (e.g., param 'trainer' and CLI has 'trainer.*')
                 if name in nested_cli:
                     provided = nested_cli[name]
+                    if name == "policy_architecture" and isinstance(provided, dict) and p.default is not inspect._empty:
+                        # Let policy_architecture.* flow to Tool overrides so sweeps can
+                        # tweak architecture params without injecting raw dicts.
+                        continue
 
                     # If the parameter has a default dict or BaseModel, start from it and merge overrides.
                     base: Any | None = None
@@ -745,8 +656,10 @@ constructor/function vs configuration overrides based on introspection.
     # ----------------------------------------------------------------------------------
     # Seed & Run
     # ----------------------------------------------------------------------------------
-    if hasattr(tool_cfg, "system"):
-        seed_everything(tool_cfg.system)
+
+    seed_everything_distributed_aware(tool_cfg.system.seed)
+    if tool_cfg.system.torch_deterministic:
+        configure_torch_for_determinism()
 
     output_info(f"\n{bold(green('Running tool...'))}\n")
 

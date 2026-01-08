@@ -1,13 +1,9 @@
 import hashlib
 import math
 import os
-import shutil
-import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
-
-T = TypeVar("T")
+from typing import Any, Callable, Optional
 
 
 def get_repo_root() -> Path:
@@ -40,47 +36,6 @@ def cd_repo_root():
     """
     repo_root = get_repo_root()
     os.chdir(repo_root)
-
-
-def atomic_write(
-    write_func: Callable[[Path], Any],
-    target_path: Path | str,
-    suffix: str = ".tmp",
-) -> None:
-    """
-    Write a file atomically by writing to a temporary file and then moving it.
-
-    This ensures that the target file is either fully written or not written at all,
-    preventing corruption from partial writes or concurrent access.
-
-    Args:
-        write_func: A function that takes a path and saves to it
-        target_path: The final destination path for the file
-        suffix: Suffix for the temporary file (default: ".tmp")
-
-    Example:
-        def save_model(path):
-            torch.save(model.state_dict(), path)
-
-        atomic_write(save_model, "model.pt")
-    """
-    target_path = Path(target_path)
-    target_dir = target_path.parent
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create temporary file in the same directory to ensure atomic move
-    with tempfile.NamedTemporaryFile(mode="wb", dir=target_dir, suffix=suffix, delete=False) as tmp_file:
-        tmp_path = Path(tmp_file.name)
-
-    try:
-        write_func(tmp_path)
-        # Atomic move (on same filesystem)
-        shutil.move(str(tmp_path), str(target_path))
-    except Exception:
-        # Clean up temporary file on error
-        if tmp_path.exists():
-            tmp_path.unlink()
-        raise
 
 
 def wait_for_file(

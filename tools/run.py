@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
-import metta.common.tool.run_tool as run_tool
+
+from metta.common.tool.run_tool import cli_entry
 
 if __name__ == "__main__":
-    run_tool.main()
+    cli_entry()

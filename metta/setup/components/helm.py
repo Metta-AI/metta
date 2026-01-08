@@ -42,4 +42,7 @@ class HelmSetup(SetupModule):
         installed_plugins = self.get_installed_plugins()
         for plugin, url in self.HELM_PLUGINS.items():
             if plugin not in installed_plugins:
-                self.run_command(["helm", "plugin", "install", url])
+                # The `--verify=false` flag is a temporary workaround for a Helm bug/incompatibility in plugin signature
+                #  verification introduced in v4. See https://github.com/helm/helm/issues/31490#issuecomment-3548420699
+                #  Worth revisiting when this issue is fixed
+                self.run_command(["helm", "plugin", "install", "--verify=false", url])

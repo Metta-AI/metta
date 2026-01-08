@@ -70,7 +70,7 @@ class LocalDispatcher:
                 logger.info(f"[{display_id}] {line}")
 
         except Exception as e:
-            logger.error(f"Error streaming output for PID {pid}: {e}")
+            logger.error(f"Error streaming output for PID {pid}: {e}", exc_info=True)
 
     def dispatch(self, job: JobDefinition) -> str:
         """Dispatch job locally as subprocess."""
@@ -132,5 +132,5 @@ class LocalDispatcher:
             return pid
 
         except Exception as e:
-            logger.error(f"Failed to start local run {job.run_id}: {e}")
+            logger.error(f"Failed to start local run {job.run_id}: {e}", exc_info=True)
             raise

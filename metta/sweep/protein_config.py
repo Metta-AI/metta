@@ -9,7 +9,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import Field
 
-from metta.sweep.core import ParameterConfig
+from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig
 from mettagrid.base_config import Config
 
 
@@ -67,29 +67,13 @@ class ProteinConfig(Config):
             "method": self.method,
         }
 
-        # Add parameters in the expected format
-        def process_params(params: dict, prefix: str = "") -> dict:
-            result = {}
-            for key, value in params.items():
-                full_key = f"{prefix}.{key}" if prefix else key
-
-                if isinstance(value, ParameterConfig):
-                    # Convert ParameterConfig to dict format
-                    result[full_key] = value.model_dump()
-                elif isinstance(value, dict):
-                    if "min" in value and "max" in value:
-                        # Already in parameter format
-                        result[full_key] = value
-                    else:
-                        # Nested structure, recurse
-                        result.update(process_params(value, full_key))
-                else:
-                    # Static value, not a parameter to optimize
-                    pass
-            return result
-
-        # Process and add parameters
-        flat_params = process_params(self.parameters)
-        config.update(flat_params)
+        for key, value in self.parameters.items():
+            if isinstance(value, ParameterConfig):
+                config[key] = value.model_dump()
+            elif isinstance(value, CategoricalParameterConfig):
+                config[key] = value
+            elif isinstance(value, dict):
+                if "min" in value and "max" in value:
+                    config[key] = value
 
         return config

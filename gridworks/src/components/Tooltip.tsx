@@ -1,6 +1,7 @@
 "use client";
 import {
   flip,
+  Placement,
   useFloating,
   useHover,
   useInteractions,
@@ -9,14 +10,15 @@ import { FC, useState } from "react";
 
 export const Tooltip: FC<{
   children: React.ReactNode;
+  placement?: Placement;
   render: () => React.ReactNode;
-}> = ({ children, render }) => {
+}> = ({ children, placement = "top-start", render }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-    placement: "top-start",
+    placement,
     middleware: [flip()],
   });
 

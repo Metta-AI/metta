@@ -1,2 +1,2 @@
-type: mettagrid.mapgen.scenes.inline_ascii.InlineAscii
+type: mettagrid.mapgen.scenes.inline_ascii.InlineAscii.Config
 data: "_"

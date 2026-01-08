@@ -9,12 +9,11 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
-from metta.rl.training import ComponentContext
-from mettagrid.base_config import Config
+from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class FutureLatentEMALossConfig(Config):
+class FutureLatentEMALossConfig(LossConfig):
     """Configuration for the EMA-based future latent state prediction loss."""
 
     ema_decay: float = Field(default=0.9, ge=0.0, lt=1.0, description="Exponential moving average decay factor.")
@@ -25,19 +24,18 @@ class FutureLatentEMALossConfig(Config):
         self,
         policy: Policy,
         trainer_cfg: Any,
-        vec_env: Any,
+        env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "FutureLatentEMALoss":
         """Factory hook invoked by the loss registry."""
         return FutureLatentEMALoss(
             policy,
             trainer_cfg,
-            vec_env,
+            env,
             device,
             instance_name=instance_name,
-            loss_cfg=loss_config,
+            cfg=self,
         )
 
 
@@ -70,12 +68,12 @@ class FutureLatentEMALoss(Loss):
         if time_steps < 2:
             return self._zero(), shared_loss_data, False
 
-        horizon = min(self.loss_cfg.prediction_horizon, time_steps - 1)
+        horizon = min(self.cfg.prediction_horizon, time_steps - 1)
         if horizon < 1:
             return self._zero(), shared_loss_data, False
 
-        ema_weights = (1.0 - self.loss_cfg.ema_decay) * torch.pow(
-            torch.full((horizon,), self.loss_cfg.ema_decay, device=latent_core.device, dtype=latent_core.dtype),
+        ema_weights = (1.0 - self.cfg.ema_decay) * torch.pow(
+            torch.full((horizon,), self.cfg.ema_decay, device=latent_core.device, dtype=latent_core.dtype),
             torch.arange(horizon, device=latent_core.device, dtype=latent_core.dtype),
         )
 
@@ -89,7 +87,7 @@ class FutureLatentEMALoss(Loss):
         ema_targets = F.conv1d(conv_input, conv_weight, stride=1, padding=0, groups=hidden_dim)
         ema_targets = ema_targets.transpose(1, 2)
 
-        normalisation = 1.0 - self.loss_cfg.ema_decay**horizon
+        normalisation = 1.0 - self.cfg.ema_decay**horizon
         if normalisation > 0:
             ema_targets = ema_targets / normalisation
 
@@ -98,6 +96,6 @@ class FutureLatentEMALoss(Loss):
         target_time_len = ema_targets.size(1)
         aligned_predictions = future_pred[:, :target_time_len, :]
 
-        loss = F.mse_loss(aligned_predictions, ema_targets) * self.loss_cfg.loss_coef
+        loss = F.mse_loss(aligned_predictions, ema_targets) * self.cfg.loss_coef
         self.loss_tracker["future_latent_ema_mse"].append(float(loss.item()))
         return loss, shared_loss_data, False

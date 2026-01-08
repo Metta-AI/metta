@@ -1,0 +1,30 @@
+# Shared Datadog configuration defaults
+# Used by:
+#   - devops/charts/helm.values/datadog-values.yaml (k8s agent)
+#   - metta/setup/components/datadog_agent.py (skypilot agent)
+#
+# This file uses datadog.yaml native format.
+# See https://docs.datadoghq.com/agent/configuration/agent-configuration-files/
+
+site: datadoghq.com
+logs_enabled: true
+apm_config:
+  enabled: true
+
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+# Disable infrastructure metrics on ephemeral hosts to reduce billing
+enable_payloads:
+  series: false
+  events: false
+  service_checks: false
+
+process_config:
+  process_collection:
+    enabled: false

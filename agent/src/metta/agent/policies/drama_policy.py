@@ -1,5 +1,6 @@
 from typing import List
 
+import metta.agent.components.drama.config as drama_config
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import (
     ActionProbsConfig,
@@ -7,7 +8,6 @@ from metta.agent.components.actor import (
     ActorQueryConfig,
 )
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.drama import DramaWorldModelConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -41,7 +41,7 @@ class DramaPolicyConfig(PolicyArchitecture):
             num_heads=2,
             num_layers=1,
         ),
-        DramaWorldModelConfig(
+        drama_config.DramaWorldModelConfig(
             in_key="encoded_obs",
             out_key="core",
             action_key="last_actions",
@@ -54,6 +54,14 @@ class DramaPolicyConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
+            in_features=_core_out_dim,
+            out_features=1,
+            hidden_features=[192],
+        ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
             in_features=_core_out_dim,
             out_features=1,
             hidden_features=[192],

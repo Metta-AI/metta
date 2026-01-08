@@ -1,0 +1,71 @@
+name: Cleanup Cancelled Runs
+
+# Triggers after the main "Test and Benchmark" workflow completes
+# This approach prevents the cleanup job from being cancelled by concurrency settings
+on:
+  workflow_run:
+    workflows: ["Test and Benchmark"]
+    types: [completed]
+    branches:
+      - main
+  workflow_dispatch: {}
+
+# Explicit concurrency settings to prevent cancellation
+# Each cleanup run gets a unique group based on the triggering workflow run ID
+# cancel-in-progress: false ensures this workflow never gets cancelled
+concurrency:
+  group: cleanup-cancelled-runs-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup-cancelled-runs:
+    name: "Cleanup Cancelled Runs"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      deleted-count: ${{ steps.cleanup.outputs.deleted-count }}
+      status: ${{ steps.cleanup.outcome }}
+    steps:
+      - name: Debug workflow run context
+        run: |
+          echo "Event: ${{ github.event.workflow_run.event }}"
+          echo "Head branch: ${{ github.event.workflow_run.head_branch }}"
+          echo "Head commit message: ${{ github.event.workflow_run.head_commit.message }}"
+          echo "Actor: ${{ github.event.workflow_run.actor.login }}"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cleanup cancelled runs from concurrency
+        id: cleanup
+        continue-on-error: true
+        uses: ./.github/actions/cleanup-cancelled-runs
+        with:
+          workflow-file: "*"
+          max-deletions: "120"
+          max-deletions-per-workflow: "10"
+          workflow-caps: |
+            build-policy-evaluator-image.yml=12
+            build-app-backend-image.yml=12
+            build-observatory-image.yml=12
+            build-home-image.yml=12
+            build-image.yml=12
+            build-pages.yml=10
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          max-age-days: "30"
+
+      - name: Report cleanup status
+        if: always()
+        run: |
+          if [ "${{ steps.cleanup.outcome }}" == "success" ]; then
+            echo "✅ Cleanup completed successfully"
+            echo "Deleted runs: ${{ steps.cleanup.outputs.deleted-count || '0' }}"
+          else
+            echo "⚠️ Cleanup job completed with status: ${{ steps.cleanup.outcome }}"
+            echo "This is non-blocking - workflow will continue"
+          fi

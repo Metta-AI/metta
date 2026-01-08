@@ -1,6 +1,6 @@
 "use client";
 import clsx from "clsx";
-import { FC, use } from "react";
+import { FC, use, useMemo, useState } from "react";
 
 import { ConfigNode, isArrayNode, isObjectNode, isScalarNode } from "./utils";
 import { YamlAny } from "./YamlAny";
@@ -12,6 +12,7 @@ export const YamlKeyValue: FC<{
   node: ConfigNode<Record<string, unknown>>;
   yamlKey: string;
 }> = ({ yamlKey, node }) => {
+  const { unsetFields, showDefaultValues } = use(YamlContext);
   const value = node.value[yamlKey];
 
   const valueNode: ConfigNode = {
@@ -21,6 +22,23 @@ export const YamlKeyValue: FC<{
   };
 
   const fullKey = valueNode.path.join(".");
+
+  const disabled = useMemo(() => {
+    let path = "";
+    for (const part of valueNode.path) {
+      path = path ? `${path}.${part}` : part;
+      if (unsetFields.has(path)) {
+        return true;
+      }
+    }
+    return false;
+  }, [unsetFields, valueNode.path]);
+
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  if (disabled && !showDefaultValues) {
+    return null;
+  }
 
   if (isScalarNode(valueNode)) {
     const { isSelected, onSelectLine } = use(YamlContext);
@@ -40,8 +58,8 @@ export const YamlKeyValue: FC<{
         )}
         onClick={onClick}
       >
-        <YamlKey node={valueNode} />
-        <YamlScalar node={valueNode} />
+        <YamlKey node={valueNode} canExpand={false} disabled={disabled} />
+        <YamlScalar node={valueNode} disabled={disabled} />
       </div>
     );
   }
@@ -52,8 +70,15 @@ export const YamlKeyValue: FC<{
 
   return (
     <div className={clsx(singleLine && "flex gap-1")}>
-      <YamlKey node={valueNode} />
-      <div className={clsx(!singleLine && "ml-[2ch]")}>
+      <YamlKey
+        node={valueNode}
+        canExpand={!singleLine}
+        isExpanded={isExpanded}
+        disabled={disabled}
+        onExpansionClick={() => setIsExpanded(!isExpanded)}
+      />
+
+      <div className={clsx(!singleLine && "ml-[2ch]", !isExpanded && "hidden")}>
         <YamlAny node={valueNode} />
       </div>
     </div>

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.11"
+# requires-python = ">=3.12"
 # dependencies = [
 #   "psutil>=6.0.0",
 # ]
@@ -40,9 +40,8 @@ class EvaluationSmokeTest(SmokeTest):
             "uv",
             "run",
             "./tools/run.py",
-            "experiments.recipes.navigation.eval",
+            "recipes.experiment.navigation.eval",
             f"policy_uris=wandb://run/{self.policy}",
-            "stats_db_uri=wandb://stats/navigation_db",
             "system.seed=31415",
             "system.torch_deterministic=True",
             "system.device=cpu",

@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from metta.tests_support import run_tool_in_process
+from metta.common.tests_support import run_tool_in_process
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_two_token_form_resolves_correctly(invoke_run_tool):
 def test_two_token_not_treated_as_bare_tool(invoke_run_tool):
     """Verify two-token form 'tool recipe' is not treated as bare tool.
 
-    Regression test for: when running './tools/run.py train experiments.recipes.ci --help',
+    Regression test for: when running './tools/run.py train ci --help',
     it should show help for that specific tool, not list all train implementations.
     """
     # This should show help for the specific tool, not list all 'evaluate' implementations

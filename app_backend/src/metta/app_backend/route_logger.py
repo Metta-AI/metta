@@ -5,7 +5,7 @@ import time
 from functools import wraps
 from typing import Any, Callable
 
-from fastapi import HTTPException, Request, Response
+from fastapi import HTTPException, Request
 
 # Logger for route performance
 route_logger = logging.getLogger("route_performance")
@@ -59,13 +59,13 @@ def timed_route(route_name: str = ""):
                     request_info = f" {arg.method} {arg.url.path}"
                     break
 
-            route_logger.info(f"ROUTE START: {name}{request_info}")
+            route_logger.debug(f"ROUTE START: {name}{request_info}")
 
             try:
                 result = await func(*args, **kwargs)
                 execution_time = time.time() - start_time
 
-                route_logger.info(f"ROUTE COMPLETE: {name} in {execution_time:.3f}s")
+                route_logger.debug(f"ROUTE COMPLETE: {name} in {execution_time:.3f}s")
 
                 # Log slow routes
                 if execution_time > SLOW_ROUTE_THRESHOLD_SECONDS:
@@ -81,21 +81,3 @@ def timed_route(route_name: str = ""):
         return wrapper
 
     return decorator
-
-
-def log_route_timing(request: Request, response: Response, start_time: float) -> None:
-    """
-    Log route timing information. Can be used as middleware or called manually.
-
-    Args:
-        request: FastAPI request object
-        response: FastAPI response object
-        start_time: Time when the request started processing
-    """
-    execution_time = time.time() - start_time
-    route_info = f"{request.method} {request.url.path}"
-
-    route_logger.info(f"ROUTE: {route_info} - {response.status_code} in {execution_time:.3f}s")
-
-    if execution_time > SLOW_ROUTE_THRESHOLD_SECONDS:
-        route_logger.warning(f"SLOW ROUTE ({execution_time:.3f}s): {route_info} - {response.status_code}")

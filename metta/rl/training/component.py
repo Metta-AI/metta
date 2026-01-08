@@ -7,6 +7,7 @@ from typing import Any, Optional
 from pydantic import Field
 
 from metta.rl.training import ComponentContext
+from metta.rl.utils import should_run
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ class TrainerCallback(Enum):
     """Types of callbacks that can be invoked on trainer components."""
 
     STEP = "step"
+    ROLLOUT_END = "rollout_end"
     EPOCH_END = "epoch"
     TRAINING_COMPLETE = "training_complete"
     FAILURE = "failure"
@@ -27,16 +29,19 @@ class TrainerComponent:
     _epoch_interval: int = Field(default=1, ge=1)
     _step_interval: int = Field(default=1, ge=1)
 
-    _context: Optional[ComponentContext] = None
+    _context: ComponentContext
+    _prev_epoch_for_epoch_callbacks: Optional[int]
 
     def __init__(self, epoch_interval: int = 1, step_interval: int = 1) -> None:
         self._epoch_interval = epoch_interval
         self._step_interval = step_interval
+        self._prev_epoch_for_epoch_callbacks = None
 
     def register(self, context: ComponentContext) -> None:
         """Register this component with the trainer context."""
 
         self._context = context
+        self._prev_epoch_for_epoch_callbacks = None
 
     # ------------------------------------------------------------------
     # Interval helpers
@@ -47,7 +52,7 @@ class TrainerComponent:
         interval = getattr(self, "_step_interval", 0)
         if interval <= 0:
             return False
-        return current_step // interval > previous_step // interval
+        return should_run(current_step, interval, previous=previous_step)
 
     def should_handle_epoch(self, epoch: int) -> bool:
         """Return True when this component should receive an epoch callback."""
@@ -55,18 +60,21 @@ class TrainerComponent:
         interval = getattr(self, "_epoch_interval", 1)
         if interval == 0:
             return True
-        return epoch % interval == 0
+        should_handle = should_run(epoch, interval, previous=self._prev_epoch_for_epoch_callbacks)
+        self._prev_epoch_for_epoch_callbacks = epoch
+        return should_handle
 
     @property
     def context(self) -> ComponentContext:
         """Return the trainer context associated with this component."""
-
-        if self._context is None:
-            raise RuntimeError("TrainerComponent has not been registered with a ComponentContext")
         return self._context
 
     def on_step(self, infos: list[dict[str, Any]]) -> None:
         """Called after each environment step."""
+        pass
+
+    def on_rollout_end(self) -> None:
+        """Called at the end of rollout, before training begins."""
         pass
 
     def on_epoch_end(self, epoch: int) -> None:

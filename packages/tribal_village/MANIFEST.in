@@ -1,0 +1,12 @@
+include *.so
+include *.dylib
+include *.dll
+include libtribal_village.so
+include LICENSE
+include README.md
+recursive-include tribal_village_env *.py
+recursive-include tribal_village_env libtribal_village.*
+recursive-include src *.nim
+recursive-include data *
+include tribal_village.nimble
+include nimby.lock

@@ -1,13 +1,12 @@
 import
-  genny, fidget2, openGL, jsony, vmath,
-  ../src/mettascope, ../src/mettascope/[replays, common, worldmap, timeline,
-  envconfig]
+  genny, openGL, jsony, vmath, windy, silky,
+  ../src/mettascope,
+  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes]
 
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
-    argument*: int
+    actionName*: cstring
 
   RenderResponse* = ref object
     shouldClose*: bool
@@ -22,20 +21,20 @@ proc ctrlCHandler() {.noconv.} =
 
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
+    echo "Initializing Mettascope..."
     setControlCHook(ctrlCHandler)
     result = RenderResponse(shouldClose: false, actions: @[])
-    #echo "Replay from python: ", replay
-    echo "Data dir: ", dataDir
     playMode = Realtime
-    startFidget(
-      figmaUrl = "https://www.figma.com/design/hHmLTy7slXTOej6opPqWpz/MetaScope-V2-Rig",
-      windowTitle = "MetaScope V2",
-      entryFrame = "UI/Main",
-      windowStyle = DecoratedResizable,
-      dataDir = dataDir
-    )
+    setDataDir(dataDir)
     common.replay = loadReplayString(replay, "MettaScope")
-    updateEnvConfig()
+    window = newWindow(
+      "MettaScope",
+      ivec2(1200, 800),
+      vsync = true
+    )
+    makeContextCurrent(window)
+    loadExtensions()
+    initMettascope()
     return
   except Exception:
     echo "############ Error initializing Mettascope #################"
@@ -52,7 +51,6 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     step = currentStep
     stepFloat = currentStep.float32
     previousStep = currentStep
-    onStepChanged()
     requestPython = false
     result = RenderResponse(shouldClose: false, actions: @[])
     while true:
@@ -60,14 +58,13 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
         window.close()
         result.shouldClose = true
         return
-      tickFidget()
+      tickMettascope()
       if requestPython:
         onRequestPython()
         for action in requestActions:
           result.actions.add(ActionRequest(
             agentId: action.agentId,
-            actionId: action.actionId,
-            argument: action.argument
+            actionName: action.actionName
           ))
         requestActions.setLen(0)
         return
@@ -91,6 +88,6 @@ exportProcs:
   init
   render
 
-writeFiles("bindings/generated", "Mettascope2")
+writeFiles("bindings/generated", "Mettascope")
 
 include generated/internal

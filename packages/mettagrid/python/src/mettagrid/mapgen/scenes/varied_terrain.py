@@ -8,12 +8,12 @@ It creates a grid world with configurable features including:
   - Scattered single walls: individual wall cells placed at random empty cells.
   - Blocks: new rectangular objects whose width and height are sampled uniformly between 2 and 14.
       The number of blocks is determined from the style.
-  - Altars: the only object placed, whose count is determined by hearts_count.
+  - assemblers: the only object placed, whose count is determined by hearts_count.
   - A clumpiness factor that biases object placement.
 All objects are placed with at least a one-cell clearance.
 If no space is found for a new object, placement is skipped.
 The build order is:
-    mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
+    mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → assemblers → agents.
 """
 
 import numpy as np
@@ -349,7 +349,7 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
         for i in range(h):
             for j in range(w):
                 if maze[i, j] == "empty" and self.rng.random() < 0.03:
-                    maze[i, j] = "altar"
+                    maze[i, j] = "assembler"
 
             # Apply thickening based on a random probability between 0.3 and 1.0.
         thick_prob = 0.7 * self.rng.random()

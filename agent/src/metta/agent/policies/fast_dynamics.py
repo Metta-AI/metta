@@ -3,21 +3,22 @@ import types
 from typing import List
 
 import torch
+from cortex.stacks import build_cortex_auto_config
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 from torch import nn
 
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
+from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
 from metta.agent.components.obs_tokenizers import (
     ObsAttrEmbedFourierConfig,
 )
-from metta.agent.policies.sliding_transformer import SlidingTransformerConfig
 from metta.agent.policy import Policy, PolicyArchitecture
-from metta.rl.training import EnvironmentMetaData
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.util.module import load_symbol
 
 logger = logging.getLogger(__name__)
@@ -33,12 +34,12 @@ def forward(self, td: TensorDict, action: torch.Tensor = None) -> TensorDict:
     self.reward_pred(td)
     self.future_latent_pred(td)
     td["values"] = td["values"].flatten()
+    if "h_values" in td.keys():
+        td["h_values"] = td["h_values"].flatten()
     return td
 
 
 class FastDynamicsConfig(PolicyArchitecture):
-    class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
-
     class_path: str = "metta.agent.policy_auto_builder.PolicyAutoBuilder"
 
     _latent_dim = 64
@@ -64,12 +65,18 @@ class FastDynamicsConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        SlidingTransformerConfig(
+        CortexTDConfig(
             in_key="encoded_obs",
             out_key="core",
-            hidden_size=_core_out_dim,
-            latent_size=_latent_dim,
-            num_layers=_memory_num_layers,
+            d_hidden=_latent_dim,
+            out_features=_core_out_dim,
+            key_prefix="fastdyn_cortex_state",
+            stack_cfg=build_cortex_auto_config(
+                d_hidden=_latent_dim,
+                num_layers=_memory_num_layers,
+                pattern="X",
+                post_norm=True,
+            ),
         ),
         MLPConfig(
             in_key="core",
@@ -79,16 +86,24 @@ class FastDynamicsConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[1024],
         ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
+            in_features=_core_out_dim,
+            out_features=1,
+            hidden_features=[1024],
+        ),
         ActorHeadConfig(in_key="core", out_key="logits", input_dim=_core_out_dim),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
 
-    def make_policy(self, env_metadata: EnvironmentMetaData) -> Policy:
+    def make_policy(self, policy_env_info: PolicyEnvInterface) -> Policy:
         AgentClass = load_symbol(self.class_path)
-        policy = AgentClass(env_metadata, self)
+        policy = AgentClass(policy_env_info, self)
 
-        num_actions = int(env_metadata.action_space.n)
+        num_actions = policy_env_info.action_space.n
         pred_input_dim = self._core_out_dim + num_actions
         returns_module = nn.Linear(pred_input_dim, 1)
         reward_module = nn.Linear(pred_input_dim, 1)

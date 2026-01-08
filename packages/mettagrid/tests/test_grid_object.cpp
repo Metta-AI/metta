@@ -19,7 +19,6 @@ TEST_F(GridLocationTest, DefaultConstructor) {
   GridLocation location;
   EXPECT_EQ(0, location.r);
   EXPECT_EQ(0, location.c);
-  EXPECT_EQ(0, location.layer);
 }
 
 // Test two-parameter constructor
@@ -27,15 +26,6 @@ TEST_F(GridLocationTest, TwoParamConstructor) {
   GridLocation location(5, 10);
   EXPECT_EQ(5, location.r);
   EXPECT_EQ(10, location.c);
-  EXPECT_EQ(0, location.layer);  // Default layer should be 0
-}
-
-// Test three-parameter constructor
-TEST_F(GridLocationTest, ThreeParamConstructor) {
-  GridLocation location(5, 10, 2);
-  EXPECT_EQ(5, location.r);
-  EXPECT_EQ(10, location.c);
-  EXPECT_EQ(2, location.layer);
 }
 
 // Concrete implementation of GridObject for testing
@@ -60,7 +50,7 @@ protected:
 
 // Test init with GridLocation
 TEST_F(GridObjectTest, InitWithLocation) {
-  GridLocation loc(5, 10, 2);
+  GridLocation loc(5, 10);
   std::vector<int> tags;  // Empty tags vector
   obj.init(1, "object", loc, tags);
 
@@ -68,5 +58,4 @@ TEST_F(GridObjectTest, InitWithLocation) {
   EXPECT_EQ("object", obj.type_name);
   EXPECT_EQ(5, obj.location.r);
   EXPECT_EQ(10, obj.location.c);
-  EXPECT_EQ(2, obj.location.layer);
 }

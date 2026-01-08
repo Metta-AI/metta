@@ -6,14 +6,17 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 
+from mettagrid.simulator.types import Action
 
-class RenderMode(Enum):
-    """Rendering modes for miniscope."""
 
-    FOLLOW = "follow"  # Camera follows selected agent
-    PAN = "pan"  # Free camera movement
-    SELECT = "select"  # Cursor selection mode
-    GLYPH_PICKER = "glyph_picker"  # Glyph selection mode
+class RenderMode(str, Enum):
+    """Render mode for the miniscope."""
+
+    FOLLOW = "follow"
+    PAN = "pan"
+    SELECT = "select"
+    VIBE_PICKER = "vibe_picker"
+    HELP = "help"
 
 
 class PlaybackState(Enum):
@@ -32,6 +35,7 @@ class MiniscopeState:
     # Playback state
     playback: PlaybackState = PlaybackState.STOPPED
     fps: float = 4.0
+    true_fps: float = 0.0  # Actual measured FPS
     step_count: int = 0
     max_steps: Optional[int] = None
 
@@ -49,7 +53,7 @@ class MiniscopeState:
 
     # Agent control
     manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional[tuple[int, int]] = None
+    user_action: Optional[Action] = None
     should_step: bool = False
 
     # User input
@@ -65,10 +69,13 @@ class MiniscopeState:
     map_width: int = 0
 
     # Shared data for components
-    object_type_names: Optional[List[str]] = None
     resource_names: Optional[List[str]] = None
     symbol_map: Optional[Dict[str, str]] = None
-    glyphs: Optional[List[str]] = None
+    vibes: Optional[List[str]] = None
+
+    # Sidebar panel visibility
+    sidebar_visibility: Dict[str, bool] = field(default_factory=dict)
+    _saved_sidebar_visibility: Optional[Dict[str, bool]] = field(default=None)
 
     def is_running(self) -> bool:
         """Check if the renderer should continue running."""
@@ -87,29 +94,77 @@ class MiniscopeState:
 
     def increase_speed(self) -> None:
         """Increase playback speed."""
-        self.fps = min(60.0, self.fps * 1.5)
+        self.fps = min(600.0, self.fps * 1.5)
 
     def decrease_speed(self) -> None:
         """Decrease playback speed."""
-        self.fps = max(0.5, self.fps / 1.5)
+        self.fps = max(0.01, self.fps / 1.5)
 
     def get_frame_delay(self) -> float:
         """Get the delay between frames in seconds."""
         return 1.0 / self.fps if self.fps > 0 else 0.25
 
-    def cycle_mode(self) -> None:
-        """Cycle through rendering modes."""
-        if self.mode == RenderMode.FOLLOW:
-            self.mode = RenderMode.PAN
-        elif self.mode == RenderMode.PAN:
-            self.mode = RenderMode.SELECT
-        elif self.mode == RenderMode.SELECT:
-            self.mode = RenderMode.FOLLOW
-        # Don't cycle into GLYPH_PICKER - that's entered explicitly
+    def set_mode(self, mode: RenderMode) -> None:
+        """Set the render mode when manually selected."""
+        if mode in (RenderMode.VIBE_PICKER, RenderMode.HELP):
+            return
+        self.mode = mode
 
-    def enter_glyph_picker(self) -> None:
-        """Enter glyph picker mode."""
-        self.mode = RenderMode.GLYPH_PICKER
+        # Auto-show object_info when entering SELECT mode
+        if mode == RenderMode.SELECT and "object_info" in self.sidebar_visibility:
+            self.sidebar_visibility["object_info"] = True
+
+    def enter_vibe_picker(self) -> None:
+        """Enter vibe picker mode and configure sidebar."""
+        # Save current sidebar state before modifying
+        self._saved_sidebar_visibility = self.sidebar_visibility.copy()
+
+        self.mode = RenderMode.VIBE_PICKER
+        # Hide all sidebar panels except agent_info and vibe_picker
+        for name in self.sidebar_visibility.keys():
+            self.sidebar_visibility[name] = name in ("agent_info", "vibe_picker")
+
+    def exit_vibe_picker(self) -> None:
+        """Exit vibe picker mode and restore previous state."""
+        self.mode = RenderMode.FOLLOW
+
+        # Restore saved sidebar visibility if available
+        if self._saved_sidebar_visibility is not None:
+            self.sidebar_visibility = self._saved_sidebar_visibility.copy()
+            self._saved_sidebar_visibility = None
+        else:
+            # Fallback to default if no saved state
+            for name in self.sidebar_visibility.keys():
+                if name in ("agent_info", "object_info", "symbols"):
+                    self.sidebar_visibility[name] = True
+                else:
+                    self.sidebar_visibility[name] = False
+
+    def enter_help(self) -> None:
+        """Enter help mode and configure sidebar."""
+        # Save current sidebar state before modifying
+        self._saved_sidebar_visibility = self.sidebar_visibility.copy()
+
+        self.mode = RenderMode.HELP
+        # Hide all sidebar panels except help
+        for name in self.sidebar_visibility.keys():
+            self.sidebar_visibility[name] = name == "help"
+
+    def exit_help(self) -> None:
+        """Exit help mode and restore previous state."""
+        self.mode = RenderMode.FOLLOW
+
+        # Restore saved sidebar visibility if available
+        if self._saved_sidebar_visibility is not None:
+            self.sidebar_visibility = self._saved_sidebar_visibility.copy()
+            self._saved_sidebar_visibility = None
+        else:
+            # Fallback to default if no saved state
+            for name in self.sidebar_visibility.keys():
+                if name in ("agent_info", "object_info", "symbols"):
+                    self.sidebar_visibility[name] = True
+                else:
+                    self.sidebar_visibility[name] = False
 
     def toggle_manual_control(self, agent_id: int) -> None:
         """Toggle manual control for an agent."""
@@ -165,6 +220,7 @@ class MiniscopeState:
         self.manual_agents.clear()
         self.user_action = None
         self.should_step = False
+        self.sidebar_visibility.clear()
 
         # Store map dimensions
         self.map_height = map_height
@@ -175,3 +231,25 @@ class MiniscopeState:
         self.camera_col = map_width // 2
         self.cursor_row = map_height // 2
         self.cursor_col = map_width // 2
+
+    def initialize_sidebar_visibility(self, panels: list[str]) -> None:
+        """Initialize visibility of sidebar panels, defaulting to visible for regular panels."""
+        for name in panels:
+            # Modal panels (vibe_picker, help) start hidden
+            if name in ("vibe_picker", "help"):
+                self.sidebar_visibility[name] = False
+            else:
+                self.sidebar_visibility[name] = True
+
+    def toggle_sidebar_panel(self, name: str) -> None:
+        """Toggle visibility for a specific sidebar panel."""
+        current = self.sidebar_visibility.get(name, True)
+        self.sidebar_visibility[name] = not current
+
+    def is_sidebar_visible(self, name: str) -> bool:
+        """Check if a sidebar panel should be visible."""
+        return self.sidebar_visibility.get(name, True)
+
+    def set_sidebar_visibility(self, name: str, visible: bool) -> None:
+        """Set explicit visibility for a sidebar panel."""
+        self.sidebar_visibility[name] = visible

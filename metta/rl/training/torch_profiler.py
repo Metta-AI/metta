@@ -14,7 +14,7 @@ import wandb
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import ComponentContext, TrainerComponent
 from metta.rl.utils import should_run
-from metta.utils.file import http_url, is_public_uri, write_file
+from mettagrid.util.file import http_url, is_public_uri, write_file
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,17 @@ class TorchProfileSession:
         self._start_epoch: int | None = None
         self._profile_filename_base: str | None = None
         self._first_profile_epoch = 300  # allow torch warmup cycles before profiling
+        self._prev_epoch_for_setup: Optional[int] = None
 
     def on_epoch_end(self, epoch: int) -> None:
         force = (epoch == self._first_profile_epoch) if not self._active else False
-        if should_run(epoch, getattr(self._profiler_config, "interval_epochs", 0), force=force):
+        interval = int(getattr(self._profiler_config, "interval_epochs", 0))
+        if interval <= 0:
+            return
+
+        should_setup = should_run(epoch, interval, previous=self._prev_epoch_for_setup, force=force)
+        self._prev_epoch_for_setup = epoch
+        if should_setup:
             self._setup_profiler(epoch)
 
     def _setup_profiler(self, epoch: int) -> None:
@@ -98,7 +105,7 @@ class TorchProfileSession:
     # Internal helpers -------------------------------------------------
     def _save_profile(self, prof: torch.profiler.profile) -> None:
         if self._profile_filename_base is None:
-            logger.error("Profiler filename unset; skipping save")
+            logger.error("Profiler filename unset; skipping save", exc_info=True)
             return
 
         output_filename_json = f"{self._profile_filename_base}.json"
@@ -150,7 +157,7 @@ class TorchProfiler(TrainerComponent):
         is_master: bool = True,
     ) -> None:
         interval = getattr(profiler_config, "interval_epochs", 0)
-        super().__init__(epoch_interval=max(1, interval) if interval else 0)
+        super().__init__(epoch_interval=1 if interval else 0)
         self._config = profiler_config
         self._wandb_run = wandb_run
         self._run_dir = run_dir

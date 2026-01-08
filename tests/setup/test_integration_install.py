@@ -28,7 +28,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         assert r_install_all.returncode == 0
 
         # Install specific components
-        r_install_some = self._run_metta_command(["install", "core", "system", "aws"])
+        r_install_some = self._run_metta_command(["install", "uv", "system", "aws"])
         assert r_install_some.returncode == 0
 
         # Force re-install
@@ -51,8 +51,6 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         # Clean and symlink setup
         r_clean = self._run_metta_command(["clean"])
         assert r_clean.returncode == 0
-        r_symlink = self._run_metta_command(["symlink-setup"])
-        assert r_symlink.returncode == 0
 
         # Verify config written
         config = SavedSettings(self.test_config_dir / "config.yaml")

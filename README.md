@@ -1,9 +1,6 @@
 # Metta AI
 
 <p align="center">
-  <a href="https://codecov.io/gh/Metta-AI/metta">
-    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
-  </a>
   <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
     <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
   </a>
@@ -29,7 +26,6 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 <p align="middle">
 <img src="docs/readme_showoff.gif" alt="Metta learning example video">
 <br>
-<a href="https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
@@ -71,7 +67,7 @@ with the following dynamics:
 
 - **Agents and Vision**: Agents can see a limited number of squares around them.
 - **Resources**: Agents harvest diamonds, convert them to energy at charger stations, and use energy to power the "heart
-  altar" for rewards.
+  assembler" for rewards.
 - **Energy Management**: All actions cost energy, so agents learn to manage their energy budgets efficiently.
 - **Combat**: Agents can attack others, temporarily freezing the target and stealing resources.
 - **Defense**: Agents can toggle shields, which drain energy but absorb attacks.
@@ -139,6 +135,39 @@ cluster management, experiment tracking and visualization, and continuous integr
 This README provides only a brief overview of research explorations. Visit the
 [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
+## Folder Hierarchy
+
+The `metta/` package has a folder hierarchy where higher folders can import from lower folders, but not vice versa. To
+add or reorder folders, edit `.importlinter` then run `metta codebase generate-folder-diagram`. Run
+`uv run lint-imports` to check for violations.
+
+<!-- FOLDER_DIAGRAM_START -->
+
+```mermaid
+graph TD
+    tools[tools]
+    gridworks[gridworks]
+    setup[setup]
+    sim[sim]
+    rl[rl]
+    sweep[sweep]
+    cogworks[cogworks]
+    adaptive[adaptive]
+    map[map]
+    common[common]
+    tools --> gridworks
+    gridworks --> setup
+    setup --> sim
+    sim --> rl
+    rl --> sweep
+    sweep --> cogworks
+    cogworks --> adaptive
+    adaptive --> map
+    map --> common
+```
+
+<!-- FOLDER_DIAGRAM_END -->
+
 ## Installation
 
 ### Quick Start
@@ -170,6 +199,7 @@ The repository contains command-line tools in the `tools/` directory.
 builds its configuration, and runs it.
 
 **Discover available tools**:
+
 ```bash
 # List all tools in a recipe
 ./tools/run.py arena --list
@@ -186,6 +216,14 @@ builds its configuration, and runs it.
 - **Replay**: `./tools/run.py replay arena policy_uri=file://./train_dir/my_run/checkpoints`
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
+
+### Example Training Notebooks
+
+All the notebooks available at `./notebooks`
+
+#### Train on Cogames:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
 
 ### Task arguments
 
@@ -220,19 +258,20 @@ def evaluate() -> EvaluateTool:
     return EvaluateTool(simulations=[...])
 ```
 
-> Trainer state (optimizer, scheduler, curriculum, timers) now checkpoints automatically whenever a new policy
-> snapshot is written. Legacy knobs such as `context_checkpointer.epoch_interval` or `keep_last_n` no longer have any
-> effect.
+> Trainer state (optimizer, scheduler, curriculum, timers) now checkpoints automatically whenever a new policy snapshot
+> is written. Legacy knobs such as `context_checkpointer.epoch_interval` or `keep_last_n` no longer have any effect.
 
-Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple tools need the same configuration.
+Recipes can optionally define helper functions like `mettagrid()` or `simulations()` to avoid duplication when multiple
+tools need the same configuration.
 
 Examples:
-  - `./tools/run.py train arena`
-  - `./tools/run.py evaluate arena policy_uris=mock://test`
+
+- `./tools/run.py train arena`
+- `./tools/run.py evaluate arena policy_uris=mock://test`
 
 Shorthands are supported:
 
-- Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
+- Omit `recipes.experiment.` or `recipes.prod.`: `arena.train` == `recipes.experiment.arena.train`
 - Two‑token form: `train arena` == `arena.train`
 
 Tips:
@@ -296,7 +335,8 @@ Notes:
 Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and
 allows taking over an agent and controlling it manually.
 
-For more information, see [./mettascope/README.md](./mettascope/README.md).
+For more information, see
+[./packages/mettagrid/nim/mettascope/README.md](./packages/mettagrid/nim/mettascope/README.md).
 
 #### Run the interactive simulation
 
@@ -404,13 +444,13 @@ pyright metta  # optional, some stubs are missing
 
 ### CLI cheat sheet
 
-| Task                    | Command                                                                                                        |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Train (arena)           | `./tools/run.py train arena run=my_experiment`                                                                 |
-| Train (navigation)      | `./tools/run.py train navigation run=my_experiment`                                                            |
-| Play (browser)          | `./tools/run.py play arena`                                                                                    |
-| Replay (policy)         | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
-| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`           |
-| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`     |
+| Task                        | Command                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Train (arena)               | `./tools/run.py train arena run=my_experiment`                                                                 |
+| Train (navigation)          | `./tools/run.py train navigation run=my_experiment`                                                            |
+| Play (browser)              | `./tools/run.py play arena`                                                                                    |
+| Replay (policy)             | `./tools/run.py replay arena policy_uri=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`         |
+| Evaluate (arena)            | `./tools/run.py evaluate arena policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt`      |
+| Evaluate (navigation suite) | `./tools/run.py evaluate navigation policy_uris=s3://my-bucket/checkpoints/local.alice.1/local.alice.1:v10.pt` |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.

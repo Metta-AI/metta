@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import inspect
+import time
 from enum import StrEnum, auto
-from typing import Any, ClassVar, Final, Generic, TypeVar, get_args, get_origin
+from typing import Any, ClassVar, Final, Generic, Self, TypeVar, get_args, get_origin
 
 import numpy as np
-from pydantic import model_serializer
+from pydantic import (
+    ModelWrapValidatorHandler,
+    SerializeAsAny,
+    field_serializer,
+    model_serializer,
+    model_validator,
+)
 
 from mettagrid.base_config import Config
 from mettagrid.map_builder import MapGrid
@@ -34,7 +42,7 @@ class GridTransform(StrEnum):
     def flip_h(self) -> bool:
         return TRANSFORM_FLAGS[self][2]
 
-    def inverse(self):
+    def inverse(self) -> GridTransform:
         if self == GridTransform.ROT_90:
             return GridTransform.ROT_270
         elif self == GridTransform.ROT_270:
@@ -109,55 +117,112 @@ class SceneConfig(Config):
     # Transform relative to the area that this scene config receives in `create`.
     transform: GridTransform = GridTransform.IDENTITY
 
+    @field_serializer("transform")
+    def _ser_transform(self, value: GridTransform):
+        # Emit as the enum value (str) to avoid UnexpectedValue warnings during dumps
+        return value.value
+
+    def model_dump(self, **kwargs) -> dict[str, Any]:
+        kwargs.setdefault("serialize_as_any", True)
+        return super().model_dump(**kwargs)
+
+    def model_dump_json(self, **kwargs) -> str:
+        kwargs.setdefault("serialize_as_any", True)
+        return super().model_dump_json(**kwargs)
+
     @property
     def scene_cls(self) -> type[Scene]:
         if not self._scene_cls:
             raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
         return self._scene_cls
 
+    @classmethod
+    def _type_str(cls) -> str:
+        if not cls._scene_cls:
+            raise ValueError(f"{cls.__class__.__name__} is not bound to a scene class")
+        return f"{cls._scene_cls.__module__}.{cls._scene_cls.__name__}.Config"
+
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         data = handler(self)
-        if not self._scene_cls:
-            raise ValueError(f"{self.__class__.__name__} is not bound to a scene class")
-        return {"type": f"{self._scene_cls.__module__}.{self._scene_cls.__name__}", **data}
+        return {"type": self._type_str(), **data}
 
-    def create_root(self, area: Area, rng: np.random.Generator | None = None) -> Scene:
-        return self.scene_cls(area=area, config=self, rng=rng or np.random.default_rng())
+    @model_validator(mode="wrap")
+    @classmethod
+    def _validate_with_type(cls, v: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+        # This code is copy-pasted from MapBuilderConfig. Refer to that file for a better commented version.
+        # (Soon it will be refactored to use PolymorphicConfig.)
+        if isinstance(v, SceneConfig):
+            if not isinstance(v, cls):
+                raise TypeError(f"Expected {cls.__qualname__} subclass, got {type(v).__qualname__}")
+            return v
 
-    def create_as_child(self, parent_scene: Scene, area: Area) -> Scene:
-        rng = parent_scene.rng.spawn(1)[0]
-        return self.scene_cls(area=area, config=self, rng=rng, parent_scene=parent_scene)
+        if not isinstance(v, dict):
+            raise ValueError("SceneConfig params must be a dict")
 
+        t = v.get("type")
+        if t is None:
+            return handler(v)
 
-def validate_any_scene_config(v: Any) -> SceneConfig:
-    # See also: _validate_open_map_builder in map_builder.py
-    # After Pydantic 2.12, we can simplify this by using SerializeAsAny.
+        type_cls = load_symbol(t) if isinstance(t, str) else t
 
-    if isinstance(v, SceneConfig):
-        return v
+        if not inspect.isclass(type_cls):
+            raise TypeError("'type' must point to a class")
 
-    if not isinstance(v, dict):
-        raise ValueError("Scene config must be a dict")
+        if not issubclass(type_cls, cls):
+            raise TypeError(f"'type' {t} is not a subclass of {cls._type_str()}")
 
-    t = v.get("type")
-    if t is None:
-        raise ValueError("'type' is required")
-
-    target = load_symbol(t) if isinstance(t, str) else t
-
-    if isinstance(target, type) and issubclass(target, Scene):
-        cfg_model = getattr(target, "Config", None)
-        if not (isinstance(cfg_model, type) and issubclass(cfg_model, SceneConfig)):
-            raise TypeError(f"{target.__name__} must define a nested class Config(SceneConfig).")
         data = {k: v for k, v in v.items() if k != "type"}
-        return cfg_model.model_validate(data)
+        result = type_cls.model_validate(data)
 
-    raise TypeError(f"'type' must point to a Scene subclass; got {target!r}")
+        assert isinstance(result, cls)
+
+        return result
+
+    def create_root(
+        self,
+        area: Area,
+        rng: np.random.Generator | None = None,
+        instance_id: int | None = None,
+        use_instance_id_for_team_assignment: bool = False,
+    ) -> Scene:
+        effective_instance_id = instance_id if use_instance_id_for_team_assignment else None
+        return self.scene_cls(
+            area=area,
+            config=self,
+            rng=rng or np.random.default_rng(),
+            instance_id=effective_instance_id,
+            use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
+        )
+
+    def create_as_child(
+        self,
+        parent_scene: Scene,
+        area: Area,
+        instance_id: int | None = None,
+        use_instance_id_for_team_assignment: bool = False,
+    ) -> Scene:
+        rng = parent_scene.rng.spawn(1)[0]
+        inherited_instance_id = instance_id if instance_id is not None else getattr(parent_scene, "instance_id", None)
+        effective_instance_id = inherited_instance_id if use_instance_id_for_team_assignment else None
+
+        return self.scene_cls(
+            area=area,
+            config=self,
+            rng=rng,
+            parent_scene=parent_scene,
+            instance_id=effective_instance_id,
+            use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
+        )
+
+
+AnySceneConfig = SerializeAsAny[SceneConfig]
 
 
 class ChildrenAction(AreaQuery):
-    scene: SceneConfig
+    scene: AnySceneConfig
+    instance_id: int | None = None
+    use_instance_id_for_team_assignment: bool | None = None
 
 
 ConfigT = TypeVar("ConfigT", bound=SceneConfig)
@@ -188,6 +253,11 @@ class Scene(Generic[ConfigT]):
     # { "lock_name": [area_id1, area_id2, ...] }
     _locks: dict[str, set[int]]
 
+    # Will be set by Scene.render_with_children()
+    _render_start_time: float = 0
+    _render_end_time: float = 0
+    _render_with_children_end_time: float = 0
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -210,6 +280,8 @@ class Scene(Generic[ConfigT]):
         rng: np.random.Generator,
         config: ConfigT,
         parent_scene: Scene | None = None,
+        instance_id: int | None = None,
+        use_instance_id_for_team_assignment: bool = False,
     ):
         # Validate config - they can come from untyped yaml or from weakly typed dicts in python code.
         self.config = self.Config.model_validate(config)
@@ -221,6 +293,18 @@ class Scene(Generic[ConfigT]):
         self.transform = (
             parent_scene.transform.compose(self.config.transform) if parent_scene else self.config.transform
         )
+
+        self.use_instance_id_for_team_assignment = use_instance_id_for_team_assignment
+
+        if self.use_instance_id_for_team_assignment:
+            if instance_id is not None:
+                self.instance_id = instance_id
+            elif parent_scene is not None:
+                self.instance_id = getattr(parent_scene, "instance_id", None)
+            else:
+                self.instance_id = None
+        else:
+            self.instance_id = None
 
         self._update_shortcuts()
 
@@ -271,6 +355,9 @@ class Scene(Generic[ConfigT]):
             "config": self.config.model_dump(),
             "area": self.area.as_dict(),
             "children": [child.get_scene_tree() for child in self.children],
+            "render_start_time": self._render_start_time,
+            "render_end_time": self._render_end_time,
+            "render_with_children_end_time": self._render_with_children_end_time,
         }
 
     def print_scene_tree(self, indent=0):
@@ -287,7 +374,9 @@ class Scene(Generic[ConfigT]):
 
     def render_with_children(self):
         # First, render the scene itself.
+        self._render_start_time = time.time()
         self.render()
+        self._render_end_time = time.time()
 
         # Then, render the children scenes based on the children actions.
         children_actions = self.get_children()
@@ -295,9 +384,21 @@ class Scene(Generic[ConfigT]):
         for action in children_actions:
             areas = self.select_areas(action)
             for area in areas:
-                child_scene = action.scene.create_as_child(self, area)
+                use_instance_id_for_team_assignment = (
+                    action.use_instance_id_for_team_assignment
+                    if action.use_instance_id_for_team_assignment is not None
+                    else getattr(self, "use_instance_id_for_team_assignment", False)
+                )
+                child_scene = action.scene.create_as_child(
+                    self,
+                    area,
+                    instance_id=action.instance_id,
+                    use_instance_id_for_team_assignment=use_instance_id_for_team_assignment,
+                )
                 self.children.append(child_scene)
                 child_scene.render_with_children()
+
+        self._render_with_children_end_time = time.time()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: list[str] | None = None) -> Area:
         inverse_transform = self.transform.inverse()

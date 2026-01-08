@@ -1,0 +1,42 @@
+name: "Deploy Helm Chart"
+description: "Deploy a helm chart with optional dependency build"
+
+inputs:
+  release:
+    description: "Helm release name"
+    required: true
+  namespace:
+    description: "Kubernetes namespace"
+    required: true
+  chart:
+    description: "Path to helm chart"
+    required: true
+  image_tag:
+    description: "Docker image tag to deploy"
+    required: true
+  dependency_build:
+    description: "Run helm dependency build before deploy"
+    required: false
+    default: "false"
+  extra_args:
+    description: "Additional helm upgrade arguments"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build helm dependencies
+      if: inputs.dependency_build == 'true'
+      shell: bash
+      run: helm dependency build ${{ inputs.chart }}
+
+    - name: Deploy helm chart
+      shell: bash
+      run: |
+        helm upgrade \
+          -n ${{ inputs.namespace }} \
+          ${{ inputs.release }} \
+          ${{ inputs.chart }} \
+          --set image.tag=${{ inputs.image_tag }} \
+          ${{ inputs.extra_args }}

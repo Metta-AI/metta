@@ -134,3 +134,91 @@ class TestMapGenInstances:
         assert first_child.height == 2
         assert first_child.area.x == 2
         assert first_child.area.y == 2
+
+
+class TestMapGenTeamByInstance:
+    def test_set_team_by_instance_multiple_instances(self):
+        """Test that agents are assigned to teams based on instance number."""
+        from mettagrid.mapgen.scenes.random import Random
+
+        mg = MapGen.Config(
+            instance=Random.Config(agents=3),
+            width=5,
+            height=5,
+            instances=4,
+            set_team_by_instance=True,
+            instance_border_width=1,
+            border_width=2,
+        ).create()
+        level = mg.build()
+
+        # Should have 12 total agents (3 per instance × 4 instances)
+        total_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+        assert total_agents == 12
+
+        # Check that we have agents from each team
+        assert np.count_nonzero(level.grid == "agent.team_0") == 3
+        assert np.count_nonzero(level.grid == "agent.team_1") == 3
+        assert np.count_nonzero(level.grid == "agent.team_2") == 3
+        assert np.count_nonzero(level.grid == "agent.team_3") == 3
+
+        # Should have no generic "agent.agent"
+        assert np.count_nonzero(level.grid == "agent.agent") == 0
+
+    def test_set_team_by_instance_false(self):
+        """Test that default behavior is preserved when flag is False."""
+        from mettagrid.mapgen.scenes.random import Random
+
+        mg = MapGen.Config(
+            instance=Random.Config(agents=2),
+            width=5,
+            height=5,
+            instances=3,
+            set_team_by_instance=False,  # Explicit False
+            instance_border_width=1,
+            border_width=2,
+        ).create()
+        level = mg.build()
+
+        # All agents should be "agent.agent"
+        assert np.count_nonzero(level.grid == "agent.agent") == 6
+        assert np.count_nonzero(np.char.startswith(level.grid, "agent.team_")) == 0
+
+    def test_set_team_by_instance_single_instance(self):
+        """Test that single instance gets team_0 when flag is True."""
+        from mettagrid.mapgen.scenes.random import Random
+
+        mg = MapGen.Config(
+            instance=Random.Config(agents=5),
+            width=10,
+            height=10,
+            instances=1,
+            set_team_by_instance=True,
+            border_width=2,
+        ).create()
+        level = mg.build()
+
+        # All 5 agents should be team_0
+        assert np.count_nonzero(level.grid == "agent.team_0") == 5
+        assert np.count_nonzero(level.grid == "agent.agent") == 0
+
+    def test_set_team_by_instance_with_dict_agents(self):
+        """Test that explicit team names in dict aren't overridden."""
+        from mettagrid.mapgen.scenes.random import Random
+
+        mg = MapGen.Config(
+            instance=Random.Config(agents={"red": 2, "blue": 2, "green": 1}),
+            width=5,
+            height=5,
+            instances=3,
+            set_team_by_instance=True,  # should be ignored!
+            instance_border_width=1,
+            border_width=2,
+        ).create()
+        level = mg.build()
+
+        # Dict-based agents should preserve their names
+        assert np.count_nonzero(level.grid == "agent.red") == 6  # 2 per instance
+        assert np.count_nonzero(level.grid == "agent.blue") == 6  # 2 per instance
+        assert np.count_nonzero(level.grid == "agent.green") == 3  # 1 per instance
+        assert np.count_nonzero(np.char.startswith(level.grid, "agent.team_")) == 0
