@@ -10,10 +10,12 @@ from metta.app_backend.tournament.scorers.weighted import WeightedScorer
 NUM_AGENTS = 4
 
 
-def _make_env() -> MettaGridConfig:
+def _make_env(seed: int) -> MettaGridConfig:
     mission = Machina1OpenWorldSharedRewardsMission.model_copy(deep=True)
     mission.num_cogs = NUM_AGENTS
-    return mission.make_env()
+    env = mission.make_env()
+    env.game.map_builder.seed = seed  # type: ignore
+    return env
 
 
 MATCH_CONFIGURATIONS: list[list[int]] = [
@@ -70,16 +72,17 @@ class PairingReferee(RefereeBase):
                         existing += 1
 
         pending.sort(key=lambda x: x[0])
-
+        seed = 42
         return [
             MatchRequest(
                 pool_player_ids=[pp1, pp2],
                 assignments=config,
-                env=_make_env(),
+                env=_make_env(seed),
                 episode_tags={
                     "match_type": "pairing",
                     "assignments": str(config),
                 },
+                seed=seed,
             )
             for _, pp1, pp2, config in pending
         ]
