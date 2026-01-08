@@ -1,8 +1,6 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "objects/constants.hpp"
@@ -11,10 +9,7 @@
 
 class HasInventory {
 public:
-  explicit HasInventory(const InventoryConfig& inventory_config,
-                        const std::vector<std::string>* resource_names = nullptr,
-                        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
-      : inventory(inventory_config, this, resource_names, feature_ids) {}
+  explicit HasInventory(const InventoryConfig& inventory_config) : inventory(inventory_config, this) {}
   virtual ~HasInventory() = default;
   Inventory inventory;
 
