@@ -25,6 +25,8 @@ spec:
             value: "{{ .Values.episodeRunnerImage.registry }}/{{ .Values.episodeRunnerImage.name }}:{{ .Values.episodeRunnerImage.tag }}"
           - name: STATS_SERVER_URI
             value: "https://{{ .Values.host }}"
+          - name: OTEL_SERVICE_VERSION
+            value: {{ .Values.image.tag | quote }}
           {{- if .Values.env }}
           {{- range $key, $value := .Values.env }}
           - name: {{ $key }}
