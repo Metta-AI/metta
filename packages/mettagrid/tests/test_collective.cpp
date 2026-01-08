@@ -270,6 +270,31 @@ void test_collective_stats_tracking() {
   std::cout << "✓ Collective stats tracking test passed" << std::endl;
 }
 
+void test_collective_inventory_stats() {
+  std::cout << "Testing collective inventory stats tracking..." << std::endl;
+
+  CollectiveConfig config = create_test_collective_config("test_collective", 1000);
+  Collective collective(config, &test_resource_names);
+
+  // Deposit resources
+  collective.inventory.update(0, 10);
+  assert(collective.stats.get("collective.gold.deposited") == 10.0f);
+
+  // Deposit more
+  collective.inventory.update(0, 5);
+  assert(collective.stats.get("collective.gold.deposited") == 15.0f);
+
+  // Withdraw resources
+  collective.inventory.update(0, -3);
+  assert(collective.stats.get("collective.gold.withdrawn") == 3.0f);
+
+  // Deposit second resource type
+  collective.inventory.update(1, 20);
+  assert(collective.stats.get("collective.energy.deposited") == 20.0f);
+
+  std::cout << "✓ Collective inventory stats tracking test passed" << std::endl;
+}
+
 int main() {
   std::cout << "Running Collective tests..." << std::endl;
   std::cout << "================================================" << std::endl;
@@ -284,6 +309,7 @@ int main() {
   test_collective_inventory_access();
   test_multiple_objects_share_collective();
   test_collective_stats_tracking();
+  test_collective_inventory_stats();
 
   std::cout << "================================================" << std::endl;
   std::cout << "All Collective tests passed! ✓" << std::endl;
