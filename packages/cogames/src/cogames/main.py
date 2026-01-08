@@ -100,15 +100,6 @@ def _resolve_mettascope_script() -> Path:
     )
 
 
-def _resolve_run_evaluation_script() -> Path:
-    script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
-    if not script_path.exists():
-        raise FileNotFoundError(
-            f"run_evaluation.py not found at {script_path}. Please run from the metta repo checkout."
-        )
-    return script_path
-
-
 app = typer.Typer(
     help="CoGames - Multi-agent cooperative and competitive games",
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -882,7 +873,7 @@ def diagnose_cmd(
         ...,
         help=f"Policy specification: {policy_arg_example}",
     ),
-    mission_set: Literal["diagnostic_evals", "integrated_evals", "spanning_evals", "all"] = typer.Option(
+    mission_set: Literal["diagnostic_evals", "integrated_evals", "spanning_evals", "tournament", "all"] = typer.Option(
         "diagnostic_evals",
         "--mission-set",
         "-S",
@@ -914,10 +905,10 @@ def diagnose_cmd(
         "--plot-dir",
         help="Directory to save plots",
     ),
-    no_plots: bool = typer.Option(False, "--no-plots", help="Skip generating plots"),
+    no_plots: bool = typer.Option(True, "--no-plots/--plots", help="Skip generating plots"),
 ) -> None:
-    policy_spec = get_policy_spec(ctx, policy)
-    script_path = _resolve_run_evaluation_script()
+    _ = get_policy_spec(ctx, policy)
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
 
     cmd = [sys.executable, str(script_path)]
     cmd.extend(["--mission-set", mission_set])
@@ -942,9 +933,7 @@ def diagnose_cmd(
     if no_plots:
         cmd.append("--no-plots")
 
-    cmd.extend(["--agent", f"class={policy_spec.class_path}"])
-    if policy_spec.data_path:
-        cmd.extend(["--checkpoint", policy_spec.data_path])
+    cmd.extend(["--policy", policy])
 
     console.print("[cyan]Running diagnostic evaluation...[/cyan]")
     console.print(f"[dim]{' '.join(cmd)}[/dim]")
