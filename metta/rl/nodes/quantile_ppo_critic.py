@@ -131,7 +131,7 @@ class QuantilePPOCritic(NodeBase):
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        advantages = shared_loss_data["advantages_full"][indices]
+        advantages = shared_loss_data["advantages"]
 
         # compute value loss
         old_values_quantiles = minibatch["values"]  # [B, N]

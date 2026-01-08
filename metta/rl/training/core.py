@@ -589,7 +589,6 @@ def _train_sample_mb_fn(core: CoreTrainingLoop):
             batch_size=context.config.batch_size,
             advantages=workspace["advantages_full"],
         )
-        shared_loss_mb_data["advantages_full"] = workspace["advantages_full"]
         workspace["shared_loss_data"] = shared_loss_mb_data
         workspace["loss_values"] = {}
         return {}
