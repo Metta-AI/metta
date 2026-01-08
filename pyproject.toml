@@ -87,6 +87,7 @@ license = { text = "MIT" }
 [dependency-groups]
 testing = [
   "gcovr>=8.3",
+  "grpcio-tools>=1.76.0",
   "pytest>=8.3.3",
   "pytest-benchmark>=5.1.0",
   "pytest-json-report>=1.5.0",
@@ -110,12 +111,7 @@ interactive = [
   "widgetsnbextension>=4.0.14",
 ]
 mcp-servers = ["metta-pr-similarity-mcp"]
-dev = [
-  { include-group = "testing" },
-  { include-group = "lint" },
-  { include-group = "mcp-servers" },
-  "grpcio-tools>=1.76.0",
-]
+dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
 
 [project.scripts]
 metta = "metta.setup.metta_cli:cli_entry"

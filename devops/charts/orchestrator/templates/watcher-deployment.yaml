@@ -45,6 +45,18 @@ spec:
             secretKeyRef:
               name: {{ .Values.secrets.machineToken }}
               key: token
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://$(HOST_IP):4318"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "http/protobuf"
+        - name: OTEL_TRACES_ENABLED
+          value: "true"
+        - name: OTEL_SERVICE_NAME
+          value: "episode-job-watcher"
         resources:
           {{- toYaml .Values.watcher.resources | nindent 10 }}
 {{- end }}

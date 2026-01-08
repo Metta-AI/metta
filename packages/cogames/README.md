@@ -103,14 +103,17 @@ cogames evals
 # Shows all policies available and their shorthands
 cogames policies
 
-# Authenticate before submitting or checking leaderboard
+# Authenticate before uploading or checking leaderboard
 cogames login
 
-# Inspect your leaderboard submissions
-cogames submissions
+# List available tournament seasons
+cogames seasons
 
-# Show current leaderboard
-cogames leaderboard
+# View leaderboard for a season
+cogames leaderboard --season SEASON
+
+# View your tournament submissions
+cogames submissions
 ```
 
 # Develop a Policy
@@ -135,11 +138,19 @@ To specify a `MISSION`, you can:
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
 - Alternatively, specify a set of missions with `-S` or `--mission-set`.
 
-To specify a `POLICY`, use comma-separated key/value pairs:
+To specify a `POLICY`, use one of two formats:
+
+**URI format** (for checkpoint bundles):
+
+- Point directly at a checkpoint bundle (directory or `.zip` containing `policy_spec.json`)
+- Examples: `./train_dir/my_run:v5`, `./train_dir/my_run:v5.zip`, `s3://bucket/path/run:v5.zip`
+- Use `:latest` suffix to auto-resolve the highest epoch: `./train_dir/checkpoints:latest`
+
+**Key-value format** (for explicit class + weights):
 
 - `class=`: Policy shorthand or full class path from `cogames policies`, e.g. `class=lstm` or
   `class=cogames.policy.random.RandomPolicy`.
-- `data=`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `data=`: Optional path to a weights file (e.g., `weights.safetensors`). Must be a file, not a directory.
 - `proportion=`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 - `kw.<arg>=`: Optional policy `__init__` keyword arguments (all values parsed as strings).
 
@@ -171,10 +182,16 @@ policy architecture we support out of the box (like `lstm`), or can define your 
 Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
 find in `mettagrid/policy/policy.py`.
 
-You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
+You can continue training from a checkpoint bundle (use URI format):
 
 ```
-cogames tutorial train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p ./train_dir/my_run:v5
+```
+
+Or load weights into an explicit class:
+
+```
+cogames tutorial train -m [MISSION] -p class=path.to.MyPolicy,data=train_dir/run:v5/weights.safetensors
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
@@ -264,14 +281,14 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 **Examples:**
 
 ```bash
-# Evaluate a single trained policy checkpoint
-cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt
+# Evaluate a checkpoint bundle
+cogames run -m machina_1 -p ./train_dir/my_run:v5
 
-# Evaluate a single trained policy across a mission set with multiple agents
-cogames run -S integrated_evals -p class=stateless,data=train_dir/model.pt
+# Evaluate across a mission set
+cogames run -S integrated_evals -p ./train_dir/my_run:v5
 
-# Mix two policies: 3 parts your policy, 5 parts random policy
-cogames run -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
+# Mix two policies: 3 parts your policy, 5 parts random
+cogames run -m machina_1 -p ./train_dir/my_run:v5,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -304,23 +321,61 @@ You will be able to provide your specified `--output` path as the `MISSION` argu
 
 ### `cogames login`
 
-Make sure you have authenticated before submitting a policy.
+Authenticate before uploading policies or viewing leaderboards.
 
-### `cogames submit -p [POLICY] -n [NAME]`
+### `cogames upload -p [POLICY] -n [NAME]`
 
-Example:
+Upload a policy to the server.
 
 ```
-cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
+cogames submit -p ./train_dir/my_run:v5 -n my_policy
 ```
 
 **Options:**
 
-- `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
-- `--dry-run`: Validates the policy works for submission without uploading it
+- `--include-files`: Additional files to include (can be specified multiple times)
+- `--dry-run`: Validate the policy without uploading
 
-When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
-policies for the Alignment League Benchmark.
+### `cogames seasons`
+
+List available tournament seasons you can submit to.
+
+### `cogames submit [POLICY] --season [SEASON]`
+
+Submit an uploaded policy to a tournament season.
+
+```bash
+# Submit latest version of a policy
+cogames submit my_policy --season alb-season-1
+
+# Submit a specific version
+cogames submit my_policy:v3 --season alb-season-1
+```
+
+### `cogames submissions`
+
+View your tournament submissions.
+
+```bash
+# View all submissions
+cogames submissions
+
+# Filter by season
+cogames submissions --season alb-season-1
+
+# Filter by policy (positional argument)
+cogames submissions my_policy
+```
+
+### `cogames leaderboard --season [SEASON]`
+
+View the leaderboard for a tournament season.
+
+```bash
+cogames leaderboard --season alb-season-1
+```
+
+When a policy is submitted to a season, it is queued for matches against other policies in that season's pools.
 
 ## Citation
 

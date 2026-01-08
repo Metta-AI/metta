@@ -19,8 +19,8 @@ ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-policy_arg_example = "class=NAME[,data=PATH][,proportion=1.0] or URI (.zip or checkpoint dir)"
-policy_arg_w_proportion_example = "class=NAME[,data=PATH][,proportion=1.0] or URI (.zip/dir)[,proportion=1.0]"
+policy_arg_example = "URI (bundle dir or .zip) or class=NAME[,data=FILE][,kw.x=val]"
+policy_arg_w_proportion_example = "URI[,proportion=N] or class=NAME[,data=FILE][,proportion=N]"
 
 
 class PolicySpecWithProportion(PolicySpec):
@@ -40,9 +40,7 @@ def list_checkpoints():
         key=lambda path: path.stat().st_mtime,
     )
     if local_checkpoints:
-        table = Table(
-            title="Local policy checkpoints usable as [cyan]DATA[/cyan]:", show_header=True, header_style="bold magenta"
-        )
+        table = Table(title="Local checkpoint bundles (usable as URIs):", show_header=True, header_style="bold magenta")
 
         table.add_column("Checkpoint", justify="right", style="bold cyan")
         table.add_column("Last modified", justify="right")
@@ -54,18 +52,13 @@ def list_checkpoints():
 
 
 def describe_policy_arg(with_proportion: bool):
-    console.print("[bold cyan]-p [POLICY][/bold cyan] accepts two formats:\n")
-    console.print("[bold]Class format[/bold] (policy class + optional data/kwargs):")
-    console.print("  - class=random")
-    console.print("  - class=random,data=./train_dir/run:v5/weights.safetensors,proportion=0.5,kw.alpha=0.1")
-    console.print("[bold]URI format[/bold] (checkpoint directory):")
-    console.print("  - metta://policy/<name> or metta://policy/<uuid>")
-    console.print("  - s3://bucket/path/to/checkpoints/run:v5.zip")
-    console.print("  - file:///path/to/checkpoints/run:v5.zip or /path/to/checkpoints/run:v5")
-    if with_proportion:
-        console.print(
-            "  - [light_slate_grey]proportion[/light_slate_grey]: optional float specifying the population share.\n"
-        )
+    console.print("[bold cyan]-p [POLICY][/bold cyan] formats:\n")
+    console.print("[bold]URI[/bold] (checkpoint bundle dir or .zip):")
+    console.print("  ./train_dir/run:v5  or  ./checkpoints:latest  or  s3://bucket/run:v5.zip\n")
+    console.print("[bold]class=[/bold] (explicit class + optional weights file):")
+    prop_example = ",proportion=0.5" if with_proportion else ""
+    console.print(f"  class=lstm,data=./run:v5/weights.safetensors{prop_example}")
+    console.print("\n[dim]Note: data= must be a file path, not a directory.[/dim]\n")
 
 
 def _translate_error(e: Exception) -> str:
@@ -93,7 +86,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("\n" + ctx.get_usage())
 
     console.print("\n")
-    raise typer.Exit(0)
+    raise typer.Exit(1)
 
 
 def get_policy_specs_with_proportions(
@@ -116,7 +109,7 @@ def get_policy_specs_with_proportions(
     if policy_args:
         console.print("\n" + ctx.get_usage())
     console.print("\n")
-    raise typer.Exit(0)
+    raise typer.Exit(1)
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:

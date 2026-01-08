@@ -10,10 +10,12 @@ NUM_AGENTS = 4
 MAX_FAILED_ATTEMPTS = 3
 
 
-def _make_env() -> MettaGridConfig:
+def _make_env(seed: int) -> MettaGridConfig:
     mission = Machina1OpenWorldSharedRewardsMission.model_copy(deep=True)
     mission.num_cogs = NUM_AGENTS
-    return mission.make_env()
+    env = mission.make_env()
+    env.game.map_builder.seed = seed  # type: ignore
+    return env
 
 
 class SelfPlayReferee(RefereeBase):
@@ -62,13 +64,15 @@ class SelfPlayReferee(RefereeBase):
             if in_progress > 0:
                 continue
 
+            seed = 42
             needed = self.matches_per_player - completed
             for _ in range(needed):
                 requests.append(
                     MatchRequest(
                         pool_player_ids=[pp_id],
                         assignments=[0, 0, 0, 0],
-                        env=_make_env(),
+                        env=_make_env(seed),
+                        seed=seed,
                         episode_tags={"match_type": "self_play"},
                     )
                 )

@@ -53,7 +53,7 @@ def main():
         job = SingleEpisodeJob.model_validate(job_data.job)
 
         local_results_uri = "file://results.json"
-        local_replay_uri = "file://replay.json.z"
+        local_replay_uri = "file://replay.json.z" if job.replay_uri else None
 
         with tempfile.NamedTemporaryFile(delete=True) as temp_file:
             pure_job_spec = {
