@@ -11,13 +11,7 @@ from typing import Optional, Sequence
 import metta.cogworks.curriculum as cc
 from cogames.cogs_vs_clips.procedural import MachinaArena
 from cogames.cogs_vs_clips.stations import (
-    CarbonExtractorConfig,
-    ChargerConfig,
-    CvCStationConfig,
     CvCWallConfig,
-    GermaniumExtractorConfig,
-    OxygenExtractorConfig,
-    SiliconExtractorConfig,
 )
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
@@ -33,87 +27,267 @@ from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
+    ActivationHandler,
+    ActorCollectiveHas,
+    ActorHas,
     AgentConfig,
     AgentRewards,
+    Align,
+    AOEEffectConfig,
     AssemblerConfig,
     ChangeVibeActionConfig,
     ChestConfig,
+    ClearInventoryMutation,
     CollectiveConfig,
-    DamageConfig,
+    CollectiveDeposit,
+    CollectiveWithdraw,
     GameConfig,
     GlobalObsConfig,
+    GridObjectConfig,
     InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
-    ProtocolConfig,
+    RemoveAlignment,
     ResourceLimitsConfig,
+    TargetCollectiveUpdate,
+    UpdateActor,
+    Withdraw,
+    isAligned,
+    isEnemy,
+    isNeutral,
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
+from mettagrid.mapgen.scenes.base_hub import BaseHubConfig
+
+gear = ["aligner", "scrambler", "miner", "scout"]
+elements = ["oxygen", "carbon", "germanium", "silicon"]
+
+
+def neg(recipe: dict[str, int]) -> dict[str, int]:
+    return {k: -v for k, v in recipe.items()}
+
+
+HEART_COST = {e: 1 for e in elements}
+
+ALIGN_COST = {"heart": 1}
+SCRAMBLE_COST = {"heart": 1}
+
+gear_costs = {
+    "aligner": {"carbon": 3, "oxygen": 1, "germanium": 1, "silicon": 1},
+    "scrambler": {"carbon": 1, "oxygen": 3, "germanium": 1, "silicon": 1},
+    "miner": {"carbon": 1, "oxygen": 1, "germanium": 3, "silicon": 1},
+    "scout": {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 3},
+}
 
 resources = [
     "energy",
-    "carbon",
-    "oxygen",
-    "germanium",
-    "silicon",
     "heart",
-    "weapon",
-    "shield",
-    "battery",
-    "gear",
-    "damage",
+    "hp",
+    "influence",
+    *elements,
+    *gear,
 ]
 
 vibes = [
     Vibe("😐", "default"),
-    Vibe("⚔️", "weapon"),
-    Vibe("🛡️", "shield"),
-    Vibe("🔋", "battery"),
-    Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
+    Vibe("⚙️", "gear"),
+    Vibe("🌀", "scrambler"),
+    Vibe("🔗", "aligner"),
+    Vibe("⛏️", "miner"),
+    Vibe("🔭", "scout"),
 ]
 
 
-class CogAssemblerConfig(CvCStationConfig):
-    def station_cfg(self) -> AssemblerConfig:
-        # gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
-        return AssemblerConfig(
-            name="assembler",
-            render_symbol="",
-            clip_immune=True,
-            chest_search_distance=10,
-            protocols=[
-                ProtocolConfig(
-                    vibes=["heart"],
-                    input_resources={
-                        "carbon": 10,
-                        "oxygen": 10,
-                        "germanium": 10,
-                        "silicon": 10,
-                    },
-                    output_resources={"heart": 1},
-                ),
-            ],
-        )
+def influence_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that provides influence to nearby agents in the same collective."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"influence": 10, "energy": 100, "hp": 100},
+        filters=[isAligned()],
+    )
 
 
-def make_env(num_agents: int = 10) -> MettaGridConfig:
+def attack_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that attacks nearby agents not in the same collective."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"hp": -1, "influence": -100},
+        filters=[isEnemy()],
+    )
+
+
+def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool = True) -> GridObjectConfig:
+    """Supply depot that receives element resources via default vibe into collective."""
+    aoes = [influence_aoe(), attack_aoe()]
+    return GridObjectConfig(
+        name="supply_depot",
+        map_name=map_name,
+        render_symbol="📦",
+        collective=team,
+        aoes=aoes if has_aoe else [],
+        handlers=[
+            ActivationHandler(
+                name="deposit",
+                filters=[isAligned()],
+                mutations=[CollectiveDeposit({resource: 100 for resource in elements})],
+            ),
+            ActivationHandler(
+                name="align",
+                filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, **ALIGN_COST})],
+                mutations=[UpdateActor(neg(ALIGN_COST)), Align()],
+            ),
+            # Scramble handler: remove this depot's collective alignment (only if aligned)
+            ActivationHandler(
+                name="scramble",
+                filters=[isEnemy(), ActorHas({"scrambler": 1, **SCRAMBLE_COST})],
+                mutations=[RemoveAlignment(), UpdateActor(neg(SCRAMBLE_COST))],
+            ),
+        ],
+    )
+
+
+def nexus(map_name: str) -> AssemblerConfig:
+    """Main nexus assembler with influence AOE effect."""
+    return AssemblerConfig(
+        name="main_nexus",
+        map_name=map_name,
+        render_symbol="🏛️",
+        clip_immune=True,
+        collective="cogs",
+        aoes=[influence_aoe(), attack_aoe()],
+        handlers=[
+            ActivationHandler(
+                name="deposit",
+                filters=[isAligned()],
+                mutations=[CollectiveDeposit({resource: 100 for resource in elements})],
+            ),
+        ],
+    )
+
+
+def chest() -> GridObjectConfig:
+    """Chest for heart management."""
+    return GridObjectConfig(
+        name="chest",
+        map_name="chest",
+        render_symbol="📦",
+        collective="cogs",
+        handlers=[
+            ActivationHandler(
+                name="get_heart",
+                filters=[isAligned()],
+                mutations=[CollectiveWithdraw({"heart": 1})],
+            ),
+            ActivationHandler(
+                name="make_heart",
+                filters=[isAligned(), ActorCollectiveHas(HEART_COST)],
+                mutations=[
+                    TargetCollectiveUpdate(neg(HEART_COST)),
+                    UpdateActor({"heart": 1}),
+                ],
+            ),
+        ],
+    )
+
+
+def extractor(resource: str, amount: int = 100) -> ChestConfig:
+    """Chest (mine) containing a resource with alignment-based extraction.
+
+    - If actor has miner gear: extract 10 resources
+    - Otherwise: extract 1 resource
+    """
+    return ChestConfig(
+        name=f"{resource}_chest",
+        map_name=f"{resource}_extractor",
+        render_symbol="📦",
+        inventory=InventoryConfig(
+            limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
+            initial={resource: amount},
+        ),
+        handlers=[
+            # Extract handler: transfer resource from mine to agent
+            ActivationHandler(
+                name="extract_big",
+                filters=[ActorHas({"miner": 1})],
+                mutations=[Withdraw({resource: 10})],
+            ),
+            ActivationHandler(
+                name="extract_small",
+                filters=[],
+                mutations=[Withdraw({resource: 1})],
+            ),
+        ],
+    )
+
+
+# Gear station symbols
+GEAR_SYMBOLS = {
+    "aligner": "🔗",
+    "scrambler": "🌀",
+    "miner": "⛏️",
+    "scout": "🔭",
+}
+
+
+def gear_station(gear_type: str) -> GridObjectConfig:
+    """Create a gear station that clears all gear and adds the specified gear type."""
+    return GridObjectConfig(
+        name=f"{gear_type}_station",
+        map_name=f"{gear_type}_station",
+        render_symbol=GEAR_SYMBOLS.get(gear_type, "⚙️"),
+        collective="cogs",
+        handlers=[
+            ActivationHandler(
+                name="keep_gear",
+                filters=[isAligned(), ActorHas({gear_type: 1})],
+                mutations=[],
+            ),
+            ActivationHandler(
+                name="change_gear",
+                filters=[isAligned(), ActorCollectiveHas(gear_costs[gear_type])],
+                mutations=[
+                    ClearInventoryMutation(target="actor", limit_name="gear"),
+                    TargetCollectiveUpdate(neg(gear_costs[gear_type])),
+                    UpdateActor({gear_type: 1}),
+                ],
+            ),
+        ],
+    )
+
+
+def make_env(num_agents: int = 10, max_steps: int = 1000) -> MettaGridConfig:
+    # Configure hub with gear stations
+    hub_config = BaseHubConfig(
+        corner_bundle="extractors",
+        cross_bundle="none",
+        cross_distance=7,
+        stations=[
+            "aligner_station",
+            "scrambler_station",
+            "miner_station",
+            "scout_station",
+            "chest",
+        ],
+    )
     map_builder = MapGen.Config(
         width=50,
         height=50,
         instance=MachinaArena.Config(
             spawn_count=num_agents,
             building_coverage=0.1,
+            hub=hub_config,
         ),
     )
+    vibe_names = [vibe.name for vibe in vibes]
     game = GameConfig(
         map_builder=map_builder,
-        max_steps=1000,
+        max_steps=max_steps,
         num_agents=num_agents,
         resource_names=resources,
-        vibe_names=[vibe.name for vibe in vibes],
+        vibe_names=vibe_names,
         global_obs=GlobalObsConfig(),
         actions=ActionsConfig(
             move=MoveActionConfig(
@@ -123,87 +297,68 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             change_vibe=ChangeVibeActionConfig(vibes=vibes),
         ),
         agent=AgentConfig(
+            collective="cogs",
             inventory=InventoryConfig(
                 limits={
-                    "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
-                    "energy": ResourceLimitsConfig(limit=0, resources=["energy"], modifiers={"battery": 25}),
-                    "cargo": ResourceLimitsConfig(limit=255, resources=["carbon", "oxygen", "germanium", "silicon"]),
-                    "gear": ResourceLimitsConfig(
-                        limit=0, resources=["weapon", "shield", "battery"], modifiers={"gear": 1}
-                    ),
+                    "gear": ResourceLimitsConfig(limit=1, resources=gear),
+                    "hp": ResourceLimitsConfig(limit=100, resources=["hp"], modifiers={"scout": 400, "scrambler": 200}),
+                    "heart": ResourceLimitsConfig(limit=10, resources=["heart"]),
+                    "energy": ResourceLimitsConfig(limit=10, resources=["energy"], modifiers={"scout": 100}),
+                    "cargo": ResourceLimitsConfig(limit=4, resources=elements, modifiers={"miner": 40}),
+                    "influence": ResourceLimitsConfig(limit=0, resources=["influence"], modifiers={"aligner": 20}),
                 },
                 initial={
-                    "gear": 10,
-                    "battery": 4,
                     "energy": 100,
-                    "weapon": 1,
-                    "shield": 0,
-                    "silicon": 50,
-                    "oxygen": 50,
-                    "carbon": 50,
-                    "germanium": 50,
-                    "heart": 1000,
+                    "hp": 50,
                 },
                 regen_amounts={
                     "default": {
                         "energy": 1,
-                        "damage": 1,
+                        "hp": -1,
+                        "influence": -1,
                     },
                 },
             ),
             rewards=AgentRewards(
-                inventory={
-                    "heart": 1,
-                    "carbon": 0.001,
-                    "oxygen": 0.001,
-                    "germanium": 0.001,
-                    "silicon": 0.001,
-                    "weapon": 0.01,
-                    "shield": 0.01,
-                    "battery": 0.01,
-                    "gear": 0.1,
+                collective_inventory={
+                    # "carbon": 0.001,
+                    # "oxygen": 0.001,
+                    # "germanium": 0.001,
+                    # "silicon": 0.001,
+                },
+                collective_stats={
+                    "aligned.charger.held": 1.0 / max_steps,
                 },
             ),
-            damage=DamageConfig(
-                threshold={"damage": 200},
-                resources={"battery": 1, "weapon": 0, "shield": 0},  # resource -> minimum (won't go below)
-            ),
-            freeze_duration=5,
         ),
         inventory_regen_interval=1,
         objects={
             "wall": CvCWallConfig().station_cfg(),
-            "assembler": CogAssemblerConfig().station_cfg().model_copy(update={"collective": "cogs"}),
-            "charger": ChargerConfig().station_cfg(),
-            "chest": ChestConfig(
-                collective="cogs",
-                vibe_transfers={
-                    "default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255},
-                },
-            ),
-            "carbon_extractor": CarbonExtractorConfig().station_cfg(),
-            "oxygen_extractor": OxygenExtractorConfig(efficiency=200).station_cfg(),
-            "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
-            "silicon_extractor": SiliconExtractorConfig().station_cfg(),
+            "assembler": nexus("assembler"),
+            "charger": supply_depot_config("charger", "clips"),
+            "chest": chest(),
+            **{f"{resource}_extractor": extractor(resource) for resource in elements},
+            **{f"{g}_station": gear_station(g) for g in gear},
         },
         collectives={
             "cogs": CollectiveConfig(
                 name="cogs",
                 inventory=InventoryConfig(
                     limits={
-                        "resources": ResourceLimitsConfig(
-                            limit=10000, resources=["carbon", "oxygen", "germanium", "silicon"]
-                        ),
+                        "resources": ResourceLimitsConfig(limit=10000, resources=elements),
                         "hearts": ResourceLimitsConfig(limit=65535, resources=["heart"]),
                     },
                     initial={
-                        "carbon": 0,
-                        "oxygen": 0,
-                        "germanium": 0,
-                        "silicon": 0,
-                        "heart": 0,
+                        "carbon": 10,
+                        "oxygen": 10,
+                        "germanium": 10,
+                        "silicon": 10,
+                        "heart": 5,
                     },
                 ),
+            ),
+            "clips": CollectiveConfig(
+                name="clips",
             ),
         },
     )
@@ -213,12 +368,12 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
 
 
 def make_curriculum(
-    arena_env: Optional[MettaGridConfig] = None,
+    env: Optional[MettaGridConfig] = None,
     algorithm_config: Optional[CurriculumAlgorithmConfig] = None,
 ) -> CurriculumConfig:
-    arena_env = arena_env or make_env()
+    env = env or make_env()
 
-    arena_tasks = cc.bucketed(arena_env)
+    tasks = cc.bucketed(env)
 
     # for item in ["ore_red", "battery_red", "laser", "armor"]:
     #     arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0])
@@ -226,15 +381,8 @@ def make_curriculum(
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    arena_tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.energy", [7, 8, 9, 10])
-    arena_tasks.add_bucket("game.actions.attack.weapon_resources.weapon", [9, 10, 11])
-    arena_tasks.add_bucket("game.actions.attack.armor_resources.shield", [12, 13, 14])
-    arena_tasks.add_bucket("game.agent.inventory.initial.weapon", [0, 1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.initial.shield", [0, 1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.initial.battery", [3, 4, 5, 6])
-    arena_tasks.add_bucket("game.agent.inventory.regen_amounts.default.damage", [1, 2, 3])
-    arena_tasks.add_bucket("game.agent.inventory.regen_amounts.default.energy", [1, 2, 3])
+    tasks.add_bucket("game.max_steps", [1000, 5000, 10000])
+    tasks.add_bucket("game.agent.inventory.initial.heart", [0, 1, 2, 3])
 
     if algorithm_config is None:
         # algorithm_config = LearningProgressConfig(
@@ -247,14 +395,14 @@ def make_curriculum(
         # )
         algorithm_config = DiscreteRandomConfig()
 
-    return arena_tasks.to_curriculum(algorithm_config=algorithm_config)
+    return tasks.to_curriculum(algorithm_config=algorithm_config)
 
 
 def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]:
-    basic_env = env or make_env()
+    env = env or make_env()
 
     return [
-        SimulationConfig(suite="cog_arena", name="basic", env=basic_env),
+        SimulationConfig(suite="cogsguard", name="basic", env=env),
     ]
 
 

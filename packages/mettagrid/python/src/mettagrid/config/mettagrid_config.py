@@ -234,10 +234,23 @@ class AgentConfig(Config):
         description="Resource names that contribute to inventory diversity metrics",
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
+    handlers: list[Handler] = Field(
+        default_factory=list,
+        description="Handlers triggered when another agent moves onto this agent",
+    )
     damage: Optional[DamageConfig] = Field(
         default=None,
-        description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
+        description="Damage configuration: when threshold is reached, removes resources randomly",
     )
+
+    @model_validator(mode="after")
+    def _add_collective_tag(self) -> "AgentConfig":
+        # Add collective tag if collective is set
+        if self.collective:
+            collective_tag = f"collective:{self.collective}"
+            if collective_tag not in self.tags:
+                self.tags = self.tags + [collective_tag]
+        return self
 
 
 class GlobalObsConfig(Config):
@@ -255,6 +268,38 @@ class GlobalObsConfig(Config):
 
     # Goal tokens that indicate rewarding resources
     goal_obs: bool = Field(default=False)
+
+
+class AOEEffectConfig(Config):
+    """Configuration for Area of Effect (AOE) resource effects.
+
+    When attached to a grid object, objects with inventory within range receive the resource_deltas each tick.
+
+    Target filtering:
+    - target_tags: If set, only objects with at least one matching tag are affected.
+                   If None or empty, all HasInventory objects are affected.
+                   Agents are always checked every tick (they move).
+                   Static objects are registered/unregistered with the AOE for efficiency.
+    - filters: List of filters that must all pass for the effect to apply.
+               Uses the same filter types as activation handlers (AlignmentFilter, VibeFilter, ResourceFilter).
+               In AOE context, "actor" refers to the AOE source object and "target" refers to the affected object.
+    """
+
+    range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resource changes per tick for objects in range. Positive = gain, negative = lose.",
+    )
+    target_tags: Optional[list[str]] = Field(
+        default=None,
+        description="If set, only objects with at least one matching tag are affected. "
+        "If None, all HasInventory objects are affected.",
+    )
+    filters: list[AnyFilter] = Field(
+        default_factory=list,
+        description="Filters that must all pass for effect to apply. "
+        "In AOE context, 'actor' = source object, 'target' = affected object.",
+    )
 
 
 class GridObjectConfig(Config):
@@ -279,6 +324,10 @@ class GridObjectConfig(Config):
     collective: Optional[str] = Field(
         default=None,
         description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+    )
+    aoes: list[AOEEffectConfig] = Field(
+        default_factory=list,
+        description="List of AOE effects this object emits to agents within range each tick",
     )
 
     # Three types of handlers on GridObject (name -> handler)
