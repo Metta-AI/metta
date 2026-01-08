@@ -10,7 +10,15 @@ authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 license = { text = "MIT" }
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
-dependencies = ["rich>=14.1", "tenacity>=9.0.0", "wandb>=0.22.3", "cogames"]
+dependencies = [
+  "rich>=14.1",
+  "tenacity>=9.0.0",
+  "wandb>=0.22.3",
+  "cogames",
+  "opentelemetry-api>=1.22.0",
+  "opentelemetry-sdk>=1.22.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.22.0",
+]
 
 [project.scripts]
 tool = "metta.common.tool.run_tool:cli_entry"

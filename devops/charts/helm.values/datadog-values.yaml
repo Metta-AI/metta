@@ -16,6 +16,13 @@ datadog:
   apm:
     portEnabled: true
     port: 8126
+  otlp:
+    receiver:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
 
   # Log collection - also in defaults.yaml
   logs:

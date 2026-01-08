@@ -22,7 +22,7 @@ class MatchRequest(BaseModel):
     assignments: list[int]
     env: MettaGridConfig
     episode_tags: dict[str, str] = {}
-    seed: int = 42
+    seed: int
 
 
 class ScoredMatchData(BaseModel):
