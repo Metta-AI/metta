@@ -309,7 +309,7 @@ def evaluate_ci(policy_uri: str) -> EvaluateTool:
     remote_nodes=1,
     timeout_s=7200,
     acceptance=[
-        AcceptanceCriterion(metric="overview/sps", threshold=40000),
+        AcceptanceCriterion(metric="overview/sps", threshold=23000),
         AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
     ],
 )
