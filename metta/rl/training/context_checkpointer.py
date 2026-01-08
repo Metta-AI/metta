@@ -51,7 +51,30 @@ class ContextCheckpointer(TrainerComponent):
             if not raw:
                 policy_uri = context.latest_policy_uri()
                 if policy_uri:
-                    raw = self._load_trainer_state_from_uri(policy_uri)
+                    try:
+                        parsed = resolve_uri(policy_uri)
+                    except Exception:
+                        parsed = None
+
+                    if parsed and parsed.local_path and parsed.local_path.is_dir():
+                        trainer_path = parsed.local_path / "trainer_state.pt"
+                        if trainer_path.exists():
+                            raw = torch.load(trainer_path, map_location="cpu", weights_only=False)
+
+                    if raw is None and parsed and parsed.canonical.endswith(".zip"):
+                        with local_copy(parsed.canonical) as local_path:
+                            try:
+                                with zipfile.ZipFile(local_path, "r") as zipf:
+                                    try:
+                                        with zipf.open("trainer_state.pt") as f:
+                                            data = f.read()
+                                    except KeyError:
+                                        data = None
+                            except zipfile.BadZipFile:
+                                data = None
+
+                        if data is not None:
+                            raw = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
             if raw:
                 logger.info(
                     "Restoring trainer state from epoch=%s agent_step=%s", raw.get("epoch"), raw.get("agent_step")
@@ -167,31 +190,3 @@ class ContextCheckpointer(TrainerComponent):
         # Release references so we do not pin large GPU tensors between checkpoints
         context.state.optimizer_state = None
         context.state.loss_states = {}
-
-    def _load_trainer_state_from_uri(self, policy_uri: str) -> Optional[Dict[str, Any]]:
-        try:
-            parsed = resolve_uri(policy_uri)
-        except Exception:
-            return None
-
-        if parsed.local_path and parsed.local_path.is_dir():
-            trainer_path = parsed.local_path / "trainer_state.pt"
-            if trainer_path.exists():
-                return torch.load(trainer_path, map_location="cpu", weights_only=False)
-            return None
-
-        if not parsed.canonical.endswith(".zip"):
-            return None
-
-        with local_copy(parsed.canonical) as local_path:
-            try:
-                with zipfile.ZipFile(local_path, "r") as zipf:
-                    try:
-                        with zipf.open("trainer_state.pt") as f:
-                            data = f.read()
-                    except KeyError:
-                        return None
-            except zipfile.BadZipFile:
-                return None
-
-        return torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
