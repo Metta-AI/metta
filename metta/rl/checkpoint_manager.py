@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 import tempfile
@@ -12,7 +13,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.file import write_file
+from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -152,11 +153,40 @@ class CheckpointManager:
         logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
         return checkpoint_dir.as_uri()
 
-    def load_trainer_state(self) -> Optional[Dict[str, Any]]:
+    def load_trainer_state(self, policy_uri: str | None = None) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
+            if not policy_uri:
+                return None
+        else:
+            return torch.load(trainer_file, map_location="cpu", weights_only=False)
+
+        try:
+            parsed = resolve_uri(policy_uri)
+        except Exception:
             return None
-        return torch.load(trainer_file, map_location="cpu", weights_only=False)
+
+        if parsed.local_path and parsed.local_path.is_dir():
+            trainer_path = parsed.local_path / "trainer_state.pt"
+            if trainer_path.exists():
+                return torch.load(trainer_path, map_location="cpu", weights_only=False)
+            return None
+
+        if not parsed.canonical.endswith(".zip"):
+            return None
+
+        with local_copy(parsed.canonical) as local_path:
+            try:
+                with zipfile.ZipFile(local_path, "r") as zipf:
+                    try:
+                        with zipf.open("trainer_state.pt") as f:
+                            data = f.read()
+                    except KeyError:
+                        return None
+            except zipfile.BadZipFile:
+                return None
+
+        return torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
 
     def save_trainer_state(
         self,

@@ -1,16 +1,12 @@
 """Trainer state checkpoint management component."""
 
-import io
 import logging
-import zipfile
 from typing import Any, Dict, Optional
 
 import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
-from mettagrid.util.file import local_copy
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -47,34 +43,7 @@ class ContextCheckpointer(TrainerComponent):
         payload: Optional[Dict[str, Any]] = None
 
         if self._distributed.is_master():
-            raw = self._checkpoint_manager.load_trainer_state()
-            if not raw:
-                policy_uri = context.latest_policy_uri()
-                if policy_uri:
-                    try:
-                        parsed = resolve_uri(policy_uri)
-                    except Exception:
-                        parsed = None
-
-                    if parsed and parsed.local_path and parsed.local_path.is_dir():
-                        trainer_path = parsed.local_path / "trainer_state.pt"
-                        if trainer_path.exists():
-                            raw = torch.load(trainer_path, map_location="cpu", weights_only=False)
-
-                    if raw is None and parsed and parsed.canonical.endswith(".zip"):
-                        with local_copy(parsed.canonical) as local_path:
-                            try:
-                                with zipfile.ZipFile(local_path, "r") as zipf:
-                                    try:
-                                        with zipf.open("trainer_state.pt") as f:
-                                            data = f.read()
-                                    except KeyError:
-                                        data = None
-                            except zipfile.BadZipFile:
-                                data = None
-
-                        if data is not None:
-                            raw = torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
+            raw = self._checkpoint_manager.load_trainer_state(context.latest_policy_uri())
             if raw:
                 logger.info(
                     "Restoring trainer state from epoch=%s agent_step=%s", raw.get("epoch"), raw.get("agent_step")
