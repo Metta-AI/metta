@@ -76,14 +76,20 @@ struct AOEEffectConfig {
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
+  std::string name;  // Instance name for stats (defaults to type_name if empty)
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
   std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
+      : type_id(type_id), type_name(type_name), name(""), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
 
   virtual ~GridObjectConfig() = default;
+
+  // Get the effective name (instance name or type_name as fallback)
+  const std::string& effective_name() const {
+    return name.empty() ? type_name : name;
+  }
 };
 
 // Helper class for managing AOE effects on grid objects
@@ -153,7 +159,8 @@ public:
   GridObjectId id{};
   GridLocation location{};
   TypeId type_id{};
-  std::string type_name;
+  std::string type_name;  // Class/type name (e.g., "assembler", "chest")
+  std::string name;       // Instance name for stats (e.g., "carbon_extractor", "energy_healer")
   std::vector<int> tag_ids;
   std::vector<AOEHelper> aoes;  // AOE effect helpers (one per config)
 
@@ -164,9 +171,11 @@ public:
             const GridLocation& object_location,
             const std::vector<int>& tags,
             ObservationType object_vibe = 0,
-            const std::vector<AOEEffectConfig>& aoe_configs = {}) {
+            const std::vector<AOEEffectConfig>& aoe_configs = {},
+            const std::string& object_name = "") {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
+    this->name = object_name.empty() ? object_type_name : object_name;
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;

@@ -252,6 +252,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
             )
             cpp_wall_config.tag_ids = tag_ids
+            cpp_wall_config.name = object_config.name  # Instance name for stats
 
             # Convert AOE configs
             cpp_aoes = []
