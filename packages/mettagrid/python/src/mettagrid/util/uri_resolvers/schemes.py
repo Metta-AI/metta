@@ -309,9 +309,6 @@ def policy_spec_from_uri(
         # Check if it's a registered short name
         if identifier in registry:
             return PolicySpec(class_path=registry[identifier])
-        # Check if it looks like a full class path
-        if "." in identifier:
-            return PolicySpec(class_path=identifier)
 
     parsed = resolve_uri(uri)
 
