@@ -55,11 +55,7 @@ private:
 
 public:
   Grid(GridCoord height, GridCoord width)
-      : height(height),
-        width(width),
-        objects(),
-        grid(),
-        _effect_sources(height, std::vector<CellEffects>(width)) {
+      : height(height), width(width), objects(), grid(), _effect_sources(height, std::vector<CellEffects>(width)) {
     grid.resize(height, std::vector<GridObject*>(width, nullptr));
 
     // Reserve space for objects to avoid frequent reallocations
