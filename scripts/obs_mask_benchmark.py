@@ -11,7 +11,6 @@ import argparse
 import statistics
 import time
 from types import MethodType
-from typing import Literal, Optional
 
 import torch
 from einops import rearrange
