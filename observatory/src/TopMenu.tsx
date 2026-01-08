@@ -28,9 +28,6 @@ export const TopMenu: FC = () => {
           <MenuLink to="/" isActive={isPoliciesActive}>
             Policies
           </MenuLink>
-          <MenuLink to="/leaderboard" isActive={location.pathname.startsWith('/leaderboard')}>
-            Leaderboard
-          </MenuLink>
           <MenuLink to="/tournament" isActive={location.pathname.startsWith('/tournament')}>
             Tournament
           </MenuLink>

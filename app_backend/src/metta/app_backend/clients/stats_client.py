@@ -11,9 +11,6 @@ from metta.app_backend.clients.base_client import NotAuthenticatedError, get_mac
 from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionWithName
 from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TasksResponse
-from metta.app_backend.routes.leaderboard_routes import (
-    LeaderboardPoliciesResponse,
-)
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
@@ -151,12 +148,6 @@ class StatsClient:
             UUIDResponse, "PUT", f"/stats/policies/versions/{policy_version_id}/tags", json=tags
         )
 
-    def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
-
-    def get_leaderboard_policies_with_vor(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2/vor")
-
     def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
         return self._make_sync_request(
             MyPolicyVersionsResponse,
@@ -192,20 +183,6 @@ class StatsClient:
         params = remove_none_values({"limit": limit, "offset": offset})
         return self._make_sync_request(
             PolicyVersionsResponse, "GET", f"/stats/policies/{policy_id}/versions", params=params
-        )
-
-    def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(
-            LeaderboardPoliciesResponse,
-            "GET",
-            "/leaderboard/v2/users/me",
-        )
-
-    def get_leaderboard_policies_v2_for_policy(self, policy_version_id: uuid.UUID) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(
-            LeaderboardPoliciesResponse,
-            "GET",
-            f"/leaderboard/v2/policy/{policy_version_id}",
         )
 
     def query_episodes(self, request: EpisodeQueryRequest) -> EpisodeQueryResponse:
