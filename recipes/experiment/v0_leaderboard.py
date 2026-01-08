@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Sequence
 
-from cogames.leaderboard import make_machina1_open_world_env
+from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from metta.app_backend.leaderboard_constants import (
     LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
@@ -20,10 +20,35 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.eval import EvaluateTool, EvalWithResultTool
 from metta.tools.play import PlayTool
 from metta.tools.utils.auto_config import auto_stats_server_uri
+from mettagrid import MettaGridConfig
+from mettagrid.mapgen.mapgen import MapGen
 
 logger = logging.getLogger(__name__)
 
 NUM_COGS = 4
+
+
+def make_machina1_open_world_env(
+    *, num_cogs: int, seed: int | None = None, map_seed: int | None = None, steps: int | None = None
+) -> MettaGridConfig:
+    mission = Machina1OpenWorldMission.model_copy(deep=True)
+    mission.num_cogs = num_cogs
+    env_cfg = mission.make_env()
+    if steps is not None:
+        env_cfg.game.max_steps = steps
+
+    effective_map_seed: int | None
+    if map_seed is not None:
+        effective_map_seed = map_seed
+    else:
+        effective_map_seed = seed
+
+    if effective_map_seed is not None:
+        map_builder = getattr(env_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config):
+            map_builder.seed = effective_map_seed
+
+    return env_cfg
 
 
 def _episode_tags(
