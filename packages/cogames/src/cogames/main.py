@@ -812,6 +812,7 @@ def pickup_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
+
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
     seed: int = typer.Option(50, "--seed", help="Base random seed for evaluation", min=0),
     map_seed: Optional[int] = typer.Option(
@@ -836,9 +837,9 @@ def pickup_cmd(
     server: str = typer.Option(
         DEFAULT_SUBMIT_SERVER,
         "--server",
-        "-s",
         help="Observatory API base URL",
     ),
+
 ) -> None:
     def _looks_like_policy_identifier(value: str) -> bool:
         if "://" in value:
