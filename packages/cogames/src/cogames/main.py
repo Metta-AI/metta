@@ -839,7 +839,6 @@ def pickup_cmd(
         "--server",
         help="Observatory API base URL",
     ),
-
 ) -> None:
     def _looks_like_policy_identifier(value: str) -> bool:
         if "://" in value:
