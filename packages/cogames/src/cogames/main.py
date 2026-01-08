@@ -29,8 +29,6 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-import cogames.policy.scripted_agent.starter_agent as starter_agent
-import cogames.policy.trainable_policy_template as trainable_policy_template
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import pickup as pickup_module
@@ -65,6 +63,8 @@ from cogames.cli.policy import (
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
+import cogames.policy.scripted_agent.starter_agent as starter_agent
+import cogames.policy.trainable_policy_template as trainable_policy_template
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy_registry import get_policy_registry
