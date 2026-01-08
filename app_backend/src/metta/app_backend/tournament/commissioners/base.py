@@ -487,8 +487,7 @@ class CommissionerBase(ABC):
                 policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
                 assignments=request.assignments,
                 env=request.env.model_dump(),
-                # TODO: uncomment this when collecting replays stop causing OOMs
-                replay_uri=None,  # f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
+                replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
                 seed=request.seed,
                 episode_tags=request.episode_tags,
             )

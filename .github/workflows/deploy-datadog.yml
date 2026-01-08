@@ -1,0 +1,24 @@
+name: "Deploy Datadog Agent"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "devops/charts/helm.values/datadog-values.yaml"
+      - ".github/workflows/deploy-datadog.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/eks-configure
+      - name: Install helmfile
+        run: |
+          curl -fsSL -o helmfile.tar.gz https://github.com/helmfile/helmfile/releases/download/v0.169.2/helmfile_0.169.2_linux_amd64.tar.gz
+          tar -xzf helmfile.tar.gz
+          sudo mv helmfile /usr/local/bin/
+      - name: Deploy Datadog
+        working-directory: devops/charts
+        run: helmfile -l name=datadog apply

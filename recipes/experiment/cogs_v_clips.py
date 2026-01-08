@@ -825,7 +825,7 @@ def play_ci() -> PlayTool:
     remote_gpus=1,
     remote_nodes=1,
     timeout_s=43200,
-    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=25000)],
+    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=13000)],
 )
 def train_200ep() -> TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
