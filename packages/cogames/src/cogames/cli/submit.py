@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri, resolve_uri
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
