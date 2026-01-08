@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(mkdir:*)",
@@ -17,7 +19,14 @@
       "Bash(metta status:*)",
       "Bash(metta install:*)",
       "Bash(metta test:*)",
-      "Bash(./install.sh:*)"
+      "Bash(./install.sh:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch)",
+      "Bash(git branch --list:*)",
+      "Bash(git branch -a)",
+      "Bash(git branch -r)"
     ],
     "deny": []
   },
@@ -39,6 +48,16 @@
           {
             "type": "command",
             "command": "uv run --no-sync python -m metta.setup.tools.code_formatters --verbose --fix \"$CLAUDE_FILE_PATHS\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before stopping, check: 1) Were there uncommitted code changes? If so, did Claude offer to commit or was the user informed? 2) If the user asked for multiple things, were they all addressed? 3) Are there obvious next steps Claude should mention? Return {\"decision\": \"approve\"} if complete, or {\"decision\": \"block\", \"reason\": \"...\"} with brief guidance."
           }
         ]
       }
