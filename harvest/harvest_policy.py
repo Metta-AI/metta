@@ -36,6 +36,7 @@ from .resources import ResourceManager
 from .navigation import NavigationManager
 from .state_tracker import StateTracker
 from .map import MapManager
+from .maze_navigation import MazeNavigator, WallFollowMode
 from .utils import (
     change_vibe_action,
     is_adjacent,
@@ -174,6 +175,13 @@ class HarvestState:
     exploration_direction: Optional[str] = None
     exploration_step: int = 0
     explored_cells: set[tuple[int, int]] = field(default_factory=set)
+    exploration_resume_position: Optional[tuple[int, int]] = None  # Where to resume exploring after recharge
+
+    # OSCILLATION PREVENTION: Track committed direction and target
+    committed_exploration_direction: Optional[str] = None  # Direction we're committed to (for momentum)
+    committed_direction_steps: int = 0  # How many steps we've been going this direction
+    committed_frontier_target: Optional[tuple[int, int]] = None  # Frontier target we're committed to
+    frontier_target_commitment_steps: int = 0  # Steps remaining with current frontier target
 
     # Current observation
     current_obs: Optional[AgentObservation] = None
@@ -291,10 +299,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         self.navigation = NavigationManager(self._logger)
         self.state_tracker = StateTracker(self._obs_hr, self._obs_wr, self._tag_names, self._logger)
         self.map_manager: Optional[MapManager] = None  # Initialized on first step (needs map dimensions)
+        self.maze_navigator: Optional[MazeNavigator] = None  # Initialized in initial_agent_state() after tag_id_to_name is available
 
     def initial_agent_state(self) -> HarvestState:
         """Initialize state for the agent."""
         self._tag_names = self._policy_env_info.tag_id_to_name
+
+        # Initialize MazeNavigator now that we have the correct tag_id_to_name dict
+        self.maze_navigator = MazeNavigator(self._logger, self._obs_hr, self._obs_wr, self._tag_names)
 
         # Initialize heart recipe from assembler protocols
         # Try to find a valid recipe that makes sense
@@ -852,6 +864,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Priority 1: CRITICAL energy - MUST recharge immediately
         if state.energy < recharge_critical:
+            # Save current position for exploration resume
+            if old_phase == HarvestPhase.GATHER and state.exploration_resume_position is None:
+                state.exploration_resume_position = (state.row, state.col)
+                self._logger.info(f"  PHASE: Saved exploration resume position {state.exploration_resume_position}")
+
             state.phase = HarvestPhase.RECHARGE
             if old_phase != state.phase:
                 self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (CRITICAL energy={state.energy} < {recharge_critical})")
@@ -859,6 +876,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Priority 2: Low energy - start recharging
         if state.energy < recharge_low:
+            # Save current position for exploration resume
+            if old_phase == HarvestPhase.GATHER and state.exploration_resume_position is None:
+                state.exploration_resume_position = (state.row, state.col)
+                self._logger.info(f"  PHASE: Saved exploration resume position {state.exploration_resume_position}")
+
             state.phase = HarvestPhase.RECHARGE
             if old_phase != state.phase:
                 self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (low energy={state.energy} < {recharge_low})")
@@ -885,10 +907,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             return
 
         # Priority 4: Assemble if we have all resources
-        if state.heart_recipe and self._can_assemble(state):
+        can_assemble = self._can_assemble(state)
+        if state.heart_recipe:
+            self._logger.debug(f"Step {state.step_count}: PHASE CHECK: recipe={state.heart_recipe}, inv=(C:{state.carbon} O:{state.oxygen} Ge:{state.germanium} Si:{state.silicon}), can_assemble={can_assemble}")
+
+        if state.heart_recipe and can_assemble:
             state.phase = HarvestPhase.ASSEMBLE
             if old_phase != state.phase:
-                self._logger.info(f"  PHASE: {old_phase.value} → ASSEMBLE (have all resources)")
+                self._logger.info(f"Step {state.step_count}: PHASE: {old_phase.value} → ASSEMBLE (have all resources: C:{state.carbon} O:{state.oxygen} Ge:{state.germanium} Si:{state.silicon})")
             return
 
         # Priority 5: FIND CHARGER FIRST before gathering
@@ -902,10 +928,36 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.debug(f"  PHASE: In GATHER, still searching for initial charger (found={len(state.discovered_chargers)} chargers)")
             return
 
-        # Priority 6: Gather resources (only after charger found)
+        # Priority 6: FIND ALL RESOURCE TYPES before gathering
+        # Check if we've discovered at least one extractor of each type
+        all_types_found = (
+            len(self.map_manager.carbon_extractors) > 0 and
+            len(self.map_manager.oxygen_extractors) > 0 and
+            len(self.map_manager.germanium_extractors) > 0 and
+            len(self.map_manager.silicon_extractors) > 0
+        )
+
+        if not all_types_found:
+            state.phase = HarvestPhase.GATHER  # Use GATHER phase for exploration
+            if old_phase != state.phase:
+                c_count = len(self.map_manager.carbon_extractors)
+                o_count = len(self.map_manager.oxygen_extractors)
+                g_count = len(self.map_manager.germanium_extractors)
+                s_count = len(self.map_manager.silicon_extractors)
+                self._logger.info(f"  PHASE: {old_phase.value} → GATHER (exploring to find all resources: C={c_count} O={o_count} G={g_count} Si={s_count})")
+            else:
+                if state.step_count % 100 == 0:  # Log every 100 steps to avoid spam
+                    c_count = len(self.map_manager.carbon_extractors)
+                    o_count = len(self.map_manager.oxygen_extractors)
+                    g_count = len(self.map_manager.germanium_extractors)
+                    s_count = len(self.map_manager.silicon_extractors)
+                    self._logger.debug(f"Step {state.step_count}: PHASE: Still exploring for all resources: C={c_count} O={o_count} G={g_count} Si={s_count}")
+            return
+
+        # Priority 7: Gather resources (only after charger found AND all resource types discovered)
         state.phase = HarvestPhase.GATHER
         if old_phase != state.phase:
-            self._logger.info(f"  PHASE: {old_phase.value} → GATHER (charger found, gathering resources)")
+            self._logger.info(f"  PHASE: {old_phase.value} → GATHER (all resource types found, starting collection)")
 
     def _detect_mission_profile(self, state: HarvestState) -> MissionProfile:
         """Detect mission characteristics to adapt strategy."""
@@ -1117,7 +1169,27 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             self._logger.error(f"  GATHER: Completely surrounded by walls - using noop")
             return self._actions.noop.Noop()
 
-        # PRIORITY 0: If no charger found yet, SEARCH FOR CHARGER FIRST
+        # PRIORITY 0: Resume exploration from saved position after recharge
+        if state.exploration_resume_position is not None:
+            resume_r, resume_c = state.exploration_resume_position
+            dist = abs(resume_r - state.row) + abs(resume_c - state.col)
+
+            # If we're close to resume position (within 3 cells), clear it and continue
+            if dist <= 3:
+                self._logger.info(f"  GATHER: Reached exploration resume position {state.exploration_resume_position}, resuming normal exploration")
+                state.exploration_resume_position = None
+            else:
+                # Navigate back to resume position
+                self._logger.debug(f"  GATHER: Navigating to exploration resume position {state.exploration_resume_position} (dist={dist})")
+                direction = self._navigate_to_with_mapmanager(state, state.exploration_resume_position, reach_adjacent=False)
+                if direction and self._is_direction_clear_in_obs(state, direction):
+                    return self._actions.move.Move(direction)
+                else:
+                    # Can't reach resume position - clear it and continue
+                    self._logger.warning(f"  GATHER: Can't reach resume position {state.exploration_resume_position}, clearing and continuing")
+                    state.exploration_resume_position = None
+
+        # PRIORITY 1: If no charger found yet, SEARCH FOR CHARGER FIRST
         if not state.found_initial_charger:
             self._logger.debug(f"  GATHER: Searching for INITIAL CHARGER (have {len(state.discovered_chargers)} discovered)")
 
@@ -1180,10 +1252,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 dr = nearest_charger[0] - state.row
                 dc = nearest_charger[1] - state.col
 
-                # Prioritize LATERAL movement (perpendicular to charger direction) to explore more area
-                # Only every 4th step should we move directly toward charger
-                if state.step_count % 4 != 0:
-                    # Lateral exploration phase - try perpendicular directions first
+                # OSCILLATION FIX: Use committed direction for lateral movement
+                # Only switch between lateral/direct when we've moved enough steps in current mode
+                should_try_lateral = (state.committed_direction_steps < 3) or (state.step_count % 8 < 6)
+
+                if should_try_lateral:
+                    # Lateral exploration phase - try perpendicular directions
                     if abs(dr) > abs(dc):
                         # Charger is mostly vertical - explore horizontally
                         lateral_dirs = ["east", "west"]
@@ -1192,6 +1266,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                         # Charger is mostly horizontal - explore vertically
                         lateral_dirs = ["north", "south"]
                         primary_dir = "east" if dc > 0 else "west"
+
+                    # Prefer continuing in committed direction if it's lateral
+                    if state.committed_exploration_direction in lateral_dirs:
+                        # Move committed direction to front
+                        lateral_dirs = [state.committed_exploration_direction] + [d for d in lateral_dirs if d != state.committed_exploration_direction]
 
                     # Try lateral directions first (for area coverage)
                     for lat_dir in lateral_dirs:
@@ -1346,6 +1425,38 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     if action.name != "noop":
                         return action
 
+        # EXPLORATION MODE: If not all resource types discovered yet, focus on pure exploration
+        # Don't try to collect resources until we know where all 4 types are located
+        # BUT: On large maps, limit exploration time to avoid spending entire episode searching
+        all_types_found = (
+            len(self.map_manager.carbon_extractors) > 0 and
+            len(self.map_manager.oxygen_extractors) > 0 and
+            len(self.map_manager.germanium_extractors) > 0 and
+            len(self.map_manager.silicon_extractors) > 0
+        )
+
+        # Determine exploration time budget based on map size
+        is_large_map = state.mission_profile and state.mission_profile.map_size == "large"
+        exploration_budget = 400 if is_large_map else 200
+
+        if not all_types_found and state.step_count < exploration_budget:
+            if state.step_count % 50 == 0:  # Log every 50 steps
+                c_count = len(self.map_manager.carbon_extractors)
+                o_count = len(self.map_manager.oxygen_extractors)
+                g_count = len(self.map_manager.germanium_extractors)
+                s_count = len(self.map_manager.silicon_extractors)
+                self._logger.info(f"Step {state.step_count}: GATHER: EXPLORATION MODE - searching for all resource types (C={c_count} O={o_count} G={g_count} Si={s_count}), budget={exploration_budget}")
+            return self._explore(state)
+        elif not all_types_found:
+            # Exploration budget exhausted - proceed with collection using available extractors
+            c_count = len(self.map_manager.carbon_extractors)
+            o_count = len(self.map_manager.oxygen_extractors)
+            g_count = len(self.map_manager.germanium_extractors)
+            s_count = len(self.map_manager.silicon_extractors)
+            self._logger.warning(f"Step {state.step_count}: GATHER: Exploration budget exhausted ({exploration_budget} steps), proceeding with available extractors: C={c_count} O={o_count} G={g_count} Si={s_count}")
+            # Fall through to collection mode
+
+        # COLLECTION MODE: All resource types found, now collect from extractors
         # Find which resources we still need
         deficits = self._calculate_deficits(state)
         self._logger.debug(f"  GATHER: Resource deficits: {deficits}")
@@ -1751,11 +1862,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             self._logger.debug(f"  RECHARGE: Navigating to charger at {target_charger} (current pos=({state.row},{state.col}), dr={dr}, dc={dc})")
 
-            # CRITICAL: Check for stuck status FIRST - BACKTRACK to escape dead-end
+            # CRITICAL: Check for stuck status FIRST - escape oscillation and dead-ends
             # When stuck in RECHARGE, agent is trying to reach charger but trapped
-            # Solution: Try alternative route by moving perpendicular to stuck direction
             if state.consecutive_failed_moves >= 5:
-                self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails) - trying alternative route")
+                self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails) - attempting recovery")
+
+                # CRITICAL FIX: After extended stuck (20+ fails), switch to EXPLORATION
+                # This prevents infinite oscillation when all chargers are unreachable
+                if state.consecutive_failed_moves >= 20:
+                    self._logger.error(f"  RECHARGE: SEVERELY STUCK ({state.consecutive_failed_moves} fails) - "
+                                     f"switching to EXPLORATION to find alternate path")
+                    # Switch to exploration mode to try to navigate around obstacles
+                    return self._explore(state)
 
                 # Try perpendicular directions to find alternate path to charger
                 if abs(dr) > abs(dc):
@@ -1768,23 +1886,37 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 import random
                 random.shuffle(alt_directions)
 
-                # CRITICAL FIX: Check if direction is clear before moving!
-                for alt_dir in alt_directions:
-                    if self._is_direction_clear_in_obs(state, alt_dir):
-                        self._logger.info(f"  STUCK RECOVERY: Trying alternative route {alt_dir}")
-                        return self._actions.move.Move(alt_dir)
+                # OSCILLATION FIX: Check if direction leads to recently visited position
+                dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+                recent_positions = set(state.position_history[-5:])  # Last 5 positions
 
-                # All alternatives blocked - try ANY clear direction
+                # Try alternative directions, avoiding recent positions
+                for alt_dir in alt_directions:
+                    if not self._is_direction_clear_in_obs(state, alt_dir):
+                        continue
+
+                    # Check if this would revisit a recent position (oscillation)
+                    dr_alt, dc_alt = dir_offsets[alt_dir]
+                    target_pos = (state.row + dr_alt, state.col + dc_alt)
+
+                    if target_pos in recent_positions:
+                        self._logger.debug(f"  STUCK RECOVERY: Skipping {alt_dir} - would revisit {target_pos}")
+                        continue
+
+                    self._logger.info(f"  STUCK RECOVERY: Trying alternative route {alt_dir}")
+                    return self._actions.move.Move(alt_dir)
+
+                # No non-oscillating alternatives found - try ANY clear direction (even if revisits)
                 all_dirs = ["north", "south", "east", "west"]
                 random.shuffle(all_dirs)
                 for desperation_dir in all_dirs:
                     if self._is_direction_clear_in_obs(state, desperation_dir):
-                        self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir}")
+                        self._logger.warning(f"  STUCK RECOVERY: DESPERATION - trying {desperation_dir} (may oscillate)")
                         return self._actions.move.Move(desperation_dir)
 
-                # Completely stuck - noop
-                self._logger.error(f"  STUCK RECOVERY: COMPLETELY BLOCKED - using noop")
-                return self._actions.noop.Noop()
+                # Completely stuck - use exploration to escape
+                self._logger.error(f"  STUCK RECOVERY: ALL DIRECTIONS BLOCKED - using exploration")
+                return self._explore(state)
 
             # Use MapManager pathfinding for intelligent navigation to charger
             direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=False)
@@ -2242,6 +2374,13 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     else:
                         score = 10  # Unexplored - high priority
 
+                    # OSCILLATION FIX: Momentum bonus for continuing in same direction
+                    # This prevents flip-flopping between directions with similar scores
+                    if direction == state.committed_exploration_direction and state.committed_direction_steps > 0:
+                        momentum_bonus = min(15, state.committed_direction_steps * 3)  # Up to +15 for continuing
+                        score += momentum_bonus
+                        self._logger.debug(f"  EXPLORE: Momentum bonus +{momentum_bonus} for continuing {direction} (steps={state.committed_direction_steps})")
+
                     # SPIRAL EXPLORATION: Alternate between horizontal and vertical movement
                     # This prevents getting stuck in linear corridors
                     # CRITICAL: If we're near charger/start position, STRONGLY prefer east/west to escape corridors
@@ -2272,8 +2411,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 else:
                     score = 10  # Unexplored - high priority
 
-            # Add small random component to avoid getting stuck in patterns
-            score += (state.step_count + ord(direction[0])) % 5
+                # Momentum bonus even without charger
+                if direction == state.committed_exploration_direction and state.committed_direction_steps > 0:
+                    momentum_bonus = min(15, state.committed_direction_steps * 3)
+                    score += momentum_bonus
+
+            # OSCILLATION FIX: Deterministic tie-breaking based on position
+            # Avoid random component that causes instability
+            # Use position-based offset so different positions prefer different directions
+            position_offset = (state.row * 7 + state.col * 11) % 4
+            if ["north", "south", "east", "west"].index(direction) == position_offset:
+                score += 0.5  # Small deterministic bonus
 
             direction_scores.append((direction, score))
 
@@ -2293,6 +2441,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Pick highest-scoring direction (prefer unexplored)
         best_direction = max(direction_scores, key=lambda x: x[1])[0]
+
+        # OSCILLATION FIX: Track committed direction for momentum
+        if best_direction == state.committed_exploration_direction:
+            # Continuing in same direction - increment counter
+            state.committed_direction_steps += 1
+        else:
+            # Changed direction - reset counter
+            state.committed_exploration_direction = best_direction
+            state.committed_direction_steps = 1
+            self._logger.info(f"  EXPLORE: Changed direction to {best_direction}")
+
         return self._actions.move.Move(best_direction)
 
     def _explore(self, state: HarvestState) -> Action:
@@ -2325,6 +2484,36 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Priority 3: USE MAPMANAGER FRONTIER EXPLORATION (more efficient on large maps)
         # This uses complete map knowledge instead of just state.explored_cells
         if self.map_manager is not None and len(state.discovered_chargers) > 0:
+            # OSCILLATION FIX: If we have a committed frontier target, stick with it for multiple steps
+            # Only re-evaluate when we get close, stuck, or commitment expires
+            committed_target = state.committed_frontier_target
+            if committed_target and state.frontier_target_commitment_steps > 0:
+                # Check if we're close to the target (within 3 cells)
+                dist_to_target = abs(committed_target[0] - state.row) + abs(committed_target[1] - state.col)
+                if dist_to_target <= 3:
+                    # Close enough - clear commitment and find new target
+                    self._logger.info(f"Step {state.step_count}: EXPLORE: Reached committed frontier {committed_target}, clearing commitment")
+                    state.committed_frontier_target = None
+                    state.frontier_target_commitment_steps = 0
+                # CRITICAL: Clear commitment if stuck to avoid oscillating on unreachable frontiers
+                elif state.consecutive_failed_moves >= 5:
+                    self._logger.warning(f"Step {state.step_count}: EXPLORE: STUCK ({state.consecutive_failed_moves} fails) while pursuing frontier {committed_target}, clearing commitment to find alternate target")
+                    state.committed_frontier_target = None
+                    state.frontier_target_commitment_steps = 0
+                else:
+                    # Still far away and not stuck - continue toward committed target
+                    direction = self._navigate_to_with_mapmanager(state, committed_target, reach_adjacent=False)
+                    if direction and self._is_direction_clear_in_obs(state, direction):
+                        state.frontier_target_commitment_steps -= 1
+                        self._logger.debug(f"Step {state.step_count}: EXPLORE: Continuing toward committed frontier {committed_target} ({dist_to_target} away, {state.frontier_target_commitment_steps} steps left)")
+                        return self._actions.move.Move(direction)
+                    else:
+                        # Path blocked - clear commitment and find new target
+                        self._logger.info(f"Step {state.step_count}: EXPLORE: Path to committed frontier {committed_target} blocked, clearing commitment")
+                        state.committed_frontier_target = None
+                        state.frontier_target_commitment_steps = 0
+
+            # Need to find new frontier target (no commitment or commitment cleared)
             # CRITICAL FIX: Find ALL frontier candidates and try pathfinding to each
             # until we find one that's REACHABLE (not just closest by distance)
             frontier_candidates = self._find_all_frontier_cells(state, self.map_manager, max_candidates=10)
@@ -2342,15 +2531,59 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
                     if direction:
                         if self._is_direction_clear_in_obs(state, direction):
-                            self._logger.info(f"Step {state.step_count}: EXPLORE: Found REACHABLE frontier at {frontier}, moving {direction}")
+                            # OSCILLATION FIX: Commit to this frontier for multiple steps
+                            # Commitment duration based on distance and map size
+                            # Large maps with complex mazes need longer commitment to reach distant frontiers
+                            map_size = state.mission_profile.map_size if state.mission_profile else "medium"
+                            if map_size == "large":
+                                # Large maps: dist / 2, capped at 30 (e.g., 60 cells away = 30 step commitment)
+                                commitment_duration = min(30, max(5, dist // 2))
+                            elif map_size == "medium":
+                                # Medium maps: dist / 2.5, capped at 20 (e.g., 50 cells away = 20 steps)
+                                commitment_duration = min(20, max(5, dist * 2 // 5))
+                            else:
+                                # Small maps: dist / 3, capped at 15 (quick re-evaluation)
+                                commitment_duration = min(15, max(5, dist // 3))
+                            state.committed_frontier_target = frontier
+                            state.frontier_target_commitment_steps = commitment_duration
+                            self._logger.info(f"Step {state.step_count}: EXPLORE: Found REACHABLE frontier at {frontier} (dist={dist}), committing for {commitment_duration} steps (map_size={map_size})")
                             return self._actions.move.Move(direction)
                         else:
                             self._logger.debug(f"Step {state.step_count}: EXPLORE: Frontier {frontier} path {direction} blocked in obs, trying next")
                     else:
                         self._logger.debug(f"Step {state.step_count}: EXPLORE: No path to frontier {frontier}, trying next")
 
-                # All frontiers unreachable - fall through to quadrant navigation
-                self._logger.warning(f"Step {state.step_count}: EXPLORE: All {len(frontier_candidates)} frontiers UNREACHABLE, falling back to quadrant navigation")
+                # All frontiers unreachable - try advanced maze navigation algorithms
+                self._logger.warning(f"Step {state.step_count}: EXPLORE: All {len(frontier_candidates)} frontiers UNREACHABLE, trying advanced navigation")
+
+                # Strategy 2: Wavefront expansion from nearest charger
+                if state.discovered_chargers:
+                    nearest_charger = self._find_nearest_charger(state)
+                    wavefront_target = self.maze_navigator.get_systematic_exploration_target(
+                        state, self.map_manager, nearest_charger
+                    )
+                    if wavefront_target:
+                        direction = self._navigate_to_with_mapmanager(state, wavefront_target, reach_adjacent=False)
+                        if direction and self._is_direction_clear_in_obs(state, direction):
+                            self._logger.info(f"Step {state.step_count}: EXPLORE: Using wavefront expansion to {wavefront_target}")
+                            return self._actions.move.Move(direction)
+
+                # Strategy 3: Target largest unexplored region
+                region_target = self.maze_navigator.find_largest_unexplored_region(state, self.map_manager)
+                if region_target:
+                    direction = self._navigate_to_with_mapmanager(state, region_target, reach_adjacent=False)
+                    if direction and self._is_direction_clear_in_obs(state, direction):
+                        self._logger.info(f"Step {state.step_count}: EXPLORE: Targeting largest unexplored region at {region_target}")
+                        return self._actions.move.Move(direction)
+
+                # Strategy 4: Wall-following (guaranteed to explore connected mazes)
+                wall_follow_dir = self.maze_navigator.wall_follow_next_direction(state, self.map_manager)
+                if wall_follow_dir and self._is_direction_clear_in_obs(state, wall_follow_dir):
+                    self._logger.info(f"Step {state.step_count}: EXPLORE: Using wall-following, moving {wall_follow_dir}")
+                    return self._actions.move.Move(wall_follow_dir)
+
+                # All advanced strategies failed - fall through to quadrant navigation
+                self._logger.warning(f"Step {state.step_count}: EXPLORE: All advanced strategies failed, falling back to quadrant navigation")
             else:
                 self._logger.warning(f"Step {state.step_count}: EXPLORE: No frontier cells found in MapManager!")
 
@@ -2467,8 +2700,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         frontier_candidates = []
 
-        # Scan map for frontier cells (same logic as find_nearest_frontier_cell)
-        search_radius = 50  # Limit search to 50 cells around agent
+        # Scan map for frontier cells
+        # Adaptive search radius based on map size - larger maps need wider search
+        map_dimension = max(state.map_height, state.map_width)
+        if map_dimension > 200:
+            search_radius = 150  # Large maps (500x500): search 300x300 window
+        elif map_dimension > 100:
+            search_radius = 75   # Medium maps: search 150x150 window
+        else:
+            search_radius = 50   # Small maps: search 100x100 window
+
         start_r = max(0, state.row - search_radius)
         end_r = min(state.map_height, state.row + search_radius + 1)
         start_c = max(0, state.col - search_radius)
