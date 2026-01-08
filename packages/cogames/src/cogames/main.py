@@ -37,6 +37,7 @@ from cogames import pickup as pickup_module
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
+from cogames.cli.client import TournamentServerClient
 from cogames.cli.leaderboard import (
     leaderboard_cmd,
     parse_policy_identifier,
