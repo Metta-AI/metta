@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri, resolve_uri
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
 
@@ -71,6 +73,39 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
         validated_paths.append(path)
 
     return validated_paths
+
+
+def _zip_bundle_dir(bundle_dir: Path) -> Path:
+    temp_dir = Path(tempfile.mkdtemp(prefix="cogames_bundle_zip_"))
+    zip_path = temp_dir / f"{bundle_dir.name}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in bundle_dir.rglob("*"):
+            if file_path.is_file():
+                zipf.write(file_path, arcname=file_path.relative_to(bundle_dir))
+    return zip_path
+
+
+def _prepare_bundle_upload(policy: str) -> tuple[Path, bool] | None:
+    parsed = parse_uri(policy, allow_none=True, default_scheme="file")
+    if not parsed:
+        return None
+
+    resolved = resolve_uri(policy)
+    if resolved.scheme == "s3":
+        if not resolved.canonical.endswith(".zip"):
+            raise ValueError("S3 policy specs must be .zip bundles; directory checkpoints are not supported.")
+        return download_policy_spec_from_s3_as_zip(resolved.canonical, remove_downloaded_copy_on_exit=True), False
+
+    if resolved.scheme == "file" and resolved.local_path:
+        local_path = resolved.local_path
+        if local_path.is_dir():
+            return _zip_bundle_dir(local_path), True
+        if local_path.suffix == ".zip":
+            return local_path, False
+        if local_path.suffix == ".mpt":
+            raise ValueError("Legacy .mpt policies are not supported; convert to a checkpoint bundle first.")
+
+    return None
 
 
 def get_latest_cogames_version() -> str:
@@ -363,6 +398,54 @@ def upload_policy(
     client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
     if not client:
         return None
+
+    cleanup_bundle = False
+    bundle_path: Path | None = None
+    try:
+        bundle = _prepare_bundle_upload(policy)
+        if bundle:
+            bundle_path, cleanup_bundle = bundle
+    except Exception as e:
+        console.print(f"[red]Error parsing policy:[/red] {e}")
+        return None
+
+    if bundle_path is not None:
+        if init_kwargs or include_files or setup_script:
+            console.print(
+                "[red]include-files, setup-script, and init-kwarg are not supported when uploading a bundle URI.[/red]"
+            )
+            if cleanup_bundle:
+                bundle_path.unlink(missing_ok=True)
+            return None
+
+        if not skip_validation:
+            try:
+                policy_spec = policy_spec_from_uri(str(bundle_path))
+                validate_policy_spec(policy_spec)
+            except Exception as e:
+                console.print(f"[red]Validation failed:[/red] {e}")
+                if cleanup_bundle:
+                    bundle_path.unlink(missing_ok=True)
+                return None
+        else:
+            console.print("[dim]Skipping validation[/dim]")
+
+        if dry_run:
+            console.print("[green]Dry run complete[/green]")
+            if cleanup_bundle:
+                bundle_path.unlink(missing_ok=True)
+            return None
+
+        try:
+            with client:
+                result = upload_submission(client, bundle_path, name, console)
+            if not result:
+                console.print("\n[red]Upload failed.[/red]")
+                return None
+            return result
+        finally:
+            if cleanup_bundle:
+                bundle_path.unlink(missing_ok=True)
 
     try:
         policy_spec = get_policy_spec(ctx, policy)
