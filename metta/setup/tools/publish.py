@@ -283,18 +283,21 @@ def _publish(
     dry_run: bool,
     skip_git_checks: bool,
 ) -> str | None:
-    if not skip_git_checks:
-        if not _is_working_tree_clean():
+    if not _is_working_tree_clean():
+        if skip_git_checks:
+            warning("Working tree is not clean. Bypassing this check due to the --force flag.")
+        else:
             error(
                 "Working tree is not clean. Commit, stash, or clean changes before publishing "
                 "(use --force to override)."
             )
             raise typer.Exit(1)
-        if not _is_on_main_branch():
+    if not _is_on_main_branch():
+        if skip_git_checks:
+            warning("Not on the main branch. Bypassing this check due to the --force flag.")
+        else:
             error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
             raise typer.Exit(1)
-    else:
-        warning("Force mode enabled: branch and clean checks were bypassed.")
 
     info(f"Refreshing tags from {remote}...")
     gitta.run_git("fetch", remote, "--tags", "--force")
