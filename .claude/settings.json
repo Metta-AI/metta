@@ -52,15 +52,6 @@
         ]
       }
     ],
-    "Stop": [
-      // {
-      //   "hooks": [
-      //     {
-      //       "type": "prompt",
-      //       "prompt": "Should Claude stop? Check: 1) Uncommitted code changes - did Claude offer to commit? 2) All user requests addressed? 3) Obvious next steps mentioned? Respond ONLY with JSON: {\"ok\": true} to allow stopping, or {\"ok\": false, \"reason\": \"what's missing\"} to continue."
-      //     }
-      //   ]
-      // }
-    ]
+    "Stop": []
   }
 }
