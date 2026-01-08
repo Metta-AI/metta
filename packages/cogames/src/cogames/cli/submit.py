@@ -38,37 +38,30 @@ class UploadResult:
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
-    """Validate that all paths are relative and within CWD.
+    """Validate that all paths are within CWD and return them as CWD-relative Paths.
 
-    Ensures paths don't escape the current working directory using '../'.
-    Returns list of resolved Path objects.
+    Accepts both relative and absolute paths, but rejects anything outside the
+    current working directory (prevents accidental submission of arbitrary files).
     """
-    cwd = Path.cwd()
+    cwd = Path.cwd().resolve()
     validated_paths = []
 
     for path_str in paths:
-        path = Path(path_str)
+        path = Path(path_str).expanduser()
 
-        # Check if path is absolute
-        if path.is_absolute():
-            console.print(f"[red]Error:[/red] Path must be relative: {path_str}")
-            raise ValueError(f"Absolute paths not allowed: {path_str}")
-
-        # Resolve the path and check it's within CWD
+        # Resolve the path and check it's within CWD; normalize to a relative path for archiving.
         try:
-            resolved = (cwd / path).resolve()
-            # Check if resolved path is under CWD
-            resolved.relative_to(cwd)
+            resolved = path.resolve() if path.is_absolute() else (cwd / path).resolve()
+            rel = resolved.relative_to(cwd)
         except ValueError:
             console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
             raise ValueError(f"Path escapes CWD: {path_str}") from None
 
-        # Check if path exists
         if not resolved.exists():
             console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
             raise FileNotFoundError(f"Path not found: {path_str}")
 
-        validated_paths.append(path)
+        validated_paths.append(rel)
 
     return validated_paths
 
@@ -393,15 +386,40 @@ def upload_policy(
         except (ValueError, FileNotFoundError):
             return None
 
+    # Normalize policy_spec.data_path and setup_script to archive-relative paths.
+    # This keeps submission zips relocatable and ensures they load correctly when extracted.
+    if policy_spec.data_path:
+        try:
+            rel_data_path = validate_paths([policy_spec.data_path], console)[0]
+        except (ValueError, FileNotFoundError):
+            return None
+        policy_spec = PolicySpec(
+            class_path=policy_spec.class_path,
+            data_path=str(rel_data_path),
+            init_kwargs=policy_spec.init_kwargs,
+        )
+
+    setup_script_rel: str | None = None
+    if setup_script:
+        try:
+            setup_script_rel = str(validate_paths([setup_script], console)[0])
+        except (ValueError, FileNotFoundError):
+            return None
+
     if not skip_validation:
-        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
+        if not validate_policy_in_isolation(
+            policy_spec,
+            validated_paths,
+            console,
+            setup_script=setup_script_rel,
+        ):
             console.print("\n[red]Upload aborted due to validation failure.[/red]")
             return None
     else:
         console.print("[dim]Skipping validation[/dim]")
 
     try:
-        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script)
+        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script_rel)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
         return None
