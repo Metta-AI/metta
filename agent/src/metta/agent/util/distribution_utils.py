@@ -1,9 +1,10 @@
 from typing import Any, Tuple
 
 import torch
+from torch import Tensor
 import torch.distributed as dist
 import torch.nn.functional as F
-from torch import Tensor
+
 
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
