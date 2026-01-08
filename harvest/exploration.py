@@ -206,9 +206,15 @@ class ExplorationManager:
         frontier_candidates = []
 
         # Scan map for frontier cells
-        # Optimization: only scan a reasonable radius around agent to avoid
-        # checking entire large map every step
-        search_radius = 50  # Limit search to 50 cells around agent
+        # Adaptive search radius based on map size - larger maps need wider search
+        map_dimension = max(state.map_height, state.map_width)
+        if map_dimension > 200:
+            search_radius = 150  # Large maps (500x500): search 300x300 window
+        elif map_dimension > 100:
+            search_radius = 75   # Medium maps: search 150x150 window
+        else:
+            search_radius = 50   # Small maps: search 100x100 window
+
         start_r = max(0, state.row - search_radius)
         end_r = min(state.map_height, state.row + search_radius + 1)
         start_c = max(0, state.col - search_radius)

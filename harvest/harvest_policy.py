@@ -236,6 +236,10 @@ class HarvestState:
     position_history: list[tuple[int, int]] = field(default_factory=list)  # Last 10 positions
     forced_exploration_direction: Optional[str] = None  # Force exploration in this direction when badly stuck
 
+    # RECHARGE PHASE STUCK TRACKING: Detect when stuck in recharge for extended time
+    recharge_phase_start_step: int = 0  # Step when entered RECHARGE phase
+    recharge_failed_attempts: int = 0  # Total failed recharge attempts in current phase
+
 
 # Resource to vibe mapping for extracting resources
 RESOURCE_VIBES = {
@@ -872,6 +876,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.phase = HarvestPhase.RECHARGE
             if old_phase != state.phase:
                 self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (CRITICAL energy={state.energy} < {recharge_critical})")
+                # Track when we entered RECHARGE phase
+                state.recharge_phase_start_step = state.step_count
+                state.recharge_failed_attempts = 0
             return
 
         # Priority 2: Low energy - start recharging
@@ -884,6 +891,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.phase = HarvestPhase.RECHARGE
             if old_phase != state.phase:
                 self._logger.info(f"  PHASE: {old_phase.value} → RECHARGE (low energy={state.energy} < {recharge_low})")
+                # Track when we entered RECHARGE phase
+                state.recharge_phase_start_step = state.step_count
+                state.recharge_failed_attempts = 0
             return
 
         # Stay in recharge until energy well-restored
@@ -1758,11 +1768,41 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # STUCK RECOVERY: If stuck, use observation-only exploration
         # (Pathfinding uses occupancy map which may have errors)
         if state.stuck_recovery_active or state.consecutive_failed_moves >= 5:
+            # CRITICAL: If SEVERELY stuck (100+ fails), use ANY clear direction randomly
+            # This prevents infinite loops when explore also fails
+            if state.consecutive_failed_moves >= 100:
+                self._logger.error(f"  NAVIGATE: SEVERELY STUCK ({state.consecutive_failed_moves} fails) - trying random direction")
+                import random
+                clear_dirs = [d for d in ["north", "south", "east", "west"]
+                             if self._is_direction_clear_in_obs(state, d)]
+                if clear_dirs:
+                    random_dir = random.choice(clear_dirs)
+                    self._logger.warning(f"  NAVIGATE: Random escape direction: {random_dir}")
+                    return self._actions.move.Move(random_dir)
+                else:
+                    self._logger.error(f"  NAVIGATE: ALL DIRECTIONS BLOCKED - nooping")
+                    return self._actions.noop.Noop()
+
             return self._explore_observation_only(state)
 
         # Priority 3: Use pathfinding to known station location
         station_pos = state.stations.get(station_type)
         if station_pos is not None:
+            # CRITICAL: Check for severe stuck BEFORE pathfinding
+            # Pathfinding may keep returning same failing direction
+            if state.consecutive_failed_moves >= 100:
+                self._logger.error(f"  NAVIGATE: SEVERELY STUCK ({state.consecutive_failed_moves} fails) before pathfinding - using random escape")
+                import random
+                clear_dirs = [d for d in ["north", "south", "east", "west"]
+                             if self._is_direction_clear_in_obs(state, d)]
+                if clear_dirs:
+                    random_dir = random.choice(clear_dirs)
+                    self._logger.warning(f"  NAVIGATE: Random escape direction: {random_dir}")
+                    return self._actions.move.Move(random_dir)
+                else:
+                    self._logger.error(f"  NAVIGATE: ALL DIRECTIONS BLOCKED - switching to exploration")
+                    return self._explore(state)
+
             action = self._move_towards(state, station_pos, reach_adjacent=True, station_name=station_type)
             if action.name != "noop":
                 return action
@@ -1864,15 +1904,31 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             # CRITICAL: Check for stuck status FIRST - escape oscillation and dead-ends
             # When stuck in RECHARGE, agent is trying to reach charger but trapped
-            if state.consecutive_failed_moves >= 5:
-                self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails) - attempting recovery")
 
-                # CRITICAL FIX: After extended stuck (20+ fails), switch to EXPLORATION
-                # This prevents infinite oscillation when all chargers are unreachable
-                if state.consecutive_failed_moves >= 20:
-                    self._logger.error(f"  RECHARGE: SEVERELY STUCK ({state.consecutive_failed_moves} fails) - "
-                                     f"switching to EXPLORATION to find alternate path")
-                    # Switch to exploration mode to try to navigate around obstacles
+            # Track failed recharge attempts
+            steps_in_recharge = state.step_count - state.recharge_phase_start_step
+
+            if state.consecutive_failed_moves >= 5:
+                self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails, {steps_in_recharge} steps in phase) - attempting recovery")
+                state.recharge_failed_attempts += 1
+
+                # CRITICAL FIX: Multiple escape conditions to prevent infinite trapped state
+                # 1. Extended consecutive failures (20+)
+                # 2. Long time in recharge phase (100+ steps) with failures
+                # 3. Many failed attempts (50+) even if not all consecutive
+                should_escape = (
+                    state.consecutive_failed_moves >= 20 or
+                    (steps_in_recharge > 100 and state.consecutive_failed_moves >= 5) or
+                    state.recharge_failed_attempts > 50
+                )
+
+                if should_escape:
+                    self._logger.error(f"  RECHARGE: SEVERELY STUCK - consecutive_fails={state.consecutive_failed_moves}, "
+                                     f"steps_in_phase={steps_in_recharge}, total_fails={state.recharge_failed_attempts} - "
+                                     f"switching to EXPLORATION to escape trap")
+                    # Reset counters
+                    state.recharge_failed_attempts = 0
+                    # Switch to exploration mode to navigate around obstacles
                     return self._explore(state)
 
                 # Try perpendicular directions to find alternate path to charger
