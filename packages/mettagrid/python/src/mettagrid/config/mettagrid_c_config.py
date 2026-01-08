@@ -14,8 +14,8 @@ from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
-from mettagrid.mettagrid_c import CollectiveConfig as CppCollectiveConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
+from mettagrid.mettagrid_c import FactionConfig as CppFactionConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
@@ -541,12 +541,12 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # Add tag mappings for C++ debugging/display
     game_cpp_params["tag_id_map"] = tag_id_to_name
 
-    # Convert collective configurations
-    collectives_cpp = {}
-    for collective_cfg in game_config.collectives:
+    # Convert faction configurations
+    factions_cpp = {}
+    for faction_cfg in game_config.factions:
         # Build inventory config with limits
         limit_defs = []
-        for resource_limit in collective_cfg.inventory.limits.values():
+        for resource_limit in faction_cfg.inventory.limits.values():
             resource_list = resource_limit.resources
             resource_ids = [resource_name_to_id[name] for name in resource_list if name in resource_name_to_id]
             if resource_ids:
@@ -562,16 +562,16 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
         # Convert initial inventory
         initial_inventory_cpp = {}
-        for resource, amount in collective_cfg.inventory.initial.items():
+        for resource, amount in faction_cfg.inventory.initial.items():
             if resource in resource_name_to_id:
                 resource_id = resource_name_to_id[resource]
                 initial_inventory_cpp[resource_id] = amount
 
-        cpp_collective_config = CppCollectiveConfig(collective_cfg.name)
-        cpp_collective_config.inventory_config = inventory_config
-        cpp_collective_config.initial_inventory = initial_inventory_cpp
-        collectives_cpp[collective_cfg.name] = cpp_collective_config
+        cpp_faction_config = CppFactionConfig(faction_cfg.name)
+        cpp_faction_config.inventory_config = inventory_config
+        cpp_faction_config.initial_inventory = initial_inventory_cpp
+        factions_cpp[faction_cfg.name] = cpp_faction_config
 
-    game_cpp_params["collectives"] = collectives_cpp
+    game_cpp_params["factions"] = factions_cpp
 
     return CppGameConfig(**game_cpp_params)

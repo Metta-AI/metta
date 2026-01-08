@@ -1,5 +1,5 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_COLLECTIVE_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_COLLECTIVE_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_FACTION_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_FACTION_HPP_
 
 #include <algorithm>
 #include <string>
@@ -7,23 +7,23 @@
 #include <vector>
 
 #include "core/types.hpp"
-#include "objects/collective_config.hpp"
+#include "objects/faction_config.hpp"
 #include "objects/has_inventory.hpp"
 #include "objects/inventory.hpp"
 
 // Forward declaration
 class Alignable;
 
-class Collective : public HasInventory {
+class Faction : public HasInventory {
 private:
   std::vector<Alignable*> _members;
 
 public:
   std::string name;
 
-  explicit Collective(const CollectiveConfig& cfg,
-                      const std::vector<std::string>* resource_names = nullptr,
-                      const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
+  explicit Faction(const FactionConfig& cfg,
+                   const std::vector<std::string>* resource_names = nullptr,
+                   const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr)
       : HasInventory(cfg.inventory_config, resource_names, feature_ids), name(cfg.name) {
     // Set initial inventory (ignore limits for initial setup)
     for (const auto& [resource, amount] : cfg.initial_inventory) {
@@ -33,16 +33,16 @@ public:
     }
   }
 
-  virtual ~Collective() = default;
+  virtual ~Faction() = default;
 
-  // Add a member to this collective
+  // Add a member to this faction
   void addMember(Alignable* obj) {
     if (obj && std::find(_members.begin(), _members.end(), obj) == _members.end()) {
       _members.push_back(obj);
     }
   }
 
-  // Remove a member from this collective
+  // Remove a member from this faction
   void removeMember(Alignable* obj) {
     auto it = std::find(_members.begin(), _members.end(), obj);
     if (it != _members.end()) {
@@ -61,4 +61,4 @@ public:
   }
 };
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_COLLECTIVE_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_FACTION_HPP_

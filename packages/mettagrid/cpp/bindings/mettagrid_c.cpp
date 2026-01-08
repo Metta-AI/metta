@@ -27,8 +27,8 @@
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
-#include "objects/collective.hpp"
-#include "objects/collective_config.hpp"
+#include "objects/faction.hpp"
+#include "objects/faction_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/protocol.hpp"
@@ -90,36 +90,36 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _init_grid(game_config, map);
 
-  // Initialize collectives from config
-  for (const auto& [name, collective_cfg] : game_config.collectives) {
-    auto collective = std::make_unique<Collective>(*collective_cfg, &resource_names, &game_config.feature_ids);
-    _collectives_by_name[name] = collective.get();
-    _collectives.push_back(std::move(collective));
+  // Initialize factions from config
+  for (const auto& [name, faction_cfg] : game_config.factions) {
+    auto faction = std::make_unique<Faction>(*faction_cfg, &resource_names, &game_config.feature_ids);
+    _factions_by_name[name] = faction.get();
+    _factions.push_back(std::move(faction));
   }
 
-  // Associate alignable objects with their collective based on tags
-  // Tags of the form "collective:name" indicate membership
-  // Only objects that implement Alignable can belong to a collective
-  const std::string collective_tag_prefix = "collective:";
+  // Associate alignable objects with their faction based on tags
+  // Tags of the form "faction:name" indicate membership
+  // Only objects that implement Alignable can belong to a faction
+  const std::string faction_tag_prefix = "faction:";
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
 
-    // Try to cast to Alignable - only alignable objects can have a collective
+    // Try to cast to Alignable - only alignable objects can have a faction
     Alignable* alignable = dynamic_cast<Alignable*>(obj);
     if (!alignable) continue;
 
-    // Check for collective tags
+    // Check for faction tags
     for (int tag_id : obj->tag_ids) {
       auto tag_it = game_config.tag_id_map.find(tag_id);
       if (tag_it != game_config.tag_id_map.end()) {
         const std::string& tag_name = tag_it->second;
-        if (tag_name.rfind(collective_tag_prefix, 0) == 0) {
-          // Extract collective name from tag
-          std::string collective_name = tag_name.substr(collective_tag_prefix.length());
-          auto collective_it = _collectives_by_name.find(collective_name);
-          if (collective_it != _collectives_by_name.end()) {
-            alignable->setCollective(collective_it->second);
+        if (tag_name.rfind(faction_tag_prefix, 0) == 0) {
+          // Extract faction name from tag
+          std::string faction_name = tag_name.substr(faction_tag_prefix.length());
+          auto faction_it = _factions_by_name.find(faction_name);
+          if (faction_it != _factions_by_name.end()) {
+            alignable->setFaction(faction_it->second);
           }
         }
       }
@@ -1053,7 +1053,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // We're, like 80% sure on this reasoning.
 
   bind_inventory_config(m);
-  bind_collective_config(m);
+  bind_faction_config(m);
   bind_agent_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);
