@@ -174,11 +174,6 @@ export type PublicPolicyVersionRow = {
   version_count?: number
 }
 
-export type EpisodeReplay = {
-  episode_id: string
-  replay_url: string
-}
-
 export type EpisodeWithTags = {
   id: string
   primary_pv_id: string | null
@@ -189,26 +184,6 @@ export type EpisodeWithTags = {
   created_at: string
   tags: Record<string, string>
   avg_rewards: Record<string, number>
-}
-
-export type LeaderboardPolicyEntry = {
-  policy_version: PublicPolicyVersionRow
-  scores: Record<string, number>
-  avg_score: number | null
-  overall_vor: number | null
-  replays: Record<string, EpisodeReplay[]>
-  score_episode_ids: Record<string, string | null>
-}
-
-export type LeaderboardPoliciesResponse = {
-  entries: LeaderboardPolicyEntry[]
-}
-
-export type ValueOverReplacementSummary = {
-  policy_version_id: string
-  overall_vor: number | null
-  overall_vor_std: number | null
-  total_candidate_agents: number
 }
 
 export type PolicyVersionWithName = {
@@ -553,31 +528,6 @@ export class Repo {
     policyNames.forEach((name) => params.append('policy_names', name))
     const response = await this.apiCall<{ policy_ids: Record<string, string> }>(`/stats/policies/ids?${params}`)
     return response.policy_ids
-  }
-
-  // Leaderboard / policy version queries
-  async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
-  }
-
-  async getPublicLeaderboardWithVor(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/vor')
-  }
-
-  async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
-  }
-
-  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
-  }
-
-  async getValueOverReplacementDetail(policyVersionId: string): Promise<ValueOverReplacementSummary | null> {
-    try {
-      return await this.apiCall<ValueOverReplacementSummary>(`/leaderboard/v2/vor/${policyVersionId}`)
-    } catch {
-      return null
-    }
   }
 
   async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {

@@ -64,14 +64,15 @@ class SelfPlayReferee(RefereeBase):
             if in_progress > 0:
                 continue
 
+            # Use completed + match_i so each player plays on the same sequence of maps
             seed = 42
             needed = self.matches_per_player - completed
-            for _ in range(needed):
+            for match_i in range(needed):
                 requests.append(
                     MatchRequest(
                         pool_player_ids=[pp_id],
                         assignments=[0, 0, 0, 0],
-                        env=_make_env(seed),
+                        env=_make_env(seed + completed + match_i),
                         seed=seed,
                         episode_tags={"match_type": "self_play"},
                     )

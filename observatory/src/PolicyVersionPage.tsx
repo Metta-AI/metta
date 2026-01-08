@@ -12,7 +12,7 @@ import { Spinner } from './components/Spinner'
 import { StyledLink } from './components/StyledLink'
 import { Table, TD, TH, TR } from './components/Table'
 import { TasksTable } from './EvalTasks/TasksTable'
-import type { EpisodeWithTags, LeaderboardPolicyEntry, MembershipHistoryEntry, PolicyVersionWithName } from './repo'
+import type { EpisodeWithTags, MembershipHistoryEntry, PolicyVersionWithName } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 import { formatPolicyVersion } from './utils/format'
 
@@ -47,9 +47,6 @@ export const PolicyVersionPage: FC = () => {
   const { policyVersionId } = useParams<{ policyVersionId: string }>()
   const { repo } = useContext(AppContext)
 
-  const [policyState, setPolicyState] = useState<LoadState<LeaderboardPolicyEntry | null>>(() =>
-    createInitialState<LeaderboardPolicyEntry | null>(null)
-  )
   const [policyVersionInfo, setPolicyVersionInfo] = useState<LoadState<PolicyVersionWithName | null>>(() =>
     createInitialState<PolicyVersionWithName | null>(null)
   )
@@ -64,39 +61,10 @@ export const PolicyVersionPage: FC = () => {
 
   useEffect(() => {
     if (!policyVersionId) {
-      setPolicyState({ data: null, loading: false, error: 'Missing policy version id' })
       return
     }
 
     let isMounted = true
-
-    const loadPolicy = async () => {
-      setPolicyState((prev) => ({ ...prev, loading: true, error: null }))
-      try {
-        const response = await repo.getLeaderboardPolicy(policyVersionId)
-        const matchingEntry =
-          response.entries.find((entry) => entry.policy_version.id === policyVersionId) ?? response.entries[0]
-
-        if (!isMounted) {
-          return
-        }
-
-        if (!matchingEntry) {
-          setPolicyState({ data: null, loading: false, error: null })
-          return
-        }
-
-        setPolicyState({ data: matchingEntry, loading: false, error: null })
-      } catch (error: any) {
-        if (isMounted) {
-          setPolicyState({
-            data: null,
-            loading: false,
-            error: error.message ?? 'Failed to load policy details',
-          })
-        }
-      }
-    }
 
     const loadEpisodes = async () => {
       setEpisodesState((prev) => ({ ...prev, loading: true, error: null }))
@@ -156,7 +124,6 @@ export const PolicyVersionPage: FC = () => {
       }
     }
 
-    void loadPolicy()
     void loadEpisodes()
     void loadPolicyVersionInfo()
     void loadMemberships()
@@ -166,10 +133,8 @@ export const PolicyVersionPage: FC = () => {
     }
   }, [policyVersionId, repo])
 
-  const policyEntry = policyState.data
-  const leaderboardPolicyVersion = policyEntry?.policy_version
   const pvInfo = policyVersionInfo.data
-  const policyCreatedAt = leaderboardPolicyVersion?.policy_created_at || pvInfo?.created_at || null
+  const policyCreatedAt = pvInfo?.created_at || null
   const policyDisplay = policyVersionInfo.loading ? 'Loading...' : formatPolicyVersion(pvInfo, policyVersionId)
 
   useEffect(() => {
@@ -225,12 +190,6 @@ export const PolicyVersionPage: FC = () => {
       </div>
 
       {pvInfo && <CopyableUri uri={`metta://policy/${pvInfo.name}:v${pvInfo.version}`} />}
-
-      {policyState.error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
-          {policyState.error}
-        </div>
-      ) : null}
 
       <Card title="Episodes">
         {episodesState.loading ? (
