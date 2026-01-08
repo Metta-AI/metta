@@ -140,6 +140,9 @@ class CheckpointManager:
                     for file_path in checkpoint_dir.rglob("*"):
                         if file_path.is_file():
                             zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
+                    trainer_state_path = self.checkpoint_dir / "trainer_state.pt"
+                    if trainer_state_path.exists():
+                        zipf.write(trainer_state_path, arcname="trainer_state.pt")
                 write_file(remote_zip, str(zip_path), content_type="application/zip")
             finally:
                 zip_path.unlink(missing_ok=True)

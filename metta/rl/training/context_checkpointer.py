@@ -1,12 +1,16 @@
 """Trainer state checkpoint management component."""
 
+import io
 import logging
+import zipfile
 from typing import Any, Dict, Optional
 
 import torch
 
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import ComponentContext, DistributedHelper, TrainerComponent
+from mettagrid.util.file import local_copy
+from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +25,11 @@ class ContextCheckpointer(TrainerComponent):
         *,
         checkpoint_manager: CheckpointManager,
         distributed_helper: DistributedHelper,
+        epoch_interval: int = 1,
     ) -> None:
-        super().__init__(epoch_interval=1)
+        super().__init__(epoch_interval=epoch_interval)
         self._checkpoint_manager = checkpoint_manager
         self._distributed = distributed_helper
-        self._last_synced_policy_epoch: Optional[int] = None
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -34,7 +38,6 @@ class ContextCheckpointer(TrainerComponent):
         super().register(context)
         self._checkpoint_manager.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         logger.debug("Trainer checkpoints will be written to %s", self._checkpoint_manager.checkpoint_dir)
-        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
     # ------------------------------------------------------------------
     # Public API used by Trainer
@@ -45,6 +48,10 @@ class ContextCheckpointer(TrainerComponent):
 
         if self._distributed.is_master():
             raw = self._checkpoint_manager.load_trainer_state()
+            if not raw:
+                policy_uri = context.latest_policy_uri()
+                if policy_uri:
+                    raw = self._load_trainer_state_from_uri(policy_uri)
             if raw:
                 logger.info(
                     "Restoring trainer state from epoch=%s agent_step=%s", raw.get("epoch"), raw.get("agent_step")
@@ -67,7 +74,6 @@ class ContextCheckpointer(TrainerComponent):
         context.agent_step = payload["agent_step"]
         context.epoch = restored_epoch
         context.latest_saved_policy_epoch = restored_epoch
-        self._last_synced_policy_epoch = context.latest_saved_policy_epoch
 
         total_agents = int(context.experience.total_agents)
         device = context.experience.device
@@ -119,10 +125,7 @@ class ContextCheckpointer(TrainerComponent):
     def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
             return
-
-        policy_epoch = self.context.latest_saved_policy_epoch
-        if policy_epoch != self._last_synced_policy_epoch:
-            self._save_state()
+        self._save_state()
 
     def on_training_complete(self) -> None:  # type: ignore[override]
         if not self._distributed.should_checkpoint():
@@ -161,8 +164,34 @@ class ContextCheckpointer(TrainerComponent):
             loss_states=context.state.loss_states,
         )
 
-        self._last_synced_policy_epoch = self.context.latest_saved_policy_epoch
-
         # Release references so we do not pin large GPU tensors between checkpoints
         context.state.optimizer_state = None
         context.state.loss_states = {}
+
+    def _load_trainer_state_from_uri(self, policy_uri: str) -> Optional[Dict[str, Any]]:
+        try:
+            parsed = resolve_uri(policy_uri)
+        except Exception:
+            return None
+
+        if parsed.local_path and parsed.local_path.is_dir():
+            trainer_path = parsed.local_path / "trainer_state.pt"
+            if trainer_path.exists():
+                return torch.load(trainer_path, map_location="cpu", weights_only=False)
+            return None
+
+        if not parsed.canonical.endswith(".zip"):
+            return None
+
+        with local_copy(parsed.canonical) as local_path:
+            try:
+                with zipfile.ZipFile(local_path, "r") as zipf:
+                    try:
+                        with zipf.open("trainer_state.pt") as f:
+                            data = f.read()
+                    except KeyError:
+                        return None
+            except zipfile.BadZipFile:
+                return None
+
+        return torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)

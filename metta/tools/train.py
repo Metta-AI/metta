@@ -311,6 +311,11 @@ class TrainTool(Tool):
         wandb_run: WandbRun | None,
     ) -> None:
         components: list[TrainerComponent] = []
+        trainer_checkpointer = ContextCheckpointer(
+            checkpoint_manager=checkpoint_manager,
+            distributed_helper=distributed_helper,
+            epoch_interval=max(1, self.checkpointer.epoch_interval),
+        )
 
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
@@ -333,6 +338,7 @@ class TrainTool(Tool):
             )
             components.append(stats_component)
 
+            components.append(trainer_checkpointer)
             components.append(policy_checkpointer)
 
             self.evaluator = self.evaluator.model_copy(deep=True)
@@ -350,6 +356,7 @@ class TrainTool(Tool):
             components.append(Monitor(enabled=reporting_enabled))
             components.append(ProgressLogger())
         else:
+            components.append(trainer_checkpointer)
             components.append(policy_checkpointer)
 
         if self.context_checkpointer:
@@ -357,12 +364,6 @@ class TrainTool(Tool):
                 "Context checkpointer configuration is ignored; checkpointing is policy-driven now: %s",
                 self.context_checkpointer,
             )
-
-        trainer_checkpointer = ContextCheckpointer(
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-        )
-        components.append(trainer_checkpointer)
 
         components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
