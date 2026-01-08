@@ -162,11 +162,11 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if "=" not in first:
         name, version = parse_policy_identifier(first)
         version_suffix = f":v{version}" if version is not None else ""
+        use_remote = "." in name or version is not None
         policy_uri = f"metta://policy/{name}{version_suffix}"
-        if "." in name:
-            policy = policy_spec_from_uri(resolve_uri(policy_uri).canonical)
-        else:
-            policy = policy_spec_from_uri(policy_uri)
+        if not use_remote:
+            raise ValueError("Policy specification must include class= for key=value format.")
+        policy = policy_spec_from_uri(resolve_uri(policy_uri).canonical)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)
             if key != "proportion":

@@ -38,7 +38,12 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.client import TournamentServerClient
-from cogames.cli.leaderboard import leaderboard_cmd, seasons_cmd, submissions_cmd
+from cogames.cli.leaderboard import (
+    leaderboard_cmd,
+    seasons_cmd,
+    submissions_cmd,
+)
+
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -806,7 +811,6 @@ def pickup_cmd(
         help="Max milliseconds afforded to generate each action before noop is used by default",
         min=1,
     ),
-
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
     seed: int = typer.Option(50, "--seed", help="Base random seed for evaluation", min=0),
     map_seed: Optional[int] = typer.Option(
