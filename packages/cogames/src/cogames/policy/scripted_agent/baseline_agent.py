@@ -1014,7 +1014,7 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
 
 class BaselinePolicy(MultiAgentPolicy):
-    short_names = ["scripted_baseline"]
+    short_names = ["baseline", "scripted_baseline"]
 
     def __init__(
         self,

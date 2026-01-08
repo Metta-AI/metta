@@ -4,18 +4,15 @@
 #include <cassert>
 
 #include "config/observation_features.hpp"
+#include "objects/collective.hpp"
 #include "systems/observation_encoder.hpp"
 
 // For std::shuffle
 #include <random>
 
-Agent::Agent(GridCoord r,
-             GridCoord c,
-             const AgentConfig& config,
-             const std::vector<std::string>* resource_names,
-             const std::unordered_map<std::string, ObservationType>* feature_ids)
+Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
     : GridObject(),
-      HasInventory(config.inventory_config, resource_names, feature_ids),
+      HasInventory(config.inventory_config),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),
@@ -114,6 +111,9 @@ void Agent::compute_stat_rewards(StatsTracker* game_stats_tracker) {
     float stat_value = this->stats.get(stat_name);
     if (game_stats_tracker) {
       stat_value += game_stats_tracker->get(stat_name);
+    }
+    if (this->getCollective()) {
+      stat_value += this->getCollective()->stats.get(stat_name);
     }
     float stats_reward = stat_value * reward_per_unit;
     if (this->stat_reward_max.count(stat_name) > 0) {
