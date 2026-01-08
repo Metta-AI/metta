@@ -10,6 +10,9 @@
 #include "objects/collective_config.hpp"
 #include "objects/inventory_config.hpp"
 
+// Resource names for StatsTracker
+static std::vector<std::string> test_resource_names = {"gold", "energy"};
+
 // Test helper to create a basic Collective config
 CollectiveConfig create_test_collective_config(const std::string& name, InventoryQuantity limit = 100) {
   CollectiveConfig config;
@@ -20,16 +23,19 @@ CollectiveConfig create_test_collective_config(const std::string& name, Inventor
 }
 
 // Simple GridObject subclass for testing that is also Alignable
+// The type_name is set on the GridObject, which is accessed via dynamic_cast in alignable.cpp
 class TestGridObject : public GridObject, public Alignable {
 public:
-  TestGridObject() = default;
+  explicit TestGridObject(const std::string& type = "test_object") {
+    type_name = type;  // Set on GridObject base class
+  }
 };
 
 void test_collective_creation() {
   std::cout << "Testing Collective creation..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   assert(collective.name == "test_collective");
   assert(collective.memberCount() == 0);
@@ -44,7 +50,7 @@ void test_collective_initial_inventory() {
   config.initial_inventory[0] = 50;
   config.initial_inventory[1] = 25;
 
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
   assert(collective.inventory.amount(0) == 50);
   assert(collective.inventory.amount(1) == 25);
@@ -56,20 +62,23 @@ void test_collective_add_member() {
   std::cout << "Testing Collective addMember..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj1;
-  TestGridObject obj2;
+  TestGridObject obj1("agent");
+  TestGridObject obj2("assembler");
 
   collective.addMember(&obj1);
   assert(collective.memberCount() == 1);
+  assert(collective.get_aligned_count("agent") == 1);
 
   collective.addMember(&obj2);
   assert(collective.memberCount() == 2);
+  assert(collective.get_aligned_count("assembler") == 1);
 
   // Adding same member again should not duplicate
   collective.addMember(&obj1);
   assert(collective.memberCount() == 2);
+  assert(collective.get_aligned_count("agent") == 1);
 
   std::cout << "✓ Collective addMember test passed" << std::endl;
 }
@@ -78,17 +87,19 @@ void test_collective_remove_member() {
   std::cout << "Testing Collective removeMember..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj1;
-  TestGridObject obj2;
+  TestGridObject obj1("agent");
+  TestGridObject obj2("agent");
 
   collective.addMember(&obj1);
   collective.addMember(&obj2);
   assert(collective.memberCount() == 2);
+  assert(collective.get_aligned_count("agent") == 2);
 
   collective.removeMember(&obj1);
   assert(collective.memberCount() == 1);
+  assert(collective.get_aligned_count("agent") == 1);
 
   // Removing non-member should be safe
   collective.removeMember(&obj1);
@@ -96,6 +107,7 @@ void test_collective_remove_member() {
 
   collective.removeMember(&obj2);
   assert(collective.memberCount() == 0);
+  assert(collective.get_aligned_count("agent") == 0);
 
   std::cout << "✓ Collective removeMember test passed" << std::endl;
 }
@@ -104,19 +116,20 @@ void test_alignable_set_collective() {
   std::cout << "Testing Alignable setCollective..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj;
+  TestGridObject obj("agent");
 
   // Initially no collective
   assert(obj.getCollective() == nullptr);
   assert(obj.collective_inventory() == nullptr);
 
-  // Set collective
+  // Set collective - type_name comes from GridObject via dynamic_cast
   obj.setCollective(&collective);
   assert(obj.getCollective() == &collective);
   assert(obj.collective_inventory() == &collective.inventory);
   assert(collective.memberCount() == 1);
+  assert(collective.get_aligned_count("agent") == 1);
 
   std::cout << "✓ Alignable setCollective test passed" << std::endl;
 }
@@ -125,16 +138,18 @@ void test_alignable_clear_collective() {
   std::cout << "Testing Alignable clearCollective..." << std::endl;
 
   CollectiveConfig config = create_test_collective_config("test_collective");
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj;
+  TestGridObject obj("agent");
   obj.setCollective(&collective);
   assert(collective.memberCount() == 1);
+  assert(collective.get_aligned_count("agent") == 1);
 
   obj.clearCollective();
   assert(obj.getCollective() == nullptr);
   assert(obj.collective_inventory() == nullptr);
   assert(collective.memberCount() == 0);
+  assert(collective.get_aligned_count("agent") == 0);
 
   // Clearing again should be safe
   obj.clearCollective();
@@ -148,19 +163,22 @@ void test_alignable_switch_collective() {
 
   CollectiveConfig config1 = create_test_collective_config("collective1");
   CollectiveConfig config2 = create_test_collective_config("collective2");
-  Collective collective1(config1);
-  Collective collective2(config2);
+  Collective collective1(config1, &test_resource_names);
+  Collective collective2(config2, &test_resource_names);
 
-  TestGridObject obj;
+  TestGridObject obj("agent");
   obj.setCollective(&collective1);
   assert(collective1.memberCount() == 1);
+  assert(collective1.get_aligned_count("agent") == 1);
   assert(collective2.memberCount() == 0);
 
   // Switch to different collective
   obj.setCollective(&collective2);
   assert(obj.getCollective() == &collective2);
   assert(collective1.memberCount() == 0);  // Removed from old
+  assert(collective1.get_aligned_count("agent") == 0);
   assert(collective2.memberCount() == 1);  // Added to new
+  assert(collective2.get_aligned_count("agent") == 1);
 
   std::cout << "✓ Alignable switching collective test passed" << std::endl;
 }
@@ -170,9 +188,9 @@ void test_collective_inventory_access() {
 
   CollectiveConfig config = create_test_collective_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj;
+  TestGridObject obj("agent");
   obj.setCollective(&collective);
 
   // Access collective inventory through grid object
@@ -193,10 +211,10 @@ void test_multiple_objects_share_collective() {
 
   CollectiveConfig config = create_test_collective_config("shared_storage", 1000);
   config.initial_inventory[0] = 100;
-  Collective collective(config);
+  Collective collective(config, &test_resource_names);
 
-  TestGridObject obj1;
-  TestGridObject obj2;
+  TestGridObject obj1("agent");
+  TestGridObject obj2("assembler");
   obj1.setCollective(&collective);
   obj2.setCollective(&collective);
 
@@ -208,7 +226,73 @@ void test_multiple_objects_share_collective() {
   obj1.collective_inventory()->update(0, 50);
   assert(obj2.collective_inventory()->amount(0) == 150);
 
+  // Check aligned counts for different types (via dynamic_cast from GridObject)
+  assert(collective.get_aligned_count("agent") == 1);
+  assert(collective.get_aligned_count("assembler") == 1);
+
   std::cout << "✓ Multiple objects sharing collective test passed" << std::endl;
+}
+
+void test_collective_stats_tracking() {
+  std::cout << "Testing collective stats tracking..." << std::endl;
+
+  CollectiveConfig config = create_test_collective_config("test_collective");
+  Collective collective(config, &test_resource_names);
+
+  TestGridObject obj1("agent");
+  TestGridObject obj2("agent");
+  TestGridObject obj3("assembler");
+
+  obj1.setCollective(&collective);
+  obj2.setCollective(&collective);
+  obj3.setCollective(&collective);
+
+  // Check stats for aligned counts
+  assert(collective.stats.get("aligned.agent") == 2.0f);
+  assert(collective.stats.get("aligned.assembler") == 1.0f);
+
+  // Simulate ticks and check held stats
+  collective.update_held_stats();
+  assert(collective.stats.get("aligned.agent.held") == 2.0f);
+  assert(collective.stats.get("aligned.assembler.held") == 1.0f);
+
+  collective.update_held_stats();
+  assert(collective.stats.get("aligned.agent.held") == 4.0f);      // 2 agents * 2 ticks
+  assert(collective.stats.get("aligned.assembler.held") == 2.0f);  // 1 assembler * 2 ticks
+
+  // Remove one agent and check stats update
+  obj1.clearCollective();
+  assert(collective.stats.get("aligned.agent") == 1.0f);
+
+  collective.update_held_stats();
+  assert(collective.stats.get("aligned.agent.held") == 5.0f);  // 4 + 1 (now only 1 agent)
+
+  std::cout << "✓ Collective stats tracking test passed" << std::endl;
+}
+
+void test_collective_inventory_stats() {
+  std::cout << "Testing collective inventory stats tracking..." << std::endl;
+
+  CollectiveConfig config = create_test_collective_config("test_collective", 1000);
+  Collective collective(config, &test_resource_names);
+
+  // Deposit resources
+  collective.inventory.update(0, 10);
+  assert(collective.stats.get("collective.gold.deposited") == 10.0f);
+
+  // Deposit more
+  collective.inventory.update(0, 5);
+  assert(collective.stats.get("collective.gold.deposited") == 15.0f);
+
+  // Withdraw resources
+  collective.inventory.update(0, -3);
+  assert(collective.stats.get("collective.gold.withdrawn") == 3.0f);
+
+  // Deposit second resource type
+  collective.inventory.update(1, 20);
+  assert(collective.stats.get("collective.energy.deposited") == 20.0f);
+
+  std::cout << "✓ Collective inventory stats tracking test passed" << std::endl;
 }
 
 int main() {
@@ -224,6 +308,8 @@ int main() {
   test_alignable_switch_collective();
   test_collective_inventory_access();
   test_multiple_objects_share_collective();
+  test_collective_stats_tracking();
+  test_collective_inventory_stats();
 
   std::cout << "================================================" << std::endl;
   std::cout << "All Collective tests passed! ✓" << std::endl;

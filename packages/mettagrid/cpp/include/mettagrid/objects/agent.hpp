@@ -43,11 +43,7 @@ public:
   // Damage configuration
   DamageConfig damage_config;
 
-  Agent(GridCoord r,
-        GridCoord c,
-        const AgentConfig& config,
-        const std::vector<std::string>* resource_names,
-        const std::unordered_map<std::string, ObservationType>* feature_ids = nullptr);
+  Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
 
   void init(RewardType* reward_ptr);
 
