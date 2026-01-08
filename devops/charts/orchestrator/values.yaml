@@ -49,3 +49,13 @@ watcher:
       cpu: 200m
       memory: 512Mi
 
+tournament:
+  enabled: true
+  dbSecret: "observatory-backend-env"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi

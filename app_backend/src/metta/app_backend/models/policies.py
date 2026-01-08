@@ -1,3 +1,6 @@
+# TODO: These models are partial representations of the policies/policy_versions tables.
+# Currently only used by tournament code. Migrate other raw SQL queries to use these models.
+
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
