@@ -155,36 +155,39 @@ class CheckpointManager:
 
     def load_trainer_state(self, policy_uri: str | None = None) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
-        if not trainer_file.exists():
-            if not policy_uri:
-                return None
-        else:
+        if trainer_file.exists():
             return torch.load(trainer_file, map_location="cpu", weights_only=False)
+        if not policy_uri:
+            return None
 
         try:
             parsed = resolve_uri(policy_uri)
-        except Exception:
+        except ValueError as exc:
+            logger.debug("Skipping trainer state for %s: %s", policy_uri, exc)
             return None
 
         if parsed.local_path and parsed.local_path.is_dir():
             trainer_path = parsed.local_path / "trainer_state.pt"
             if trainer_path.exists():
                 return torch.load(trainer_path, map_location="cpu", weights_only=False)
+            logger.debug("No trainer_state.pt in %s", parsed.local_path)
             return None
 
         if not parsed.canonical.endswith(".zip"):
+            logger.debug("No trainer state for %s (not a checkpoint zip)", parsed.canonical)
             return None
 
-        with local_copy(parsed.canonical) as local_path:
-            try:
+        try:
+            with local_copy(parsed.canonical) as local_path:
                 with zipfile.ZipFile(local_path, "r") as zipf:
                     try:
-                        with zipf.open("trainer_state.pt") as f:
-                            data = f.read()
+                        data = zipf.read("trainer_state.pt")
                     except KeyError:
+                        logger.debug("No trainer_state.pt in %s", parsed.canonical)
                         return None
-            except zipfile.BadZipFile:
-                return None
+        except (OSError, zipfile.BadZipFile) as exc:
+            logger.debug("Failed to read trainer state from %s: %s", parsed.canonical, exc)
+            return None
 
         return torch.load(io.BytesIO(data), map_location="cpu", weights_only=False)
 

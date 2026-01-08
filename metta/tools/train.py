@@ -284,10 +284,13 @@ class TrainTool(Tool):
         if self.initial_policy_uri:
             try:
                 parsed = resolve_uri(self.initial_policy_uri)
-            except Exception:
+            except ValueError as exc:
+                logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
                 parsed = None
             if parsed and parsed.checkpoint_info:
                 run_from_uri = parsed.checkpoint_info[0]
+            elif parsed:
+                logger.debug("No checkpoint info in %s; resume hints ignored", parsed.canonical)
 
         if run_from_uri and self.run is None:
             self.run = run_from_uri
