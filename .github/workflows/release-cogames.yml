@@ -38,6 +38,8 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install build tooling
         run: python -m pip install --upgrade pip build twine
       - name: Build distributions
@@ -49,9 +51,53 @@ jobs:
           name: cogames-dist
           path: dist/*
 
+  test:
+    name: Smoke test cogames
+    needs:
+      # We can reuse the already built wheel for cogames to save time.
+      - build
+      # Instead of building the mettagrid wheel locally, which might differ from the version
+      #  specified in cogames' pyproject.toml, we let mettagrid get automatically installed
+      #  from PyPI. Hence we need to wait for it to be available on PyPI.
+      - wait-for-mettagrid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Without this, we get "ERROR: Could not install packages due to an OSError:
+      #  [Errno 28] No space left on device" when trying to install cogames' dependencies.
+      #  See https://github.com/Metta-AI/metta/actions/runs/20327783664/job/58396495857
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+      - uses: actions/download-artifact@v4
+        with:
+          name: cogames-dist
+          path: dist
+      - name: Install cogames from wheel
+        run: |
+          pip install dist/cogames-*.whl
+      - name: Install pytest
+        run: |
+          pip install pytest pytest-xdist
+      - name: Prepare isolated test environment
+        run: |
+          # Copy tests to clean directory
+          mkdir -p /tmp/test-isolation
+          cp -r packages/cogames/tests /tmp/test-isolation/
+
+          # Overkill, but wipe the original source code to doubly ensure isolation
+          rm -rf *
+
+      - name: Run tests in isolation
+        working-directory: /tmp/test-isolation
+        run: |
+          # Run from clean directory - no metta/ or other repo packages accessible
+          pytest tests/ -v
+
   wait-for-mettagrid:
     name: Wait for mettagrid on PyPI
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -108,7 +154,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: wait-for-mettagrid
+    needs: test
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:
