@@ -49,26 +49,27 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     for path_str in paths:
         path = Path(path_str)
 
-        # Check if path is absolute
         if path.is_absolute():
-            console.print(f"[red]Error:[/red] Path must be relative: {path_str}")
-            raise ValueError(f"Absolute paths not allowed: {path_str}")
+            resolved = path.resolve()
+            try:
+                rel_path = resolved.relative_to(cwd)
+            except ValueError:
+                console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
+                raise ValueError(f"Path escapes CWD: {path_str}") from None
+        else:
+            rel_path = path
+            resolved = (cwd / rel_path).resolve()
+            try:
+                resolved.relative_to(cwd)
+            except ValueError:
+                console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
+                raise ValueError(f"Path escapes CWD: {path_str}") from None
 
-        # Resolve the path and check it's within CWD
-        try:
-            resolved = (cwd / path).resolve()
-            # Check if resolved path is under CWD
-            resolved.relative_to(cwd)
-        except ValueError:
-            console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
-            raise ValueError(f"Path escapes CWD: {path_str}") from None
-
-        # Check if path exists
         if not resolved.exists():
             console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
             raise FileNotFoundError(f"Path not found: {path_str}")
 
-        validated_paths.append(path)
+        validated_paths.append(rel_path)
 
     return validated_paths
 
