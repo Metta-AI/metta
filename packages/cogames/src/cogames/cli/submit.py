@@ -38,29 +38,19 @@ class UploadResult:
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
-    """Validate that all paths are relative and within CWD.
-
-    Ensures paths don't escape the current working directory using '../'.
-    Returns list of resolved Path objects.
-    """
-    cwd = Path.cwd()
+    """Validate paths are within CWD and return them as relative paths."""
+    cwd = Path.cwd().resolve()
     validated_paths = []
 
     for path_str in paths:
-        path = Path(path_str)
-
-        # Check if path is absolute
-        if path.is_absolute():
-            console.print(f"[red]Error:[/red] Path must be relative: {path_str}")
-            raise ValueError(f"Absolute paths not allowed: {path_str}")
+        raw_path = Path(path_str).expanduser()
 
         # Resolve the path and check it's within CWD
         try:
-            resolved = (cwd / path).resolve()
-            # Check if resolved path is under CWD
-            resolved.relative_to(cwd)
+            resolved = raw_path.resolve() if raw_path.is_absolute() else (cwd / raw_path).resolve()
+            relative = resolved.relative_to(cwd)
         except ValueError:
-            console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
+            console.print(f"[red]Error:[/red] Path must be within the current directory: {path_str}")
             raise ValueError(f"Path escapes CWD: {path_str}") from None
 
         # Check if path exists
@@ -68,9 +58,87 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
             console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
             raise FileNotFoundError(f"Path not found: {path_str}")
 
-        validated_paths.append(path)
+        validated_paths.append(relative)
 
     return validated_paths
+
+
+def _maybe_resolve_checkpoint_bundle_uri(policy: str) -> tuple[Path, bool] | None:
+    """Return (local_zip_path, cleanup) if policy points to a checkpoint bundle URI."""
+    from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+    from mettagrid.util.uri_resolvers.schemes import parse_uri, resolve_uri
+
+    first = policy.split(",", 1)[0].strip()
+    parsed = parse_uri(first, allow_none=True, default_scheme=None)
+    if parsed is None or parsed.scheme not in {"file", "s3"}:
+        return None
+
+    resolved = resolve_uri(first)
+    if resolved.scheme == "s3":
+        if not resolved.canonical.endswith(".zip"):
+            raise ValueError("S3 policy specs must be .zip bundles.")
+        return download_policy_spec_from_s3_as_zip(resolved.canonical), False
+
+    local_path = resolved.local_path
+    if local_path is None:
+        raise ValueError(f"Cannot resolve local path for URI: {policy}")
+    if not local_path.exists():
+        raise FileNotFoundError(f"Bundle path not found: {local_path}")
+    if local_path.is_dir():
+        return _zip_directory_bundle(local_path), True
+    if local_path.suffix == ".zip":
+        return local_path, False
+    raise ValueError("Checkpoint bundle must be a directory or .zip file.")
+
+
+def _zip_directory_bundle(bundle_dir: Path) -> Path:
+    zip_fd, zip_path = tempfile.mkstemp(suffix=".zip", prefix="cogames_bundle_")
+    os.close(zip_fd)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for file_path in bundle_dir.rglob("*"):
+            if file_path.is_file():
+                zipf.write(file_path, arcname=file_path.relative_to(bundle_dir))
+
+    return Path(zip_path)
+
+
+def validate_bundle_in_isolation(policy_zip: Path, console: Console) -> bool:
+    """Validate a checkpoint bundle zip works in isolated environment."""
+    console.print("[dim]Testing policy bundle can run 10 steps on machina_1...[/dim]")
+
+    temp_dir = None
+    try:
+        temp_dir = create_temp_validation_env()
+        bundle_name = policy_zip.name
+        shutil.copy2(policy_zip, temp_dir / bundle_name)
+
+        env = os.environ.copy()
+        env["UV_NO_CACHE"] = "1"
+
+        res = subprocess.run(
+            ["uv", "run", "cogames", "validate-policy", f"file://./{bundle_name}"],
+            cwd=temp_dir,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            env=env,
+        )
+        if res.returncode != 0:
+            console.print("[red]Validation failed[/red]")
+            console.print(f"\n[red]Error:[/red]\n{res.stderr}")
+            if res.stdout:
+                console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
+            return False
+
+        console.print("[green]Validation passed[/green]")
+        return True
+    except subprocess.TimeoutExpired:
+        console.print("[red]Validation timed out after 5 minutes[/red]")
+        return False
+    finally:
+        if temp_dir and temp_dir.exists():
+            shutil.rmtree(temp_dir)
 
 
 def get_latest_cogames_version() -> str:
@@ -364,6 +432,49 @@ def upload_policy(
     if not client:
         return None
 
+    bundle_zip: Path | None = None
+    cleanup_bundle_zip = False
+    try:
+        bundle_result = _maybe_resolve_checkpoint_bundle_uri(policy)
+    except Exception as e:
+        console.print(f"[red]Error resolving checkpoint bundle:[/red] {e}")
+        return None
+
+    if bundle_result is not None:
+        bundle_zip, cleanup_bundle_zip = bundle_result
+        if init_kwargs or include_files or setup_script:
+            console.print("[red]Error:[/red] Extra files/kwargs are not supported when uploading a bundle URI.")
+            console.print("Upload the bundle as-is, or use class=... with local files to build a new submission zip.")
+            if cleanup_bundle_zip and bundle_zip.exists():
+                bundle_zip.unlink()
+            return None
+
+        if not skip_validation:
+            if not validate_bundle_in_isolation(bundle_zip, console):
+                console.print("\n[red]Upload aborted due to validation failure.[/red]")
+                if cleanup_bundle_zip and bundle_zip.exists():
+                    bundle_zip.unlink()
+                return None
+        else:
+            console.print("[dim]Skipping validation[/dim]")
+
+        if dry_run:
+            console.print("[green]Dry run complete[/green]")
+            if cleanup_bundle_zip and bundle_zip.exists():
+                bundle_zip.unlink()
+            return None
+
+        try:
+            with client:
+                result = upload_submission(client, bundle_zip, name, console)
+            if not result:
+                console.print("\n[red]Upload failed.[/red]")
+                return None
+            return result
+        finally:
+            if cleanup_bundle_zip and bundle_zip.exists():
+                bundle_zip.unlink()
+
     try:
         policy_spec = get_policy_spec(ctx, policy)
     except Exception as e:
@@ -378,11 +489,36 @@ def upload_policy(
             init_kwargs=merged_kwargs,
         )
 
+    cwd = Path.cwd().resolve()
+    if policy_spec.data_path:
+        try:
+            resolved = Path(policy_spec.data_path).expanduser().resolve()
+            data_rel = str(resolved.relative_to(cwd))
+        except ValueError:
+            console.print("[red]Error:[/red] Policy weights path must be within the current directory.")
+            console.print(f"[dim]{policy_spec.data_path}[/dim]")
+            return None
+        policy_spec = PolicySpec(
+            class_path=policy_spec.class_path,
+            data_path=data_rel,
+            init_kwargs=policy_spec.init_kwargs,
+        )
+
+    setup_script_rel: str | None = None
+    if setup_script:
+        try:
+            resolved = Path(setup_script).expanduser().resolve()
+            setup_script_rel = str(resolved.relative_to(cwd))
+        except ValueError:
+            console.print("[red]Error:[/red] Setup script path must be within the current directory.")
+            console.print(f"[dim]{setup_script}[/dim]")
+            return None
+
     files_to_include = []
     if policy_spec.data_path:
         files_to_include.append(policy_spec.data_path)
-    if setup_script:
-        files_to_include.append(setup_script)
+    if setup_script_rel:
+        files_to_include.append(setup_script_rel)
     if include_files:
         files_to_include.extend(include_files)
 
@@ -394,14 +530,14 @@ def upload_policy(
             return None
 
     if not skip_validation:
-        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
+        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script_rel):
             console.print("\n[red]Upload aborted due to validation failure.[/red]")
             return None
     else:
         console.print("[dim]Skipping validation[/dim]")
 
     try:
-        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script)
+        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script_rel)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
         return None
