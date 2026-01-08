@@ -9,6 +9,7 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
+from cogames.cli.leaderboard import parse_policy_identifier
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
@@ -118,6 +119,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     Supports two formats:
     - class=...[,data=...][,proportion=1.0][,kw.<key>=<value>]
     - URI: metta://policy/xxx[,proportion=1.0]
+    - Policy name: name[:vN][,proportion=1.0]
     """
     entries = [part.strip() for part in spec.split(",") if part.strip()]
     if not entries:
@@ -150,6 +152,22 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
             key, value = parse_key_value(entry)
             if key != "proportion":
                 raise ValueError("Only proportion is supported after a checkpoint URI.")
+            fraction = parse_proportion(value)
+
+        return PolicySpecWithProportion(
+            class_path=policy.class_path,
+            data_path=policy.data_path,
+            proportion=fraction,
+            init_kwargs=policy.init_kwargs,
+        )
+    if "=" not in first:
+        name, version = parse_policy_identifier(first)
+        version_suffix = f":v{version}" if version is not None else ""
+        policy = policy_spec_from_uri(f"metta://policy/{name}{version_suffix}")
+        for entry in entries[1:]:
+            key, value = parse_key_value(entry)
+            if key != "proportion":
+                raise ValueError("Only proportion is supported after a policy name.")
             fraction = parse_proportion(value)
 
         return PolicySpecWithProportion(

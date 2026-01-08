@@ -37,7 +37,6 @@ from cogames import pickup as pickup_module
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.client import TournamentServerClient
 from cogames.cli.leaderboard import (
     leaderboard_cmd,
     parse_policy_identifier,
@@ -66,11 +65,9 @@ from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import discover_and_register_policies
-from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator import Simulator
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 # Always add current directory to Python path so optional plugins in the repo are discoverable.
 sys.path.insert(0, ".")
@@ -829,71 +826,7 @@ def pickup_cmd(
             "Each replay will be saved with a unique UUID-based filename."
         ),
     ),
-    login_server: str = typer.Option(
-        DEFAULT_COGAMES_SERVER,
-        "--login-server",
-        help="Login/authentication server URL",
-    ),
-    server: str = typer.Option(
-        DEFAULT_SUBMIT_SERVER,
-        "--server",
-        help="Observatory API base URL",
-    ),
 ) -> None:
-    def _looks_like_policy_identifier(value: str) -> bool:
-        if "://" in value:
-            return False
-        if "=" in value:
-            return False
-        if value.startswith((".", "/", "~")):
-            return False
-        if "/" in value:
-            return False
-        return True
-
-    def _policy_spec_from_identifier(client: TournamentServerClient, identifier: str) -> tuple[PolicySpec, str]:
-        try:
-            name, version = parse_policy_identifier(identifier)
-        except ValueError as exc:
-            console.print(f"[yellow]Invalid policy identifier '{identifier}': {exc}[/yellow]\n")
-            raise typer.Exit(1) from exc
-
-        policy_version = client.lookup_policy_version_by_name(name=name, version=version)
-        if policy_version is None:
-            suffix = f":v{version}" if version is not None else ""
-            console.print(f"[yellow]Policy '{name}{suffix}' not found on server.[/yellow]\n")
-            raise typer.Exit(1)
-
-        details = client.get_policy_version_details(policy_version.id)
-        if details.s3_path:
-            spec = policy_spec_from_uri(details.s3_path)
-        else:
-            spec = PolicySpec.model_validate(details.policy_spec)
-
-        label = details.name
-        if details.version is not None:
-            label = f"{label}:v{details.version}"
-        return spec, label
-
-    def _parse_pickup_policy(
-        raw: str,
-        *,
-        client: TournamentServerClient | None,
-    ) -> tuple[PolicySpec, str]:
-        if _looks_like_policy_identifier(raw):
-            if client is None:
-                console.print("[red]Authentication required:[/red] run `cogames login` first.")
-                raise typer.Exit(1)
-            return _policy_spec_from_identifier(client, raw)
-
-        try:
-            spec = _parse_policy_spec(raw).to_policy_spec()
-        except (ValueError, ModuleNotFoundError) as exc:
-            translated = _translate_error(exc)
-            console.print(f"[yellow]Error parsing policy: {translated}[/yellow]\n")
-            raise typer.Exit(1) from exc
-        return spec, spec.name
-
     if policy is None:
         console.print(ctx.get_help())
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
@@ -904,30 +837,15 @@ def pickup_cmd(
         console.print("[yellow]Supply at least one: --pool[/yellow]\n")
         raise typer.Exit(1)
 
-    need_server = _looks_like_policy_identifier(policy) or any(_looks_like_policy_identifier(p) for p in pool)
-    client: TournamentServerClient | None = None
-    if need_server:
-        client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
-        if not client:
-            raise typer.Exit(1)
-
-    if client:
-        with client:
-            candidate_spec, candidate_label = _parse_pickup_policy(policy, client=client)
-            pool_specs: list[PolicySpec] = []
-            pool_labels: list[str] = []
-            for pool_entry in pool:
-                spec, label = _parse_pickup_policy(pool_entry, client=client)
-                pool_specs.append(spec)
-                pool_labels.append(label)
-    else:
-        candidate_spec, candidate_label = _parse_pickup_policy(policy, client=None)
-        pool_specs = []
-        pool_labels = []
-        for pool_entry in pool:
-            spec, label = _parse_pickup_policy(pool_entry, client=None)
-            pool_specs.append(spec)
-            pool_labels.append(label)
+    candidate_label = policy
+    pool_labels = pool
+    candidate_spec = get_policy_spec(ctx, policy)
+    try:
+        pool_specs = [_parse_policy_spec(spec).to_policy_spec() for spec in pool]
+    except (ValueError, ModuleNotFoundError) as exc:
+        translated = _translate_error(exc)
+        console.print(f"[yellow]Error parsing pool policy: {translated}[/yellow]\n")
+        raise typer.Exit(1) from exc
 
     pickup_module.pickup(
         console,
