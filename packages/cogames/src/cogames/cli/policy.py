@@ -9,11 +9,10 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
-from cogames.cli.leaderboard import parse_policy_identifier
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri, resolve_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -163,7 +162,11 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     if "=" not in first:
         name, version = parse_policy_identifier(first)
         version_suffix = f":v{version}" if version is not None else ""
-        policy = policy_spec_from_uri(f"metta://policy/{name}{version_suffix}")
+        policy_uri = f"metta://policy/{name}{version_suffix}"
+        if "." in name:
+            policy = policy_spec_from_uri(resolve_uri(policy_uri).canonical)
+        else:
+            policy = policy_spec_from_uri(policy_uri)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)
             if key != "proportion":
@@ -218,3 +221,16 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         proportion=fraction,
         init_kwargs=init_kwargs,
     )
+
+
+def parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+    """Parse 'name' or 'name:v3' into (name, version)."""
+    if ":" in identifier:
+        name, version_str = identifier.rsplit(":", 1)
+        version_str = version_str.lstrip("v")
+        try:
+            version = int(version_str)
+        except ValueError:
+            raise ValueError(f"Invalid version format: {identifier}") from None
+        return name, version
+    return identifier, None

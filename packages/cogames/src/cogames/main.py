@@ -38,12 +38,7 @@ from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.client import TournamentServerClient
-from cogames.cli.leaderboard import (
-    leaderboard_cmd,
-    parse_policy_identifier,
-    seasons_cmd,
-    submissions_cmd,
-)
+from cogames.cli.leaderboard import leaderboard_cmd, seasons_cmd, submissions_cmd
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -58,6 +53,7 @@ from cogames.cli.policy import (
     _translate_error,
     get_policy_spec,
     get_policy_specs_with_proportions,
+    parse_policy_identifier,
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
