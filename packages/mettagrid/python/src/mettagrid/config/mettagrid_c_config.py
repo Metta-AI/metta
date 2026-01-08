@@ -139,15 +139,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             stat_name = k + ".amount"
             assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
             stat_reward_max[stat_name] = v
-        # Commons inventory rewards use "commons.{resource}.amount" stat names
-        for k, v in rewards_config.get("commons_inventory", {}).items():
-            assert k in resource_name_to_id, f"Commons inventory reward {k} not in resource_names"
-            stat_name = "commons." + k + ".amount"
+        # Collective inventory rewards use "collective.{resource}.amount" stat names
+        for k, v in rewards_config.get("collective_inventory", {}).items():
+            assert k in resource_name_to_id, f"Collective inventory reward {k} not in resource_names"
+            stat_name = "collective." + k + ".amount"
             assert stat_name not in stat_rewards, f"Stat reward {stat_name} already exists"
             stat_rewards[stat_name] = v
-        for k, v in rewards_config.get("commons_inventory_max", {}).items():
-            assert k in resource_name_to_id, f"Commons inventory reward max {k} not in resource_names"
-            stat_name = "commons." + k + ".amount"
+        for k, v in rewards_config.get("collective_inventory_max", {}).items():
+            assert k in resource_name_to_id, f"Collective inventory reward max {k} not in resource_names"
+            stat_name = "collective." + k + ".amount"
             assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
             stat_reward_max[stat_name] = v
 

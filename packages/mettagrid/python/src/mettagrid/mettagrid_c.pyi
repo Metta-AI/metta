@@ -174,7 +174,7 @@ class ChestConfig(GridObjectConfig):
     inventory_config: InventoryConfig
     initial_vibe: int
 
-class CommonsChestConfig(ChestConfig):
+class CollectiveChestConfig(ChestConfig):
     def __init__(
         self,
         type_id: int,

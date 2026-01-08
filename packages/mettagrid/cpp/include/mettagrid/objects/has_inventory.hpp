@@ -14,7 +14,7 @@ public:
   Inventory inventory;
 
   // Returns the inventory to display/access. Override in subclasses that use
-  // a different inventory (e.g., CommonsChest uses commons inventory).
+  // a different inventory (e.g., CollectiveChest uses collective inventory).
   virtual Inventory* get_accessible_inventory() {
     return &inventory;
   }

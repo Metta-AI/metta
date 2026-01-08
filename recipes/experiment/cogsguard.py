@@ -97,7 +97,6 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
     )
 
 
-
 class CogAssemblerConfig(CvCStationConfig):
     def station_cfg(self) -> AssemblerConfig:
         # gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
@@ -187,7 +186,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     "battery": 0.01,
                     "gear": 0.1,
                 },
-                commons_inventory={
+                collective_inventory={
                     "carbon": 0.01,
                     "oxygen": 0.01,
                     "germanium": 0.01,

@@ -39,9 +39,9 @@ class AgentRewards(Config):
     # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, float] = Field(default_factory=dict)
-    # commons_inventory rewards agents based on the inventory of the commons they belong to
-    commons_inventory: dict[str, float] = Field(default_factory=dict)
-    commons_inventory_max: dict[str, float] = Field(default_factory=dict)
+    # collective_inventory rewards agents based on the inventory of the collective they belong to
+    collective_inventory: dict[str, float] = Field(default_factory=dict)
+    collective_inventory_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
@@ -137,9 +137,9 @@ class AgentConfig(Config):
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
-    commons: Optional[str] = Field(
+    collective: Optional[str] = Field(
         default=None,
-        description="Name of commons this agent belongs to. Adds 'commons:{name}' tag automatically.",
+        description="Name of collective this agent belongs to. Adds 'collective:{name}' tag automatically.",
     )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
@@ -152,12 +152,12 @@ class AgentConfig(Config):
     )
 
     @model_validator(mode="after")
-    def _add_commons_tag(self) -> "AgentConfig":
-        # Add commons tag if commons is set
-        if self.commons:
-            commons_tag = f"commons:{self.commons}"
-            if commons_tag not in self.tags:
-                self.tags = self.tags + [commons_tag]
+    def _add_collective_tag(self) -> "AgentConfig":
+        # Add collective tag if collective is set
+        if self.collective:
+            collective_tag = f"collective:{self.collective}"
+            if collective_tag not in self.tags:
+                self.tags = self.tags + [collective_tag]
         return self
 
 
@@ -471,11 +471,11 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
-class CommonsChestConfig(ChestConfig):
-    """Python commons chest configuration - like chest but uses commons inventory."""
+class CollectiveChestConfig(ChestConfig):
+    """Python collective chest configuration - like chest but uses collective inventory."""
 
-    pydantic_type: Literal["commons_chest"] = "commons_chest"
-    name: str = Field(default="commons_chest")
+    pydantic_type: Literal["collective_chest"] = "collective_chest"
+    name: str = Field(default="collective_chest")
 
 
 class ClipperConfig(Config):
@@ -524,7 +524,7 @@ AnyGridObjectConfig = SerializeAsAny[
             Annotated[WallConfig, Tag("wall")],
             Annotated[AssemblerConfig, Tag("assembler")],
             Annotated[ChestConfig, Tag("chest")],
-            Annotated[CommonsChestConfig, Tag("commons_chest")],
+            Annotated[CollectiveChestConfig, Tag("collective_chest")],
         ],
         Discriminator("pydantic_type"),
     ]

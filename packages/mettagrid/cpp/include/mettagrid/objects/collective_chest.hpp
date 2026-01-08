@@ -42,14 +42,16 @@ private:
             HasInventory::transfer_resources(agent.inventory, *collective_inv, resource, delta, true);
         if (transferred > 0) {
           any_transfer = true;
-          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".deposited_by_agent", transferred);
+          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".deposited_by_agent",
+                          transferred);
         }
       } else if (delta < 0) {
         InventoryDelta transferred =
             HasInventory::transfer_resources(*collective_inv, agent.inventory, resource, -delta, true);
         if (transferred > 0) {
           any_transfer = true;
-          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".withdrawn_by_agent", transferred);
+          agent.stats.add("collective_chest." + agent.stats.resource_name(resource) + ".withdrawn_by_agent",
+                          transferred);
         }
       }
     }
