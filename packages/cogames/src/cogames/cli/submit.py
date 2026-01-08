@@ -38,10 +38,11 @@ class UploadResult:
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
-    """Validate that all paths are relative and within CWD.
+    """Validate paths exist and are safe to include.
 
-    Ensures paths don't escape the current working directory using '../'.
-    Returns list of resolved Path objects.
+    For relative paths: ensures they don't escape CWD using '../'.
+    For absolute paths: allows them (used for URI-loaded policies) but verifies they exist.
+    Returns list of Path objects.
     """
     cwd = Path.cwd()
     validated_paths = []
@@ -49,26 +50,24 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     for path_str in paths:
         path = Path(path_str)
 
-        # Check if path is absolute
         if path.is_absolute():
-            console.print(f"[red]Error:[/red] Path must be relative: {path_str}")
-            raise ValueError(f"Absolute paths not allowed: {path_str}")
+            if not path.exists():
+                console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
+                raise FileNotFoundError(f"Path not found: {path_str}")
+            validated_paths.append(path)
+        else:
+            try:
+                resolved = (cwd / path).resolve()
+                resolved.relative_to(cwd)
+            except ValueError:
+                console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
+                raise ValueError(f"Path escapes CWD: {path_str}") from None
 
-        # Resolve the path and check it's within CWD
-        try:
-            resolved = (cwd / path).resolve()
-            # Check if resolved path is under CWD
-            resolved.relative_to(cwd)
-        except ValueError:
-            console.print(f"[red]Error:[/red] Path escapes current directory: {path_str}")
-            raise ValueError(f"Path escapes CWD: {path_str}") from None
+            if not resolved.exists():
+                console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
+                raise FileNotFoundError(f"Path not found: {path_str}")
 
-        # Check if path exists
-        if not resolved.exists():
-            console.print(f"[red]Error:[/red] Path does not exist: {path_str}")
-            raise FileNotFoundError(f"Path not found: {path_str}")
-
-        validated_paths.append(path)
+            validated_paths.append(path)
 
     return validated_paths
 
@@ -228,15 +227,20 @@ def create_submission_zip(
 ) -> Path:
     """Create a zip file containing all include-files.
 
-    Maintains directory structure exactly as provided.
+    Maintains directory structure for relative paths. Absolute paths are
+    stored with just their filename (used for URI-loaded policies).
     Returns path to created zip file.
     """
     zip_fd, zip_path = tempfile.mkstemp(suffix=".zip", prefix="cogames_submission_")
     os.close(zip_fd)
 
+    data_path_for_spec = policy_spec.data_path
+    if data_path_for_spec and Path(data_path_for_spec).is_absolute():
+        data_path_for_spec = Path(data_path_for_spec).name
+
     submission_spec = SubmissionPolicySpec(
         class_path=policy_spec.class_path,
-        data_path=policy_spec.data_path,
+        data_path=data_path_for_spec,
         init_kwargs=policy_spec.init_kwargs,
         setup_script=setup_script,
     )
@@ -249,9 +253,11 @@ def create_submission_zip(
                 for root, _, files in os.walk(file_path):
                     for file in files:
                         file_full_path = Path(root) / file
-                        zipf.write(file_full_path, arcname=file_full_path)
+                        arcname = file_full_path if not file_full_path.is_absolute() else file_full_path.name
+                        zipf.write(file_full_path, arcname=arcname)
             else:
-                zipf.write(file_path, arcname=file_path)
+                arcname = file_path if not file_path.is_absolute() else file_path.name
+                zipf.write(file_path, arcname=arcname)
 
     return Path(zip_path)
 
