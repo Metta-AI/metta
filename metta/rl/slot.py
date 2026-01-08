@@ -102,6 +102,36 @@ def _merge_policy_specs(specs: Iterable[Composite]) -> Composite:
     return Composite(merged)
 
 
+def apply_slot_routing(
+    td: TensorDict,
+    *,
+    teacher_mask: torch.Tensor,
+    student_mask: torch.Tensor,
+    ppo_mask: torch.Tensor,
+    teacher_slot_id: str | None,
+    student_slot_id: str | None,
+    slot_lookup: dict[str, int],
+) -> None:
+    if not teacher_slot_id or not student_slot_id:
+        return
+    if "slot_id" not in td.keys() or not slot_lookup:
+        return
+
+    teacher_slot_idx = slot_lookup.get(teacher_slot_id)
+    student_slot_idx = slot_lookup.get(student_slot_id)
+    if teacher_slot_idx is None or student_slot_idx is None:
+        raise RuntimeError(
+            f"Slot routing requires slot ids '{student_slot_id}' and '{teacher_slot_id}' "
+            f"to exist in trainer.policy_slots."
+        )
+
+    slot_ids = td.get("slot_id").to(device=td.device)
+    flat_slots = slot_ids.reshape(-1)
+    flat_slots[teacher_mask] = teacher_slot_idx
+    flat_slots[student_mask | ppo_mask] = student_slot_idx
+    td["slot_id"] = flat_slots.reshape(slot_ids.shape)
+
+
 class SlotControllerPolicy(Policy):
     """Multi-policy controller that routes agent observations to different slot policies.
 
@@ -129,9 +159,6 @@ class SlotControllerPolicy(Policy):
         agent_slot_map: torch.Tensor | None = None,
     ) -> None:
         super().__init__(policy_env_info)  # type: ignore[arg-type]
-
-        # Validate slot configuration
-        self._validate_slot_config(slot_lookup, slots, slot_policies, agent_slot_map)
 
         self._slot_lookup = slot_lookup
         self._slots = slots
@@ -162,32 +189,6 @@ class SlotControllerPolicy(Policy):
             if isinstance(policy, nn.Module):
                 self.add_module(f"slot_{idx}", policy)
 
-    def _validate_slot_config(
-        self,
-        slot_lookup: Dict[str, int],
-        slots: list[Any],
-        slot_policies: Dict[int, Policy],
-        agent_slot_map: torch.Tensor | None,
-    ) -> None:
-        """Validate slot configuration for consistency."""
-        if not slots:
-            for name, idx in slot_lookup.items():
-                if idx not in slot_policies:
-                    raise ValueError(f"Slot '{name}' references index {idx} but no policy exists for that id")
-            return
-
-        # Check that all slot indices have corresponding policies
-        for idx in range(len(slots)):
-            if idx not in slot_policies:
-                raise ValueError(f"Slot at index {idx} has no corresponding policy in slot_policies")
-
-        # Check that slot_lookup indices match actual slots
-        for name, idx in slot_lookup.items():
-            if idx >= len(slots):
-                raise ValueError(f"Slot '{name}' references index {idx} but only {len(slots)} slots exist")
-
-        # agent_slot_map is created by trainer/sim config, so no extra validation here.
-
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return self._merged_spec
 
@@ -198,18 +199,9 @@ class SlotControllerPolicy(Policy):
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
         if "slot_id" not in td.keys():
-            if self._agent_slot_map is None:
-                raise RuntimeError("slot_id missing and no agent_slot_map provided for slot-aware policy routing")
-            num_agents = self._agent_slot_map.numel()
-            if num_agents == 0:
-                raise RuntimeError("agent_slot_map cannot be empty for slot-aware policy routing")
-            batch = td.batch_size.numel()
-            if batch % num_agents != 0:
-                raise RuntimeError(
-                    f"slot-aware routing requires batch size ({batch}) to be divisible by num_agents ({num_agents})"
-                )
-            num_envs = batch // num_agents
             slot_map = self._agent_slot_map
+            num_agents = slot_map.numel()
+            num_envs = td.batch_size.numel() // num_agents
             if slot_map.device != td.device:
                 slot_map = slot_map.to(device=td.device)
             td.set("slot_id", slot_map.repeat(num_envs))
@@ -222,8 +214,6 @@ class SlotControllerPolicy(Policy):
 
             sub_td = td[mask].clone()
             policy = self._slot_policies.get(int(b_id))
-            assert policy is not None, f"No policy registered for slot id {int(b_id)}"
-
             out_td = policy.forward(sub_td, action=None if action is None else action[mask])
 
             for key in out_td.keys(include_nested=True, leaves_only=True):

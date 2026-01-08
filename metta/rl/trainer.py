@@ -325,13 +325,8 @@ class Trainer:
         elif trainer_slot_idx != 0:
             slots_cfg.insert(0, slots_cfg.pop(trainer_slot_idx))
 
-        if sum(1 for slot in slots_cfg if slot.use_trainer_policy) > 1:
-            raise ValueError("Only one slot may set use_trainer_policy=True")
-
         slot_lookup: dict[str, int] = {}
         for slot in slots_cfg:
-            if slot.id in slot_lookup:
-                raise ValueError(f"Duplicate policy slot id '{slot.id}'")
             slot_lookup[slot.id] = len(slot_lookup)
 
         resolved_agent_map = (

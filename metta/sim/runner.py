@@ -62,8 +62,6 @@ def _run_single_simulation(
                 )
         slot_lookup: dict[str, int] = {}
         for slot_cfg in slots_cfg:
-            if slot_cfg.id in slot_lookup:
-                raise ValueError(f"Duplicate policy slot id '{slot_cfg.id}'")
             slot_lookup[slot_cfg.id] = len(slot_lookup)
         controller_device = torch.device(device_override or "cpu")
 

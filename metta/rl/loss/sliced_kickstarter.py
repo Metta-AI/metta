@@ -9,6 +9,7 @@ from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.slot import apply_slot_routing
 from metta.rl.loss.teacher_policy import load_teacher_policy
 from metta.rl.training import ComponentContext
 
@@ -92,24 +93,15 @@ class SlicedKickstarter(Loss):
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
 
-            # If slot routing is configured, swap slot ids per slice so the slot controller
-            # forwards the appropriate policy for each portion of the batch.
-            if "slot_id" in td.keys() and context.slot_id_lookup:
-                teacher_slot_name = self.cfg.teacher_slot_id
-                student_slot_name = self.cfg.student_slot_id
-                if teacher_slot_name and student_slot_name:
-                    teacher_slot_idx = context.slot_id_lookup.get(teacher_slot_name)
-                    student_slot_idx = context.slot_id_lookup.get(student_slot_name)
-                    if teacher_slot_idx is None or student_slot_idx is None:
-                        raise RuntimeError(
-                            f"SlicedKickstarter slot wiring requires slot ids '{student_slot_name}' "
-                            f"and '{teacher_slot_name}' to exist in trainer.policy_slots."
-                        )
-                    slot_ids = td.get("slot_id").to(device=td.device).clone()
-                    flat_slots = slot_ids.reshape(-1)
-                    flat_slots[self.teacher_mask] = teacher_slot_idx
-                    flat_slots[self.stud_mask | self.ppo_mask] = student_slot_idx
-                    td["slot_id"] = flat_slots.reshape(slot_ids.shape)
+            apply_slot_routing(
+                td,
+                teacher_mask=self.teacher_mask,
+                student_mask=self.stud_mask,
+                ppo_mask=self.ppo_mask,
+                teacher_slot_id=self.cfg.teacher_slot_id,
+                student_slot_id=self.cfg.student_slot_id,
+                slot_lookup=context.slot_id_lookup,
+            )
 
             self.policy.forward(td)
 
