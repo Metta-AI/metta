@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
@@ -254,7 +255,8 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
         state = cast(StateType, self._state)
-        action, self._state = self._base_policy.step_with_state(obs, state)
+        with torch.no_grad():
+            action, self._state = self._base_policy.step_with_state(obs, state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action
