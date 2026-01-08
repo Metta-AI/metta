@@ -87,6 +87,8 @@ def pickup(
     steps: Optional[int],
     action_timeout_ms: int,
     save_replay_dir: Optional[Path],
+    candidate_label: str | None = None,
+    pool_labels: list[str] | None = None,
 ) -> None:
     env_cfg = make_machina1_open_world_env(num_cogs=num_cogs, seed=seed, map_seed=map_seed, steps=steps)
     env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
@@ -103,8 +105,11 @@ def pickup(
 
     console.print("[bold cyan]Pickup Evaluation[/bold cyan]")
     console.print(f"[dim]Mission: machina_1.open_world | cogs={num_cogs} | episodes={episodes} | seed={seed}[/dim]")
-    console.print(f"Candidate: [bold]{candidate_spec.name}[/bold]")
-    console.print("Pool: " + ", ".join(f"{idx + 1}:{spec.name}" for idx, spec in enumerate(pool_specs)))
+    candidate_display = candidate_label or candidate_spec.name
+    pool_display = pool_labels or [spec.name for spec in pool_specs]
+
+    console.print(f"Candidate: [bold]{candidate_display}[/bold]")
+    console.print("Pool: " + ", ".join(f"{idx + 1}:{label}" for idx, label in enumerate(pool_display)))
 
     results: list[PickupScenarioResult] = []
     replacement_mean: Optional[float] = None
