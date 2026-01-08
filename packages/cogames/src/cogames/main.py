@@ -34,6 +34,7 @@ import cogames.policy.trainable_policy_template as trainable_policy_template
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
+from cogames import pickup as pickup_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.client import TournamentServerClient
@@ -57,6 +58,8 @@ from cogames.cli.policy import (
     get_policy_specs_with_proportions,
     policy_arg_example,
     policy_arg_w_proportion_example,
+    _parse_policy_spec,
+    _translate_error,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
@@ -779,6 +782,75 @@ def run_cmd(
         seed=seed,
         output_format=format_,
         save_replay=str(save_replay_dir) if save_replay_dir else None,
+    )
+
+
+@app.command(
+    name="pickup",
+    help="Evaluate a candidate policy against a fixed pool and compute VOR",
+)
+def pickup_cmd(
+    ctx: typer.Context,
+    policy: Optional[str] = typer.Option(
+        None,
+        "--policy",
+        "-p",
+        help=f"Candidate policy: {policy_arg_example}",
+    ),
+    pool: Optional[list[str]] = typer.Option(
+        None,
+        "--pool",
+        help="Pool policies (repeatable): class=... or URI",
+    ),
+    cogs: int = typer.Option(4, "--cogs", "-c", help="Number of cogs (agents)", min=1),
+    episodes: int = typer.Option(1, "--episodes", "-e", help="Episodes per scenario", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    seed: int = typer.Option(50, "--seed", help="Base random seed for evaluation", min=0),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        min=0,
+    ),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replays. Directory will be created if it doesn't exist. "
+            "Each replay will be saved with a unique UUID-based filename."
+        ),
+    ),
+) -> None:
+    candidate_spec = get_policy_spec(ctx, policy)
+    if not pool:
+        console.print(ctx.get_help())
+        console.print("[yellow]Supply at least one: --pool[/yellow]\n")
+        raise typer.Exit(1)
+
+    try:
+        pool_specs = [_parse_policy_spec(spec).to_policy_spec() for spec in pool]
+    except (ValueError, ModuleNotFoundError) as exc:
+        translated = _translate_error(exc)
+        console.print(f"[yellow]Error parsing pool policy: {translated}[/yellow]\n")
+        raise typer.Exit(1) from exc
+
+    pickup_module.pickup(
+        console,
+        candidate_spec,
+        pool_specs,
+        num_cogs=cogs,
+        episodes=episodes,
+        seed=seed,
+        map_seed=map_seed,
+        steps=steps,
+        action_timeout_ms=action_timeout_ms,
+        save_replay_dir=save_replay_dir,
     )
 
 
