@@ -43,7 +43,6 @@ from cogames.cli.leaderboard import (
     seasons_cmd,
     submissions_cmd,
 )
-
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
