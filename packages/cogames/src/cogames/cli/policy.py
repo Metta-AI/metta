@@ -112,6 +112,10 @@ def get_policy_specs_with_proportions(
     raise typer.Exit(1)
 
 
+def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
+    return parse_policy_spec(spec)
+
+
 def parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components.
 
