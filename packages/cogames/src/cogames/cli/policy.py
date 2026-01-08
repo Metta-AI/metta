@@ -151,6 +151,17 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         # Explicit schemes
         if "://" in value:
             return True
+        # Windows drive paths like C:\ or C:/
+        if len(value) >= 3 and value[1] == ":" and value[0].isalpha() and value[2] in ("\\", "/"):
+            return True
+        # Reject strings like "random:train_dir/model.pt" which are neither schemes nor paths.
+        first_colon = value.find(":")
+        if first_colon != -1:
+            first_slash = value.find("/")
+            first_backslash = value.find("\\")
+            separators = [idx for idx in (first_slash, first_backslash) if idx != -1]
+            if separators and first_colon < min(separators):
+                return False
         # Common path-ish forms
         if value.startswith(("~", "/", "./", "../")):
             return True
