@@ -1,30 +1,30 @@
 #include "objects/alignable.hpp"
 
-#include "objects/collective.hpp"
+#include "objects/faction.hpp"
 
-void Alignable::setCollective(Collective* collective) {
-  // Remove from old collective if set
-  if (_collective != nullptr) {
-    _collective->removeMember(this);
+void Alignable::setFaction(Faction* faction) {
+  // Remove from old faction if set
+  if (_faction != nullptr) {
+    _faction->removeMember(this);
   }
-  // Set new collective
-  _collective = collective;
-  // Add to new collective if not null
-  if (_collective != nullptr) {
-    _collective->addMember(this);
-  }
-}
-
-void Alignable::clearCollective() {
-  if (_collective != nullptr) {
-    _collective->removeMember(this);
-    _collective = nullptr;
+  // Set new faction
+  _faction = faction;
+  // Add to new faction if not null
+  if (_faction != nullptr) {
+    _faction->addMember(this);
   }
 }
 
-Inventory* Alignable::collective_inventory() const {
-  if (_collective != nullptr) {
-    return &_collective->inventory;
+void Alignable::clearFaction() {
+  if (_faction != nullptr) {
+    _faction->removeMember(this);
+    _faction = nullptr;
+  }
+}
+
+Inventory* Alignable::faction_inventory() const {
+  if (_faction != nullptr) {
+    return &_faction->inventory;
   }
   return nullptr;
 }

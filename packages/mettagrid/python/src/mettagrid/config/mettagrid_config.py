@@ -358,9 +358,9 @@ class GridObjectConfig(Config):
     render_symbol: str = Field(default="❓", description="Symbol used for rendering (e.g., emoji)")
     tags: list[str] = Field(default_factory=list, description="Tags for this object instance")
     vibe: int = Field(default=0, ge=0, le=255, description="Vibe value for this object instance")
-    collective: Optional[str] = Field(
+    faction: Optional[str] = Field(
         default=None,
-        description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+        description="Name of faction this object belongs to. Adds 'faction:{name}' tag automatically.",
     )
 
     @model_validator(mode="after")
@@ -372,11 +372,11 @@ class GridObjectConfig(Config):
         # If no tags, inject a default kind tag so the object is visible in observations
         if not self.tags:
             self.tags = [self.render_name]
-        # Add collective tag if collective is set
-        if self.collective:
-            collective_tag = f"collective:{self.collective}"
-            if collective_tag not in self.tags:
-                self.tags = self.tags + [collective_tag]
+        # Add faction tag if faction is set
+        if self.faction:
+            faction_tag = f"faction:{self.faction}"
+            if faction_tag not in self.tags:
+                self.tags = self.tags + [faction_tag]
         return self
 
 
@@ -481,17 +481,17 @@ class ClipperConfig(Config):
     )
 
 
-class CollectiveConfig(Config):
+class FactionConfig(Config):
     """
-    Configuration for a shared inventory (Collective).
+    Configuration for a shared inventory (Faction).
 
-    Collective provides a shared inventory that multiple grid objects can access.
-    Objects are associated with a collective via tags of the form "collective:{name}".
-    Grid objects can specify collective="name" in their config to automatically add
+    Faction provides a shared inventory that multiple grid objects can access.
+    Objects are associated with a faction via tags of the form "faction:{name}".
+    Grid objects can specify faction="name" in their config to automatically add
     this tag.
     """
 
-    name: str = Field(description="Unique name for this collective")
+    name: str = Field(description="Unique name for this faction")
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
@@ -558,10 +558,10 @@ class GameConfig(Config):
     # Global clipper system
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
-    # Collectives - shared inventories that grid objects can belong to
-    collectives: list[CollectiveConfig] = Field(
+    # Factions - shared inventories that grid objects can belong to
+    factions: list[FactionConfig] = Field(
         default_factory=list,
-        description="List of collectives (shared inventories) that grid objects can belong to",
+        description="List of factions (shared inventories) that grid objects can belong to",
     )
 
     # Map builder configuration - accepts any MapBuilder config

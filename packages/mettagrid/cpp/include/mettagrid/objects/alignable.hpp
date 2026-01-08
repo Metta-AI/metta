@@ -2,33 +2,33 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ALIGNABLE_HPP_
 
 // Forward declarations
-class Collective;
+class Faction;
 class Inventory;
 
 /**
- * Interface for objects that can belong to a Collective group.
+ * Interface for objects that can belong to a Faction group.
  */
 class Alignable {
 private:
-  // Currently limited to one collective, but expected to support multiple in the future.
-  Collective* _collective = nullptr;
+  // Currently limited to one faction, but expected to support multiple in the future.
+  Faction* _faction = nullptr;
 
 public:
   virtual ~Alignable() = default;
 
-  // Set the collective this object belongs to
-  void setCollective(Collective* collective);
+  // Set the faction this object belongs to
+  void setFaction(Faction* faction);
 
-  // Remove this object from its current collective
-  void clearCollective();
+  // Remove this object from its current faction
+  void clearFaction();
 
-  // Get the current collective
-  Collective* getCollective() const {
-    return _collective;
+  // Get the current faction
+  Faction* getFaction() const {
+    return _faction;
   }
 
-  // Get the inventory of the collective (if any)
-  Inventory* collective_inventory() const;
+  // Get the inventory of the faction (if any)
+  Inventory* faction_inventory() const;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_ALIGNABLE_HPP_

@@ -181,7 +181,7 @@ class ClipperConfig:
     scaled_cutoff_distance: int
     clip_period: int
 
-class CollectiveConfig:
+class FactionConfig:
     def __init__(self, name: str = "") -> None: ...
     name: str
     inventory_config: InventoryConfig
@@ -289,7 +289,7 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         tag_id_map: dict[int, str] | None = None,
-        collectives: dict[str, CollectiveConfig] | None = None,
+        factions: dict[str, FactionConfig] | None = None,
         protocol_details_obs: bool = True,
         reward_estimates: Optional[dict[str, float]] = None,
         inventory_regen_interval: int = 0,
@@ -307,7 +307,7 @@ class GameConfig:
     global_obs: GlobalObsConfig
     feature_ids: dict[str, int]
     tag_id_map: dict[int, str]
-    collectives: dict[str, CollectiveConfig]
+    factions: dict[str, FactionConfig]
     # FEATURE FLAGS
     protocol_details_obs: bool
     reward_estimates: Optional[dict[str, float]]
