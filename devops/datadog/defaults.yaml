@@ -11,14 +11,6 @@ logs_enabled: true
 apm_config:
   enabled: true
 
-otlp_config:
-  receiver:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
-
 # Disable infrastructure metrics on ephemeral hosts to reduce billing
 enable_payloads:
   series: false
