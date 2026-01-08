@@ -7,7 +7,9 @@ from mettagrid.config.mettagrid_config import (
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
+from mettagrid.mettagrid_c import ActivationHandlerConfig as CppActivationHandlerConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AlignmentCondition as CppAlignmentCondition
 from mettagrid.mettagrid_c import AOEEffectConfig as CppAOEEffectConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
@@ -16,12 +18,17 @@ from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionC
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
+from mettagrid.mettagrid_c import EntitySelector as CppEntitySelector
 from mettagrid.mettagrid_c import FactionConfig as CppFactionConfig
+from mettagrid.mettagrid_c import FilterConfig as CppFilterConfig
+from mettagrid.mettagrid_c import FilterType as CppFilterType
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
+from mettagrid.mettagrid_c import MutationConfig as CppMutationConfig
+from mettagrid.mettagrid_c import MutationType as CppMutationType
 from mettagrid.mettagrid_c import Protocol as CppProtocol
 from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
@@ -267,6 +274,80 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cpp_aoe.different_faction_only = aoe_cfg.different_faction_only
                 cpp_aoes.append(cpp_aoe)
             cpp_wall_config.aoes = cpp_aoes
+
+            # Convert activation handlers
+            cpp_handlers = []
+            # Maps used for handler conversion
+            filter_type_map = {
+                "vibe": CppFilterType.VIBE,
+                "resource": CppFilterType.RESOURCE,
+                "alignment": CppFilterType.ALIGNMENT,
+                "tag": CppFilterType.TAG,
+            }
+            entity_selector_map = {
+                "actor": CppEntitySelector.ACTOR,
+                "target": CppEntitySelector.TARGET,
+                "actor_faction": CppEntitySelector.ACTOR_FACTION,
+                "target_faction": CppEntitySelector.TARGET_FACTION,
+            }
+            mutation_type_map = {
+                "resource_delta": CppMutationType.RESOURCE_DELTA,
+                "resource_transfer": CppMutationType.RESOURCE_TRANSFER,
+                "alignment": CppMutationType.ALIGNMENT,
+                "freeze": CppMutationType.FREEZE,
+                "attack": CppMutationType.ATTACK,
+            }
+            alignment_condition_map = {
+                "aligned": CppAlignmentCondition.ALIGNED,
+                "unaligned": CppAlignmentCondition.UNALIGNED,
+                "same_faction": CppAlignmentCondition.SAME_FACTION,
+                "different_faction": CppAlignmentCondition.DIFFERENT_FACTION,
+            }
+            for handler_cfg in object_config.activation_handlers:
+                cpp_handler = CppActivationHandlerConfig()
+                cpp_handler.name = handler_cfg.name
+
+                # Convert filters
+                cpp_filters = []
+                for filter_cfg in handler_cfg.filters:
+                    cpp_filter = CppFilterConfig()
+                    cpp_filter.type = filter_type_map[filter_cfg.type]
+                    cpp_filter.entity = entity_selector_map[filter_cfg.entity]
+                    # Set type-specific fields
+                    if filter_cfg.vibe and filter_cfg.vibe in vibe_name_to_id:
+                        cpp_filter.vibe_value = vibe_name_to_id[filter_cfg.vibe]
+                    if filter_cfg.resource and filter_cfg.resource in resource_name_to_id:
+                        cpp_filter.resource_id = resource_name_to_id[filter_cfg.resource]
+                    cpp_filter.min_amount = filter_cfg.min_amount
+                    if filter_cfg.alignment_condition:
+                        cpp_filter.alignment_condition = alignment_condition_map[filter_cfg.alignment_condition]
+                    if filter_cfg.tag and filter_cfg.tag in tag_name_to_id:
+                        cpp_filter.tag_id = tag_name_to_id[filter_cfg.tag]
+                    cpp_filters.append(cpp_filter)
+                cpp_handler.filters = cpp_filters
+
+                # Convert mutations
+                cpp_mutations = []
+                for mutation_cfg in handler_cfg.mutations:
+                    cpp_mutation = CppMutationConfig()
+                    cpp_mutation.type = mutation_type_map[mutation_cfg.type]
+                    cpp_mutation.entity = entity_selector_map[mutation_cfg.entity]
+                    # Set resource deltas
+                    cpp_mutation.resource_deltas = {
+                        resource_name_to_id[name]: delta
+                        for name, delta in mutation_cfg.resource_deltas.items()
+                        if name in resource_name_to_id
+                    }
+                    cpp_mutation.transfer_source = entity_selector_map[mutation_cfg.transfer_source]
+                    cpp_mutation.transfer_target = entity_selector_map[mutation_cfg.transfer_target]
+                    cpp_mutation.align_to_actor = mutation_cfg.align_to_actor
+                    cpp_mutation.freeze_duration = mutation_cfg.freeze_duration
+                    cpp_mutation.attack_damage = mutation_cfg.attack_damage
+                    cpp_mutations.append(cpp_mutation)
+                cpp_handler.mutations = cpp_mutations
+
+                cpp_handlers.append(cpp_handler)
+            cpp_wall_config.activation_handlers = cpp_handlers
 
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config

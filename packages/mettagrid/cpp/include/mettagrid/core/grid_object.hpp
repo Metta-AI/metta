@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/activation_handler.hpp"
 #include "core/types.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_vibe.hpp"
@@ -56,8 +57,8 @@ public:
 struct AOEEffectConfig {
   unsigned int range = 1;                                             // Radius of effect (Chebyshev distance)
   std::unordered_map<InventoryItem, InventoryDelta> resource_deltas;  // Per-tick resource changes
-  std::vector<int> target_tag_ids;  // If non-empty, only affect objects with these tags
-  bool same_faction_only = false;   // Only affect objects in same faction
+  std::vector<int> target_tag_ids;      // If non-empty, only affect objects with these tags
+  bool same_faction_only = false;       // Only affect objects in same faction
   bool different_faction_only = false;  // Only affect objects in different factions
 
   AOEEffectConfig() = default;
@@ -79,10 +80,17 @@ struct GridObjectConfig {
   std::string name;  // Instance name for stats (defaults to type_name if empty)
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
-  std::vector<AOEEffectConfig> aoes;  // List of AOE effects this object emits
+  std::vector<AOEEffectConfig> aoes;                         // List of AOE effects this object emits
+  std::vector<ActivationHandlerConfig> activation_handlers;  // Handlers triggered on activation
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), name(""), tag_ids({}), initial_vibe(initial_vibe), aoes({}) {}
+      : type_id(type_id),
+        type_name(type_name),
+        name(""),
+        tag_ids({}),
+        initial_vibe(initial_vibe),
+        aoes({}),
+        activation_handlers({}) {}
 
   virtual ~GridObjectConfig() = default;
 
@@ -154,6 +162,7 @@ private:
 class GridObject : public HasVibe {
 private:
   std::vector<AOEEffectConfig> _aoe_configs;
+  std::vector<ActivationHandlerConfig> _activation_handlers;
 
 public:
   GridObjectId id{};
@@ -172,7 +181,8 @@ public:
             const std::vector<int>& tags,
             ObservationType object_vibe = 0,
             const std::vector<AOEEffectConfig>& aoe_configs = {},
-            const std::string& object_name = "") {
+            const std::string& object_name = "",
+            const std::vector<ActivationHandlerConfig>& handlers = {}) {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
     this->name = object_name.empty() ? object_type_name : object_name;
@@ -186,6 +196,12 @@ public:
         aoes[i].set_config(&_aoe_configs[i]);
       }
     }
+    _activation_handlers = handlers;
+  }
+
+  // Get activation handlers for this object
+  const std::vector<ActivationHandlerConfig>& activation_handlers() const {
+    return _activation_handlers;
   }
 
   // Called when this object is removed. Override for cleanup.

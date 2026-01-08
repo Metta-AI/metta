@@ -344,6 +344,77 @@ class GlobalObsConfig(Config):
     goal_obs: bool = Field(default=False)
 
 
+# ===== Activation Handler Configuration =====
+
+
+class FilterConfig(Config):
+    """Configuration for activation handler filters (conditions).
+
+    Filters check conditions before mutations are applied.
+    All filters in a handler must pass for mutations to execute.
+    """
+
+    type: Literal["vibe", "resource", "alignment", "tag"] = Field(description="Type of filter condition")
+    entity: Literal["actor", "target", "actor_faction", "target_faction"] = Field(
+        default="actor", description="Entity to check"
+    )
+    # VIBE filter
+    vibe: str | None = Field(default=None, description="Vibe name to check for (vibe filter)")
+    # RESOURCE filter
+    resource: str | None = Field(default=None, description="Resource name to check (resource filter)")
+    min_amount: int = Field(default=0, description="Minimum resource amount (resource filter)")
+    # ALIGNMENT filter
+    alignment_condition: Literal["aligned", "unaligned", "same_faction", "different_faction"] | None = Field(
+        default=None, description="Alignment condition (alignment filter)"
+    )
+    # TAG filter
+    tag: str | None = Field(default=None, description="Tag name to check for (tag filter)")
+
+
+class MutationConfig(Config):
+    """Configuration for activation handler mutations (effects).
+
+    Mutations are applied when all filters pass.
+    """
+
+    type: Literal["resource_delta", "resource_transfer", "alignment", "freeze", "attack"] = Field(
+        description="Type of mutation effect"
+    )
+    entity: Literal["actor", "target", "actor_faction", "target_faction"] = Field(
+        default="target", description="Entity to apply mutation to"
+    )
+    # RESOURCE_DELTA mutation
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict, description="Resource changes to apply (resource_delta mutation)"
+    )
+    # RESOURCE_TRANSFER mutation
+    transfer_source: Literal["actor", "target", "actor_faction", "target_faction"] = Field(
+        default="actor", description="Source entity for transfer"
+    )
+    transfer_target: Literal["actor", "target", "actor_faction", "target_faction"] = Field(
+        default="target", description="Target entity for transfer"
+    )
+    # ALIGNMENT mutation
+    align_to_actor: bool = Field(default=True, description="Align target to actor's faction (true) or unalign (false)")
+    # FREEZE mutation
+    freeze_duration: int = Field(default=0, description="Duration in ticks (freeze mutation)")
+    # ATTACK mutation
+    attack_damage: int = Field(default=0, description="Damage amount (attack mutation)")
+
+
+class ActivationHandlerConfig(Config):
+    """Configuration for object activation handlers.
+
+    When an object is activated (e.g., stepped on, used), handlers are evaluated.
+    Each handler has filters (conditions) and mutations (effects).
+    All filters must pass for mutations to be applied.
+    """
+
+    name: str = Field(description="Handler name for stats tracking")
+    filters: list[FilterConfig] = Field(default_factory=list, description="Conditions that must all pass")
+    mutations: list[MutationConfig] = Field(default_factory=list, description="Effects to apply when filters pass")
+
+
 class AOEEffectConfig(Config):
     """Configuration for Area of Effect resource effects.
 
@@ -380,6 +451,9 @@ class GridObjectConfig(Config):
         description="Name of faction this object belongs to. Adds 'faction:{name}' tag automatically.",
     )
     aoes: list[AOEEffectConfig] = Field(default_factory=list, description="List of AOE effects this object emits")
+    activation_handlers: list[ActivationHandlerConfig] = Field(
+        default_factory=list, description="Handlers triggered when this object is activated"
+    )
 
     @model_validator(mode="after")
     def _defaults_from_name(self) -> "GridObjectConfig":
