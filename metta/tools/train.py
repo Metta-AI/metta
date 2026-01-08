@@ -292,7 +292,7 @@ class TrainTool(Tool):
         if run_from_uri and self.run is None:
             self.run = run_from_uri
 
-        if not self.run or (run_from_uri and self.run != run_from_uri):
+        if not self.run:
             return
 
         trainer_state_path = self.system.data_dir / self.run / "checkpoints" / "trainer_state.pt"
