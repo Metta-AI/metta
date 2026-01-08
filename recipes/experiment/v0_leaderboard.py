@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Sequence
 
-from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
+from cogames.leaderboard import make_machina1_open_world_env
 from metta.app_backend.leaderboard_constants import (
     LADYBUG_UUID,
     LEADERBOARD_CANDIDATE_COUNT_KEY,
@@ -108,11 +108,7 @@ def _generate_scenarios(
 
 def _make_env(seed: int | None = None):
     """Create the Machina 1 Open World environment."""
-    mission = Machina1OpenWorldMission.model_copy(deep=True)
-    mission.num_cogs = NUM_COGS
-    if seed and (mb := getattr(mission.site, "map_builder", None)) and hasattr(mb, "seed"):
-        mb.seed = seed
-    return mission.make_env()
+    return make_machina1_open_world_env(num_cogs=NUM_COGS, seed=seed, map_seed=seed)
 
 
 def simulations(

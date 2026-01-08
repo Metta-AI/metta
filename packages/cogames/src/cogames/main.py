@@ -33,8 +33,8 @@ import cogames.policy.scripted_agent.starter_agent as starter_agent
 import cogames.policy.trainable_policy_template as trainable_policy_template
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
-from cogames import play as play_module
 from cogames import pickup as pickup_module
+from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
 from cogames.cli.client import TournamentServerClient
@@ -54,12 +54,12 @@ from cogames.cli.mission import (
     list_variants,
 )
 from cogames.cli.policy import (
+    _parse_policy_spec,
+    _translate_error,
     get_policy_spec,
     get_policy_specs_with_proportions,
     policy_arg_example,
     policy_arg_w_proportion_example,
-    _parse_policy_spec,
-    _translate_error,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
@@ -797,7 +797,7 @@ def pickup_cmd(
         "-p",
         help=f"Candidate policy: {policy_arg_example}",
     ),
-    pool: Optional[list[str]] = typer.Option(
+    pool: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
         "--pool",
         help="Pool policies (repeatable): class=... or URI",
