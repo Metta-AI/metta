@@ -1,6 +1,7 @@
 import re
 import subprocess
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -35,6 +36,12 @@ def _is_working_tree_clean() -> bool:
 
 def _is_on_main_branch() -> bool:
     return gitta.get_current_branch() == "main"
+
+
+def _is_staging_area_clean() -> bool:
+    # git diff --cached shows the changes staged for commit.
+    # If there are no staged changes, the output will be empty.
+    return not gitta.run_git("diff", "--cached").strip()
 
 
 def _get_metta_repo_remote() -> str:
@@ -114,6 +121,81 @@ def _get_next_version(*, package: str, version_override: Optional[str]) -> str:
         return next_version
 
 
+def _pin_dependency_version(*, package: str, dependency: str, version: str, dry_run: bool) -> None:
+    pyproject_path = Path(get_repo_root()) / "packages" / package / "pyproject.toml"
+    assert pyproject_path.exists()
+
+    # Pattern to match dependency in the dependencies array.
+    # Matches: "dependency", or "dependency>=X.Y.Z", or "dependency==X.Y.Z"
+    pattern = rf'("{dependency}(?:[><=~!]+[\d.]+)?",)'
+    replacement = f'"{dependency}=={version}",'
+
+    old_content = pyproject_path.read_text()
+    new_content = re.sub(pattern, replacement, old_content)
+
+    assert re.search(pattern, old_content)
+    assert new_content != old_content
+
+    current_branch = gitta.get_current_branch()
+    new_branch_name = f"chore/update-{package}-{dependency}-to-{version}"
+    new_pr_title = f"chore: update {package} {dependency} to {version}"
+    new_pr_body = "This PR was automatically created by `metta/setup/tools/publish.py`."
+    new_commit_msg = new_pr_title
+
+    if dry_run:
+        info(f"Would pin {dependency} to =={version} in {package}/pyproject.toml")
+        info(f"Would commit changes in new branch {new_branch_name}")
+        info("Would put up PR to update cogames' mettagrid dependency.")
+        return
+
+    if not _is_staging_area_clean():
+        error(f"Staging area is not clean. Can't safely write and commit changes to {package}/pyproject.toml")
+        raise typer.Exit(1)
+
+    if not typer.confirm(
+        f"Okay to write changes to {package}/pyproject.toml and create branch {new_branch_name}?",
+        default=True,
+    ):
+        error("Publishing aborted.")
+        raise typer.Exit(1)
+
+    info(f"Pinning dependency {dependency} to version {version} in {package}/pyproject.toml")
+    pyproject_path.write_text(new_content)
+
+    info(f"Creating new branch {new_branch_name}")
+    gitta.run_git("checkout", "-b", new_branch_name)
+
+    info(f"Staging changes to {package}/pyproject.toml")
+    gitta.run_git("add", str(pyproject_path))
+
+    info(f"Committing changes to {package}/pyproject.toml")
+    gitta.run_git("commit", "-m", new_commit_msg)
+
+    if typer.confirm(
+        f"Automatically put up PR from {new_branch_name} to {current_branch}?",
+        default=True,
+    ):
+        info("Pushing branch to remote...")
+        gitta.run_git("push", "-u", "origin", new_branch_name)
+
+        info(f"Putting up PR from {new_branch_name} to {current_branch}...")
+        pr_url = gitta.run_gh(
+            "pr",
+            "create",
+            "--title",
+            new_pr_title,
+            "--body",
+            new_pr_body,
+            "--head",
+            new_branch_name,
+            "--base",
+            current_branch,
+        )
+        success(f"PR created: {pr_url}")
+    else:
+        warning(f"Skipping putting up PR from {new_branch_name} to {current_branch}; do it yourself later.")
+
+
 def _create_and_push_tag_to_monorepo(*, package: str, version: str, remote: str, dry_run: bool) -> None:
     tag_prefix = _tag_prefix_for_package(package)
     tag = f"{tag_prefix}{version}"
@@ -125,7 +207,7 @@ def _create_and_push_tag_to_monorepo(*, package: str, version: str, remote: str,
     info(f"Tagging {package} {version}...")
     gitta.run_git("tag", "-a", tag, "-m", f"Release {package} {version}")
     gitta.run_git("push", remote, tag)
-    success(f"Created and pushed tag {tag} to remote '{remote}'")
+    success(f"Pushed tag {tag} to remote '{remote}'")
 
 
 def _post_to_discord(
@@ -175,21 +257,20 @@ def _post_to_discord(
 
 
 def _push_git_history_to_child_repo(*, package: str, dry_run: bool) -> None:
-    if dry_run:
-        info(f"Would push filtered git history for {package} to child repo.")
-        return
+    dry_run_prefix = "[DRY RUN] " if dry_run else ""
+    info(f"{dry_run_prefix}Pushing filtered git history for {package} to child repo...")
 
-    info(f"Pushing filtered git history for {package} to child repo...")
+    cmd = [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"]
+    if dry_run:
+        cmd.append("--dry-run")
+
     try:
-        subprocess.run(
-            [f"{get_repo_root()}/devops/git/push_child_repo.py", package, "-y"],
-            check=True,
-        )
+        subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as exc:
         error(f"Failed to push to child repo: {exc}")
         raise typer.Exit(exc.returncode) from exc
     else:
-        success(f"Pushed filtered git history for {package} to child repo.")
+        success(f"{dry_run_prefix}Pushed filtered git history for {package} to child repo.")
 
 
 def _publish(
@@ -201,18 +282,21 @@ def _publish(
     dry_run: bool,
     skip_git_checks: bool,
 ) -> str | None:
-    if not skip_git_checks:
-        if not _is_working_tree_clean():
+    if not _is_working_tree_clean():
+        if skip_git_checks:
+            warning("Working tree is not clean. Bypassing this check due to the --force flag.")
+        else:
             error(
                 "Working tree is not clean. Commit, stash, or clean changes before publishing "
                 "(use --force to override)."
             )
             raise typer.Exit(1)
-        if not _is_on_main_branch():
+    if not _is_on_main_branch():
+        if skip_git_checks:
+            warning("Not on the main branch. Bypassing this check due to the --force flag.")
+        else:
             error("Publishing is only supported from the main branch. Switch to 'main' or pass --force to override.")
             raise typer.Exit(1)
-    else:
-        warning("Force mode enabled: branch and clean checks were bypassed.")
 
     info(f"Refreshing tags from {remote}...")
     gitta.run_git("fetch", remote, "--tags", "--force")
@@ -269,6 +353,13 @@ def _publish(
             print()
             print()
             header(f"Resuming with publishing {package}...")
+
+            _pin_dependency_version(
+                package="cogames",
+                dependency="mettagrid",
+                version=mettagrid_version,
+                dry_run=dry_run,
+            )
 
         _create_and_push_tag_to_monorepo(package=package, version=next_version, remote=remote, dry_run=dry_run)
 

@@ -20,8 +20,10 @@ datadog:
     receiver:
       protocols:
         grpc:
+          enabled: true
           endpoint: 0.0.0.0:4317
         http:
+          enabled: true
           endpoint: 0.0.0.0:4318
 
   # Log collection - also in defaults.yaml
