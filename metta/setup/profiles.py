@@ -102,6 +102,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "tailscale": {"enabled": False, "expected_connection": "@stem.ai"},
             "scratchpad": {"enabled": True},
             "helm": {"enabled": True},
+            "docker-compose": {"enabled": True},
             "pr-similarity": {"enabled": True},
             "ide-extensions": {"enabled": True},
             "binary-symlinks": {"enabled": True},
