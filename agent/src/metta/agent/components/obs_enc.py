@@ -311,7 +311,13 @@ class ObsPerceiverLatent(nn.Module):
         td[self.config.out_key] = latents
         return td
 
-    def _attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, attn_mask: torch.Tensor | None) -> torch.Tensor:
+    def _attention(
+        self,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        attn_mask: torch.Tensor | None,
+    ) -> torch.Tensor:
         """Compute attention using xformers when available, otherwise SDPA."""
         if self._xops is not None:
             xops = self._xops

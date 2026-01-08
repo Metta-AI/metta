@@ -185,7 +185,17 @@ def main() -> None:
         f"selfattn_layers={args.selfattn_layers}, selfattn_heads={args.selfattn_heads}"
     )
 
-    benchmark_variant("Perceiver (default)", obs_sequences, shim, embed, perceiver, device, dtype, args.warmup, args.iters)
+    benchmark_variant(
+        "Perceiver (default)",
+        obs_sequences,
+        shim,
+        embed,
+        perceiver,
+        device,
+        dtype,
+        args.warmup,
+        args.iters,
+    )
     benchmark_variant(
         "LatentAttn (q=8,L=1)", obs_sequences, shim, embed, latent_attn, device, dtype, args.warmup, args.iters
     )
