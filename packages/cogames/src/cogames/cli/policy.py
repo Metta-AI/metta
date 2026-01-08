@@ -9,11 +9,10 @@ from pydantic import Field
 from rich.table import Table
 
 from cogames.cli.base import console
-from mettagrid.policy.loader import discover_and_register_policies, resolve_policy_class_path
+from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_registry import get_policy_registry
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri, resolve_uri
+from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -164,14 +163,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         name, version = parse_policy_identifier(first)
         version_suffix = f":v{version}" if version is not None else ""
         policy_uri = f"metta://policy/{name}{version_suffix}"
-        if "." not in name and version is None:
-            discover_and_register_policies("cogames.policy")
-            registry = get_policy_registry()
-            if name not in registry:
-                raise ValueError("Policy specification must include class= for key=value format.")
-            policy = policy_spec_from_uri(policy_uri)
-        else:
-            policy = policy_spec_from_uri(resolve_uri(policy_uri).canonical)
+        policy = policy_spec_from_uri(policy_uri)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)
             if key != "proportion":
