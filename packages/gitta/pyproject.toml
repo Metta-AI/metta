@@ -5,12 +5,18 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gitta"
 version = "0.2.0"
-description = "Git utilities library with PR splitting functionality"
+description = "Git utilities library with PR splitting and AWS Secrets Manager support"
 requires-python = ">=3.9"
-dependencies = ["httpx>=0.24.0", "anthropic>=0.18.0", "git-filter-repo>=2.38.0"]
+dependencies = ["httpx>=0.24.0", "anthropic>=0.18.0", "git-filter-repo>=2.38.0", "boto3>=1.26.0"]
 
 [dependency-groups]
-dev = ["pytest>=8.3.3", "pytest-cov>=6.1.1", "pytest-xdist>=3.8.0"]
+dev = [
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-xdist>=3.8.0",
+  "boto3>=1.26.0",       # For testing AWS integration
+  "botocore>=1.29.0",    # For ClientError in tests
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -2,15 +2,18 @@
 
 import pytest
 
-from mettagrid.config.mettagrid_c_config import from_mettagrid_config
+from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
 from mettagrid.config.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
     AttackActionConfig,
-    ChangeGlyphActionConfig,
+    ChangeVibeActionConfig,
     GameConfig,
+    InventoryConfig,
+    MoveActionConfig,
+    NoopActionConfig,
+    ObsConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import MettaGrid
@@ -27,36 +30,31 @@ def test_exception_when_laser_not_in_inventory():
     game_config = GameConfig(
         max_steps=50,
         num_agents=2,
-        obs_width=11,
-        obs_height=11,
-        num_observation_tokens=200,
+        obs=ObsConfig(width=11, height=11, num_tokens=200),
         # Note: laser is NOT in resource_names
         resource_names=["armor", "heart"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
+            noop=NoopActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
             attack=AttackActionConfig(
                 enabled=True,
                 consumed_resources={"laser": 1},  # This should trigger an exception!
                 defense_resources={"armor": 1},
             ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 
     # Check that creating the environment raises an exception
     with pytest.raises(ValueError) as exc_info:
         # This should trigger an exception about missing laser resource
-        MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+        MettaGrid(convert_to_cpp_game_config(game_config), game_map, 42)
 
     # Check the exception message
     assert "attack" in str(exc_info.value)
@@ -76,35 +74,26 @@ def test_no_exception_when_resources_in_inventory():
     game_config = GameConfig(
         max_steps=50,
         num_agents=2,
-        obs_width=11,
-        obs_height=11,
-        num_observation_tokens=200,
+        obs=ObsConfig(width=11, height=11, num_tokens=200),
         # Laser IS in resource_names
         resource_names=["laser", "armor", "heart"],
         actions=ActionsConfig(
-            noop=ActionConfig(enabled=True),
-            move=ActionConfig(enabled=True),
-            attack=AttackActionConfig(
-                enabled=True,
-                consumed_resources={"laser": 1},
-                defense_resources={"armor": 1},
-            ),
-            put_items=ActionConfig(enabled=True),
-            get_items=ActionConfig(enabled=True),
-            swap=ActionConfig(enabled=True),
-            change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
+            noop=NoopActionConfig(enabled=True),
+            move=MoveActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
+            change_vibe=ChangeVibeActionConfig(enabled=False, vibes=[]),
         ),
         objects={"wall": WallConfig()},
-        agent=AgentConfig(default_resource_limit=10, freeze_duration=5, rewards=AgentRewards()),
+        agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=5, rewards=AgentRewards()),
         agents=[
-            AgentConfig(team_id=0, default_resource_limit=10, freeze_duration=5),  # red
-            AgentConfig(team_id=1, default_resource_limit=10, freeze_duration=5),  # blue
+            AgentConfig(team_id=0, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # red
+            AgentConfig(team_id=1, inventory=InventoryConfig(default_limit=10), freeze_duration=5),  # blue
         ],
     )
 
     # This should not raise an exception
     try:
-        MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+        MettaGrid(convert_to_cpp_game_config(game_config), game_map, 42)
         print("✓ No exception raised when all resources are in inventory")
     except ValueError as e:
         pytest.fail(f"Unexpected ValueError: {e}")

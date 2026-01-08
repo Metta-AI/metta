@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
     ComponentContext,
@@ -52,8 +53,11 @@ class Trainer:
         self._policy = policy
         self._cfg = cfg
         self._device = device
+        if self._cfg.detect_anomaly:
+            torch.autograd.set_detect_anomaly(True)
+            logger.warning("Torch autograd anomaly detection enabled; backward will be slower.")
         if distributed_helper is None:
-            distributed_helper = DistributedHelper(self._device)
+            distributed_helper = DistributedHelper(SystemConfig(device=self._device.type))
         self._distributed_helper = distributed_helper
         self._run_name = run_name
         self._components: list[TrainerComponent] = []
@@ -61,7 +65,7 @@ class Trainer:
         self.timer.start()
 
         self._policy.to(self._device)
-        self._policy.initialize_to_environment(self._env.game_rules, self._device)
+        self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
@@ -73,7 +77,7 @@ class Trainer:
 
         parallel_agents = getattr(self._env, "total_parallel_agents", None)
         if parallel_agents is None:
-            parallel_agents = batch_info.num_envs * self._env.game_rules.num_agents
+            parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
@@ -84,15 +88,25 @@ class Trainer:
             policy_experience_spec=self._policy.get_agent_experience_spec(),
             losses=losses,
             device=self._device,
+            sampling_config=self._cfg.sampling,
         )
 
         self.optimizer = create_optimizer(self._cfg.optimizer, self._policy)
         self._is_schedulefree = is_schedulefree_optimizer(self.optimizer)
 
         self._state = TrainerState()
+        reward_centering = self._cfg.advantage.reward_centering
+        self._state.avg_reward = torch.full(
+            (parallel_agents,),
+            float(reward_centering.initial_reward_mean),
+            device=self._device,
+            dtype=torch.float32,
+        )
 
         # Extract curriculum from environment if available
         curriculum = getattr(self._env, "_curriculum", None)
+
+        self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self._context = ComponentContext(
             state=self._state,
@@ -103,13 +117,11 @@ class Trainer:
             config=self._cfg,
             stopwatch=self.timer,
             distributed=self._distributed_helper,
+            get_train_epoch_fn=lambda: self._train_epoch_callable,
+            set_train_epoch_fn=self._set_train_epoch_callable,
             run_name=self._run_name,
             curriculum=curriculum,
         )
-        self._context.get_train_epoch_fn = lambda: self._train_epoch_callable
-        self._context.set_train_epoch_fn = self._set_train_epoch_callable
-
-        self._train_epoch_callable: Callable[[], None] = self._run_epoch
 
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
@@ -173,12 +185,10 @@ class Trainer:
             if rollout_result.raw_infos:
                 self._prev_agent_step_for_step_callbacks = previous_agent_step
                 self._invoke_callback(TrainerCallback.STEP, rollout_result.raw_infos)
+            self._invoke_callback(TrainerCallback.ROLLOUT_END)
 
         # Training phase
         with self.timer("_train"):
-            if self._context.training_env_id is None:
-                raise RuntimeError("Training environment slice unavailable for training phase")
-
             # ScheduleFree optimizer is in train mode for training phase
             if self._is_schedulefree:
                 self.optimizer.train()
@@ -260,6 +270,8 @@ class Trainer:
                 elif callback_type == TrainerCallback.EPOCH_END:
                     if component.should_handle_epoch(current_epoch):
                         component.on_epoch_end(current_epoch)
+                elif callback_type == TrainerCallback.ROLLOUT_END:
+                    component.on_rollout_end()
                 elif callback_type == TrainerCallback.TRAINING_COMPLETE:
                     component.on_training_complete()
                 elif callback_type == TrainerCallback.FAILURE:

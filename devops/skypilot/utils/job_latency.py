@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.12"
-# ///
+#!/usr/bin/env -S uv run
 """
 Calculate SkyPilot queue latency from SKYPILOT_TASK_ID env var.
 
@@ -17,9 +14,10 @@ from typing import Final
 
 from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.log_config import init_logging
-from metta.common.wandb.context import WandbConfig, WandbContext
+from metta.common.wandb.context import WandbConfig, WandbRunAppendContext
 from metta.common.wandb.utils import log_to_wandb_summary
-from mettagrid.base_config import Config
+
+logger = logging.getLogger(__name__)
 
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
@@ -53,8 +51,6 @@ def calculate_queue_latency() -> float:
 
 if __name__ == "__main__":
     init_logging()
-    logger = logging.getLogger("metta_agent")
-
     script_start_time = datetime.datetime.now(_EPOCH).isoformat()
     task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
 
@@ -78,7 +74,7 @@ if __name__ == "__main__":
         )
 
     except Exception as e:
-        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})")
+        logger.error(f"SkyPilot queue latency: N/A (task_id: {task_id}, error: {e})", exc_info=True)
         metrics.update(
             {
                 "skypilot/latency_calculated": False,
@@ -98,7 +94,7 @@ if __name__ == "__main__":
         )
 
         try:
-            with WandbContext(wandb_config, Config(), timeout=15) as run:
+            with WandbRunAppendContext(wandb_config) as run:
                 if run:
                     log_to_wandb_summary(metrics)
                     logger.info(f"Logged metrics to W&B run: {run.id}")

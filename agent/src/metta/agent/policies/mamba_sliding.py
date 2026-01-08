@@ -1,9 +1,9 @@
 from typing import List
 
+import metta.agent.components.mamba.config as mamba_config
 from metta.agent.components.action import ActionEmbeddingConfig
 from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.mamba.config import MambaBackboneConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -37,7 +37,7 @@ class MambaSlidingConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=1,
         ),
-        MambaBackboneConfig(
+        mamba_config.MambaBackboneConfig(
             in_key="encoded_obs",
             out_key="core",
             input_dim=_latent_dim,
@@ -54,6 +54,14 @@ class MambaSlidingConfig(PolicyArchitecture):
             in_key="core",
             out_key="values",
             name="critic",
+            in_features=_core_out_dim,
+            out_features=1,
+            hidden_features=[128],
+        ),
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
             in_features=_core_out_dim,
             out_features=1,
             hidden_features=[128],
@@ -75,7 +83,7 @@ def _update_ssm_layer(config: MambaSlidingConfig, layer: str) -> MambaSlidingCon
     if layer != "Mamba2":
         raise ValueError(f"Unsupported SSM layer '{layer}'. Only 'Mamba2' is available.")
     for component in config.components:
-        if isinstance(component, MambaBackboneConfig):
+        if isinstance(component, mamba_config.MambaBackboneConfig):
             next_cfg = dict(component.ssm_cfg) if component.ssm_cfg else {}
             next_cfg["layer"] = layer
             component.ssm_cfg = next_cfg

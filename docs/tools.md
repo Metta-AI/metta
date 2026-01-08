@@ -55,7 +55,7 @@ The runner supports flexible invocation syntax:
 ./tools/run.py arena.train run=test
 
 # Full path
-./tools/run.py experiments.recipes.arena.train run=test
+./tools/run.py recipes.experiment.arena.train run=test
 ```
 
 ### Discovering Available Tools

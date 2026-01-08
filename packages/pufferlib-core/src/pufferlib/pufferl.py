@@ -35,6 +35,7 @@ import shutil
 import sys
 import time
 from collections import defaultdict, deque
+import threading
 from threading import Thread
 
 import numpy as np
@@ -65,7 +66,8 @@ rich.traceback.install(show_locals=False)
 
 import signal  # Aggressively exit on ctrl+c
 
-signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+if threading.current_thread() is threading.main_thread():
+    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 # Assume advantage kernel has been built if CUDA compiler is available
 ADVANTAGE_CUDA = shutil.which("nvcc") is not None
@@ -73,10 +75,7 @@ ADVANTAGE_CUDA = shutil.which("nvcc") is not None
 
 class PuffeRL:
     def __init__(self, config, vecenv, policy, logger=None):
-        # Backend perf optimization (using new API)
-        if torch.cuda.is_available():
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
+        # Backend perf optimization
         torch.backends.cudnn.deterministic = config["torch_deterministic"]
         torch.backends.cudnn.benchmark = True
 
@@ -206,7 +205,9 @@ class PuffeRL:
 
         # Automatic mixed precision
         precision = config["precision"]
-        self.amp_context = torch.amp.autocast(device_type="cuda", dtype=getattr(torch, precision))
+        device = config["device"]
+        device_type = device if isinstance(device, str) else device.type
+        self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, precision))
         if precision not in ("float32", "bfloat16"):
             raise pufferlib.APIUsageError(f"Invalid precision: {precision}: use float32 or bfloat16")
 
@@ -256,7 +257,7 @@ class PuffeRL:
         self.full_rows = 0
         while self.full_rows < self.segments:
             profile("env", epoch)
-            o, r, d, t, info, env_id, mask = self.vecenv.recv()
+            o, r, d, t, ta, info, env_id, mask = self.vecenv.recv()
 
             profile("eval_misc", epoch)
             # TODO: Port to vecenv
@@ -697,7 +698,14 @@ class PuffeRL:
         print("\033[0;0H" + capture.get())
 
     def _reorder_stats_for_dashboard(self) -> list[tuple[str, float]]:
-        priority_metrics = ["agent/avg_reward_per_agent", "agent/energy.amount", "agent/status.max_steps_without_motion"]
+        priority_metrics = [
+            "agent/heart.gained",
+            "agent/inventory.diversity",
+            "agent/avg_reward_per_agent",
+            "agent/energy.amount",
+            "agent/status.max_steps_without_motion",
+            "game/chest.heart.amount",
+        ]
         new_stats = []
 
         stats = self.stats if len(self.stats) > 0 else self.last_stats

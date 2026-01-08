@@ -6,11 +6,19 @@ from typing import Any, List, Optional
 
 import wandb
 from dateutil import parser
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 from metta.adaptive.models import RunInfo
-from metta.common.util.retry import retry_on_exception
 
 logger = logging.getLogger(__name__)
+
+
+# Retry decorator for WandB API calls
+_wandb_retry = retry(
+    stop=stop_after_attempt(4),
+    wait=wait_exponential_jitter(initial=1.0, max=30.0),
+    reraise=True,
+)
 
 
 class WandbStore:
@@ -32,7 +40,7 @@ class WandbStore:
         self.evaluator_prefix = evaluator_prefix
         # Don't store api instance - create fresh one each time to avoid caching
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    @_wandb_retry
     def init_run(
         self,
         run_id: str,
@@ -72,11 +80,11 @@ class WandbStore:
             logger.info(f"[WandbStore] Successfully initialized run {run_id}")
 
         except Exception as e:
-            logger.error(f"[WandbStore] Failed to initialize run {run_id}: {e}")
+            logger.error(f"[WandbStore] Failed to initialize run {run_id}: {e}", exc_info=True)
             # Re-raise to prevent dispatch - critical for resource management
             raise RuntimeError(f"Failed to initialize WandB run {run_id}: {e}") from e
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    @_wandb_retry
     def fetch_runs(self, filters: dict, limit: Optional[int] = None) -> List[RunInfo]:
         """Fetch runs matching filter criteria.
 
@@ -119,10 +127,10 @@ class WandbStore:
             logger.debug(f"[WandbStore] Found {len(run_infos)} runs")
             return run_infos
         except Exception as e:
-            logger.error(f"[WandbStore] Error fetching runs: {e}")
+            logger.error(f"[WandbStore] Error fetching runs: {e}", exc_info=True)
             raise
 
-    @retry_on_exception(max_retries=3, initial_delay=1.0, max_delay=30.0)
+    @_wandb_retry
     def update_run_summary(self, run_id: str, summary_update: dict) -> bool:
         """Update run summary in WandB."""
         try:
@@ -154,7 +162,7 @@ class WandbStore:
 
             return True
         except Exception as e:
-            logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}")
+            logger.error(f"[WandbStore] Error updating run summary for run {run_id}: {e}", exc_info=True)
             return False
 
     def _convert_run_to_info(self, run: Any) -> RunInfo:

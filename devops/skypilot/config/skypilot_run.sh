@@ -17,8 +17,6 @@ export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
-DEBUG=${DEBUG:-0}
-
 EXIT_SUCCESS=0
 EXIT_FAILURE=1
 EXIT_NCCL_TEST_FAILURE=42
@@ -33,32 +31,21 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
 echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
-# Master-only: Collect SkyPilot latency
-if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f devops/skypilot/utils/job_latency.py ]; then
-    echo "[RUN] Collecting skypilot latency..."
-    uv run python devops/skypilot/utils/job_latency.py || true
-  else
-    echo "[RUN] Latency script is missing!"
-  fi
-fi
-
+cd /workspace/metta
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
-# Master-only: Collect instance cost
+# Collect observability metrics
 if [[ "$IS_MASTER" == "true" ]]; then
-  if [ -f devops/skypilot/utils/cost_monitor.py ]; then
-    echo "[RUN] Collecting instance cost..."
-    if uv run python devops/skypilot/utils/cost_monitor.py; then
-      source "$METTA_ENV_FILE"
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
-    else
-      echo "[RUN] Cost monitor script failed to run."
-    fi
+  echo "[RUN] Collecting skypilot latency..."
+  uv run python devops/skypilot/utils/job_latency.py || true
+
+  echo "[RUN] Collecting instance cost..."
+  if uv run python devops/skypilot/utils/cost_monitor.py; then
+    source "$METTA_ENV_FILE"
+    echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
   else
-    echo "[RUN] Cost monitor script is missing!"
+    echo "[RUN] Cost monitor script failed to run."
   fi
 fi
 
@@ -95,12 +82,12 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME:-'NOT SET'}"
 [[ ${remaining_at_start} -gt 0 ]] && echo "     ↳ remaining runtime seconds: ${remaining_at_start}"
-echo "  - RESTART_COUNT: ${RESTART_COUNT}"
+echo "  - RESTART_COUNT: ${RESTART_COUNT:-0}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
 echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 [[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo " ↳ will run"
-[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT}"
+[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT:-0}"
 echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"
 echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
 echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
@@ -257,7 +244,7 @@ TEST_NCCL="${TEST_NCCL:-false}"
 if [[ "$TEST_NCCL" == "false" ]]; then
   echo "[SKIP] Skipping NCCL test (TEST_NCCL=false)"
 elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
-  echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
+  echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT:-0})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
 

@@ -19,7 +19,7 @@ engage in combat, and cooperate with other agents. The key dynamics include:
   harvest resources and convert them to energy at charger stations.
 - **Resource Gathering**: Agents can gather resources from generator objects scattered throughout the environment.
 - **Cooperation and Sharing**: Agents have the ability to share resources with other agents and use energy to power the
-  heart altar, which provides rewards.
+  heart assembler, which provides rewards.
 - **Combat**: Agents can attack other agents to temporarily freeze them and steal their resources. They can also use
   shields to defend against attacks.
 
@@ -35,20 +35,20 @@ and agent capabilities.
 The `Agent` object represents an individual agent in the environment. Agents can move, rotate, attack, and interact with
 other objects. Each agent has energy, resources, and shield properties that govern its abilities and interactions.
 
-### Altar
+### assembler
 
 <img src="https://github.com/daveey/Griddly/blob/develop/resources/images/oryx/oryx_tiny_galaxy/tg_sliced/tg_items/tg_items_heart_full.png?raw=true" width="32"/>
 
-The `Altar` object allows agents to spend energy to gain rewards. Agents can power the altar by using the `use` action
-when near it. The altar has a cooldown period between uses.
+The `assembler` object allows agents to spend energy to gain rewards. Agents can power the assembler by using the `use`
+action when near it. The assembler has a cooldown period between uses.
 
-- Using the heart altar costs `altar.use_cost energy`. So, no matter how much energy you have, you are always dumping
-  the same amount of energy in it and getting the same amount of reward.
-- After the heart altar is used, it is unable to be used for the next value in `altar.cooldown` (defaults to a single
-  delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided the
-  altar cycles through those delays.
-- A single use of the heart altar gives you a single unit of reward: if
-  `target._type_id == ObjectType.AltarT: self.env._rewards[actor_id] += 1`
+- Using the heart assembler costs `assembler.use_cost energy`. So, no matter how much energy you have, you are always
+  dumping the same amount of energy in it and getting the same amount of reward.
+- After the heart assembler is used, it is unable to be used for the next value in `assembler.cooldown` (defaults to a
+  single delay) timesteps. The cooldown field accepts either an integer or a list of integers; when a list is provided
+  the assembler cycles through those delays.
+- A single use of the heart assembler gives you a single unit of reward: if
+  `target._type_id == ObjectType.assemblerT: self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -117,13 +117,9 @@ resources to another agent in an adjacent cell. It is currently not implemented.
 
 ### Use
 
-The `use` action allows agents to interact with objects such as altars, converters, and generators. The specific effects
-of the `use` action depend on the target object and can include converting resources to energy, powering the altar for
-rewards, or harvesting resources from generators.
-
-### Swap
-
-The `swap` action allows agents to swap positions with other agents. It is currently not implemented.
+The `use` action allows agents to interact with objects such as assemblers, converters, and generators. The specific
+effects of the `use` action depend on the target object and can include converting resources to energy, powering the
+assembler for rewards, or harvesting resources from generators.
 
 ## Configuration
 
@@ -136,14 +132,15 @@ layout of the gridworld, the placement of objects, and various properties of the
    Reward value: 0.005 per unit (max 2)   - Used to create batteries and lasers
 2. Battery   - Intermediate resource created from ore at a generator. Generator turns one ore into one battery.   -
    Reward value: 0.01 per unit (max 2)   - Used to create hearts and lasers
-3. Heart / heart altar   - High value reward, requires 3 batteries to be converted into a heart at a heart altar.
+3. Heart / heart assembler   - High value reward, requires 3 batteries to be converted into a heart at a heart
+   assembler.
 4. Laser   - Weapon resource created from ore and batteries. Requires 1 ore and 2 batteries. Created at the lasery.
 
 - Consumed on use. When hitting an unarmored agent: freezes them and steals their whole inventory. When hitting an
   armoured agent, destroys their armor. **Inventory System**
 - Agents have limited inventory space (default max: 50 items)
 - Resources provide rewards just by being in inventory (up to their max reward value)
-- Resources can be stolen through attacks Objects Various buildings: Mine, Generator, Armory, Lasery, Altar, Lab,
+- Resources can be stolen through attacks Objects Various buildings: Mine, Generator, Armory, Lasery, assembler, Lab,
   Factory, Temple.
 - HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)
@@ -156,21 +153,21 @@ maintain compatibility with external RL frameworks:
 
 ### Primary Training Environment
 
-**`MettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
+**`PufferMettaGridEnv`** - The main environment actively developed for Softmax Studio training systems
 
 - Full-featured environment with comprehensive stats collection, replay recording, and curriculum support
-- Inherits from `MettaGridCore` for C++ environment implementation
+- PufferLib-compatible environment wrapper that provides reset/step API
 - **Exclusively used** by `metta.rl.trainer` and `metta.sim.simulation`
 - Continuously developed and optimized for Softmax Studio use cases
 - Backward compatible with existing training code
 
 ### Core Infrastructure
 
-**`MettaGridCore`** - Low-level C++ environment wrapper
+**`Simulation`** - Core simulation class for running MettaGrid simulations
 
 - Foundation that provides the core game mechanics and performance
-- **Not used directly** for training - serves as implementation detail for `MettaGridEnv`
-- Provides the base functionality that external adapters wrap
+- Direct simulation access without environment API (no reset/step)
+- Use when you need fine-grained control over simulation steps
 
 ### External Framework Compatibility Adapters
 
@@ -184,7 +181,7 @@ Lightweight wrappers around `MettaGridCore` to maintain compatibility with other
 
 ### Design Philosophy
 
-- **Primary Focus**: `MettaGridEnv` receives active development and new features for Softmax Studio
+- **Primary Focus**: `PufferMettaGridEnv` receives active development and new features for Softmax Studio
 - **Compatibility Maintenance**: External adapters ensure other frameworks continue working as the core evolves
 - **Testing for Compatibility**: Demos verify external frameworks remain functional during core development
 - **Clear Separation**: Each environment type serves its specific training system - no mixing between systems
@@ -234,3 +231,122 @@ bazel build --config=opt //:mettagrid_c
 # Run benchmarks
 ./build-release/benchmarks/grid_object_benchmark
 ```
+
+For a quick benchmark of MettaGrid performance on a single CPU core, use the `test_perf.sh` script:
+
+```bash
+bash test_perf.sh
+```
+
+## Debugging C++ Code
+
+MettaGrid is written in C++ with Python bindings via pybind11. You can debug C++ code directly in VSCode/Cursor by
+setting breakpoints in the C++ source files.
+
+### Prerequisites
+
+1. **VSCode Extension**: Install the
+   [Python C++ Debugger](https://marketplace.visualstudio.com/items?itemName=benjamin-simmonds.pythoncpp-debug)
+   extension (`pythoncpp`)
+2. **Debug Build**: Always build with `DEBUG=1` to enable debug symbols and dSYM generation
+
+### Setup
+
+The repository includes pre-configured launch configurations in `.vscode/launch.json`:
+
+- **MettaGrid Demo** and other pythoncpp configurations - Combined Python + C++ debugging session for the demo script
+  (requires the pythoncpp extension)
+- **\_C++ Attach** - Attach C++ debugger to any running Python process (shared by all configurations but can be ran
+  manually).
+
+### Quick Start
+
+1. **Build with debug symbols**:
+   - Clean everything up
+
+     ```sh
+     cd packages/mettagrid # (from root of the repository)
+     bazel clean --expunge
+     ```
+
+   - Rebuild with debug flags
+
+     ```sh
+     bazel build --config=dbg //:mettagrid_c
+     ```
+
+   - Or Reinstall with DEBUG=1 to trigger dSYM generation
+
+     ```sh
+     cd ../..
+     export DEBUG=1
+     uv sync --reinstall-package mettagrid
+     ```
+
+2. **Set breakpoints** in both Python and C++ files (e.g., `packages/mettagrid/cpp/bindings/mettagrid_c.cpp`,
+   `packages/mettagrid/demos/demo_train_pettingzoo.py`)
+
+3. **Launch debugger** using the "MettaGrid Demo" or any other pythoncpp configuration from the VSCode Run panel.
+
+4. **Alternatively**, you can use the "\_C++ Attach" configuration to attach the debugger to any running Python process.
+   It will ask you to select a process - type "metta" or "python" to filter the list.
+
+### Testing C++ Debugging
+
+To verify that C++ breakpoints are working correctly, use a simple test that calls from Python into C++:
+
+#### Quick Test Method
+
+1. **Add a test call** to any Python entrypoint that uses mettagrid:
+
+   ```python
+   def test_cpp_debugging() -> None:
+       """Test function to trigger C++ code for debugging."""
+       try:
+           from mettagrid.mettagrid_c import PackedCoordinate
+
+           # Call a simple C++ function
+           packed = PackedCoordinate.pack(5, 10)
+           print(f"C++ test: PackedCoordinate.pack(5, 10) = {packed}")
+
+           # Unpack it back
+           r, c = PackedCoordinate.unpack(packed)
+           print(f"C++ test: PackedCoordinate.unpack({packed}) = ({r}, {c})")
+       except Exception as e:
+           print(f"C++ debugging test failed: {e}")
+
+   # Call at module level or early in your script
+   test_cpp_debugging()
+   ```
+
+2. **Set a C++ breakpoint** in the corresponding C++ implementation:
+   - Open `packages/mettagrid/cpp/include/mettagrid/systems/packed_coordinate.hpp`
+   - Find the `pack()` or `unpack()` function implementation
+   - Set a breakpoint inside the function body (e.g., on the return statement)
+
+3. **Launch your debug configuration** (e.g., "MettaGrid Demo" or any pythoncpp configuration)
+
+4. **Verify the breakpoint hits** when the Python code calls `PackedCoordinate.pack()`
+
+#### Where to Add the Test
+
+Add the test call early in any Python entrypoint that uses mettagrid:
+
+- Demo scripts (e.g., `packages/mettagrid/demos/demo_train_*.py`)
+- CLI entrypoints (e.g., `packages/cogames/src/cogames/main.py`)
+- Tool runners (e.g., `common/src/metta/common/tool/run_tool.py`)
+- Training scripts (e.g., `metta/tools/train.py`)
+
+**Note**: This test is only for verifying your debugging setup. Remove it before committing.
+
+### Configuration Files
+
+- **`.bazelrc`** - Defines the `--config=dbg` build mode with debug flags (`-g`, `-O0`, `--apple_generate_dsym`)
+- **`.vscode/launch.json`** - Contains launch configurations for combined Python/C++ debugging
+
+### Important Notes
+
+- **Always use `DEBUG=1`**: Without this environment variable, dSYM files won't be generated and C++ breakpoints won't
+  work.
+- **Source maps**: The launch config includes source maps to correctly locate C++ files in the packages/mettagrid's
+  workspace.

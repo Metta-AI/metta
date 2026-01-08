@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 @functools.cache
 def get_console() -> Console:
-    return Console()
+    return Console(soft_wrap=True)
 
 
 def _format_message(message: str, indent: int = 0) -> str:
@@ -76,7 +76,7 @@ def prompt_choice(
     current: T | None = None,
     non_interactive: bool = False,
 ) -> T:
-    """Prompt user to select from a list of choices with arrow key support.
+    """Prompt user to select from a list of choices with arrow keys or number input.
 
     Args:
         prompt: The prompt message
@@ -95,8 +95,9 @@ def prompt_choice(
     try:
         from simple_term_menu import TerminalMenu
 
-        # Extract descriptions for menu display
-        menu_entries = [f"{i + 1}. {desc}" for i, (_, desc) in enumerate(choices)]
+        # Format menu entries with shortcut numbers in brackets
+        # This allows both arrow key navigation and direct number input
+        menu_entries = [f"[{i + 1}] {desc}" for i, (_, desc) in enumerate(choices)]
 
         # Find initial selection
         cursor_index = 0
@@ -170,10 +171,7 @@ def _simple_prompt_choice(
             markers.append("default")
 
         marker = f" ({', '.join(markers)})" if markers else ""
-        if current is not None and value == current:
-            debug(f"{i + 1}. {desc}{marker}", indent=2)
-        else:
-            debug(f"{i + 1}. {desc}{marker}", indent=2)
+        debug(f"{i + 1}. {desc}{marker}", indent=2)
 
     while True:
         try:

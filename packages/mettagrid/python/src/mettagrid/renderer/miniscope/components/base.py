@@ -1,13 +1,15 @@
 """Base component class for miniscope renderer."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 
-from mettagrid import MettaGridEnv
 from mettagrid.renderer.miniscope.miniscope_panel import MiniscopePanel, PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
+from mettagrid.simulator.simulator import Simulation
 
 
 class MiniscopeComponent(ABC):
@@ -15,7 +17,7 @@ class MiniscopeComponent(ABC):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -26,7 +28,7 @@ class MiniscopeComponent(ABC):
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        self._env = env
+        self._sim = sim
         self._state = state
         self._panels = panels
         self._panel: Optional[MiniscopePanel] = None
@@ -35,9 +37,9 @@ class MiniscopeComponent(ABC):
         self._console = Console()
 
     @property
-    def env(self) -> MettaGridEnv:
-        """Return the current environment reference."""
-        return self._env
+    def env(self) -> "Simulation":
+        """Get the environment."""
+        return self._sim
 
     @property
     def state(self) -> MiniscopeState:
@@ -49,15 +51,12 @@ class MiniscopeComponent(ABC):
         """Return the panel layout registry."""
         return self._panels
 
-    def _set_panel(self, panel: Optional[MiniscopePanel]) -> None:
+    def _set_panel(self, panel: MiniscopePanel) -> None:
         """Set the panel for this component and update dimensions.
 
         Args:
             panel: The panel to use for this component
         """
-        if panel is None:
-            raise ValueError(f"{self.__class__.__name__} requires a configured panel")
-
         self._panel = panel
         self._width = panel.width
         self._height = panel.height
@@ -72,9 +71,13 @@ class MiniscopeComponent(ABC):
         Returns:
             Padded lines
         """
-        if width is None:
-            return lines
         return [line[:width].ljust(width) for line in lines]
+
+    def _table_to_lines(self, renderable: RenderableType) -> List[str]:
+        """Render a Rich table or other renderable to plain text lines."""
+        with self._console.capture() as capture:
+            self._console.print(renderable)
+        return capture.get().split("\n")
 
     def handle_input(self, ch: str) -> bool:
         """Handle user input for this component."""

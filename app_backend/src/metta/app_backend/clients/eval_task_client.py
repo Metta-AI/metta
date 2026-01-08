@@ -3,63 +3,61 @@ from typing import TypeVar
 from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
+from metta.app_backend.metta_repo import EvalTaskRow
 from metta.app_backend.routes.eval_task_routes import (
     GitHashesRequest,
     GitHashesResponse,
-    TaskAvgRuntimeResponse,
+    TaskAttemptsResponse,
     TaskClaimRequest,
     TaskClaimResponse,
-    TaskCountResponse,
     TaskCreateRequest,
     TaskFilterParams,
-    TaskResponse,
+    TaskFinishRequest,
+    TaskIdResponse,
     TasksResponse,
-    TaskUpdateRequest,
-    TaskUpdateResponse,
 )
 
 T = TypeVar("T", bound=BaseModel)
 
 
 class EvalTaskClient(BaseAppBackendClient):
-    async def create_task(self, request: TaskCreateRequest) -> TaskResponse:
-        return await self._make_request(TaskResponse, "POST", "/tasks", json=request.model_dump(mode="json"))
+    def create_task(self, request: TaskCreateRequest) -> EvalTaskRow:
+        return self._make_request(EvalTaskRow, "POST", "/tasks", json=request.model_dump(mode="json"))
 
-    async def get_available_tasks(self, limit: int = 200) -> TasksResponse:
-        return await self._make_request(TasksResponse, "GET", "/tasks/available", params={"limit": limit})
+    def get_available_tasks(self, limit: int = 200) -> TasksResponse:
+        return self._make_request(TasksResponse, "GET", "/tasks/available", params={"limit": limit})
 
-    async def claim_tasks(self, request: TaskClaimRequest) -> TaskClaimResponse:
-        return await self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=request.model_dump(mode="json"))
+    def claim_tasks(self, request: TaskClaimRequest) -> TaskClaimResponse:
+        return self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=request.model_dump(mode="json"))
 
-    async def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
+    def get_task_by_id(self, task_id: str) -> EvalTaskRow:
+        return self._make_request(EvalTaskRow, "GET", f"/tasks/{task_id}")
+
+    def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
         params = {"assignee": assignee} if assignee is not None else {}
-        return await self._make_request(TasksResponse, "GET", "/tasks/claimed", params=params)
+        return self._make_request(TasksResponse, "GET", "/tasks/claimed", params=params)
 
-    async def update_task_status(self, request: TaskUpdateRequest) -> TaskUpdateResponse:
-        return await self._make_request(
-            TaskUpdateResponse, "POST", "/tasks/claimed/update", json=request.model_dump(mode="json")
+    def start_task(self, task_id: int) -> TaskIdResponse:
+        return self._make_request(TaskIdResponse, "POST", f"/tasks/{task_id}/start")
+
+    def finish_task(self, task_id: int, request: TaskFinishRequest) -> TaskIdResponse:
+        return self._make_request(
+            TaskIdResponse, "POST", f"/tasks/{task_id}/finish", json=request.model_dump(mode="json")
         )
 
-    async def get_git_hashes_for_workers(self, assignees: list[str]) -> GitHashesResponse:
+    def get_git_hashes_for_workers(self, assignees: list[str]) -> GitHashesResponse:
         request = GitHashesRequest(assignees=assignees)
-        return await self._make_request(
-            GitHashesResponse, "POST", "/tasks/git-hashes", json=request.model_dump(mode="json")
-        )
+        return self._make_request(GitHashesResponse, "POST", "/tasks/git-hashes", json=request.model_dump(mode="json"))
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse | None:
-        return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
+    def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskRow | None:
+        return self._make_request(EvalTaskRow, "GET", "/tasks/latest", params={"assignee": assignee})
 
-    async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
+    def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         if filters is None:
             filters = TaskFilterParams()
-        return await self._make_request(
+        return self._make_request(
             TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
         )
 
-    async def count_tasks(self, where_clause: str) -> TaskCountResponse:
-        return await self._make_request(TaskCountResponse, "GET", "/tasks/count", params={"where_clause": where_clause})
-
-    async def get_avg_runtime(self, where_clause: str) -> TaskAvgRuntimeResponse:
-        return await self._make_request(
-            TaskAvgRuntimeResponse, "GET", "/tasks/avg-runtime", params={"where_clause": where_clause}
-        )
+    def get_task_attempts(self, task_id: int) -> TaskAttemptsResponse:
+        return self._make_request(TaskAttemptsResponse, "GET", f"/tasks/{task_id}/attempts")

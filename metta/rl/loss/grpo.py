@@ -1,19 +1,18 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Config
 
 
-class GRPOConfig(Config):
+class GRPOConfig(LossConfig):
     """Configuration for Group Relative Policy Optimization."""
 
     # Clip coefficient for policy gradient
@@ -44,17 +43,8 @@ class GRPOConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
-    ):
-        """Points to the GRPO class for initialization."""
-        return GRPO(
-            policy,
-            trainer_cfg,
-            env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+    ) -> "GRPO":
+        return GRPO(policy, trainer_cfg, env, device, instance_name, self)
 
 
 class GRPO(Loss):
@@ -79,9 +69,9 @@ class GRPO(Loss):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
-    ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, loss_config)
+        cfg: "GRPOConfig",
+    ) -> None:
+        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
         self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.burn_in_steps = 0
         if hasattr(self.policy, "burn_in_steps"):
@@ -114,18 +104,21 @@ class GRPO(Loss):
             return
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for GRPO rollout")
+        env_slice = self._training_env_id(
+            context, error="ComponentContext.training_env_id is required for GRPO rollout"
+        )
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
         """GRPO training loop with group-based advantage estimation."""
-        config = self.loss_cfg
+        config = self.cfg
         stop_update_epoch = False
         self.policy.reset_memory()
         self.burn_in_steps_iter = 0
@@ -136,28 +129,16 @@ class GRPO(Loss):
                 stop_update_epoch = True
 
         if mb_idx == 0:
-            self.advantages = self._compute_group_advantages(context)
-
-        minibatch, indices = self._sample_minibatch()
-
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-
-        policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        B, TT = policy_td.batch_size
-        policy_td = policy_td.reshape(B * TT)
-        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
-
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
-        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+            # overwrite advantages in the replay buffer with the group-based advantages
+            self.replay.buffer["advantages"] = self._compute_group_advantages(context)
+            self.replay.buffer["advantages_full"] = self.replay.buffer["advantages"]  # maybe we don't need this?
+            indices = shared_loss_data["indices"][:, 0]
+            shared_loss_data["advantages"] = self.replay.buffer["advantages"][indices]
 
         loss = self._process_minibatch_update(
-            minibatch=minibatch,
-            policy_td=policy_td,
-            indices=indices,
+            minibatch=shared_loss_data["sampled_mb"],
+            policy_td=shared_loss_data["policy_td"],
+            indices=shared_loss_data["indices"][:, 0],
         )
 
         return loss, shared_loss_data, stop_update_epoch
@@ -173,7 +154,7 @@ class GRPO(Loss):
         discounted return against the mean return of a group of trajectories.
         This eliminates the need for a value network.
         """
-        cfg = self.loss_cfg
+        cfg = self.cfg
         with torch.no_grad():
             # Compute discounted returns for all trajectories
             returns = self._compute_returns(
@@ -234,7 +215,7 @@ class GRPO(Loss):
         indices: Tensor,
     ) -> Tensor:
         """Process minibatch update using GRPO loss."""
-        cfg = self.loss_cfg
+        cfg = self.cfg
         old_logprob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_logprob.shape)
         entropy = policy_td["entropy"]
@@ -256,17 +237,6 @@ class GRPO(Loss):
         )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-
-        # This is a hack to ensure all parameters participate in the backward pass for DDP.
-        # Add dummy loss terms for any unused outputs to ensure all parameters
-        # participate in backward pass for DDP. This prevents "unused parameter" errors.
-        # TODO: Find a better way to do this.
-        for key in policy_td.keys():
-            if key not in ["act_log_prob", "entropy"] and isinstance(policy_td[key], Tensor):
-                value = policy_td[key]
-                if value.requires_grad:
-                    # Add zero-weighted term to ensure gradient flow
-                    loss = loss + 0.0 * value.sum()
 
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)
@@ -290,8 +260,8 @@ class GRPO(Loss):
         pg_loss1 = -adv * importance_sampling_ratio
         pg_loss2 = -adv * torch.clamp(
             importance_sampling_ratio,
-            1 - self.loss_cfg.clip_coef,
-            1 + self.loss_cfg.clip_coef,
+            1 - self.cfg.clip_coef,
+            1 + self.cfg.clip_coef,
         )
         pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
@@ -301,22 +271,9 @@ class GRPO(Loss):
         with torch.no_grad():
             logratio = new_logprob - old_logprob
             approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.loss_cfg.clip_coef).float().mean()
+            clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
 
         return pg_loss, entropy_loss, approx_kl, clipfrac
-
-    def _sample_minibatch(self) -> tuple[TensorDict, Tensor]:
-        """Sample a minibatch uniformly from the replay buffer."""
-        # For GRPO, we use uniform sampling
-        num_segments = self.replay.buffer.shape[0]
-        idx = torch.randint(0, num_segments, (self.replay.minibatch_segments,), device=self.device)
-
-        minibatch = self.replay.buffer[idx]
-
-        with torch.no_grad():
-            minibatch["advantages"] = self.advantages[idx]
-
-        return minibatch.clone(), idx
 
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)

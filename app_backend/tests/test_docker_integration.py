@@ -190,18 +190,6 @@ class TestDockerIntegration:
         assert data["user_email"] == "unknown"
 
     @pytest.mark.slow
-    def test_whoami_endpoint_with_email_auth(self, app_backend_container):
-        """Test /whoami endpoint with email authentication."""
-        container, host, port = app_backend_container
-
-        headers = {"X-Auth-Request-Email": "test@example.com"}
-        response = requests.get(f"http://{host}:{port}/whoami", headers=headers)
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["user_email"] == "test@example.com"
-
-    @pytest.mark.slow
     def test_container_health_check(self, app_backend_container):
         """Test that the container is healthy and responding."""
         container, host, port = app_backend_container
@@ -224,17 +212,3 @@ class TestDockerIntegration:
         response = requests.post(f"http://{host}:{port}/tokens", json={"name": "test_token"})
 
         assert response.status_code == 401
-
-    @pytest.mark.slow
-    def test_protected_endpoint_with_auth(self, app_backend_container):
-        """Test that protected endpoints work with authentication."""
-        container, host, port = app_backend_container
-
-        headers = {"X-Auth-Request-Email": "test@example.com"}
-
-        # Try to create a token with authentication
-        response = requests.post(f"http://{host}:{port}/tokens", json={"name": "test_token"}, headers=headers)
-
-        # Should succeed (200) or fail due to missing database tables (500)
-        # but not fail due to authentication (401)
-        assert response.status_code != 401

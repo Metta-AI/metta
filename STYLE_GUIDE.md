@@ -1,114 +1,49 @@
-# STYLE_GUIDE.md
+# Style Guide
 
-## Core Philosophy
+## Philosophy
 
-Write **lean, pragmatic code** that trusts both your environment and your readers. Favor clarity through simplicity over
-defensive programming and excessive documentation.
+Write lean code that will be kept. Favor simplicity over completeness.
 
-## Key Principles
+## Working Principles
 
-### 1. Trust Your Environment
+**Write less code.** A smaller change that doesn't fully achieve the goal is better than a larger change that does. The
+goal is code that gets kept, not a messy MVP.
 
-**✅ DO:** Assume known invariants
+**Search before writing.** The codebase likely has something similar. Look for existing implementations first.
 
-```python
-# We know .ruff.toml exists in our repo
-with open(ruff_config_path, "rb") as f:
-    config = tomllib.load(f)
-```
+**Trust your environment.** Don't add defensive checks for conditions guaranteed by the project structure.
 
-**❌ DON'T:** Add defensive checks for guaranteed conditions
+**Self-documenting code.** Clear names over comments. Only comment the "why", not the "what".
 
-```python
-# Unnecessary existence check
-if ruff_config_path.exists():
-    with open(ruff_config_path, "rb") as f:
-        config = tomllib.load(f)
-```
+## Python Style
 
-**When to apply:** Internal tooling, controlled environments, known project structure
+- Type hints on all function parameters
+- No docstrings unless behavior is non-obvious
+- Absolute imports only (`from metta.x import Y`, not `from .x import Y`)
+- Private members start with `_`
+- Empty `__init__.py` files (except public packages that need exports)
+- `Optional[X]` over `X | None`
+- Top-level imports only (no inline `from x import Y` inside functions)
+- Use `collections.defaultdict` instead of `dict.setdefault()`
 
-### 2. Self-Documenting Code
-
-**✅ DO:** Let clear names speak for themselves
+### Imports
 
 ```python
-def get_world_size(self) -> int:
-    return self.config.world_size
+from __future__ import annotations  # When needed for forward refs
+from metta.common.types import X    # Shared types from types.py
 ```
 
-**❌ DON'T:** Add redundant documentation
+Circular import? Extract types to `types.py` or use module import (`import x.y as y_mod`).
 
-```python
-def get_world_size(self) -> int:
-    """Get the number of processes.
+## What Not To Do
 
-    Returns:
-        World size
-    """
-    return self._world_size
-```
+- Don't add error handling for impossible cases
+- Don't create abstractions for one-time operations
+- Don't add comments that restate the code
+- Don't add backwards-compatibility shims for unused code
+- Don't run lint/tests automatically (too slow)
+- Don't push to git remote (humans do that)
 
-**When to comment:**
+## Additional style guides
 
-- Ambiguous return values
-- Non-obvious behavior
-- Important warnings
-- Complex algorithms
-- The "why" not the "what"
-
-### 3. Direct and Simple
-
-**✅ DO:** Access attributes directly
-
-```python
-return self.config.rank
-```
-
-**❌ DON'T:** Add unnecessary indirection
-
-```python
-self._rank = config.rank  # Stored elsewhere
-return self._rank
-```
-
-### 4. Conventional Structure
-
-**✅ DO:** Keep all imports at the top
-
-```python
-# At top of file
-from pathlib import Path
-import tomllib
-from .core import run_git_cmd
-```
-
-**❌ DON'T:** Use inline imports
-
-```python
-def some_function():
-    from .core import run_git_cmd  # Avoid this
-```
-
-**Exceptions:**
-
-- Circular dependency workarounds (consider this a code smell to fix later)
-- Heavy imports in CLI tools (e.g., `torch`, `wandb`) where startup time matters
-
-## General Guidelines
-
-- **Error handling:** Only catch exceptions you can meaningfully handle
-- **Defensive programming:** Reserve for truly unpredictable external inputs
-- **Code length:** Shorter is better when it doesn't sacrifice clarity
-- **Comments:** Should add value, not repeat what the code already says
-- **Dependencies:** Make them explicit and visible at the module level
-
-## Summary
-
-Our code should be:
-
-- **Conventional** - Follow established patterns
-- **Clean** - Remove unnecessary ceremony
-- **Direct** - Don't be clever when simple will do
-
-When in doubt, ask: "What's the simplest thing that could possibly work?" Then write that.
+Some guidelines exist in STYLE_GUIDE.md files closer to the code they are relevant to.

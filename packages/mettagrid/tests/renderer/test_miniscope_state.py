@@ -49,10 +49,9 @@ class TestMiniscopeState:
         assert state.map_width == 0
 
         # Check shared data
-        assert state.object_type_names is None
         assert state.resource_names is None
         assert state.symbol_map is None
-        assert state.glyphs is None
+        assert state.vibes is None
 
     def test_is_running(self):
         """Test is_running method for different playback states."""
@@ -123,9 +122,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(9.0)  # 6.0 * 1.5
 
         # Test max limit
-        state.fps = 50.0
+        state.fps = 400.0
         state.increase_speed()
-        assert state.fps == 60.0  # Max is 60
+        assert state.fps == 600.0  # Max is 600
 
         # Decrease speed
         state.fps = 6.0
@@ -133,9 +132,9 @@ class TestMiniscopeState:
         assert state.fps == pytest.approx(4.0)  # 6.0 / 1.5
 
         # Test min limit
-        state.fps = 0.6
+        state.fps = 0.015
         state.decrease_speed()
-        assert state.fps == 0.5  # Min is 0.5
+        assert state.fps == 0.01  # Min is 0.01
 
     def test_get_frame_delay(self):
         """Test get_frame_delay method."""
@@ -166,19 +165,19 @@ class TestMiniscopeState:
         assert state.mode == RenderMode.SELECT
 
         # Trying to set helper modes should be ignored
-        state.set_mode(RenderMode.GLYPH_PICKER)
+        state.set_mode(RenderMode.VIBE_PICKER)
         assert state.mode == RenderMode.SELECT
 
         state.set_mode(RenderMode.HELP)
         assert state.mode == RenderMode.SELECT
 
-    def test_enter_glyph_picker(self):
-        """Test enter_glyph_picker method."""
+    def test_enter_vibe_picker(self):
+        """Test enter_vibe_picker method."""
         state = MiniscopeState()
 
         state.mode = RenderMode.FOLLOW
-        state.enter_glyph_picker()
-        assert state.mode == RenderMode.GLYPH_PICKER
+        state.enter_vibe_picker()
+        assert state.mode == RenderMode.VIBE_PICKER
 
     def test_toggle_manual_control(self):
         """Test toggle_manual_control method."""

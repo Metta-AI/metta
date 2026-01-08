@@ -1,5 +1,9 @@
+import os
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
+import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Iterable, Sequence
 
@@ -7,6 +11,13 @@ import typer
 from pydantic import BaseModel
 
 from metta.common.util.fs import get_repo_root
+from metta.setup.tools.test_runner.summary import (
+    log_results,
+    report_failures,
+    summarize_test_results,
+    write_github_summary,
+    write_slow_tests_github_summary,
+)
 from metta.setup.utils import error, info
 
 
@@ -28,7 +39,6 @@ class Package(BaseModel):
 
 PACKAGES: tuple[Package, ...] = (
     Package(name="tests", target=Path("tests")),
-    Package(name="mettascope", target=Path("mettascope/tests")),
     Package(name="agent", target=Path("agent/tests")),
     Package(name="app_backend", target=Path("app_backend/tests")),
     Package(name="common", target=Path("common/tests")),
@@ -40,23 +50,9 @@ PACKAGES: tuple[Package, ...] = (
 )
 
 
-DEFAULT_FLAGS: tuple[str, ...] = ("--benchmark-disable", "-n", "auto")
-CI_FLAGS: tuple[str, ...] = (
-    "-n",
-    "4",
-    "--timeout=100",
-    "--timeout-method=thread",
-    "--benchmark-skip",
-    "--maxfail=1",
-    "--disable-warnings",
-    "--durations=10",
-    "-v",
-)
-
-
-def _run_command(args: Sequence[str]) -> int:
+def _run_command(args: Sequence[str], env: dict[str, str] | None = None) -> int:
     info(f"→ {' '.join(args)}")
-    completed = subprocess.run(args, cwd=get_repo_root(), check=False)
+    completed = subprocess.run(args, cwd=get_repo_root(), check=False, env={**os.environ, **(env or {})})
     return completed.returncode
 
 
@@ -102,11 +98,66 @@ app = typer.Typer(
 )
 
 
+@dataclass(slots=True)
+class PackageResult:
+    package: Package
+    target: str
+    returncode: int
+    report_file: Path
+    duration: float
+
+
+def _execute_ci_packages(
+    packages: Sequence[Package],
+    targets: Sequence[str],
+    base_cmd: Sequence[str],
+    report_dir: Path,
+) -> list[PackageResult]:
+    index_map = {package.key: index for index, package in enumerate(packages)}
+    futures = []
+    results: list[PackageResult] = []
+
+    def _run_ci_package(
+        package: Package,
+        target: str,
+        base_cmd: Sequence[str],
+        report_dir: Path,
+    ) -> PackageResult:
+        report_file = report_dir / f"{package.key}.json"
+        if report_file.exists():
+            report_file.unlink()
+        start = time.perf_counter()
+        returncode = _run_command(
+            [*base_cmd, target, "--json-report", f"--json-report-file={report_file}"],
+            env={"DD_SERVICE": package.name},
+        )
+        duration = time.perf_counter() - start
+        return PackageResult(
+            package=package,
+            target=target,
+            returncode=returncode,
+            report_file=report_file,
+            duration=duration,
+        )
+
+    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+        for package, target in zip(packages, targets, strict=True):
+            futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
+
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    results.sort(key=lambda item: index_map.get(item.package.key, len(index_map)))
+    return results
+
+
 @app.callback()
 def run(
     ctx: typer.Context,
     targets: Annotated[list[str] | None, typer.Argument(help="Explicit pytest targets.")] = None,
     ci: bool = typer.Option(False, "--ci", help="Use CI-style settings and parallel suite execution."),
+    test: bool = typer.Option(False, "--test", help="Run unit tests (default if no flags specified)."),
+    benchmark: bool = typer.Option(False, "--benchmark", help="Run benchmarks."),
     packages: Annotated[
         list[str] | None, typer.Option("--package", "-p", help="Limit to specific named package(s).")
     ] = None,
@@ -124,6 +175,14 @@ def run(
     package_args = packages or []
     skip_package_args = skip_packages or []
 
+    # Determine what to run based on flags
+    # Default (no flags): tests only
+    # --test only: tests only
+    # --benchmark only: benchmarks only
+    # --test --benchmark: both
+    run_tests = test or not benchmark  # Default to tests if no flags
+    run_benchmarks = benchmark
+
     cmd = ["uv", "run", "pytest"]
     if target_args:
         if package_args or skip_package_args or changed or ci:
@@ -140,18 +199,50 @@ def run(
         raise typer.Exit(1) from exc
 
     if ci:
-        cmd.extend(CI_FLAGS)
-        cmd.extend(extra_args)
+        base_cmd = [
+            *cmd,
+            "-n",
+            "4",
+            "--timeout=100",
+            "--timeout-method=thread",
+            "--disable-warnings",
+            "--color=no",
+            "-q",
+            "-o",
+            "console_output_style=count",
+        ]
 
-        exit_code = 0
-        with ThreadPoolExecutor(max_workers=len(resolved_targets)) as pool:
-            for code in pool.map(lambda path: _run_command([*cmd, path]), resolved_targets):
-                exit_code = max(exit_code, code)
+        # Apply benchmark filtering for CI mode
+        if run_benchmarks and not run_tests:
+            base_cmd.append("--benchmark-only")
+        elif run_tests and not run_benchmarks:
+            base_cmd.append("--benchmark-skip")
+        # else: both enabled, no filtering
+
+        base_cmd.extend(extra_args)
+
+        with tempfile.TemporaryDirectory(prefix="pytest-json-") as temp_dir:
+            report_dir = Path(temp_dir)
+            results = _execute_ci_packages(selected, resolved_targets, base_cmd, report_dir)
+            summaries = summarize_test_results(results)
+            log_results(summaries)
+            report_failures(summaries)
+            write_github_summary(summaries)
+            write_slow_tests_github_summary(summaries)
+            exit_code = max((result.returncode for result in results), default=0)
         raise typer.Exit(exit_code)
-    else:
-        cmd.extend(DEFAULT_FLAGS)
-        if changed:
-            cmd.append("--testmon")
-        cmd.extend(extra_args)
-        cmd.extend(resolved_targets)
-        raise typer.Exit(_run_command(cmd))
+
+    cmd.extend(["-n", "auto"])
+
+    # Apply benchmark filtering for non-CI mode
+    if run_benchmarks and not run_tests:
+        cmd.append("--benchmark-only")
+    elif run_tests and not run_benchmarks:
+        cmd.append("--benchmark-disable")
+    # else: both enabled, no filtering
+
+    if changed:
+        cmd.append("--testmon")
+    cmd.extend(extra_args)
+    cmd.extend(resolved_targets)
+    raise typer.Exit(_run_command(cmd))

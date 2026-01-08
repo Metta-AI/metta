@@ -62,7 +62,7 @@ def _get_num_commits_with_phrase(phrase: str, lookback_days: int = 7, branch: st
             Authorization=_get_github_auth_header(),
         )
     except Exception as e:
-        logger.error(f"Failed to get commits: {e}")
+        logger.error(f"Failed to get commits: {e}", exc_info=True)
         return 0
 
     count = 0
@@ -98,7 +98,7 @@ def get_latest_workflow_run(branch: str, workflow_filename: str) -> dict[str, An
         )
         return runs[0] if runs else None
     except Exception as e:
-        logger.error(f"Failed to get workflow runs: {e}")
+        logger.error(f"Failed to get workflow runs: {e}", exc_info=True)
         return None
 
 
@@ -110,7 +110,7 @@ def get_latest_unit_tests_failed() -> int | None:
 
     run_id = run.get("id")
     if not run_id:
-        logger.error(f"Failed to get run ID: {run}")
+        logger.error(f"Failed to get run ID: {run}", exc_info=True)
         return None
 
     repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
@@ -123,7 +123,7 @@ def get_latest_unit_tests_failed() -> int | None:
             Authorization=_get_github_auth_header(),
         )
     except Exception as e:
-        logger.error(f"Failed to get jobs: {e}")
+        logger.error(f"Failed to get jobs: {e}", exc_info=True)
         return None
 
     job_statuses = _get_job_statuses_by_name({"jobs": jobs})

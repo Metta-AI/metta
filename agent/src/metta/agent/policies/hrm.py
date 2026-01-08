@@ -1,7 +1,6 @@
 from typing import List
 
-from metta.agent.components.action import ActionEmbeddingConfig
-from metta.agent.components.actor import ActionProbsConfig, ActorKeyConfig, ActorQueryConfig
+from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.components.hrm import HRMReasoningConfig
 from metta.agent.components.misc import MLPConfig
@@ -67,19 +66,15 @@ class HRMPolicyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden",
-            out_key="actor_query",
-            hidden_size=_actor_hidden,
-            embed_dim=_embedding_dim,
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
         ),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embedding_dim,
-        ),
+        ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")
@@ -141,19 +136,15 @@ class HRMTinyConfig(PolicyArchitecture):
             out_features=1,
             hidden_features=[_critic_hidden],
         ),
-        ActionEmbeddingConfig(out_key="action_embedding", embedding_dim=_embedding_dim),
-        ActorQueryConfig(
-            in_key="actor_hidden",
-            out_key="actor_query",
-            hidden_size=_actor_hidden,
-            embed_dim=_embedding_dim,
+        MLPConfig(
+            in_key="core",
+            out_key="h_values",
+            name="gtd_aux",
+            in_features=_embed_dim,
+            out_features=1,
+            hidden_features=[_critic_hidden],
         ),
-        ActorKeyConfig(
-            query_key="actor_query",
-            embedding_key="action_embedding",
-            out_key="logits",
-            embed_dim=_embedding_dim,
-        ),
+        ActorHeadConfig(in_key="actor_hidden", out_key="logits", input_dim=_actor_hidden),
     ]
 
     action_probs_config: ActionProbsConfig = ActionProbsConfig(in_key="logits")

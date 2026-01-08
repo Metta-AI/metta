@@ -1,1 +1,1 @@
-# Scenes tests package
+# Scene-specific map generation tests.

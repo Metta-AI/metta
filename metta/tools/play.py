@@ -1,192 +1,127 @@
 """Interactive play tool for Metta simulations."""
 
 import logging
-from types import SimpleNamespace
+import uuid
 from typing import Optional
 
-import numpy as np
 import torch
+from pydantic import model_validator
 from rich.console import Console
 
-from metta.agent.utils import obs_to_td
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.training.training_environment import GameRules
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.utils.auto_config import auto_wandb_config
-from mettagrid import MettaGridEnv, RenderMode, dtype_actions
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.random_agent import RandomMultiAgentPolicy
+from mettagrid.renderer.renderer import RenderMode
+from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
-DIRECTION_ACTION_NAMES: dict[int, str] = {
-    0: "move_north",
-    1: "move_south",
-    2: "move_west",
-    3: "move_east",
-    4: "move_northwest",
-    5: "move_northeast",
-    6: "move_southwest",
-    7: "move_southeast",
-}
-
-
-def _flatten_action_request(
-    action_request: SimpleNamespace,
-    *,
-    total_actions: int,
-    noop_action_id: int,
-    move_action_lookup: dict[int, int],
-) -> int:
-    """Translate a MettaScope ActionRequest into a flattened action index."""
-
-    raw_action_id = int(getattr(action_request, "action_id", -1))
-    if 0 <= raw_action_id < total_actions:
-        return raw_action_id
-
-    argument_value = getattr(action_request, "argument", None)
-    if argument_value is not None:
-        orientation_idx = int(argument_value)
-        flattened_move = move_action_lookup.get(orientation_idx)
-        if flattened_move is not None:
-            return flattened_move
-
-    logger.debug(
-        "Received unrecognized manual action; defaulting to noop",
-        extra={
-            "action_id": raw_action_id,
-            "argument": getattr(action_request, "argument", None),
-        },
-    )
-    return noop_action_id
-
 
 class PlayTool(Tool):
-    """Interactive play tool for Metta simulations using MettaScope2."""
+    """Interactive play tool for Metta simulations using Rollout.
+
+    This tool creates an interactive play session where agents act using either
+    a specified policy or random actions. The simulation is rendered according
+    to the specified render mode (gui, unicode, log, or none).
+    """
 
     wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
-    policy_uri: str | None = None
-    replay_dir: str | None = None
-    stats_dir: str | None = None
+
+    policy_uri: str | None = None  # Deprecated, use policy_version_id or s3_path instead
+    s3_path: str | None = None
+    policy_version_id: str | None = None
+
     open_browser_on_start: bool = True
     max_steps: Optional[int] = None
     seed: int = 42
     render: RenderMode = "gui"
+    stats_server_uri: str | None = auto_stats_server_uri()
 
-    @property
-    def effective_replay_dir(self) -> str:
-        """Return configured replay directory or default under system data_dir."""
-        if self.replay_dir is not None:
-            return self.replay_dir
-        return str(self.system.data_dir / "replays")
-
-    @property
-    def effective_stats_dir(self) -> str:
-        """Return configured stats directory or default under system data_dir."""
-        if self.stats_dir is not None:
-            return self.stats_dir
-        return str(self.system.data_dir / "stats")
+    @model_validator(mode="after")
+    def validate(self) -> "PlayTool":
+        if len([x for x in [self.policy_uri, self.policy_version_id, self.s3_path] if x is not None]) > 1:
+            raise ValueError("Only one of policy_uri, policy_version_id, or s3_path can be specified")
+        return self
 
     def invoke(self, args: dict[str, str]) -> int | None:
         """Run an interactive play session with the configured simulation."""
 
         console = Console()
-        device = torch.device(self.system.device)
+        device = torch.device("cpu")
 
-        # Create environment directly with render mode
-        env = MettaGridEnv(env_cfg=self.sim.env, render_mode=self.render)
+        # Get environment config
+        env_cfg = self.sim.env
+        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
 
-        # Load policy if provided, otherwise use mock agent (random actions)
-        if self.policy_uri:
-            logger.info(f"Loading policy from {self.policy_uri}")
-            game_rules = GameRules(
-                obs_width=env.obs_width,
-                obs_height=env.obs_height,
-                obs_features=env.observation_features,
-                action_names=env.action_names,
-                num_agents=env.num_agents,
-                observation_space=env.observation_space,
-                action_space=env.single_action_space,
-                feature_normalizations=env.feature_normalizations,
+        # Set max_steps in config if specified
+        if self.max_steps is not None:
+            env_cfg.game.max_steps = self.max_steps
+
+        s3_path: str | None = self.s3_path
+        if self.policy_version_id:
+            if not self.stats_server_uri:
+                raise ValueError("stats_server_uri is required")
+            if s3_path:
+                raise ValueError("s3_path and policy_version_id cannot be specified together")
+            stats_client = StatsClient.create(self.stats_server_uri)
+            policy_version = stats_client.get_policy_version(uuid.UUID(self.policy_version_id))
+            s3_path = policy_version.s3_path
+            if not s3_path:
+                raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
+
+        agent_policies: list[MultiAgentPolicy] = []
+        if s3_path:
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True),
             )
-            policy = CheckpointManager.load_from_uri(self.policy_uri, game_rules, device)
-
-            # Initialize policy to environment
-            policy.eval()
-            policy.initialize_to_environment(game_rules, device)
+            agent_policies.append(policy)
+            logger.info("Loaded policy from s3 path")
+        elif self.policy_uri:
+            logger.info(f"Loading policy from URI: {self.policy_uri}")
+            policy = initialize_or_load_policy(
+                policy_env_info,
+                policy_spec_from_uri(self.policy_uri, device=str(device)),
+                device_override=str(device),
+            )
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(policy_env_info, device)
+            if hasattr(policy, "eval"):
+                policy.eval()
+            agent_policies.append(policy)
+            logger.info("Loaded policy from deprecated-format policy uri")
         else:
-            logger.info("No policy specified, using random actions")
-            policy = None
+            # Fall back to random policies only when no policy was configured explicitly.
+            agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
 
-        # Build action lookup tables
-        action_lookup = {name: idx for idx, name in enumerate(env.action_names)}
-        noop_action_id = action_lookup.get("noop", 0)
-        move_action_lookup = {
-            orientation: action_lookup[name]
-            for orientation, name in DIRECTION_ACTION_NAMES.items()
-            if name in action_lookup
-        }
+        rollout_result = multi_episode_rollout(
+            env_cfg=env_cfg,
+            policies=agent_policies,
+            episodes=1,
+            seed=self.seed,
+            render_mode=self.render,
+            max_action_time_ms=10000,
+        )
+        episode = rollout_result.episodes[0]
 
-        # Reset environment
-        obs, _ = env.reset(seed=self.seed)
-
-        # Initialize game state
-        step_count = 0
-        num_agents = env.num_agents
-        actions = np.zeros(num_agents, dtype=dtype_actions)
-        total_rewards = np.zeros(num_agents)
-
-        # Main game loop
-        while self.max_steps is None or step_count < self.max_steps:
-            # Check if renderer wants to continue (e.g., user quit or interactive loop finished)
-            if not env._renderer.should_continue():
-                break
-
-            # Render the environment (handles display and user input)
-            env.render()
-
-            # Get user actions from renderer (if any)
-            user_actions = env._renderer.get_user_actions()
-
-            # Get actions - use user input if available, otherwise use policy
-            for agent_id in range(num_agents):
-                if agent_id in user_actions:
-                    # User provided action for this agent
-                    action_id, action_param = user_actions[agent_id]
-                    # Flatten the action using the helper function
-                    actions[agent_id] = _flatten_action_request(
-                        SimpleNamespace(action_id=action_id, argument=action_param),
-                        total_actions=len(env.action_names),
-                        noop_action_id=noop_action_id,
-                        move_action_lookup=move_action_lookup,
-                    )
-                else:
-                    # Use policy action
-                    if policy is not None:
-                        # Convert single agent observation to TensorDict and get action
-                        agent_obs = obs[agent_id : agent_id + 1]  # Keep dimension
-                        td = obs_to_td(agent_obs, device)
-                        policy(td)
-                        actions[agent_id] = td["actions"][0].item()
-                    else:
-                        # Random action if no policy
-                        actions[agent_id] = np.random.randint(0, len(env.action_names))
-
-            # Step the environment
-            obs, rewards, dones, truncated, _ = env.step(actions)
-
-            # Update total rewards
-            total_rewards += rewards
-            step_count += 1
-
-            if all(dones) or all(truncated):
-                break
+        # Run the rollout
+        logger.info("Starting interactive play session")
+        console.print(f"[cyan]Running simulation with {env_cfg.game.num_agents} agents[/cyan]")
+        console.print(f"[cyan]Render mode: {self.render}[/cyan]")
+        console.print(f"[cyan]Max steps: {env_cfg.game.max_steps}[/cyan]")
 
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
-        console.print(f"Steps: {step_count}")
-        console.print(f"Total Rewards: {total_rewards}")
-        console.print(f"Final Reward Sum: {float(sum(total_rewards)):.2f}")
+        console.print(f"Steps: {episode.steps}")
+        console.print(f"Total Rewards: {episode.rewards}")
+        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
 
         return None

@@ -2,10 +2,13 @@ import functools
 import logging
 import os
 import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 
 import rich.traceback
+from pydantic.warnings import UnsupportedFieldAttributeWarning
+from rich.console import Console
 from rich.logging import RichHandler
 
 from metta.common.util.constants import RANK_ENV_VARS
@@ -32,31 +35,6 @@ class RankAwareLogger(logging.Logger):
         if self._is_master is None:
             self._is_master = (get_node_rank() or "0") == "0"
         return self._is_master
-
-    def debug_master(self, msg, *args, **kwargs):
-        """Log debug message only on master (rank 0)."""
-        if self.is_master:
-            self.debug(msg, *args, **kwargs)
-
-    def info_master(self, msg, *args, **kwargs):
-        """Log info message only on master (rank 0)."""
-        if self.is_master:
-            self.info(msg, *args, **kwargs)
-
-    def warning_master(self, msg, *args, **kwargs):
-        """Log warning message only on master (rank 0)."""
-        if self.is_master:
-            self.warning(msg, *args, **kwargs)
-
-    def error_master(self, msg, *args, **kwargs):
-        """Log error message only on master (rank 0)."""
-        if self.is_master:
-            self.error(msg, *args, **kwargs)
-
-    def critical_master(self, msg, *args, **kwargs):
-        """Log critical message only on master (rank 0)."""
-        if self.is_master:
-            self.critical(msg, *args, **kwargs)
 
 
 def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
@@ -201,12 +179,7 @@ def _init_console_logging() -> None:
     # Set default level
     root_logger.setLevel(os.environ.get("LOG_LEVEL", "INFO").upper())
 
-    # set env COLUMNS if we are in a batch job
-    if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
-        os.environ["COLUMNS"] = "200"
-
     rich.traceback.install(show_locals=False)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 # Safe to be called repeatedly, but if it is called with different run_dirs, it will add multiple file output handlers
@@ -217,3 +190,52 @@ def init_logging(run_dir: Path | None = None) -> None:
 
     # Do not log anything from here as it will interfere with scripts that return data on cli
     # e.g. calling constants.py will print a log statement and we won't be able to parse the expected value
+
+
+@functools.cache
+def get_console() -> Console:
+    # Good practice to use a global console instance by default
+    return Console()
+
+
+def should_use_rich_console() -> bool:
+    """Determine if rich console output is appropriate based on terminal context."""
+    if os.environ.get("DISABLE_RICH_LOGGING", "").lower() in ("1", "true", "yes"):
+        return False
+
+    if any(os.environ.get(var) for var in ["SLURM_JOB_ID", "PBS_JOBID", "WANDB_RUN_ID", "SKYPILOT_TASK_ID"]):
+        return False
+
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def suppress_noisy_logs() -> None:
+    warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning, module="pydantic")
+    # Suppress deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
+
+    # Silence PyTorch distributed elastic warning about redirects on MacOS/Windows
+    logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+    warnings.filterwarnings(
+        "ignore",
+        message=r".*Redirects are currently not supported in Windows or MacOs.*",
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+    # Silence ddtrace CI Visibility spam
+    logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+    # Silence AWS SDK credential/token loading noise
+    logging.getLogger("botocore.tokens").setLevel(logging.WARNING)
+    logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
+
+
+def init_mettagrid_system_environment() -> None:
+    """Initialize environment variables for headless operation."""
+    os.environ.setdefault("GLFW_PLATFORM", "osmesa")  # Use OSMesa as the GLFW backend
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("MPLBACKEND", "Agg")
+    os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+    os.environ.setdefault("DISPLAY", "")

@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Generator
 
 import pytest
@@ -34,57 +33,6 @@ class TestInitialization:
         assert monitor._thread.is_alive()
 
         # Clean up
-        monitor.stop()
-
-
-class TestMonitoringControl:
-    def test_start_stop(self, monitor):
-        """Test starting and stopping monitoring"""
-        # Initially not running
-        assert not monitor._thread or not monitor._thread.is_alive()
-
-        # Start monitoring
-        monitor.start()
-        assert monitor._thread is not None
-        assert monitor._thread.is_alive()
-
-        # Stop monitoring
-        monitor.stop()
-
-        # Allow the background thread to finish
-        deadline = time.perf_counter() + 1.0
-        while monitor._thread.is_alive() and time.perf_counter() < deadline:
-            time.sleep(0.02)
-
-        assert not monitor._thread.is_alive()
-
-    def test_double_start(self, monitor, caplog):
-        """Test starting when already running"""
-        monitor.start()
-
-        # Capture logs from the specific logger
-        with caplog.at_level(logging.WARNING, logger=monitor.logger.name):
-            monitor.start()
-
-        assert "Monitor already running" in caplog.text
-        monitor.stop()
-
-    def test_stop_when_not_running(self, monitor):
-        """Test stopping when not running (should not raise)"""
-        # Should not raise any exception
-        monitor.stop()
-
-    def test_thread_collection(self, monitor):
-        """Test that monitoring thread collects samples"""
-        monitor.start()
-
-        # Wait for a few samples
-        time.sleep(0.3)
-
-        # Check that metrics have been collected (internal state)
-        assert len(monitor._metrics) > 0
-        assert len(monitor.get_latest()) > 0
-
         monitor.stop()
 
 

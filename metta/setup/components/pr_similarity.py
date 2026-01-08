@@ -1,19 +1,19 @@
 from __future__ import annotations
 
+import json
 import shutil
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.saved_settings import get_saved_settings
+from metta.setup.saved_settings import UserType, get_saved_settings
 from metta.setup.utils import debug, info, warning
 from metta.tools.pr_similarity import DEFAULT_CACHE_PATH, resolve_cache_paths
+from softmax.aws.secrets_manager import get_secretsmanager_secret
 
 
 def _resolve_cache_paths(repo_root: Path) -> tuple[Path, Path]:
@@ -32,38 +32,19 @@ class PrSimilaritySetup(SetupModule):
         return "Configure PR similarity MCP server (Codex & Claude)"
 
     def dependencies(self) -> list[str]:
-        return ["core", "aws"]
+        return ["uv", "aws"]
 
     def check_installed(self) -> bool:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
         return meta_path.exists() and vectors_path.exists() and shutil.which("metta-pr-similarity-mcp") is not None
 
     def install(self, non_interactive: bool = False, force: bool = False) -> None:
-        api_key = self._fetch_gemini_api_key()
+        api_key = get_secretsmanager_secret("GEMINI-API-KEY", require_exists=False)
 
         self._ensure_cache(force)
-        self._install_mcp_package(force)
         self._configure_claude(api_key=api_key, force=force)
         self._configure_codex(api_key=api_key)
-
-    def _fetch_gemini_api_key(self) -> Optional[str]:
-        secret_name = "GEMINI-API-KEY"
-        region = "us-east-1"
-
-        try:
-            client = boto3.session.Session().client("secretsmanager", region_name=region)
-            raw_secret = client.get_secret_value(SecretId=secret_name)["SecretString"]
-        except (BotoCoreError, ClientError, KeyError) as error:
-            warning(
-                f"Unable to read AWS Secrets Manager secret '{secret_name}' (region {region}): {error}",
-            )
-            return None
-
-        api_key = raw_secret.strip()
-        if not api_key:
-            warning(f"Secret '{secret_name}' did not contain a usable GEMINI API key.")
-            return None
-        return api_key
+        self._configure_cursor(api_key=api_key)
 
     def _ensure_cache(self, force: bool) -> None:
         meta_path, vectors_path = _resolve_cache_paths(self.repo_root)
@@ -93,27 +74,6 @@ class PrSimilaritySetup(SetupModule):
         except Exception as error:  # pragma: no cover - external dependency
             warning(f"Unable to download PR similarity cache: {error}")
 
-    def _install_mcp_package(self, force: bool) -> None:
-        if shutil.which("metta-pr-similarity-mcp") and not force:
-            return
-
-        package_path = self.repo_root / "mcp_servers" / "pr_similarity"
-        python_executable = Path(sys.executable)
-        try:
-            command = [
-                "uv",
-                "pip",
-                "install",
-                "--python",
-                str(python_executable),
-                "-e",
-                str(package_path),
-            ]
-            self.run_command(command, capture_output=False)
-            info("Installed metta-pr-similarity MCP package.")
-        except Exception as error:  # pragma: no cover - external dependency
-            warning(f"Failed to install metta-pr-similarity package: {error}")
-
     def _configure_claude(self, *, api_key: Optional[str], force: bool) -> None:
         if shutil.which("claude") is None:
             debug("Claude CLI not found on PATH. Skipping Claude MCP configuration.")
@@ -123,7 +83,7 @@ class PrSimilaritySetup(SetupModule):
             warning("metta-pr-similarity-mcp is not available on PATH; skipping Claude MCP registration.")
             return
 
-        from metta.setup.saved_settings import UserType
+        # Keep local import: slow loading (~1000ms)
         from metta.tools.pr_similarity import API_KEY_ENV
 
         saved_settings = get_saved_settings()
@@ -210,3 +170,81 @@ class PrSimilaritySetup(SetupModule):
             warning(
                 f"Failed to configure Codex MCP server 'metta-pr-similarity'. {error}",
             )
+
+    def _configure_cursor(self, *, api_key: Optional[str]) -> None:
+        if not api_key:
+            warning("Skipping Cursor MCP registration: no GEMINI API key available from Secrets Manager.")
+            return
+
+        command_path = shutil.which("metta-pr-similarity-mcp")
+        if not command_path:
+            warning(
+                "Unable to locate 'metta-pr-similarity-mcp' on PATH. "
+                "Install the MCP package before configuring Cursor.",
+            )
+            return
+
+        cursor_root = Path.home() / ".cursor"
+        if not cursor_root.exists():
+            debug("Cursor directory not found. Skipping Cursor MCP configuration.")
+            return
+        config_path = cursor_root / "mcp.json"
+
+        raw_config = ""
+        if config_path.exists():
+            try:
+                raw_config = config_path.read_text(encoding="utf-8")
+            except Exception as error:
+                warning(f"Unable to read Cursor MCP configuration: {error}")
+                return
+
+        config_data: dict[str, Any] = {}
+        if raw_config.strip():
+            try:
+                parsed = json.loads(raw_config)
+            except json.JSONDecodeError as error:
+                warning(f"Cursor MCP configuration is not valid JSON: {error}")
+                return
+            if isinstance(parsed, dict):
+                config_data = parsed
+            else:
+                warning("Cursor MCP configuration has unexpected structure; leaving it unchanged.")
+                return
+
+        servers = config_data.get("mcpServers")
+        if not isinstance(servers, dict):
+            servers = {}
+        config_data["mcpServers"] = servers
+
+        existing_entry = servers.get("metta-pr-similarity")
+        entry: dict[str, Any]
+        if isinstance(existing_entry, dict):
+            entry = dict(existing_entry)
+        else:
+            entry = {}
+
+        entry["command"] = command_path
+        entry["type"] = "stdio"
+        entry["name"] = "metta-pr-similarity"
+        entry["alwaysAllow"] = True
+        args = entry.get("args")
+        if not isinstance(args, list):
+            args = []
+        entry["args"] = args
+
+        env: dict[str, str]
+        existing_env = entry.get("env")
+        if isinstance(existing_env, dict):
+            env = {str(key): str(value) for key, value in existing_env.items()}
+        else:
+            env = {}
+        env["GEMINI_API_KEY"] = api_key
+        entry["env"] = env
+
+        servers["metta-pr-similarity"] = entry
+
+        try:
+            config_path.write_text(json.dumps(config_data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            info("Configured Cursor MCP server 'metta-pr-similarity'.")
+        except Exception as error:
+            warning(f"Failed to write Cursor MCP configuration: {error}")

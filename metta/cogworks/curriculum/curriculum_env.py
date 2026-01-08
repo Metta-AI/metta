@@ -64,11 +64,22 @@ class CurriculumEnv(PufferEnv):
 
     def reset(self, *args, **kwargs):
         """Reset the environment and get a new task from curriculum."""
-        obs, info = self._env.reset(*args, **kwargs)
-
-        # Get a new task from curriculum
-        self._current_task = self._curriculum.get_task()
-        self._env.set_mg_config(self._current_task.get_env_cfg())
+        # Try to get a valid task and build the map
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                # Get a new task from curriculum
+                self._current_task = self._curriculum.get_task()
+                # Create the env config and build the map in try-catch
+                self._env.set_mg_config(self._current_task.get_env_cfg())
+                obs, info = self._env.reset(*args, **kwargs)
+                break
+            except Exception:
+                # If config is invalid or map building fails, request a new task
+                if attempt == max_retries - 1:
+                    raise
+                # Otherwise, try again with a new task
+                continue
 
         # Invalidate stats cache on reset
         self._stats_cache_valid = False
@@ -96,15 +107,37 @@ class CurriculumEnv(PufferEnv):
             self._current_task.complete(mean_reward)
             # Update the curriculum algorithm with task performance for learning progress
             self._curriculum.update_task_performance(self._current_task._task_id, mean_reward)
-            self._current_task = self._curriculum.get_task()
-            self._env.set_mg_config(self._current_task.get_env_cfg())
+
+            # Try to get a valid task and build the map
+            max_retries = 10
+            for attempt in range(max_retries):
+                try:
+                    self._current_task = self._curriculum.get_task()
+                    # Create the env config and build the map in try-catch
+                    self._env.set_mg_config(self._current_task.get_env_cfg())
+                    break
+                except Exception:
+                    # If config is invalid or map building fails, return 0 reward and request a new task
+                    if attempt == max_retries - 1:
+                        # If we've exhausted retries, set rewards to 0 and continue
+                        rewards = rewards * 0
+                        break
+                    # Otherwise, try again with a new task
+                    continue
 
             # Invalidate stats cache when task changes
             self._stats_cache_valid = False
 
         # Add curriculum stats to info for logging (batched)
         self._stats_update_counter += 1
-        self._add_curriculum_stats_to_info(infos)
+        if isinstance(infos, dict):
+            self._add_curriculum_stats_to_info(infos)
+        elif isinstance(infos, list):
+            # If infos is a list, add stats to the first dict (typically all dicts are the same)
+            for info in infos:
+                if isinstance(info, dict):
+                    self._add_curriculum_stats_to_info(info)
+                    break
 
         return obs, rewards, terminals, truncations, infos
 

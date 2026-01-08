@@ -3,6 +3,7 @@ FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
 ENV READTHEDOCS=True
+ENV UV_LINK_MODE=copy
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -12,49 +13,44 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bazel for mettagrid build
-RUN curl -L https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -o /usr/local/bin/bazel \
-    && chmod +x /usr/local/bin/bazel
-
-RUN mkdir -p /workspace/metta
 WORKDIR /workspace/metta
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 
 COPY .python-version pyproject.toml uv.lock ./
-RUN uv python install
 
-# Install any missing system deps
-COPY devops/tools/install-system.sh /usr/local/bin/install-system.sh
-RUN chmod +x /usr/local/bin/install-system.sh
-RUN /usr/local/bin/install-system.sh
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  uv python install
+
+# Install bootstrap dependencies (bazel, nimby, nim, git, g++) BEFORE uv sync
+# This ensures uv sync can build packages like mettagrid that require these tools
+# Copy bootstrap script to /tmp to avoid importing from metta package structure
+COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
+# Required so bootstrap.py can find the correct versions
+COPY .bazelversion .bazeliskversion /
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  cd /tmp && uv run --no-sync python bootstrap.py --non-interactive
 
 COPY packages/mettagrid/pyproject.toml packages/mettagrid/
 COPY app_backend/pyproject.toml app_backend/
 COPY common/pyproject.toml common/
 COPY agent/pyproject.toml agent/
-COPY experiments/pyproject.toml experiments/
 
-RUN uv sync --no-install-workspace --frozen
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  uv sync --no-install-workspace --frozen
 
 COPY . .
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
-# When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
-# Make sure the remote is configured for anonymous access
-RUN git config --remove-section http."https://github.com/" || true
-RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
 RUN git config --global checkout.defaultRemote origin \
     && git config --global branch.autoSetupMerge simple
-
-# Doesn't do anything but guarantees that the remote is configured for anonymous access
-RUN git fetch
 
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
-RUN uv sync --locked
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]

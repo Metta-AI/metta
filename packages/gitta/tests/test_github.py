@@ -119,19 +119,25 @@ class TestGitHubAPI:
         assert "Authorization" in call_args[1]["headers"]
         assert "token test_token" in call_args[1]["headers"]["Authorization"]
 
-    def test_post_commit_status_no_token(self):
+    @patch("httpx.post")
+    def test_post_commit_status_no_token(self, mock_post):
         """Test that post_commit_status fails without token."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError) as exc_info:
                 post_commit_status("abc123", "success", "Metta-AI/metta")
-            assert "token not provided" in str(exc_info.value).lower()
+            assert "secret not found" in str(exc_info.value).lower()
+        # Should not have made any HTTP calls
+        mock_post.assert_not_called()
 
-    def test_post_commit_status_no_repo(self):
+    @patch("httpx.post")
+    def test_post_commit_status_no_repo(self, mock_post):
         """Test that post_commit_status fails without repo."""
         with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}):
             with pytest.raises(ValueError) as exc_info:
                 post_commit_status("abc123", "success", "")
             assert "repository must be provided" in str(exc_info.value).lower()
+        # Should not have made any HTTP calls
+        mock_post.assert_not_called()
 
     @patch("httpx.post")
     def test_create_pr_success(self, mock_post):
@@ -177,12 +183,15 @@ class TestGitHubAPI:
         call_args = mock_post.call_args
         assert call_args[1]["json"]["draft"] is True
 
-    def test_create_pr_no_token(self):
+    @patch("httpx.post")
+    def test_create_pr_no_token(self, mock_post):
         """Test that create_pr fails without token."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError) as exc_info:
                 create_pr(repo="Metta-AI/metta", title="Test", body="Test", head="feature", base="main")
-            assert "token not provided" in str(exc_info.value).lower()
+            assert "secret not found" in str(exc_info.value).lower()
+        # Should not have made any HTTP calls
+        mock_post.assert_not_called()
 
     @patch("httpx.post")
     def test_create_pr_api_error(self, mock_post):

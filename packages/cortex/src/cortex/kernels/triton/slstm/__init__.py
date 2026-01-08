@@ -1,46 +1,30 @@
-"""Triton SLSTM kernel implementation."""
+"""Triton sLSTM kernels package exports."""
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Optional
 
 import torch as pt
-
-from cortex.kernels.triton.slstm.torch import slstm_tr_fwbw
+from cortex.kernels.triton.slstm.torch.fwbw import slstm_tr_fwbw
 
 
 def slstm_sequence_triton(
     *,
-    Wx: pt.Tensor,  # (B, T, 4, NH, DH) feed-forward preactivations (i, f, z, o)
-    R: pt.Tensor,  # (4, NH, DH, DH) recurrent weights per gate
-    b: pt.Tensor,  # (4, NH, DH) bias per gate
-    initial_states: pt.Tensor,  # (4, B, NH, DH) states (h, c, n, m)
-    resets: pt.Tensor | None = None,  # (B, T) reset mask applied before each timestep
-    autocast_kernel_dtype: str | None = None,
-) -> Tuple[pt.Tensor, pt.Tensor]:
-    """Run sLSTM sequence using Triton kernel.
-
-    Args:
-        Wx: (B, T, 4, NH, DH) feed-forward preactivations in order (i, f, z, o)
-        R: (4, NH, DH, DH) recurrent weights per gate in order (i, f, z, o)
-        b: (4, NH, DH) bias per gate in order (i, f, z, o)
-        initial_states: (4, B, NH, DH) states (h, c, n, m)
-        resets: (B, T) reset mask, optional. When provided, states are zeroed for
-            entries where resets[:, t] is True prior to processing timestep t.
-        autocast_kernel_dtype: dtype for kernel computation
-
-    Returns:
-        all_states: (T, 4, B, NH, DH)
-        last_state: (4, B, NH, DH)
-    """
-    assert Wx.dim() == 5 and Wx.shape[2] == 4, f"Wx must be (B,T,4,NH,DH), got {Wx.shape}"
-    assert R.shape[0] == 4, f"R must be (4,NH,DH,DH), got {R.shape}"
-    assert b.shape[0] == 4, f"b must be (4,NH,DH), got {b.shape}"
-    assert initial_states.shape[0] == 4, f"initial_states must be (4,B,NH,DH), got {initial_states.shape}"
-
-    # Force fp32 compute inside the Triton kernels unless explicitly overridden
-    if autocast_kernel_dtype is None:
+    Wx: pt.Tensor,  # (B, T, NGI=4, NH, DH)
+    R: pt.Tensor,  # (NGR=4, NH, DH, DH)
+    b: pt.Tensor,  # (NGI=4, NH, DH)
+    initial_states: pt.Tensor,  # (NS=4, B, NH, DH)
+    resets: Optional[pt.Tensor] = None,  # (B, T)
+) -> tuple[pt.Tensor, pt.Tensor]:
+    autocast_kernel_dtype: str
+    if Wx.dtype == pt.float32:
         autocast_kernel_dtype = "float32"
+    elif Wx.dtype == pt.float16:
+        autocast_kernel_dtype = "float16"
+    elif Wx.dtype == pt.bfloat16:
+        autocast_kernel_dtype = "bfloat16"
+    else:
+        raise ValueError(f"Unsupported dtype for sLSTM Triton kernel: {Wx.dtype}")
 
     all_states, last_state = slstm_tr_fwbw(
         states_initial=initial_states,

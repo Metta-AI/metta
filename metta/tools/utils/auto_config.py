@@ -1,4 +1,5 @@
 import os
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -9,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from metta.common.util.collections import remove_falsey, remove_none_values
 from metta.common.util.constants import METTA_AWS_ACCOUNT_ID
 from metta.common.wandb.context import WandbConfig
+from metta.setup.components.aws import AwsConfigSettings
 from metta.setup.components.aws import AWSSetup as _AWSSetup
 from metta.setup.components.wandb import WandbSetup
 
@@ -90,6 +92,7 @@ supported_observatory_env_overrides = SupportedObservatoryEnvOverrides()
 
 
 def auto_stats_server_uri() -> str | None:
+    # Keep local import for slow-loading module (~500ms)
     from metta.setup.components.observatory_key import ObservatoryKeySetup
 
     return {
@@ -123,10 +126,13 @@ AWSSetup = _AWSSetup
 
 def auto_replay_dir() -> str:
     aws_setup_module = AWSSetup()
-    return {
-        **aws_setup_module.to_config_settings(),  # type: ignore
-        **supported_aws_env_overrides.to_config_settings(),
-    }.get("replay_dir")
+    if supported_aws_env_overrides.REPLAY_DIR is not None:
+        return supported_aws_env_overrides.REPLAY_DIR
+    default_settings: AwsConfigSettings = aws_setup_module.to_config_settings()  # type: ignore
+    replay_dir_base = default_settings["replay_dir"]
+    if not replay_dir_base:
+        raise ValueError("No default replay directory found")
+    return os.path.join(replay_dir_base, str(uuid.uuid4()))
 
 
 def _join_prefix(prefix: str, run: str | None) -> str:
@@ -154,10 +160,8 @@ class PolicyStorageDecision:
 
 
 def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecision:
-    overrides = supported_aws_env_overrides.to_config_settings()
-    override_prefix = overrides.get("policy_remote_prefix")
-    if isinstance(override_prefix, str) and override_prefix:
-        cleaned = override_prefix.rstrip("/")
+    if supported_aws_env_overrides.POLICY_REMOTE_PREFIX is not None:
+        cleaned = supported_aws_env_overrides.POLICY_REMOTE_PREFIX.rstrip("/")
         remote = _join_prefix(cleaned, run) if run else None
         return PolicyStorageDecision(base_prefix=cleaned, remote_prefix=remote, reason="env_override")
 
@@ -165,8 +169,8 @@ def auto_policy_storage_decision(run: str | None = None) -> PolicyStorageDecisio
     if not aws_setup_module.is_enabled():
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="aws_not_enabled")
 
-    aws_settings = aws_setup_module.to_config_settings()  # type: ignore[arg-type]
-    base_prefix = aws_settings.get("policy_remote_prefix")
+    aws_settings: AwsConfigSettings = aws_setup_module.to_config_settings()  # type: ignore
+    base_prefix = aws_settings["policy_remote_prefix"]
     if not isinstance(base_prefix, str) or not base_prefix:
         return PolicyStorageDecision(base_prefix=None, remote_prefix=None, reason="no_base_prefix")
     cleaned_base = base_prefix.rstrip("/")

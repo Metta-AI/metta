@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 def get_current_branch() -> str:
     """Get the current git branch name."""
     try:
-        return run_git("symbolic-ref", "--short", "HEAD")
+        return run_git(
+            "symbolic-ref",
+            "--short",
+            "HEAD",
+        )
     except GitError as e:
         if "HEAD is not a symbolic ref" in str(e):
             return get_current_commit()
@@ -56,30 +60,39 @@ def get_commit_message(commit_hash: str) -> str:
     return _get_commit_message_cached(resolved_hash)
 
 
-def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
-    """Returns if there are any unstaged changes in the local git checkout.
+def get_uncommitted_files_and_statuses() -> list[tuple[str, str]]:
+    """
+    Returns a list of (status code, fname).
 
-    If allow_untracked is True, then unstaged changes in the form of new untracked files will be ignored.
+    Status codes (first char is staged status, second char is working tree status):
+    MM: Modified in index, modified in working tree.
+    `M `: Modified in index, not modified in working tree.
+    M: Not modified in index, modified in working tree (unstaged changes).
+    `A `: Added to index, not modified in working tree.
+    D: Deleted in working tree (unstaged deletion).
+    ??: Untracked file.
+    `R `: Renamed in index.
+    UU: Unmerged (both modified).
+    AU: Added to index, unmerged in working tree.
+    UD: Unmerged in index, deleted in working tree.
+    """
+    return [(line[:2], line[3:]) for line in run_git("status", "--porcelain").splitlines() if line.strip()]
+
+
+def has_uncommitted_changes(allow_untracked: bool = False) -> tuple[bool, str]:
+    """Returns if there are any uncommitted changes in the local git checkout.
+
+    If allow_untracked is True, then untracked files will be ignored.
 
     Interpretation of porcelain codes:
     - Lines starting with '??' indicate untracked files
     - Any other status lines indicate changes to tracked files
     """
-    status_output = run_git("status", "--porcelain")
-    if not allow_untracked:
-        return bool(status_output), status_output
-
-    is_dirty_tracked = False
-    for line in status_output.splitlines():
-        if not line.strip():
-            continue
-        if line.startswith("??"):
-            # untracked file, ignore
-            continue
-        # any other status code refers to tracked file state change
-        is_dirty_tracked = True
-        break
-    return is_dirty_tracked, status_output
+    files_by_status = get_uncommitted_files_and_statuses()
+    statuses = set(status for status, _ in files_by_status)
+    if allow_untracked:
+        statuses.discard("??")
+    return bool(statuses), "\n".join(f"{status} {fname}" for status, fname in files_by_status)
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
@@ -163,10 +176,6 @@ def https_remote_url(url: str) -> str:
 
     # Return as-is for non-GitHub URLs
     return url
-
-
-# Prefer ``https_remote_url``; keep ``canonical_remote_url`` for backwards compatibility.
-canonical_remote_url = https_remote_url
 
 
 def get_remote_url(remote: str = "origin") -> str | None:
@@ -354,7 +363,7 @@ def validate_commit_state(
 
     # Check for uncommitted changes
     if require_clean:
-        has_changes, status_output = has_unstaged_changes(allow_untracked=allow_untracked)
+        has_changes, status_output = has_uncommitted_changes(allow_untracked=allow_untracked)
         if has_changes:
             raise GitError(
                 f"Working tree has uncommitted changes to tracked files:\n{status_output}\n"

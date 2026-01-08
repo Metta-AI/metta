@@ -52,6 +52,7 @@ def run_git_cmd(
     timeout: Optional[float] = None,
     env_overrides: Optional[Mapping[str, str]] = None,
     check: bool = True,
+    strip: bool = True,
 ) -> str:
     """
     Run a git command with consistent environment and error handling.
@@ -112,7 +113,7 @@ def run_git_cmd(
 
     # Handle errors
     if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        stderr = result.stderr.decode("utf-8", errors="replace")
 
         # Check for specific error conditions
         if "not a git repository" in stderr.lower():
@@ -132,12 +133,15 @@ def run_git_cmd(
         cmd_str = " ".join(shlex.quote(str(a)) for a in args)
         raise GitError(f"git {cmd_str} failed ({result.returncode}): {stderr}")
 
-    return result.stdout.decode("utf-8", errors="surrogateescape").strip()
+    res = result.stdout.decode("utf-8", errors="surrogateescape")
+    if strip:
+        return res.strip()
+    return res
 
 
-def run_git(*args: str) -> str:
+def run_git(*args: str, strip: bool = True, timeout: Optional[float] = None) -> str:
     """Run a git command and return its output."""
-    return run_git_cmd(list(args))
+    return run_git_cmd(list(args), strip=strip, timeout=timeout)
 
 
 def run_git_in_dir(dir: str | Path, *args: str) -> str:

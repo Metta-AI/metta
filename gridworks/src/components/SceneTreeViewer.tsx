@@ -5,7 +5,10 @@ import { SceneTree } from "@/lib/api";
 
 import { ConfigViewer } from "./ConfigViewer";
 
-const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
+const ParamsViewer: FC<{ params: Record<string, unknown>; time: number }> = ({
+  params,
+  time,
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (Object.keys(params).length === 0) return null;
@@ -24,7 +27,8 @@ const ParamsViewer: FC<{ params: Record<string, unknown> }> = ({ params }) => {
         >
           ▶
         </span>
-        Parameters ({Object.keys(params).length})
+        <span>Parameters ({Object.keys(params).length})</span>
+        <div className="text-gray-500">{time.toFixed(3)}s</div>
       </button>
       {isExpanded && <ConfigViewer value={params} />}
     </div>
@@ -36,7 +40,8 @@ const ChildrenViewer: FC<{
   isExpanded: boolean;
   onToggle: () => void;
   depth: number;
-}> = ({ childrenScenes, isExpanded, onToggle }) => {
+  time: number;
+}> = ({ childrenScenes, isExpanded, onToggle, depth, time }) => {
   if (childrenScenes.length === 0) return null;
 
   return (
@@ -53,7 +58,8 @@ const ChildrenViewer: FC<{
         >
           ▶
         </span>
-        Children ({childrenScenes.length})
+        <span>Children ({childrenScenes.length})</span>
+        <div className="text-gray-500">{time.toFixed(3)}s</div>
       </button>
     </div>
   );
@@ -131,7 +137,7 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
               <span className="truncate text-sm font-bold">
                 {sceneTree.config.type}
               </span>
-              <div className="flex flex-shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
+              <div className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
                 <span className="text-gray-600">
                   ({sceneTree.area.x}, {sceneTree.area.y})
                 </span>
@@ -141,13 +147,19 @@ const InnerSceneTreeViewer: FC<TreeProps> = ({ sceneTree, depth = 0 }) => {
                 </span>
               </div>
             </div>
-
-            <ParamsViewer params={sceneTree.config} />
+            <ParamsViewer
+              params={sceneTree.config}
+              time={sceneTree.render_end_time - sceneTree.render_start_time}
+            />
             <ChildrenViewer
               childrenScenes={sceneTree.children}
               isExpanded={isExpanded}
               onToggle={() => setIsExpanded(!isExpanded)}
               depth={depth}
+              time={
+                sceneTree.render_with_children_end_time -
+                sceneTree.render_end_time
+              }
             />
           </div>
         </div>

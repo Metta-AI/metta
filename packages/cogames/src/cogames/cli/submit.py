@@ -1,24 +1,40 @@
 """Policy submission command for CoGames."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import typer
 from rich.console import Console
 
 from cogames.cli.base import console
-from cogames.cli.login import DEFAULT_COGAMES_SERVER, CoGamesAuthenticator
+from cogames.cli.login import DEFAULT_COGAMES_SERVER
 from cogames.cli.policy import PolicySpec, get_policy_spec
 
+if TYPE_CHECKING:
+    from cogames.cli.client import TournamentServerClient
+
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
+
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
-DEFAULT_VALIDATION_MISSION = "vanilla"
-VALIDATION_EPISODES = 1
-VALIDATION_MAX_STEPS = 10
+
+
+@dataclass
+class UploadResult:
+    policy_version_id: uuid.UUID
+    name: str
+    version: int
 
 
 def validate_paths(paths: list[str], console: Console) -> list[Path]:
@@ -57,18 +73,27 @@ def validate_paths(paths: list[str], console: Console) -> list[Path]:
     return validated_paths
 
 
-def create_temp_validation_env(console: Console) -> Path:
+def get_latest_cogames_version() -> str:
+    """Get the latest published cogames version."""
+    response = httpx.get("https://pypi.org/pypi/cogames/json")
+    response.raise_for_status()
+    return response.json()["info"]["version"]
+
+
+def create_temp_validation_env() -> Path:
     """Create a temporary directory with a minimal pyproject.toml.
 
     The pyproject.toml depends on the latest published cogames package.
     """
     temp_dir = Path(tempfile.mkdtemp(prefix="cogames_submit_"))
 
-    pyproject_content = """[project]
+    latest_cogames_version = get_latest_cogames_version()
+
+    pyproject_content = f"""[project]
 name = "cogames-submission-validator"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["cogames"]
+dependencies = ["cogames=={latest_cogames_version}"]
 
 [build-system]
 requires = ["setuptools>=42"]
@@ -78,11 +103,10 @@ build-backend = "setuptools.build_meta"
     pyproject_path = temp_dir / "pyproject.toml"
     pyproject_path.write_text(pyproject_content)
 
-    console.print(f"[dim]Created validation environment: {temp_dir}[/dim]")
     return temp_dir
 
 
-def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console: Console) -> None:
+def copy_files_maintaining_structure(files: list[Path], dest_dir: Path) -> None:
     """Copy files to destination, maintaining directory structure.
 
     If a file is 'train_dir/model.pt', it will be copied to 'dest_dir/train_dir/model.pt'.
@@ -91,20 +115,40 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path, console:
         dest_path = dest_dir / file_path
 
         if file_path.is_dir():
-            # Copy entire directory
-            console.print(f"[dim]Copying directory: {file_path}[/dim]")
             shutil.copytree(file_path, dest_path, dirs_exist_ok=True)
         else:
-            # Copy single file
-            console.print(f"[dim]Copying file: {file_path}[/dim]")
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(file_path, dest_path)
+
+
+def validate_policy_spec(policy_spec: PolicySpec) -> None:
+    """Validate policy works.
+
+    Loads the policy and runs a single episode (up to 10 steps) using the same
+    multi_episode_rollout flow as `cogames eval`.
+    """
+    from cogames.cli.mission import get_mission
+    from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+
+    _, env_cfg, _ = get_mission("machina_1")
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
+    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+
+    # Run 1 episode for up to 10 steps to validate the policy works
+    env_cfg.game.max_steps = 10
+    multi_episode_rollout(
+        env_cfg=env_cfg,
+        policies=[policy],
+        episodes=1,
+        seed=42,
+    )
 
 
 def validate_policy_in_isolation(
     policy_spec: PolicySpec,
     include_files: list[Path],
     console: Console,
+    setup_script: str | None = None,
 ) -> bool:
     """Validate policy works in isolated environment.
 
@@ -113,278 +157,268 @@ def validate_policy_in_isolation(
 
     Returns True if validation succeeds, False otherwise.
     """
+
+    def _format_policy_arg(spec: PolicySpec) -> str:
+        parts = [f"class={spec.class_path}"]
+        if spec.data_path:
+            parts.append(f"data={spec.data_path}")
+        for key, value in spec.init_kwargs.items():
+            parts.append(f"kw.{key}={value}")
+        return ",".join(parts)
+
+    console.print("[dim]Testing policy can run 10 steps on machina_1...[/dim]")
+
     temp_dir = None
     try:
-        # Create temp validation environment
-        temp_dir = create_temp_validation_env(console)
+        temp_dir = create_temp_validation_env()
+        copy_files_maintaining_structure(include_files, temp_dir)
 
-        # Copy include files maintaining structure
-        console.print("[yellow]Copying files to validation environment...[/yellow]")
-        copy_files_maintaining_structure(include_files, temp_dir, console)
+        policy_arg = _format_policy_arg(policy_spec)
 
-        # Build cogames eval command
-        # Policy spec format: CLASS:DATA:PROPORTION
-        policy_arg = policy_spec.policy_class_path
-        if policy_spec.policy_data_path:
-            policy_arg += f":{policy_spec.policy_data_path}"
+        def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
+            env = os.environ.copy()
+            env["UV_NO_CACHE"] = "1"
+            res = subprocess.run(
+                cmd,
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                env=env,
+            )
+            if not res.returncode == 0:
+                console.print("[red]Validation failed[/red]")
+                console.print(f"\n[red]Error:[/red]\n{res.stderr}")
+                if res.stdout:
+                    console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
+                raise Exception("Validation failed")
+            return res
 
-        console.print(f"[yellow]Running validation with mission '{DEFAULT_VALIDATION_MISSION}'...[/yellow]")
+        _run_from_tmp_dir(["uv", "run", "cogames", "version"])
 
-        cmd = [
+        validate_cmd = [
             "uv",
             "run",
             "cogames",
-            "eval",
-            "--mission",
-            DEFAULT_VALIDATION_MISSION,
-            "--policy",
+            "validate-policy",
             policy_arg,
-            "--episodes",
-            str(VALIDATION_EPISODES),
         ]
+        if setup_script:
+            validate_cmd.extend(["--setup-script", setup_script])
 
-        # Run in temp directory
-        result = subprocess.run(
-            cmd,
-            cwd=temp_dir,
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minute timeout
-        )
+        _run_from_tmp_dir(validate_cmd)
 
-        if result.returncode != 0:
-            console.print("[red]✗ Validation failed![/red]")
-            console.print("\n[red]Error output:[/red]")
-            console.print(result.stderr)
-            if result.stdout:
-                console.print("\n[dim]Standard output:[/dim]")
-                console.print(result.stdout)
-            return False
-
-        console.print("[green]✓ Validation passed![/green]")
+        console.print("[green]Validation passed[/green]")
         return True
 
     except subprocess.TimeoutExpired:
-        console.print("[red]✗ Validation timed out after 5 minutes[/red]")
+        console.print("[red]Validation timed out after 5 minutes[/red]")
         return False
-    except Exception as e:
-        console.print(f"[red]✗ Validation error: {e}[/red]")
+    except Exception:
         return False
     finally:
-        # Clean up temp directory
         if temp_dir and temp_dir.exists():
             shutil.rmtree(temp_dir)
-            console.print("[dim]Cleaned up validation environment[/dim]")
 
 
-def create_submission_zip(include_files: list[Path], console: Console) -> Path:
+def create_submission_zip(
+    include_files: list[Path],
+    policy_spec: PolicySpec,
+    setup_script: str | None = None,
+) -> Path:
     """Create a zip file containing all include-files.
 
     Maintains directory structure exactly as provided.
     Returns path to created zip file.
     """
-    # Create temp zip file
     zip_fd, zip_path = tempfile.mkstemp(suffix=".zip", prefix="cogames_submission_")
     os.close(zip_fd)
 
-    console.print("[yellow]Creating submission zip...[/yellow]")
+    submission_spec = SubmissionPolicySpec(
+        class_path=policy_spec.class_path,
+        data_path=policy_spec.data_path,
+        init_kwargs=policy_spec.init_kwargs,
+        setup_script=setup_script,
+    )
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(data=submission_spec.model_dump_json(), zinfo_or_arcname=POLICY_SPEC_FILENAME)
+
         for file_path in include_files:
             if file_path.is_dir():
-                # Add all files in directory recursively
                 for root, _, files in os.walk(file_path):
                     for file in files:
                         file_full_path = Path(root) / file
-                        arcname = file_full_path
-                        console.print(f"[dim]  Adding: {arcname}[/dim]")
-                        zipf.write(file_full_path, arcname=arcname)
+                        zipf.write(file_full_path, arcname=file_full_path)
             else:
-                # Add single file
-                console.print(f"[dim]  Adding: {file_path}[/dim]")
                 zipf.write(file_path, arcname=file_path)
 
-    console.print(f"[green]✓ Created zip: {zip_path}[/green]")
     return Path(zip_path)
 
 
 def upload_submission(
+    client: TournamentServerClient,
     zip_path: Path,
-    submission_name: str | None,
-    login_server_url: str,
-    submit_server_url: str,
+    submission_name: str,
     console: Console,
-) -> bool:
-    """Upload submission to CoGames backend.
+) -> UploadResult | None:
+    """Upload submission to CoGames backend using a presigned S3 URL."""
+    console.print("[bold]Uploading[/bold]")
 
-    Reads auth token from login server and POSTs to submit server's /cogames/submit_policy endpoint.
-    Returns True on success, False otherwise.
-    """
-    # Get auth token from login server
-    authenticator = CoGamesAuthenticator(login_server_url)
-    if not authenticator.has_saved_token():
-        console.print("[red]Error:[/red] Not authenticated. Please run: [cyan]cogames login[/cyan]")
-        return False
+    try:
+        presigned_data = client.get_presigned_upload_url()
+        upload_url = presigned_data.get("upload_url")
+        upload_id = presigned_data.get("upload_id")
 
-    # Load token
-    token = authenticator.load_token()
-    if not token:
-        console.print(f"[red]Error:[/red] Token not found for {login_server_url}")
-        return False
+        if not upload_url or not upload_id:
+            console.print("[red]Upload URL missing from response[/red]")
+            return None
+    except httpx.TimeoutException:
+        console.print("[red]Timed out while requesting upload URL[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Failed to get upload URL ({exc.response.status_code})[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
+        return None
+    except Exception as e:
+        console.print(f"[red]Error requesting upload URL: {e}[/red]")
+        return None
 
-    # Prepare multipart form data
-    console.print(f"[yellow]Uploading submission to {submit_server_url}...[/yellow]")
+    console.print("[dim]Uploading to storage...[/dim]")
 
     try:
         with open(zip_path, "rb") as f:
-            files = {"file": ("submission.zip", f, "application/zip")}
-            data = {}
-            if submission_name:
-                data["name"] = submission_name
-
-            headers = {"X-Auth-Token": token}
-
-            response = httpx.post(
-                f"{submit_server_url}/cogames/submit_policy",
-                files=files,
-                data=data,
-                headers=headers,
-                timeout=300.0,  # 5 minute timeout for upload
+            upload_response = httpx.put(
+                upload_url,
+                content=f,
+                headers={"Content-Type": "application/zip"},
+                timeout=600.0,
             )
-
-        if response.status_code == 200:
-            result = response.json()
-            console.print("[green]✓ Submitted successfully![/green]")
-            if "submission_id" in result:
-                console.print(f"[dim]Submission ID: {result['submission_id']}[/dim]")
-            return True
-        else:
-            console.print(f"[red]✗ Upload failed with status {response.status_code}[/red]")
-            console.print(f"[red]Response: {response.text}[/red]")
-            return False
-
+        upload_response.raise_for_status()
     except httpx.TimeoutException:
-        console.print("[red]✗ Upload timed out after 5 minutes[/red]")
-        return False
+        console.print("[red]Upload timed out after 10 minutes[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Upload failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
+        return None
     except Exception as e:
-        console.print(f"[red]✗ Upload error: {e}[/red]")
-        return False
+        console.print(f"[red]Upload error: {e}[/red]")
+        return None
+
+    console.print("[dim]Registering policy...[/dim]")
+
+    try:
+        result = client.complete_policy_upload(upload_id, submission_name)
+        submission_id = result.get("id")
+        name = result.get("name")
+        version = result.get("version")
+        if submission_id is not None and name is not None and version is not None:
+            try:
+                return UploadResult(
+                    policy_version_id=uuid.UUID(str(submission_id)),
+                    name=name,
+                    version=version,
+                )
+            except ValueError:
+                console.print(f"[red]Invalid submission ID returned: {submission_id}[/red]")
+                return None
+
+        console.print("[red]Missing fields in response[/red]")
+        return None
+    except httpx.TimeoutException:
+        console.print("[red]Registration timed out[/red]")
+        return None
+    except httpx.HTTPStatusError as exc:
+        console.print(f"[red]Registration failed with status {exc.response.status_code}[/red]")
+        console.print(f"[dim]{exc.response.text}[/dim]")
+        return None
+    except Exception as e:
+        console.print(f"[red]Registration error: {e}[/red]")
+        return None
 
 
-def submit_command(
+def upload_policy(
     ctx: typer.Context,
     policy: str,
-    name: str | None = None,
+    name: str,
     include_files: list[str] | None = None,
     login_server: str = DEFAULT_COGAMES_SERVER,
     server: str = DEFAULT_SUBMIT_SERVER,
+    init_kwargs: dict[str, str] | None = None,
     dry_run: bool = False,
     skip_validation: bool = False,
-) -> None:
-    """Submit a policy to CoGames competitions.
+    setup_script: str | None = None,
+) -> UploadResult | None:
+    """Upload a policy to CoGames (without submitting to a tournament).
 
-    This command:
-    1. Validates authentication
-    2. Tests the policy in an isolated environment (unless --skip-validation)
-    3. Creates a submission zip with included files
-    4. Uploads to the backend API
-
-    Args:
-        ctx: Typer context
-        policy: Policy specification in format CLASS[:DATA[:PROPORTION]]
-        name: Optional name for the submission
-        include_files: List of files/directories to include in submission
-        login_server: Login/authentication server URL
-        server: Submission server URL
-        dry_run: If True, run validation only without submitting
-        skip_validation: If True, skip policy validation in isolated environment
+    Returns UploadResult with policy_version_id, name, and version on success.
+    Returns None on failure.
     """
+    from cogames.cli.client import TournamentServerClient
+
     if dry_run:
-        console.print("[bold]CoGames Policy Submission (DRY RUN)[/bold]\n")
-        console.print("[yellow]Running in dry-run mode - validation only, no submission[/yellow]\n")
-    else:
-        console.print("[bold]CoGames Policy Submission[/bold]\n")
+        console.print("[dim]Dry run mode - no upload[/dim]\n")
 
-    if skip_validation:
-        console.print("[yellow]⚠ Skipping policy validation (--skip-validation)[/yellow]\n")
+    client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
+    if not client:
+        return None
 
-    # Check authentication first
-    authenticator = CoGamesAuthenticator(login_server)
-    if not authenticator.has_saved_token():
-        console.print("[red]Error:[/red] Not authenticated.")
-        console.print("Please run: [cyan]cogames login[/cyan]")
-        return
-
-    # Parse policy spec
     try:
         policy_spec = get_policy_spec(ctx, policy)
     except Exception as e:
         console.print(f"[red]Error parsing policy:[/red] {e}")
-        return
+        return None
 
-    # Validate and collect all files to include
+    if init_kwargs:
+        merged_kwargs = {**policy_spec.init_kwargs, **init_kwargs}
+        policy_spec = PolicySpec(
+            class_path=policy_spec.class_path,
+            data_path=policy_spec.data_path,
+            init_kwargs=merged_kwargs,
+        )
+
     files_to_include = []
-
-    # Always include policy data file if specified
-    if policy_spec.policy_data_path:
-        files_to_include.append(policy_spec.policy_data_path)
-
-    # Add user-specified include files
+    if policy_spec.data_path:
+        files_to_include.append(policy_spec.data_path)
+    if setup_script:
+        files_to_include.append(setup_script)
     if include_files:
         files_to_include.extend(include_files)
 
-    if not files_to_include:
-        console.print(
-            "[red]Error:[/red] No files to include. Please specify --include-files or provide a policy checkpoint path."
-        )
-        return
+    validated_paths: list[Path] = []
+    if files_to_include:
+        try:
+            validated_paths = validate_paths(files_to_include, console)
+        except (ValueError, FileNotFoundError):
+            return None
 
-    # Validate all paths
-    try:
-        validated_paths = validate_paths(files_to_include, console)
-    except (ValueError, FileNotFoundError):
-        return
-
-    console.print("\n[bold]Files to include:[/bold]")
-    for path in validated_paths:
-        console.print(f"  • {path}")
-    console.print()
-
-    # Validate policy in isolated environment (unless skipped)
     if not skip_validation:
-        if not validate_policy_in_isolation(policy_spec, validated_paths, console):
-            console.print("\n[red]Submission aborted due to validation failure.[/red]")
-            return
+        if not validate_policy_in_isolation(policy_spec, validated_paths, console, setup_script=setup_script):
+            console.print("\n[red]Upload aborted due to validation failure.[/red]")
+            return None
     else:
-        console.print("[yellow]⚠ Policy validation skipped[/yellow]")
+        console.print("[dim]Skipping validation[/dim]")
 
-    # Create submission zip
     try:
-        zip_path = create_submission_zip(validated_paths, console)
+        zip_path = create_submission_zip(validated_paths, policy_spec, setup_script=setup_script)
     except Exception as e:
         console.print(f"[red]Error creating zip:[/red] {e}")
-        return
+        return None
 
-    # If dry-run, skip upload and clean up
     if dry_run:
-        if skip_validation:
-            console.print("\n[green]✓ Dry run complete - validation skipped, zip created![/green]")
-        else:
-            console.print("\n[green]✓ Dry run complete - validation passed, zip created![/green]")
-        console.print("[dim]Skipping upload (dry-run mode)[/dim]")
-        # Clean up zip file in dry-run mode
+        console.print("[green]Dry run complete[/green]")
         if zip_path.exists():
             zip_path.unlink()
-            console.print("[dim]Cleaned up temporary zip file[/dim]")
-        return
+        return None
 
-    # Upload submission
     try:
-        success = upload_submission(zip_path, name, login_server, server, console)
-        if not success:
-            console.print("\n[red]Submission failed.[/red]")
+        with client:
+            result = upload_submission(client, zip_path, name, console)
+        if not result:
+            console.print("\n[red]Upload failed.[/red]")
+            return None
+        return result
     finally:
-        # Clean up zip file
         if zip_path.exists():
             zip_path.unlink()
-            console.print("[dim]Cleaned up temporary zip file[/dim]")

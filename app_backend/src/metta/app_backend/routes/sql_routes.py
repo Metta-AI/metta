@@ -4,12 +4,12 @@ import asyncio
 from typing import Any, Dict, List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
-from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.config import anthropic_api_key
+from metta.app_backend.auth import UserOrToken
+from metta.app_backend.config import settings
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
@@ -47,11 +47,10 @@ class AIQueryResponse(BaseModel):
 def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     """Create SQL query router with the provided MettaRepo instance."""
     router = APIRouter(prefix="/sql", tags=["sql"])
-    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
-    @router.get("/tables", response_model=List[TableInfo])
+    @router.get("/tables")
     @timed_route("list_tables")
-    async def list_tables(user: str = user_or_token) -> List[TableInfo]:
+    async def list_tables(user: UserOrToken) -> List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
             async with metta_repo.connect() as con:
@@ -89,9 +88,9 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error listing tables: {str(e)}") from e
 
-    @router.get("/tables/{table_name}/schema", response_model=TableSchema)
+    @router.get("/tables/{table_name}/schema")
     @timed_route("get_table_schema")
-    async def get_table_schema(table_name: str, user: str = user_or_token) -> TableSchema:
+    async def get_table_schema(table_name: str, user: UserOrToken) -> TableSchema:
         """Get the schema for a specific table."""
         try:
             async with metta_repo.connect() as con:
@@ -137,9 +136,9 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error getting table schema: {str(e)}") from e
 
-    @router.post("/query", response_model=SQLQueryResponse)
+    @router.post("/query")
     @timed_route("execute_sql_query")
-    async def execute_query(request: SQLQueryRequest, user: str = user_or_token) -> SQLQueryResponse:
+    async def execute_query(request: SQLQueryRequest, user: UserOrToken) -> SQLQueryResponse:
         """Execute a SQL query with a 20-second timeout."""
         try:
             # Basic validation to prevent access to schema_migrations
@@ -162,7 +161,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     await con.execute("SET statement_timeout = '20s'")
 
                     # Execute the query
-                    result = await con.execute(request.query)
+                    result = await con.execute(request.query)  # type: ignore[arg-type]
 
                     # Get column names
                     columns = []
@@ -202,12 +201,12 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
             error_type = type(e).__name__
             raise HTTPException(status_code=500, detail=f"Query execution failed ({error_type}): {str(e)}") from e
 
-    @router.post("/generate-query", response_model=AIQueryResponse)
+    @router.post("/generate-query")
     @timed_route("generate_ai_query")
-    async def generate_ai_query(request: AIQueryRequest, user: str = user_or_token) -> AIQueryResponse:
+    async def generate_ai_query(request: AIQueryRequest, user: UserOrToken) -> AIQueryResponse:
         """Generate a SQL query from natural language description using Claude."""
         # Get API key from environment variable
-        if not anthropic_api_key:
+        if not settings.ANTHROPIC_API_KEY:
             raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
 
         # Fetch all table schemas in parallel
@@ -244,7 +243,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     "https://api.anthropic.com/v1/messages",
                     headers={
                         "Content-Type": "application/json",
-                        "x-api-key": anthropic_api_key,
+                        "x-api-key": settings.ANTHROPIC_API_KEY,
                         "anthropic-version": "2023-06-01",
                     },
                     json={

@@ -6,12 +6,13 @@ from typing import Any, Optional
 import torch
 import torch.distributed
 
-from metta.agent.policy import DistributedPolicy, Policy
+from metta.agent.policy import DistributedPolicy
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import TrainingEnvironmentConfig
 from mettagrid.base_config import Config
+from mettagrid.policy.policy import MultiAgentPolicy
 
 logger = getRankAwareLogger(__name__)
 
@@ -51,11 +52,7 @@ class DistributedHelper:
 
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
-        # Keep TF32 fast paths enabled on compatible GPUs (using new API)
-        if torch.cuda.is_available() and hasattr(torch.backends, "cuda"):
-            torch.backends.cuda.matmul.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            torch.backends.cudnn.conv.fp32_precision = "tf32"  # type: ignore[attr-defined]
-            # Enable SDPA optimizations for better attention performance
+        if torch.cuda.is_available():
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             torch.backends.cuda.enable_math_sdp(True)
@@ -148,7 +145,7 @@ class DistributedHelper:
             else getattr(trainer_cfg, "forward_pass_minibatch_target_size", "n/a"),
         )
 
-    def wrap_policy(self, policy: Policy, device: Optional[torch.device] = None) -> Policy | DistributedPolicy:
+    def wrap_policy(self, policy: MultiAgentPolicy, device: torch.device) -> MultiAgentPolicy:
         """Wrap policy for distributed training if needed.
 
         Args:

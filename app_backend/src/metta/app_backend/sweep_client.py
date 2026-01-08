@@ -1,4 +1,11 @@
+# need this to import and call suppress_noisy_logs first
+# ruff: noqa: E402
+
 """Client for sweep coordination API."""
+
+from metta.common.util.log_config import suppress_noisy_logs
+
+suppress_noisy_logs()
 
 from typing import Optional
 

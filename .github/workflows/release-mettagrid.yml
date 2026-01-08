@@ -75,16 +75,38 @@ jobs:
             curl -sSL -o /usr/local/bin/bazelisk https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
             chmod +x /usr/local/bin/bazelisk
             ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
-            export CHOOSENIM_NO_ANALYTICS=1
-            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-            export PATH="$HOME/.nimble/bin:$PATH"
-          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.nimble/bin:$PATH"
+            NIM_VERSION="2.2.6"
+            NIMBY_VERSION="0.1.13"
+            ARCH="X64"
+            if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
+              ARCH="ARM64"
+            fi
+            TMP_DIR="$(mktemp -d)"
+            curl -sSfL -o "$TMP_DIR/nimby" "https://github.com/treeform/nimby/releases/download/${NIMBY_VERSION}/nimby-Linux-${ARCH}"
+            chmod +x "$TMP_DIR/nimby"
+            "$TMP_DIR/nimby" use "$NIM_VERSION"
+            install_dir="$HOME/.nimby/nim/bin"
+            mkdir -p "$install_dir"
+            mv -f "$TMP_DIR/nimby" "$install_dir/nimby"
+            rm -rf "$TMP_DIR"
+          CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.nimby/nim/bin:$PATH"
           CIBW_BEFORE_ALL_MACOS: |
             python3 -m pip install "pip<25"
-            export CHOOSENIM_NO_ANALYTICS=1
-            curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-            export PATH="$HOME/.nimble/bin:$PATH"
-          CIBW_ENVIRONMENT_MACOS: PATH="$HOME/.nimble/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=11.0
+            NIM_VERSION="2.2.6"
+            NIMBY_VERSION="0.1.13"
+            ARCH="X64"
+            if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
+              ARCH="ARM64"
+            fi
+            TMP_DIR="$(mktemp -d)"
+            curl -sSfL -o "$TMP_DIR/nimby" "https://github.com/treeform/nimby/releases/download/${NIMBY_VERSION}/nimby-macOS-${ARCH}"
+            chmod +x "$TMP_DIR/nimby"
+            "$TMP_DIR/nimby" use "$NIM_VERSION"
+            install_dir="$HOME/.nimby/nim/bin"
+            mkdir -p "$install_dir"
+            mv -f "$TMP_DIR/nimby" "$install_dir/nimby"
+            rm -rf "$TMP_DIR"
+          CIBW_ENVIRONMENT_MACOS: PATH="$HOME/.nimby/nim/bin:$PATH" MACOSX_DEPLOYMENT_TARGET=11.0
           PIP_DISABLE_PIP_VERSION_CHECK: "1"
           CI: "true"
         with:

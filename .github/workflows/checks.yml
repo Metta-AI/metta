@@ -1,8 +1,14 @@
 name: "Test and Benchmark"
 
+# This workflow uses metta ci as the single source of truth for CI checks.
+# Each job calls metta ci with a specific stage:
+#   --stage lint, --stage python-tests-and-benchmarks,
+#   --stage cpp-tests, --stage cpp-benchmarks, --stage nim-tests, --stage recipe-tests
+# Local development can run all stages with: metta ci
+
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review]
+    types: [opened, synchronize, ready_for_review, labeled]
   push:
     branches: [main]
   merge_group:
@@ -10,10 +16,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      run_lint:
-        description: "Run lint checks"
-        type: boolean
-        default: true
       run_test:
         description: "Run tests"
         type: boolean
@@ -56,7 +58,7 @@ jobs:
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false ||
+      !contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
@@ -85,16 +87,14 @@ jobs:
     needs: graphite-ci-optimizer
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (github.event.pull_request.draft == false ||
+      (!contains(github.event.pull_request.labels.*.name, 'skip-ci') ||
        github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
-      observatory_has_changes: ${{ steps.check_observatory_files.outputs.has_relevant_changes }}
       app_backend_has_changes: ${{ steps.check_app_backend_files.outputs.has_relevant_changes }}
-      run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
       is_external: ${{ steps.detect-pr.outputs.is_external }}
@@ -110,16 +110,8 @@ jobs:
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
+          patterns: "**/*.py,**/*.cpp,**/*.hpp,**/*.md,**/*.toml,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check for observatory file changes
-        id: check_observatory_files
-        uses: ./.github/actions/file-changes
-        with:
-          patterns: "observatory/**/*.ts,observatory/**/*.tsx,observatory/**/*.js,observatory/**/*.jsx"
-          specific_files: "observatory/package.json,observatory/tsconfig.json,observatory/tsconfig.node.json"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for app_backend file changes
@@ -135,28 +127,23 @@ jobs:
           # Default behavior based on event type and file changes
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             # Use workflow dispatch inputs for manual runs
-            RUN_LINT="${{ github.event.inputs.run_lint }}"
             RUN_TEST="${{ github.event.inputs.run_test }}"
             RUN_BENCHMARK="${{ github.event.inputs.run_benchmark }}"
           elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_py_files.outputs.has_relevant_changes }}" == "false" ]]; then
-            # Skip everything for PRs with no relevant changes
-            RUN_LINT="false"
+            # Skip everything for PRs with no relevant changes=
             RUN_TEST="false"
             RUN_BENCHMARK="false"
             echo "::notice title=Skipping Tasks::Skipping all tasks because no relevant files have changed"
           else
             # Default to running everything for other events or when changes exist
-            RUN_LINT="true"
             RUN_TEST="true"
             RUN_BENCHMARK="true"
           fi
 
           # Output the decisions
-          echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
           echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
 
-          echo "run lint? ${RUN_LINT}"
           echo "run test? ${RUN_TEST}"
           echo "run benchmark? ${RUN_BENCHMARK}"
 
@@ -164,39 +151,7 @@ jobs:
     name: "Lint"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_lint == 'true')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup-environment
-        with:
-          install-mode: "linting"
-
-      - name: Run Ruff linter
-        run: |
-          uv run ruff format --check .
-
-      - name: Run Ruff formatting
-        run: |
-          uv run ruff check --exit-non-zero-on-fix .
-
-      - name: Install C++ linter
-        run: |
-          sudo apt-get install -y clang-format
-
-      - name: Run cpplint
-        run: ./packages/mettagrid/tests/cpplint.sh
-
-  observatory-typescript-check:
-    name: "Observatory TypeScript Check"
-    needs: [graphite-ci-optimizer, setup-checks]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.observatory_has_changes == 'true')
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -211,18 +166,16 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: pnpm install --filter @softmax/observatory
+      - name: Install pnpm dependencies
+        run: pnpm install
 
-      - name: TypeScript compilation check
-        run: |
-          cd observatory
-          pnpm run type-check
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "testing"
 
-      - name: Run linting
-        run: |
-          cd observatory
-          pnpm run lint
+      - name: Run linting and formatting
+        run: uv run python .github/scripts/run_ci_stage.py lint
 
   python-tests:
     name: "Tests - Python"
@@ -253,18 +206,56 @@ jobs:
           echo "PUFFERLIB_CACHE_DIR=$HOME/pufferlib-cache" >> $GITHUB_ENV
           mkdir -p $HOME/pufferlib-cache
 
-      - name: Run Python tests
+      - name: Configure Datadog
+        if: needs.setup-checks.outputs.is_external != 'true'
+        uses: datadog/test-visibility-github-action@v2
+        with:
+          languages: python
+          api_key: ${{ secrets.DD_API_KEY }}
+
+      - name: Run Python tests and benchmarks
         shell: bash
+        env:
+          DD_CIVISIBILITY_LOG_LEVEL: warning
         run: |
           set -eo pipefail
           ARGS=()
           if [[ "${{ needs.setup-checks.outputs.app_backend_has_changes }}" != "true" ]]; then
             ARGS+=(--skip-package app_backend)
           fi
-          uv run metta pytest --ci "${ARGS[@]}"
+          uv run python .github/scripts/run_ci_stage.py python-tests-and-benchmarks -- "${ARGS[@]}"
+
+      - name: Python type checking
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py pyright
+
+  recipe-tests:
+    name: "Tests - Recipes"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-8core
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          install-mode: "runtime"
+
+      - name: Run Recipe tests
+        shell: bash
+        run: |
+          set -eo pipefail
+          uv run python .github/scripts/run_ci_stage.py recipe-tests --non-interactive
 
   cpp-tests:
-    name: "Tests - C++"
+    name: "Tests - C++ and Nim"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -313,17 +304,21 @@ jobs:
           restore-keys: |
             bazel-${{ runner.os }}-
 
-      - name: Run C++ unit tests
+      - name: Run C++ tests
         id: mettagrid-cpp-tests
-        run: uv run metta cpptest --test --verbose
+        run: uv run python .github/scripts/run_ci_stage.py cpp-tests
 
       - name: Run C++ benchmarks
         id: mettagrid-cpp-benchmarks
-        run: uv run metta cpptest --benchmark --verbose
+        run: uv run python .github/scripts/run_ci_stage.py cpp-benchmarks
+
+      - name: Run Nim tests
+        id: mettagrid-nim-tests
+        run: uv run python .github/scripts/run_ci_stage.py nim-tests
 
   tests-summary:
     name: "Tests"
-    needs: [python-tests, cpp-tests]
+    needs: [python-tests, cpp-tests, recipe-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:

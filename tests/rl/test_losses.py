@@ -1,22 +1,35 @@
 """Unit tests for the new loss infrastructure."""
 
 from types import SimpleNamespace
+from typing import Optional
 
+import numpy as np
 import pytest
 import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.cmpo import CMPOConfig
+from metta.rl.loss.loss import Loss
 from metta.rl.loss.stable_latent import StableLatentStateConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+try:
+    from gymnasium import spaces as gym_spaces
+except ImportError:  # pragma: no cover - fallback for legacy gym installs
+    from gym import spaces as gym_spaces  # type: ignore[no-redef]
 
 
 class DummyPolicy(Policy):
     """Minimal policy implementation for exercising loss utilities."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+        if policy_env_info is None:
+            from mettagrid.config.mettagrid_config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self._linear = torch.nn.Linear(1, 1)
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
@@ -27,7 +40,7 @@ class DummyPolicy(Policy):
     def get_agent_experience_spec(self) -> Composite:  # noqa: D401
         return Composite(values=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32))
 
-    def initialize_to_environment(self, game_rules, device: torch.device) -> None:  # noqa: D401
+    def initialize_to_environment(self, policy_env_info, device: torch.device) -> None:  # noqa: D401
         return None
 
     @property
@@ -55,6 +68,9 @@ class DummyLoss(Loss):
         loss_cfg = SimpleNamespace()
         super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", loss_cfg)
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"values"}
+
 
 def test_loss_stats_average_values() -> None:
     loss = DummyLoss()
@@ -79,7 +95,7 @@ def test_zero_loss_tracker_clears_values() -> None:
 @pytest.fixture
 def stable_latent_loss() -> Loss:
     cfg = StableLatentStateConfig(target_key="core", loss_coef=1.0)
-    return cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable", cfg)
+    return cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable")
 
 
 def _build_shared_td(latent: torch.Tensor, dones: torch.Tensor | None = None) -> TensorDict:
@@ -131,3 +147,23 @@ def test_stable_latent_masks_episode_boundaries(stable_latent_loss: Loss) -> Non
     # Delta magnitude should ignore the large jump over the done boundary (sqrt(2) average).
     expected_delta = torch.sqrt(torch.tensor(2.0)).item()
     assert stable_latent_loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
+
+
+def test_cmpo_config_initializes_world_model() -> None:
+    cfg = CMPOConfig()
+    env = SimpleNamespace(
+        single_action_space=gym_spaces.Discrete(6),
+        single_observation_space=gym_spaces.Box(low=0, high=255, shape=(4, 4, 3), dtype=np.uint8),
+    )
+    trainer_cfg = SimpleNamespace(
+        total_timesteps=1024,
+        batch_size=64,
+        advantage=SimpleNamespace(gamma=0.99, gae_lambda=0.95, vtrace_rho_clip=1.0, vtrace_c_clip=1.0),
+    )
+
+    cmpo_loss = cfg.create(DummyPolicy(), trainer_cfg, env, torch.device("cpu"), "cmpo")
+
+    assert cmpo_loss.obs_dim == 4 * 4 * 3
+    assert cmpo_loss.action_dim == 6
+    assert len(cmpo_loss.world_model.members) == cfg.world_model.ensemble_size
+    assert cmpo_loss.prior_model is None

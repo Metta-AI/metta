@@ -57,7 +57,7 @@ changes inside `packages/cortex`.
 
 ## 6. Required Quality Checks
 
-- Format and lint touched Python files: `ruff format` then `ruff check`.
+- Use `metta lint --fix packages/cortex` (or pass specific files) to format and lint everything you touched.
 - Run mypy on the modified modules (or the narrowest package that contains them):
   `uv run mypy packages/cortex/src/cortex/...`.
 - Re-run the targeted pytest command after linting to guard against regressions.

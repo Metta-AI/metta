@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
-from metta.common.util.retry import retry_function
+from tenacity import Retrying, stop_after_attempt, wait_exponential_jitter
 
 from .adaptive_config import AdaptiveConfig
 from .models import JobDefinition, JobStatus, JobTypes, RunInfo
@@ -52,20 +52,29 @@ class AdaptiveController:
         """Main adaptive experiment loop - everything inline."""
         logger.info(f"[AdaptiveController] Starting experiment {self.experiment_id}")
         has_data = self.config.resume
+        first_resume_poll = self.config.resume
 
         while True:
             try:
                 # 1. Get current state
                 if has_data:
-                    time.sleep(self.config.monitoring_interval)
+                    interval = (
+                        self.config.initial_monitoring_interval
+                        if first_resume_poll
+                        else self.config.monitoring_interval
+                    )
+                    if interval > 0:
+                        time.sleep(interval)
+                    first_resume_poll = False
                     try:
                         runs = self.store.fetch_runs(filters={"group": self.experiment_id})
                     except Exception as e:
-                        logger.error("Error when fetching WandB runs")
+                        logger.error("Error when fetching WandB runs", exc_info=True)
                         raise e
                 else:
                     runs = []
                     has_data = True  # Skip first fetch because WandB will just timeout.
+                    first_resume_poll = self.config.resume
 
                 # Display monitoring table every interval
                 if runs:
@@ -98,7 +107,8 @@ class AdaptiveController:
                                 )
                         except Exception as e:
                             logger.error(
-                                f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}"
+                                f"[AdaptiveController] Error running on_training_completed for {run.run_id}: {e}",
+                                exc_info=True,
                             )
 
                 if runs and on_eval_completed is not None:
@@ -109,12 +119,13 @@ class AdaptiveController:
                             if run.has_been_evaluated and not already_processed:
                                 logger.info(f"[AdaptiveController] Running on_eval_completed for {run.run_id}")
 
-                                retry_function(
-                                    lambda r=run, rs=runs: on_eval_completed(r, self.store, rs),  # type: ignore
-                                    max_retries=3,
-                                    initial_delay=1.0,
-                                    max_delay=30.0,
-                                )
+                                for attempt in Retrying(
+                                    stop=stop_after_attempt(4),
+                                    wait=wait_exponential_jitter(initial=1.0, max=30.0),
+                                    reraise=True,
+                                ):
+                                    with attempt:
+                                        on_eval_completed(run, self.store, runs)
 
                                 processed_at = datetime.now(timezone.utc)
                                 self.store.update_run_summary(
@@ -125,7 +136,10 @@ class AdaptiveController:
                                     },
                                 )
                         except Exception as e:
-                            logger.error(f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}")
+                            logger.error(
+                                f"[AdaptiveController] on_eval_completed failed for {run.run_id}: {e}",
+                                exc_info=True,
+                            )
 
                 # 2. Calculate available training slots (only count runs actually using training resources)
                 active_training_count = sum(
@@ -151,7 +165,8 @@ class AdaptiveController:
                 if len(training_jobs) > available_training_slots:
                     logger.error(
                         f"[AdaptiveController] Scheduler requested {len(training_jobs)} training jobs "
-                        f"but only {available_training_slots} slots available. Skipping cycle."
+                        f"but only {available_training_slots} slots available. Skipping cycle.",
+                        exc_info=True,
                     )
                     continue
 
@@ -184,19 +199,24 @@ class AdaptiveController:
                             try:
                                 on_job_dispatch(job, self.store)
                             except Exception as e:
-                                logger.error(f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}")
+                                logger.error(
+                                    f"[AdaptiveController] on_job_dispatch failed for {job.run_id}: {e}",
+                                    exc_info=True,
+                                )
 
                         logger.info(
                             f"[AdaptiveController] Dispatched {job.run_id} ({job.type}) (dispatch_id: {dispatch_id})"
                         )
 
                     except Exception as e:
-                        logger.error(f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}")
+                        logger.error(
+                            f"[AdaptiveController] Failed to dispatch {job.run_id} ({job.type}): {e}", exc_info=True
+                        )
 
             except KeyboardInterrupt:
                 logger.info("[AdaptiveController] Interrupted, stopping experiment")
                 break
             except Exception as e:
-                logger.error(f"[AdaptiveController] Error in control loop: {e}")
+                logger.error(f"[AdaptiveController] Error in control loop: {e}", exc_info=True)
 
         logger.info(f"[AdaptiveController] Experiment {self.experiment_id} complete")

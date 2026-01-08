@@ -12,13 +12,6 @@ packages:
     apt:
       name: docker.io
 
-  node:
-    brew:
-      name: node
-      version: "24"
-    apt:
-      name: nodejs
-
   gh:
     brew:
       name: gh
@@ -31,13 +24,6 @@ packages:
     apt:
       name: jq
 
-  # Build tools
-  bazelisk:
-    brew:
-      name: bazelisk
-    apt:
-      name: bazelisk
-
   clang-format:
     brew:
       name: clang-format
@@ -49,12 +35,6 @@ packages:
       name: ninja
     apt:
       name: ninja-build
-
-  # Python package manager
-  uv:
-    brew:
-      name: uv
-    # No apt support - installed via curl script on Linux
 
   # Testing libraries
   googletest:
@@ -101,12 +81,6 @@ packages:
     apt:
       name: gitleaks
 
-  # Special language support
-  nim:
-    brew:
-      name: nim
-    # Linux installs Nim via choosenim (see metta/setup/components/system.py)
-
   # Homebrew packages with custom taps
   graphite:
     brew:
@@ -122,3 +96,12 @@ packages:
     brew:
       name: amazon-efs-utils
       tap: aws/aws
+
+  process-compose:
+    brew:
+      name: process-compose
+      tap: f1bonacc1/tap
+
+  docker-compose:
+    brew:
+      name: docker-compose

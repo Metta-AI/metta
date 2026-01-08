@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from pydantic import Field
@@ -8,13 +8,12 @@ from torch import Tensor
 from torch.nn import functional as F
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 from metta.rl.utils import ensure_sequence_metadata
-from mettagrid.base_config import Config
 
 
-class EMAConfig(Config):
+class EMAConfig(LossConfig):
     decay: float = Field(default=0.995, ge=0, le=1.0)
     loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
@@ -25,25 +24,13 @@ class EMAConfig(Config):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
-    ):
+    ) -> "EMA":
         """Create EMA loss instance."""
-        return EMA(
-            policy,
-            trainer_cfg,
-            vec_env,
-            device,
-            instance_name=instance_name,
-            loss_config=loss_config,
-        )
+        return EMA(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
 class EMA(Loss):
-    __slots__ = (
-        "target_model",
-        "ema_decay",
-        "ema_coef",
-    )
+    __slots__ = ("target_model",)
 
     def __init__(
         self,
@@ -52,15 +39,13 @@ class EMA(Loss):
         vec_env: Any,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
+        cfg: "EMAConfig",
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, loss_config)
+        super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
             param.requires_grad = False
-        self.ema_decay = self.loss_cfg.decay
-        self.ema_coef = self.loss_cfg.loss_coef
 
     def update_target_model(self):
         """Update target model with exponential moving average"""
@@ -68,7 +53,10 @@ class EMA(Loss):
             for target_param, online_param in zip(
                 self.target_model.parameters(), self.policy.parameters(), strict=False
             ):
-                target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
+                target_param.data = self.cfg.decay * target_param.data + (1 - self.cfg.decay) * online_param.data
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"EMA_pred_output_2"}
 
     def run_train(
         self,
@@ -91,10 +79,7 @@ class EMA(Loss):
             self.target_model(target_td)
             target_pred_flat: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
-        shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
-
-        loss = F.mse_loss(pred_flat, target_pred_flat) * self.ema_coef
+        loss = F.mse_loss(pred_flat, target_pred_flat) * self.cfg.loss_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
         shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
         return loss, shared_loss_data, False

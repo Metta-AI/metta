@@ -69,9 +69,9 @@ def make_monitor_table(
             cost = summary.get("sweep/cost")
 
             # Backwards compatibility: check old observation field
-            if score is None and hasattr(run, "observation") and run.observation:
-                score = run.observation.score
-                cost = run.observation.cost
+            if score is None and hasattr(run, "observation") and (run_observation := getattr(run, "observation", None)):
+                score = run_observation.score
+                cost = run_observation.cost
 
             score_str = f"{float(score):.4f}" if score is not None else "N/A"
             cost_str = f"${float(cost):.2f}" if cost is not None else "N/A"
@@ -125,10 +125,6 @@ def build_eval_overrides(
     eval_overrides["push_metrics_to_wandb"] = "True"
     # Use 'group' instead of 'wandb.group' to match train.py pattern
     eval_overrides["group"] = experiment_id
-
-    # Ensure evaluation has a stats directory to avoid Path(None) errors downstream
-    eval_overrides.setdefault("stats_dir", "/tmp/eval_sweep_stats")
-    eval_overrides.setdefault("enable_replays", False)
 
     # Stats server configuration
     if stats_server_uri:

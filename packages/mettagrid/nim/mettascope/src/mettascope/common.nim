@@ -1,7 +1,14 @@
 import
-  std/[times, tables],
-  boxy, windy, vmath, fidget2,
+  std/[times, tables, os, strutils, pathnorm],
+  boxy, windy, vmath, silky,
   replays
+
+var rootDir* = "packages/mettagrid/nim/mettascope/"
+var dataDir* = rootDir / "data"
+
+proc setDataDir*(path: string) =
+  dataDir = path.normalizePath
+  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object
@@ -9,48 +16,6 @@ type
     y*: int32
     w*: int32
     h*: int32
-
-  PanelType* = enum
-    GlobalHeader
-    GlobalFooter
-    GlobalTimeline
-
-    WorldMap
-    Minimap
-    AgentTable
-    AgentTraces
-    EnvironmentInfo
-    ObjectInfo
-    VibePanel
-
-  Panel* = ref object
-    panelType*: PanelType
-    rect*: IRect
-    name*: string            ## The name of the panel.
-    header*: Node            ## The header of the panel.
-    node*: Node              ## The node of the panel.
-    parentArea*: Area        ## The parent area of the panel.
-
-    pos*: Vec2
-    vel*: Vec2
-    zoom*: float32 = 10
-    zoomVel*: float32
-    minZoom*: float32 = 2
-    maxZoom*: float32 = 1000
-    scrollArea*: Rect
-    hasMouse*: bool = false
-
-  AreaLayout* = enum
-    Horizontal
-    Vertical
-
-  Area* = ref object
-    node*: Node              ## The node of the area.
-    layout*: AreaLayout      ## The layout of the area.
-    areas*: seq[Area]        ## The subareas in the area (0 or 2)
-    panels*: seq[Panel]      ## The panels in the area.
-    split*: float32          ## The split percentage of the area.
-    selectedPanelNum*: int   ## The index of the selected panel in the area.
 
   Settings* = object
     showFogOfWar* = false
@@ -65,19 +30,10 @@ type
     Realtime
 
 var
+  sk*: Silky
+  bxy*: Boxy
+  window*: Window
   frame*: int
-
-  globalTimelinePanel*: Panel
-  globalFooterPanel*: Panel
-  globalHeaderPanel*: Panel
-
-  worldMapPanel*: Panel
-  minimapPanel*: Panel
-  agentTablePanel*: Panel
-  agentTracesPanel*: Panel
-  objectInfoPanel*: Panel
-  environmentInfoPanel*: Panel
-  vibePanel*: Panel
 
   settings* = Settings()
   selection*: Entity
@@ -87,7 +43,7 @@ var
   previousStep*: int = -1
   replay*: Replay
   play*: bool
-  playSpeed*: float32 = 0.1
+  playSpeed*: float32 = 10.0
   lastSimTime*: float64 = epochTime()
   playMode* = Historical
 
@@ -97,11 +53,11 @@ var
   # Command line arguments.
   commandLineReplay*: string = ""
 
+
 type
   ActionRequest* = object
     agentId*: int
-    actionId*: int
-    argument*: int
+    actionName*: cstring
 
   ObjectiveKind* = enum
     Move # Move to a specific position.
@@ -129,10 +85,6 @@ type
 
 var
   requestActions*: seq[ActionRequest]
-
-  followSelection*: bool = false
-  mouseCaptured*: bool = false
-  mouseCapturedPanel*: Panel = nil
 
 var
   ## Path queue for each agent. Maps agentId to a sequence of path actions.
@@ -169,12 +121,6 @@ proc xy*(rect: IRect): IVec2 =
 proc wh*(rect: IRect): IVec2 =
   ivec2(rect.w, rect.h)
 
-proc logicalMousePos*(window: Window): Vec2 =
-  window.mousePos.vec2 / window.contentScale
-
-proc logicalMouseDelta*(window: Window): Vec2 =
-  window.mouseDelta.vec2 / window.contentScale
-
 proc getAgentById*(agentId: int): Entity =
   ## Get an agent by ID. Asserts the agent exists.
   for obj in replay.objects:
@@ -195,3 +141,9 @@ proc getObjectAtLocation*(pos: IVec2): Entity =
     if obj.location.at(step).xy == pos:
       return obj
   return nil
+
+proc getVibeName*(vibeId: int): string =
+  if vibeId >= 0 and vibeId < replay.config.game.vibeNames.len:
+    result = replay.config.game.vibeNames[vibeId]
+  else:
+    raise newException(ValueError, "Vibe with ID " & $vibeId & " does not exist")

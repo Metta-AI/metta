@@ -1,6 +1,5 @@
 {
   // Global Editor Settings
-  "editor.formatOnSave": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
 
@@ -16,17 +15,12 @@
 
   // Python Configuration
   "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-      "source.fixAll.ruff": "explicit",
-      "source.organizeImports.ruff": "explicit",
-    },
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing",
   },
 
   // Ruff Extension Settings
+  "ruff.path": ["uv", "run", "ruff"],
   "ruff.configurationPreference": "filesystemFirst",
 
   // YAML Configuration

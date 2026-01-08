@@ -1,94 +1,74 @@
-import hashlib
+import json
 import logging
-import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta
-from typing import Any, Literal
+from datetime import datetime
+from typing import Any, Literal, Optional
+from uuid import UUID
 
-from psycopg import AsyncConnection, Connection
+from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from metta.app_backend.query_logger import execute_single_row_query_and_log
-from metta.app_backend.schema_manager import SqlMigration, run_migrations
+from metta.app_backend.config import settings
+from metta.app_backend.migrations import MIGRATIONS
+from metta.app_backend.schema_manager import run_migrations
 
-TaskStatus = Literal["unprocessed", "canceled", "done", "error"]
+TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
+FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
 
 
 class TaskStatusUpdate(BaseModel):
     status: TaskStatus
     clear_assignee: bool = False
-    attributes: dict[str, Any] = Field(default_factory=dict)
-
-
-# Row models for database tables
-class SavedDashboardRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    description: str | None
-    type: str
-    dashboard_state: dict[str, Any]
-    created_at: datetime
-    updated_at: datetime
-    user_id: str
-
-
-class TrainingRunRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    user_id: str
-    finished_at: datetime | None
-    status: str
-    url: str | None
-    description: str | None
-    tags: list[str]
-
-
-class MachineTokenRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    created_at: datetime
-    expiration_time: datetime
-    last_used_at: datetime | None
+    status_details: dict[str, Any] = Field(default_factory=dict)
 
 
 class EvalTaskRow(BaseModel):
-    """Row model that matches the eval_tasks table structure."""
+    """Row model that matches the eval_tasks table with latest attempt data."""
 
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    sim_suite: str
-    status: str
+    model_config = {"from_attributes": True}
+
+    id: int
+    command: str
+    data_uri: str | None
+    git_hash: str | None
+    attributes: dict[str, Any]
+    user_id: str
+    created_at: datetime
+    is_finished: bool
+    latest_attempt_id: int | None
+
+    # Fields from the latest attempt (populated via JOIN)
+    # Note: attempt_number will be 0 for new tasks, status will be 'unprocessed'
+    attempt_number: int | None = 0
+    status: TaskStatus = "unprocessed"
+    status_details: dict[str, Any] | None = None
+    assigned_at: datetime | None = None
+    assignee: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    output_log_path: str | None = None
+
+
+class TaskAttemptRow(BaseModel):
+    """Row model for task_attempts table."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    task_id: int
+    attempt_number: int
     assigned_at: datetime | None
     assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
-    retries: int
-    user_id: str | None
-    updated_at: datetime
-
-
-class EvalTaskWithPolicyName(BaseModel):
-    """Extended eval task row that includes policy name from JOIN with policies table."""
-
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    sim_suite: str
-    status: str
-    assigned_at: datetime | None
-    assignee: str | None
-    created_at: datetime
-    attributes: dict[str, Any]
-    retries: int
-    policy_name: str
-    policy_url: str
-    user_id: str | None
-    updated_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    output_log_path: str | None
+    status: TaskStatus
+    status_details: dict[str, Any] | None
 
 
 class SweepRow(BaseModel):
@@ -107,608 +87,81 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
-    url: str | None
-
-
-class LeaderboardRow(BaseModel):
-    id: uuid.UUID
-    name: str
-    user_id: str
-    evals: list[str]
-    metric: str
-    start_date: date
-    latest_episode: int
     created_at: datetime
-    updated_at: datetime
+    user_id: str
+    attributes: dict[str, Any]
+    version_count: int
 
 
-class PolicyEval(BaseModel):
-    num_agents: int
-    total_score: float
-
-
-class LeaderboardPolicyScore(BaseModel):
-    leaderboard_id: uuid.UUID
+class PolicyVersionRow(BaseModel):
+    id: uuid.UUID
+    internal_id: int
     policy_id: uuid.UUID
-    score: float
-
-
-class CoGamesSubmissionRow(BaseModel):
-    id: uuid.UUID
-    user_id: str
-    name: str | None
-    s3_path: str
+    version: int
+    s3_path: str | None
+    git_hash: str | None
+    policy_spec: dict[str, Any]
+    attributes: dict[str, Any]
     created_at: datetime
 
 
-# This is a list of migrations that will be applied to the eval database.
-# Do not change existing migrations, only add new ones.
-MIGRATIONS = [
-    SqlMigration(
-        version=0,
-        description="Initial eval schema",
-        sql_statements=[
-            """CREATE EXTENSION IF NOT EXISTS "uuid-ossp" """,
-            """CREATE TABLE training_runs (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                name TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                user_id TEXT NOT NULL,
-                finished_at TIMESTAMP,
-                status TEXT NOT NULL,
-                url TEXT,
-                attributes JSONB
-            )""",
-            """CREATE TABLE epochs (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                run_id UUID NOT NULL,
-                start_training_epoch INTEGER NOT NULL,
-                end_training_epoch INTEGER NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                attributes JSONB
-            )""",
-            """CREATE TABLE policies (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                name TEXT NOT NULL,
-                description TEXT,
-                url TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                epoch_id UUID REFERENCES epochs(id),
-                UNIQUE (name)
-            )""",
-            # This is slightly denormalized, in the sense that it is storing both the attributes of the env and
-            # the attributes of the episode. We could imagine having separate (env, env_attributes) tables and having
-            # a foreign key into envs in episodes.  However, I can imagine a lot of envs that are only used in a single
-            # episode, so I'm not sure it's worth the extra complexity.
-            """CREATE TABLE episodes (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                primary_policy_id UUID NOT NULL REFERENCES policies(id),
-                stats_epoch UUID REFERENCES epochs(id),
-                replay_url TEXT,
-                eval_name TEXT,
-                simulation_suite TEXT,
-                attributes JSONB
-            )""",
-            """CREATE TABLE episode_agent_policies (
-                episode_id UUID NOT NULL REFERENCES episodes(id),
-                policy_id UUID NOT NULL REFERENCES policies(id),
-                agent_id INTEGER NOT NULL,
-                PRIMARY KEY (episode_id, policy_id, agent_id)
-            )""",
-            """CREATE TABLE episode_agent_metrics (
-                episode_id UUID NOT NULL REFERENCES episodes(id),
-                agent_id INTEGER NOT NULL,
-                metric TEXT NOT NULL,
-                value REAL,
-                PRIMARY KEY (episode_id, agent_id, metric)
-            )""",
-        ],
-    ),
-    SqlMigration(
-        version=1,
-        description="Add machine tokens table",
-        sql_statements=[
-            """CREATE TABLE machine_tokens (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                token_hash TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                expiration_time TIMESTAMP NOT NULL,
-                last_used_at TIMESTAMP,
-                UNIQUE (user_id, name)
-            )""",
-            """CREATE INDEX idx_machine_tokens_user_id ON machine_tokens(user_id)""",
-            """CREATE INDEX idx_machine_tokens_token_hash ON machine_tokens(token_hash)""",
-        ],
-    ),
-    SqlMigration(
-        version=2,
-        description="Make training run names unique",
-        sql_statements=[
-            """ALTER TABLE training_runs ADD CONSTRAINT training_runs_name_unique UNIQUE (user_id, name)""",
-        ],
-    ),
-    SqlMigration(
-        version=3,
-        description="Remove machine token name uniqueness constraint",
-        sql_statements=[
-            """ALTER TABLE machine_tokens DROP CONSTRAINT machine_tokens_user_id_name_key""",
-        ],
-    ),
-    SqlMigration(
-        version=4,
-        description="Add saved dashboards table",
-        sql_statements=[
-            """CREATE TABLE saved_dashboards (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                user_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                description TEXT,
-                type TEXT NOT NULL,
-                dashboard_state JSONB,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE INDEX idx_saved_dashboards_user_id ON saved_dashboards(user_id)""",
-            """CREATE VIEW episode_view AS
-                SELECT id,
-                  split_part(eval_name, '/', 1) as simulation_suite,
-                  split_part(eval_name, '/', 2) as eval_name,
-                  replay_url,
-                  primary_policy_id,
-                  stats_epoch,
-                  attributes
-                FROM episodes
-                WHERE split_part(eval_name, '/', 1) IS NOT NULL AND split_part(eval_name, '/', 2) IS NOT NULL
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=5,
-        description="Parse out eval category from eval name",
-        sql_statements=[
-            """ALTER TABLE episodes ADD COLUMN eval_category TEXT, ADD COLUMN env_name TEXT""",
-            """UPDATE episodes SET eval_category = split_part(eval_name, '/', 1), """
-            """env_name = split_part(eval_name, '/', 2)""",
-            """CREATE INDEX idx_episodes_eval_category ON episodes(eval_category)""",
-            """DROP VIEW episode_view""",
-        ],
-    ),
-    SqlMigration(
-        version=6,
-        description="Add scorecard performance indexes",
-        sql_statements=[
-            # Critical index for episode_agent_metrics main query
-            """ALTER TABLE episode_agent_metrics DROP CONSTRAINT episode_agent_metrics_pkey""",
-            """CREATE INDEX idx_episode_agent_metrics_metric_episode_value
-                ON episode_agent_metrics(metric, episode_id)
-                INCLUDE (value)""",
-            # Composite index for episodes eval filtering and joins
-            """CREATE INDEX idx_episodes_eval_category_env_policy
-               ON episodes(eval_category, env_name, primary_policy_id)""",
-            # Index to optimize the JSON agent_groups lookup
-            """CREATE INDEX idx_episodes_attributes_agent_groups
-               ON episodes USING GIN ((attributes->'agent_groups'))""",
-            # Index for policy-epoch joins
-            """CREATE INDEX idx_policies_epoch_id ON policies(epoch_id)""",
-            # Index for epochs run lookups
-            """CREATE INDEX idx_epochs_run_id ON epochs(run_id, end_training_epoch DESC)""",
-        ],
-    ),
-    SqlMigration(
-        version=7,
-        description="Add description field to training_runs table",
-        sql_statements=[
-            """ALTER TABLE training_runs ADD COLUMN description TEXT""",
-        ],
-    ),
-    SqlMigration(
-        version=8,
-        description="Add tags field to training_runs table",
-        sql_statements=[
-            """ALTER TABLE training_runs ADD COLUMN tags TEXT[]""",
-        ],
-    ),
-    SqlMigration(
-        version=9,
-        description="Add internal_id field to episodes table and episode_agent_metrics table",
-        sql_statements=[
-            """ALTER TABLE episodes ADD COLUMN internal_id SERIAL UNIQUE""",
-            """ALTER TABLE episode_agent_metrics ADD COLUMN episode_internal_id INTEGER""",
-        ],
-    ),
-    SqlMigration(
-        version=10,
-        description="Drop episode_agent_metrics.episode_id column",
-        sql_statements=[
-            """ALTER TABLE episode_agent_metrics ALTER COLUMN episode_internal_id SET NOT NULL""",
-            """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_metric_eiid_value
-                ON episode_agent_metrics(metric, episode_internal_id)
-                INCLUDE (value)""",
-            """CREATE INDEX IF NOT EXISTS idx_episode_agent_metrics_episode_internal_id
-                ON episode_agent_metrics(episode_internal_id)""",
-            """DROP INDEX idx_episode_agent_metrics_metric_episode_value""",
-            """ALTER TABLE episode_agent_metrics DROP COLUMN episode_id""",
-        ],
-    ),
-    SqlMigration(
-        version=11,
-        description="Add eval_tasks table",
-        sql_statements=[
-            """CREATE TABLE eval_tasks (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                policy_id UUID NOT NULL REFERENCES policies(id),
-                sim_suite TEXT NOT NULL,
-                status TEXT NOT NULL DEFAULT 'unprocessed',
-                assigned_at TIMESTAMP,
-                assignee TEXT,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                attributes JSONB
-            )""",
-            """CREATE INDEX idx_eval_tasks_status_assigned ON eval_tasks(status, assigned_at)""",
-            """CREATE INDEX idx_eval_tasks_assignee ON eval_tasks(assignee)""",
-            """CREATE INDEX idx_eval_tasks_policy_id ON eval_tasks(policy_id)""",
-            """CREATE INDEX idx_eval_tasks_sim_suite ON eval_tasks(sim_suite)""",
-            """CREATE INDEX idx_eval_tasks_unprocessed_assigned
-               ON eval_tasks(assigned_at)
-               WHERE status = 'unprocessed'""",
-        ],
-    ),
-    SqlMigration(
-        version=12,
-        description="Add eval_task_id to episodes table",
-        sql_statements=[
-            """ALTER TABLE episodes ADD COLUMN eval_task_id UUID REFERENCES eval_tasks(id)""",
-            """CREATE INDEX idx_episodes_eval_task_id ON episodes(eval_task_id)""",
-        ],
-    ),
-    SqlMigration(
-        version=13,
-        description="Add episode_tags table",
-        sql_statements=[
-            """CREATE TABLE episode_tags (
-                episode_id UUID NOT NULL REFERENCES episodes(id),
-                tag TEXT NOT NULL,
-                PRIMARY KEY (episode_id, tag)
-            )""",
-            """CREATE INDEX idx_episode_tags_episode_id ON episode_tags(episode_id)""",
-            """CREATE INDEX idx_episode_tags_tag ON episode_tags(tag)""",
-        ],
-    ),
-    SqlMigration(
-        version=14,
-        description="Add wide_episodes view for simplified episode filtering",
-        sql_statements=[
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.eval_name,
-                e.simulation_suite,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=15,
-        description="Add sweeps table for sweep coordination",
-        sql_statements=[
-            """CREATE TABLE sweeps (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                name TEXT NOT NULL UNIQUE,
-                project TEXT NOT NULL,
-                entity TEXT NOT NULL,
-                wandb_sweep_id TEXT NOT NULL,
-                state TEXT NOT NULL DEFAULT 'running',
-                run_counter INTEGER NOT NULL DEFAULT 0,
-                user_id TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE INDEX idx_sweeps_name ON sweeps(name)""",
-        ],
-    ),
-    SqlMigration(
-        version=16,
-        description="Add index on eval_tasks git_hash, assigned_at. And another on assigned_at",
-        sql_statements=[
-            """CREATE INDEX idx_eval_tasks_git_hash_assigned ON eval_tasks((attributes ->> 'git_hash'), assigned_at)""",
-            """CREATE INDEX idx_eval_tasks_assigned_at ON eval_tasks(assigned_at)""",
-        ],
-    ),
-    SqlMigration(
-        version=17,
-        description="Add retries column to eval_tasks table",
-        sql_statements=[
-            """ALTER TABLE eval_tasks ADD COLUMN retries INTEGER NOT NULL DEFAULT 0""",
-            """CREATE INDEX idx_eval_tasks_retries ON eval_tasks(retries)""",
-        ],
-    ),
-    SqlMigration(
-        version=18,
-        description="Add index on assignee, assigned_at, status",
-        sql_statements=[
-            """CREATE INDEX idx_eval_tasks_assignee_assigned_at_status
-               ON eval_tasks(assignee, assigned_at, status)""",
-        ],
-    ),
-    SqlMigration(
-        version=19,
-        description="Add internal_id to wide_episodes view",
-        sql_statements=[
-            """DROP VIEW wide_episodes""",
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.internal_id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.eval_name,
-                e.simulation_suite,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=20,
-        description="Add user_id to eval_tasks",
-        sql_statements=[
-            """ALTER TABLE eval_tasks ADD COLUMN user_id TEXT""",
-            """CREATE INDEX idx_eval_tasks_user_id ON eval_tasks(user_id)""",
-        ],
-    ),
-    SqlMigration(
-        version=21,
-        description="Add updated_at to eval_tasks",
-        sql_statements=[
-            """ALTER TABLE eval_tasks ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP""",
-            """CREATE INDEX idx_eval_tasks_updated_at ON eval_tasks(updated_at)""",
-        ],
-    ),
-    SqlMigration(
-        version=22,
-        description="Add index on episodes.primary_policy_id",
-        sql_statements=[
-            """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
-        ],
-    ),
-    SqlMigration(
-        version=23,
-        description="Add leaderboards table",
-        sql_statements=[
-            """CREATE TABLE leaderboards (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                name TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                evals TEXT[] NOT NULL,
-                metric TEXT NOT NULL,
-                start_date DATE NOT NULL,
-                latest_episode INTEGER NOT NULL DEFAULT 0,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE leaderboard_policy_scores (
-                leaderboard_id UUID NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
-                policy_id UUID NOT NULL REFERENCES policies(id),
-                score FLOAT NOT NULL,
-                PRIMARY KEY (leaderboard_id, policy_id)
-              )""",
-            """CREATE OR REPLACE VIEW unified_training_runs AS
-                WITH good_policies AS (select distinct primary_policy_id FROM episodes),
-                my_training_runs AS (
-                  SELECT t.id AS id, 'training_run' AS type, t.name, t.user_id, t.created_at, t.tags
-                  FROM training_runs t JOIN epochs e ON t.id = e.run_id
-                  JOIN policies p ON p.epoch_id = e.id
-                  JOIN good_policies g ON p.id = g.primary_policy_id
-                ),
-                my_run_free_policies AS (
-                  SELECT p.id AS id, 'policy' AS type, p.name, NULL as user_id, p.created_at, NULL::text[] as tags
-                  FROM policies p
-                  JOIN good_policies g ON p.id = g.primary_policy_id
-                  WHERE p.epoch_id IS NULL
-                )
-                SELECT * FROM my_training_runs
-                UNION
-                SELECT * FROM my_run_free_policies;""",
-        ],
-    ),
-    SqlMigration(
-        version=24,
-        description="Convert training_runs.status from TEXT to ENUM",
-        sql_statements=[
-            # Step 1: Create the ENUM type
-            """CREATE TYPE training_run_status AS ENUM ('running', 'completed', 'failed')""",
-            # Step 2: Add new column with ENUM type and default
-            """ALTER TABLE training_runs ADD COLUMN status_new training_run_status DEFAULT 'running'""",
-            # Step 3: Migrate existing data (all should be 'running' currently, but handle edge cases)
-            """UPDATE training_runs SET status_new =
-                CASE
-                    WHEN LOWER(status) = 'running' THEN 'running'::training_run_status
-                    WHEN LOWER(status) = 'completed' THEN 'completed'::training_run_status
-                    WHEN LOWER(status) = 'failed' THEN 'failed'::training_run_status
-                    ELSE 'running'::training_run_status
-                END""",
-            # Step 4: Make the new column NOT NULL
-            """ALTER TABLE training_runs ALTER COLUMN status_new SET NOT NULL""",
-            # Step 5: Drop the view that depends on the status column
-            """DROP VIEW wide_episodes""",
-            # Step 6: Drop old column and rename new one
-            """ALTER TABLE training_runs DROP COLUMN status""",
-            """ALTER TABLE training_runs RENAME COLUMN status_new TO status""",
-            # Step 7: Recreate the view with the new ENUM column
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.internal_id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.eval_name,
-                e.simulation_suite,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=25,
-        description="Add thumbnail_url field to episodes table and update wide_episodes view",
-        sql_statements=[
-            """ALTER TABLE episodes ADD COLUMN thumbnail_url TEXT""",
-            """DROP VIEW wide_episodes""",
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.internal_id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.thumbnail_url,
-                e.eval_name,
-                e.simulation_suite,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=26,
-        description="Drop simulation_suite column from episodes table",
-        sql_statements=[
-            """DROP VIEW wide_episodes""",
-            """ALTER TABLE episodes DROP COLUMN simulation_suite""",
-            """CREATE VIEW wide_episodes AS
-            SELECT
-                e.id,
-                e.internal_id,
-                e.created_at,
-                e.primary_policy_id,
-                e.stats_epoch,
-                e.replay_url,
-                e.thumbnail_url,
-                e.eval_name,
-                e.eval_category,
-                e.env_name,
-                e.attributes,
-                e.eval_task_id,
-                p.name as policy_name,
-                p.description as policy_description,
-                p.url as policy_url,
-                ep.start_training_epoch as epoch_start_training_epoch,
-                ep.end_training_epoch as epoch_end_training_epoch,
-                tr.id as training_run_id,
-                tr.name as training_run_name,
-                tr.user_id as training_run_user_id,
-                tr.status as training_run_status,
-                tr.url as training_run_url,
-                tr.description as training_run_description,
-                tr.tags as training_run_tags
-            FROM episodes e
-            LEFT JOIN policies p ON e.primary_policy_id = p.id
-            LEFT JOIN epochs ep ON p.epoch_id = ep.id
-            LEFT JOIN training_runs tr ON ep.run_id = tr.id
-            """,
-        ],
-    ),
-    SqlMigration(
-        version=27,
-        description="Add cogames_policy_submissions table",
-        sql_statements=[
-            """CREATE TABLE cogames_policy_submissions (
-                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-                user_id TEXT NOT NULL,
-                name TEXT,
-                s3_path TEXT NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE INDEX idx_cogames_submissions_user_id ON cogames_policy_submissions(user_id)""",
-            """CREATE INDEX idx_cogames_submissions_created_at ON cogames_policy_submissions(created_at)""",
-        ],
-    ),
-]
+class PolicyVersionWithName(BaseModel):
+    id: uuid.UUID
+    internal_id: int
+    policy_id: uuid.UUID
+    version: int
+    s3_path: str | None
+    git_hash: str | None
+    policy_spec: dict[str, Any]
+    attributes: dict[str, Any]
+    created_at: datetime
+    name: str
+
+
+class PublicPolicyVersionRow(BaseModel):
+    id: uuid.UUID
+    policy_id: uuid.UUID
+    created_at: datetime
+    policy_created_at: datetime
+    user_id: str
+    name: str
+    version: int
+    tags: dict[str, str] = Field(default_factory=dict)
+    version_count: int | None = None
+
+
+class EpisodeReplay(BaseModel):
+    episode_id: uuid.UUID
+    replay_url: str
+
+
+class EpisodeWithTags(BaseModel):
+    id: uuid.UUID
+    primary_pv_id: Optional[uuid.UUID]
+    replay_url: Optional[str]
+    thumbnail_url: Optional[str]
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    eval_task_id: Optional[uuid.UUID]
+    created_at: datetime
+    tags: dict[str, str] = Field(default_factory=dict)
+    avg_rewards: dict[uuid.UUID, float] = Field(default_factory=dict)
+
+    # We need this because we don't insert a json object into attributes, we insert a string reflecting the json object.
+    @field_validator("attributes", mode="before")
+    @classmethod
+    def _ensure_dict_attributes(cls, value: Any) -> dict[str, Any]:
+        """Coerce JSON strings into dictionaries so validation doesn't fail."""
+        if value is None:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            parsed = json.loads(value)
+            if not isinstance(parsed, dict):
+                raise ValueError("attributes must be a JSON object")
+            return parsed
+        raise ValueError("attributes must be a dictionary")
+
 
 logger = logging.getLogger(name="metta_repo")
 
@@ -718,8 +171,9 @@ class MettaRepo:
         self.db_uri = db_uri
         self._pool: AsyncConnectionPool | None = None
         # Run migrations synchronously during initialization
-        with Connection.connect(self.db_uri) as con:
-            run_migrations(con, MIGRATIONS)
+        if settings.RUN_MIGRATIONS:
+            with Connection.connect(self.db_uri) as con:
+                run_migrations(con, MIGRATIONS)
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
@@ -735,7 +189,7 @@ class MettaRepo:
                 yield conn
         except PoolTimeout as e:
             stats = pool.get_stats()
-            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}")
+            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}", exc_info=True)
 
             await pool.check()
             async with pool.connection() as conn:
@@ -749,544 +203,69 @@ class MettaRepo:
                 # Event loop might be closed, ignore
                 pass
 
-    def _hash_token(self, token: str) -> str:
-        """Hash a token for secure storage."""
-        return hashlib.sha256(token.encode()).hexdigest()
-
-    # All methods are async - no sync versions
-
-    async def get_policy_by_id(self, policy_id: uuid.UUID) -> PolicyRow | None:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, url
-                    FROM policies
-                    WHERE id = %s
-                    """,
-                    (policy_id,),
-                )
-                return await cur.fetchone()
-
-    async def get_policy_ids(self, policy_names: list[str]) -> dict[str, uuid.UUID]:
-        if not policy_names:
-            return {}
-
-        async with self.connect() as con:
-            res = await con.execute(
-                """
-                SELECT id, name FROM policies WHERE name = ANY(%s)
-                """,
-                (policy_names,),
-            )
-            rows = await res.fetchall()
-            return {row[1]: row[0] for row in rows}
-
-    async def create_training_run(
-        self,
-        name: str,
-        user_id: str,
-        attributes: dict[str, str],
-        url: str | None,
-        description: str | None,
-        tags: list[str] | None,
-    ) -> uuid.UUID:
-        status = "running"
-        async with self.connect() as con:
-            # Try to insert a new training run, but if it already exists, return the existing ID
-            result = await con.execute(
-                """
-                INSERT INTO training_runs (name, user_id, attributes, status, url, description, tags)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (user_id, name) DO NOTHING
-                RETURNING id
-                """,
-                (name, user_id, Jsonb(attributes), status, url, description, tags),
-            )
-            row = await result.fetchone()
-            if row is None:
-                # If no result, the run already exists, so fetch its ID
-                result = await con.execute(
-                    """
-                    SELECT id FROM training_runs WHERE user_id = %s AND name = %s
-                    """,
-                    (user_id, name),
-                )
-                row = await result.fetchone()
-                if row is None:
-                    raise RuntimeError("Failed to find existing training run")
-            return row[0]
-
-    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
-                WHERE id = %s
-                """,
-                (status, status, run_id),
-            )
-            if result.rowcount == 0:
-                raise ValueError(f"Training run with ID {run_id} not found")
-
-    async def create_epoch(
-        self,
-        run_id: uuid.UUID,
-        start_training_epoch: int,
-        end_training_epoch: int,
-        attributes: dict[str, Any],
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO epochs (run_id, start_training_epoch, end_training_epoch, attributes)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
-                """,
-                (run_id, start_training_epoch, end_training_epoch, Jsonb(attributes)),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert policy epoch")
-            return row[0]
-
-    async def create_policy(
-        self,
-        name: str,
-        description: str | None,
-        url: str | None,
-        epoch_id: uuid.UUID | None,
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO policies (name, description, url, epoch_id) VALUES (%s, %s, %s, %s)
-                RETURNING id
-                """,
-                (name, description, url, epoch_id),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert policy")
-            return row[0]
-
-    async def record_episode(
-        self,
-        agent_policies: dict[int, uuid.UUID],
-        agent_metrics: dict[int, dict[str, float]],
-        eval_name: str,
-        primary_policy_id: uuid.UUID,
-        stats_epoch: uuid.UUID | None,
-        replay_url: str | None,
-        attributes: dict[str, Any],
-        eval_task_id: uuid.UUID | None = None,
-        tags: list[str] | None = None,
-        thumbnail_url: str | None = None,
-    ) -> uuid.UUID:
-        async with self.connect() as con:
-            # Validate that eval name is in the format of 'eval_category/env_name'
-            parts = eval_name.split("/")
-            if len(parts) != 2:
-                raise ValueError("Eval name must be in the format of 'eval_category/env_name'")
-            eval_category, env_name = parts
-
-            # Insert into episodes table
-            result = await con.execute(
-                """
-                INSERT INTO episodes (
-                    replay_url,
-                    eval_name,
-                    eval_category,
-                    env_name,
-                    primary_policy_id,
-                    stats_epoch,
-                    attributes,
-                    eval_task_id,
-                    thumbnail_url
-                ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s
-                ) RETURNING id, internal_id
-                """,
-                (
-                    replay_url,
-                    eval_name,
-                    eval_category,
-                    env_name,
-                    primary_policy_id,
-                    stats_epoch,
-                    Jsonb(attributes),
-                    eval_task_id,
-                    thumbnail_url,
-                ),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to insert episode record")
-            episode_id = row[0]
-            episode_internal_id = row[1]
-
-            # Insert agent policies
-            for agent_id, policy_id in agent_policies.items():
-                await con.execute(
-                    """
-                    INSERT INTO episode_agent_policies (
-                        episode_id,
-                        policy_id,
-                        agent_id
-                    ) VALUES (%s, %s, %s)
-                    """,
-                    (episode_id, policy_id, agent_id),
-                )
-
-            # Insert agent metrics in bulk
-            rows: list[tuple[int, int, str, float]] = []
-            for agent_id, metrics in agent_metrics.items():
-                for metric_name, value in metrics.items():
-                    rows.append((episode_internal_id, agent_id, metric_name, value))
-
-            async with con.cursor() as cursor:
-                await cursor.executemany(
-                    """
-                  INSERT INTO episode_agent_metrics (episode_internal_id, agent_id, metric, value)
-                  VALUES (%s, %s, %s, %s)
-                  """,
-                    rows,
-                )
-
-            # Add tags if provided
-            if tags:
-                tag_rows = [(episode_id, tag) for tag in tags]
-                async with con.cursor() as cursor:
-                    await cursor.executemany(
-                        """
-                        INSERT INTO episode_tags (episode_id, tag)
-                        VALUES (%s, %s)
-                        ON CONFLICT (episode_id, tag) DO NOTHING
-                        """,
-                        tag_rows,
-                    )
-
-            return episode_id
-
-    async def get_suites(self) -> list[str]:
-        async with self.connect() as con:
-            result = await con.execute("""
-                SELECT DISTINCT eval_category
-                FROM episodes
-                WHERE eval_category IS NOT NULL AND env_name IS NOT NULL
-                ORDER BY eval_category
-            """)
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_metrics(self, suite: str) -> list[str]:
-        """Get all available metrics for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT eam.metric
-                FROM episodes e
-                JOIN episode_agent_metrics eam ON e.internal_id = eam.episode_internal_id
-                WHERE e.eval_category = %s
-                ORDER BY eam.metric
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_group_ids(self, suite: str) -> list[str]:
-        """Get all available group IDs for a given suite."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episodes e
-                WHERE e.eval_category = %s
-                ORDER BY group_id
-            """,
-                (suite,),
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
-
-    async def get_training_runs(self) -> list[TrainingRunRow]:
-        """Get all training runs."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
-                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
-                    FROM training_runs
-                    ORDER BY created_at DESC
-                    """
-                )
-                return await cur.fetchall()
-
-    async def get_training_run(self, run_id: str) -> TrainingRunRow | None:
-        """Get a specific training run by ID."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return None
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
-                           COALESCE(tags, ARRAY[]::TEXT[]) as tags
-                    FROM training_runs
-                    WHERE id = %s
-                    """,
-                    (run_uuid,),
-                )
-                return await cur.fetchone()
-
-    async def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
-        """Create a new machine token for a user."""
-        # Generate a secure random token
-        token = secrets.token_urlsafe(32)
-        token_hash = self._hash_token(token)
-
-        # Set expiration time
-        expiration_time = datetime.now() + timedelta(days=expiration_days)
-
-        async with self.connect() as con:
-            await con.execute(
-                """
-                INSERT INTO machine_tokens (user_id, name, token_hash, expiration_time)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (user_id, name, token_hash, expiration_time),
-            )
-
-        return token
-
-    async def list_machine_tokens(self, user_id: str) -> list[MachineTokenRow]:
-        """List all machine tokens for a user."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(MachineTokenRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, created_at, expiration_time, last_used_at
-                    FROM machine_tokens
-                    WHERE user_id = %s
-                    ORDER BY created_at DESC
-                    """,
-                    (user_id,),
-                )
-                return await cur.fetchall()
-
-    async def delete_machine_token(self, user_id: str, token_id: str) -> bool:
-        """Delete a machine token."""
-        try:
-            token_uuid = uuid.UUID(token_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM machine_tokens
-                WHERE id = %s AND user_id = %s
-                """,
-                (token_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def validate_machine_token(self, token: str) -> str | None:
-        """Validate a machine token and return the user_id if valid."""
-        token_hash = self._hash_token(token)
-
-        async with self.connect() as con:
-            query = """
-                UPDATE machine_tokens
-                SET last_used_at = CURRENT_TIMESTAMP
-                WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
-                RETURNING user_id
-                """
-            result = await execute_single_row_query_and_log(
-                con,
-                query,
-                (token_hash,),
-                "validate_machine_token",
-            )
-
-            if result:
-                return result[0]
-            return None
-
-    async def create_saved_dashboard(
-        self,
-        user_id: str,
-        name: str,
-        description: str | None,
-        dashboard_type: str,
-        dashboard_state: dict[str, Any],
-    ) -> uuid.UUID:
-        """Create a new saved dashboard (no upsert, always insert)."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                INSERT INTO saved_dashboards (
-                    user_id, name, description, type, dashboard_state
-                ) VALUES (%s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (user_id, name, description, dashboard_type, Jsonb(dashboard_state)),
-            )
-            row = await result.fetchone()
-            if row is None:
-                raise RuntimeError("Failed to create saved dashboard")
-            return row[0]
-
-    async def list_saved_dashboards(self) -> list[SavedDashboardRow]:
-        """List all saved dashboards."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                    FROM saved_dashboards
-                    ORDER BY updated_at DESC
-                    """
-                )
-                return await cur.fetchall()
-
-    async def get_saved_dashboard(self, dashboard_id: str) -> SavedDashboardRow | None:
-        """Get a specific saved dashboard by ID."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return None
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(SavedDashboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, description, type, dashboard_state, created_at, updated_at, user_id
-                    FROM saved_dashboards
-                    WHERE id = %s
-                    """,
-                    (dashboard_uuid,),
-                )
-                return await cur.fetchone()
-
-    async def delete_saved_dashboard(self, user_id: str, dashboard_id: str) -> bool:
-        """Delete a saved dashboard."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM saved_dashboards
-                WHERE id = %s AND user_id = %s
-                """,
-                (dashboard_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_dashboard_state(
-        self,
-        user_id: str,
-        dashboard_id: str,
-        dashboard_state: dict[str, Any],
-    ) -> bool:
-        """Update an existing saved dashboard."""
-        try:
-            dashboard_uuid = uuid.UUID(dashboard_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE saved_dashboards
-                SET dashboard_state = %s, updated_at = CURRENT_TIMESTAMP
-                WHERE id = %s AND user_id = %s
-                """,
-                (Jsonb(dashboard_state), dashboard_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_training_run_description(self, user_id: str, run_id: str, description: str) -> bool:
-        """Update the description of a training run."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET description = %s
-                WHERE id = %s AND user_id = %s
-                """,
-                (description, run_uuid, user_id),
-            )
-            return result.rowcount > 0
-
-    async def update_training_run_tags(self, user_id: str, run_id: str, tags: list[str]) -> bool:
-        """Update the tags of a training run."""
-        try:
-            run_uuid = uuid.UUID(run_id)
-        except ValueError:
-            return False
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                UPDATE training_runs
-                SET tags = %s
-                WHERE id = %s AND user_id = %s
-                """,
-                (tags, run_uuid, user_id),
-            )
-            return result.rowcount > 0
-
     async def create_eval_task(
         self,
-        policy_id: uuid.UUID,
-        sim_suite: str,
+        command: str,
+        user_id: str,
         attributes: dict[str, Any],
-        user_id: str | None = None,
+        git_hash: str | None = None,
+        data_uri: str | None = None,
     ) -> EvalTaskRow:
+        async with self.connect() as con:
+            # Insert the task
+            result = await con.execute(
+                """
+                INSERT INTO eval_tasks (command, data_uri, git_hash, attributes, user_id)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (command, data_uri, git_hash, Jsonb(attributes), user_id),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create eval task")
+            task_id = row[0]
+
+            # Create the first attempt
+            result2 = await con.execute(
+                """
+                INSERT INTO task_attempts (task_id, attempt_number, status)
+                VALUES (%s, 0, 'unprocessed')
+                RETURNING id
+                """,
+                (task_id,),
+            )
+            row2 = await result2.fetchone()
+            if row2 is None:
+                raise RuntimeError("Failed to create first attempt")
+            attempt_id = row2[0]
+
+            # Update the task with the latest_attempt_id
+            await con.execute(
+                """
+                UPDATE eval_tasks
+                SET latest_attempt_id = %s
+                WHERE id = %s
+                """,
+                (attempt_id, task_id),
+            )
+
+            # Fetch and return the complete task directly within the same transaction
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+                await cur.execute("SELECT * FROM eval_tasks_view WHERE id = %s", (task_id,))
+                task = await cur.fetchone()
+                if task is None:
+                    raise RuntimeError("Failed to retrieve created task")
+                return task
+
+    async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskRow]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     """
-                    INSERT INTO eval_tasks (policy_id, sim_suite, attributes, user_id)
-                    VALUES (%s, %s, %s, %s)
-                    RETURNING id, policy_id, sim_suite, status, assigned_at,
-                             assignee, created_at, attributes, retries, user_id, updated_at
-                    """,
-                    (policy_id, sim_suite, Jsonb(attributes), user_id),
-                )
-                row = await cur.fetchone()
-                if row is None:
-                    raise RuntimeError("Failed to create eval task")
-                return row
-
-    async def get_available_tasks(self, limit: int = 200) -> list[EvalTaskWithPolicyName]:
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
-                await cur.execute(
-                    """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE status = 'unprocessed'
-                      AND assignee IS NULL
-                    ORDER BY et.created_at ASC
+                    SELECT * FROM eval_tasks_view
+                    WHERE status = 'unprocessed' AND assignee IS NULL AND is_finished = FALSE
+                    ORDER BY created_at ASC
                     LIMIT %s
                     """,
                     (limit,),
@@ -1295,191 +274,125 @@ class MettaRepo:
 
     async def claim_tasks(
         self,
-        task_ids: list[uuid.UUID],
+        task_ids: list[int],
         assignee: str,
-    ) -> list[uuid.UUID]:
+    ) -> list[int]:
         if not task_ids:
             return []
 
         async with self.connect() as con:
+            # Update the latest attempt for each task
             result = await con.execute(
                 """
-                UPDATE eval_tasks
-                SET assignee = %s, assigned_at = NOW(), retries = retries +1, updated_at = NOW()
-                WHERE id = ANY(%s)
-                    AND status = 'unprocessed'
-                    AND assignee IS NULL
-                RETURNING id
+                UPDATE task_attempts
+                SET assignee = %s, assigned_at = NOW()
+                WHERE id IN (
+                    SELECT latest_attempt_id FROM eval_tasks
+                    WHERE id = ANY(%s) AND is_finished = FALSE
+                )
+                AND status = 'unprocessed'
+                AND assignee IS NULL
+                RETURNING task_id
                 """,
                 (assignee, task_ids),
             )
             rows = await result.fetchall()
             return [row[0] for row in rows]
 
-    async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskWithPolicyName]:
+    async def get_claimed_tasks(self, assignee: str | None = None) -> list[EvalTaskRow]:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 if assignee is not None:
                     await cur.execute(
                         """
-                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                        FROM eval_tasks et
-                        JOIN policies p ON et.policy_id = p.id
-                        WHERE assignee = %s AND status = 'unprocessed'
-                        ORDER BY et.created_at ASC
+                        SELECT * FROM eval_tasks_view
+                        WHERE assignee = %s AND is_finished = FALSE
+                        ORDER BY created_at ASC
                         """,
                         (assignee,),
                     )
                 else:
                     await cur.execute(
                         """
-                        SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries,
-                                p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                        FROM eval_tasks et
-                        JOIN policies p ON et.policy_id = p.id
-                        WHERE status = 'unprocessed' AND assignee IS NOT NULL
-                        ORDER BY et.created_at ASC
-                        """,
+                        SELECT * FROM eval_tasks_view
+                        WHERE assignee IS NOT NULL AND is_finished = FALSE
+                        ORDER BY created_at ASC
+                        """
                     )
                 return await cur.fetchall()
 
-    async def update_task_statuses(
-        self,
-        updates: dict[uuid.UUID, TaskStatusUpdate],
-        require_assignee: str | None = None,
-    ) -> dict[uuid.UUID, TaskStatus]:
-        if not updates:
-            return {}
-
-        updated = {}
+    async def start_task(self, task_id: int) -> None:
         async with self.connect() as con:
-            for task_id, update in updates.items():
-                if require_assignee:
-                    filter_clause = "id = %s AND assignee = %s"
-                    filter_params = (task_id, require_assignee)
-                else:
-                    filter_clause = "id = %s"
-                    filter_params = (task_id,)
-
-                if update.clear_assignee:
-                    assignee_clause = "assignee = NULL,"
-                else:
-                    assignee_clause = ""
-
-                query = f"""
-                UPDATE eval_tasks
-                SET status = %s,
-                    {assignee_clause}
-                    attributes = COALESCE(attributes, '{{}}'::jsonb) || %s::jsonb,
-                    updated_at = NOW()
-                WHERE {filter_clause}
-                RETURNING id
+            await con.execute(
                 """
-                params = (update.status, Jsonb(update.attributes)) + filter_params
-                result = await con.execute(query, params)
-
-                if result.rowcount > 0:
-                    updated[task_id] = update.status
-
-        return updated
-
-    async def count_tasks(self, where_clause: str) -> int:
-        async with self.connect() as con:
-            result = await con.execute(
-                f"SELECT COUNT(*) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+                UPDATE task_attempts
+                SET status = 'running', started_at = NOW()
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (task_id,),
             )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
-            return res[0]
 
-    async def get_avg_runtime(self, where_clause: str) -> float | None:
+    async def finish_task(
+        self, task_id: int, status: FinishedTaskStatus, status_details: dict[str, Any], log_path: str | None = None
+    ) -> None:
         async with self.connect() as con:
-            result = await con.execute(
-                f"SELECT EXTRACT(EPOCH FROM AVG(updated_at - assigned_at)) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+            # Update the current attempt
+            await con.execute(
+                """
+                UPDATE task_attempts
+                SET status = %s, finished_at = NOW(), status_details = %s, output_log_path = %s
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (status, Jsonb(status_details), log_path, task_id),
             )
-            res = await result.fetchone()
-            if res is None:
-                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
-            return res[0]
 
-    async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
-        """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
-        if not episode_ids:
-            return 0
+            # Get the current attempt number
+            result = await con.execute(
+                """
+                SELECT attempt_number FROM task_attempts
+                WHERE id = (SELECT latest_attempt_id FROM eval_tasks WHERE id = %s)
+                """,
+                (task_id,),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError(f"Failed to get attempt number for task {task_id}")
+            current_attempt = row[0]
 
-        async with self.connect() as con:
-            # Use INSERT ... ON CONFLICT DO NOTHING to avoid duplicate key errors
-            rows_affected = 0
-            for episode_id in episode_ids:
-                result = await con.execute(
+            # Check if we should mark the task as finished or create a new attempt
+            should_finish = status != "system_error" or current_attempt >= 2  # 0, 1, 2 = 3 attempts
+
+            if should_finish:
+                # Mark the task as finished
+                await con.execute(
                     """
-                    INSERT INTO episode_tags (episode_id, tag)
-                    VALUES (%s, %s)
-                    ON CONFLICT (episode_id, tag) DO NOTHING
+                    UPDATE eval_tasks
+                    SET is_finished = TRUE
+                    WHERE id = %s
                     """,
-                    (episode_id, tag),
+                    (task_id,),
                 )
-                rows_affected += result.rowcount
-            return rows_affected
+            else:
+                # Create a new attempt for retry
+                await con.execute(
+                    """
+                    INSERT INTO task_attempts (task_id, attempt_number, status)
+                    VALUES (%s, %s, 'unprocessed')
+                    """,
+                    (task_id, current_attempt + 1),
+                )
 
-    async def remove_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
-        """Remove a tag from multiple episodes by UUID. Returns number of episodes untagged."""
-        if not episode_ids:
-            return 0
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM episode_tags
-                WHERE episode_id = ANY(%s) AND tag = %s
-                """,
-                (episode_ids, tag),
-            )
-            return result.rowcount
-
-    async def get_episode_tags(self, episode_ids: list[uuid.UUID]) -> dict[str, list[str]]:
-        """Get all tags for the given episode UUIDs."""
-        if not episode_ids:
-            return {}
-
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT episode_id, tag
-                FROM episode_tags
-                WHERE episode_id = ANY(%s)
-                ORDER BY episode_id, tag
-                """,
-                (episode_ids,),
-            )
-            rows = await result.fetchall()
-
-            # Group tags by episode UUID (converted to string for JSON serialization)
-            tags_by_episode = {}
-            for episode_uuid, tag in rows:
-                episode_key = str(episode_uuid)
-                if episode_key not in tags_by_episode:
-                    tags_by_episode[episode_key] = []
-                tags_by_episode[episode_key].append(tag)
-
-            return tags_by_episode
-
-    async def get_all_episode_tags(self) -> list[str]:
-        """Get all distinct tags that exist in the system."""
-        async with self.connect() as con:
-            result = await con.execute(
-                """
-                SELECT DISTINCT tag
-                FROM episode_tags
-                ORDER BY tag
-                """
-            )
-            rows = await result.fetchall()
-            return [row[0] for row in rows]
+                # Update latest_attempt_id
+                await con.execute(
+                    """
+                    UPDATE eval_tasks
+                    SET latest_attempt_id = (
+                        SELECT id FROM task_attempts WHERE task_id = %s ORDER BY attempt_number DESC LIMIT 1
+                    )
+                    WHERE id = %s
+                    """,
+                    (task_id, task_id),
+                )
 
     async def create_sweep(self, name: str, project: str, entity: str, wandb_sweep_id: str, user_id: str) -> uuid.UUID:
         """Create a new sweep."""
@@ -1530,18 +443,13 @@ class MettaRepo:
                 raise ValueError(f"Sweep {sweep_id} not found")
             return row[0]
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskWithPolicyName | None:
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> EvalTaskRow | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE assignee = %s
-                      AND assigned_at IS NOT NULL
+                    SELECT * FROM eval_tasks_view
+                    WHERE assignee = %s AND assigned_at IS NOT NULL
                     ORDER BY assigned_at DESC
                     LIMIT 1
                     """,
@@ -1549,30 +457,32 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
-    async def get_task_by_id(self, task_id: uuid.UUID) -> EvalTaskWithPolicyName | None:
+    async def get_task_by_id(self, task_id: int) -> EvalTaskRow | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
+                await cur.execute("SELECT * FROM eval_tasks_view WHERE id = %s", (task_id,))
+                return await cur.fetchone()
+
+    async def get_task_attempts(self, task_id: int) -> list[TaskAttemptRow]:
+        """Get all attempts for a task, ordered by attempt_number."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(TaskAttemptRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    JOIN policies p ON et.policy_id = p.id
-                    WHERE et.id = %s
+                    SELECT * FROM task_attempts
+                    WHERE task_id = %s
+                    ORDER BY attempt_number ASC
                     """,
                     (task_id,),
                 )
-                return await cur.fetchone()
+                return await cur.fetchall()
 
     async def get_all_tasks(
         self,
         limit: int = 500,
         statuses: list[TaskStatus] | None = None,
         git_hash: str | None = None,
-        policy_ids: list[uuid.UUID] | None = None,
-        sim_suites: list[str] | None = None,
-    ) -> list[EvalTaskWithPolicyName]:
+    ) -> list[EvalTaskRow]:
         async with self.connect() as con:
             # Build the WHERE clause dynamically
             where_conditions = []
@@ -1580,36 +490,22 @@ class MettaRepo:
 
             if statuses:
                 placeholders = ", ".join(["%s"] * len(statuses))
-                where_conditions.append(f"et.status IN ({placeholders})")
+                where_conditions.append(f"status IN ({placeholders})")
                 params.extend(statuses)
 
             if git_hash:
-                where_conditions.append("et.attributes->>'git_hash' = %s")
+                where_conditions.append("git_hash = %s")
                 params.append(git_hash)
-
-            if policy_ids:
-                placeholders = ", ".join(["%s"] * len(policy_ids))
-                where_conditions.append(f"et.policy_id IN ({placeholders})")
-                params.extend(policy_ids)
-
-            if sim_suites:
-                placeholders = ", ".join(["%s"] * len(sim_suites))
-                where_conditions.append(f"et.sim_suite IN ({placeholders})")
-                params.extend(sim_suites)
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             params.append(limit)
 
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    LEFT JOIN policies p ON et.policy_id = p.id
+                    SELECT * FROM eval_tasks_view
                     WHERE {where_clause}
-                    ORDER BY et.created_at DESC
+                    ORDER BY created_at DESC
                     LIMIT %s
                     """,
                     params,
@@ -1620,100 +516,65 @@ class MettaRepo:
         self,
         page: int = 1,
         page_size: int = 50,
-        policy_name: str | None = None,
-        sim_suite: str | None = None,
         status: str | None = None,
         assignee: str | None = None,
         user_id: str | None = None,
-        retries: str | None = None,
+        command: str | None = None,
         created_at: str | None = None,
         assigned_at: str | None = None,
-        updated_at: str | None = None,
-        include_attributes: bool = False,
-    ) -> tuple[list[EvalTaskWithPolicyName], int]:
+    ) -> tuple[list[EvalTaskRow], int]:
         async with self.connect() as con:
             where_conditions = []
             params = []
 
             # Add text-based filters using ILIKE for case-insensitive substring search
-            if policy_name:
-                where_conditions.append("p.name ILIKE %s")
-                params.append(f"%{policy_name}%")
-
-            if sim_suite:
-                where_conditions.append("et.sim_suite ILIKE %s")
-                params.append(f"%{sim_suite}%")
-
             if status:
                 # Use exact match for status since it's an enum-like field
-                where_conditions.append("et.status = %s")
+                where_conditions.append("status = %s")
                 params.append(status)
 
             if assignee:
-                where_conditions.append("et.assignee ILIKE %s")
+                where_conditions.append("assignee ILIKE %s")
                 params.append(f"%{assignee}%")
 
             if user_id:
-                where_conditions.append("et.user_id ILIKE %s")
+                where_conditions.append("user_id ILIKE %s")
                 params.append(f"%{user_id}%")
 
-            if retries:
-                where_conditions.append("CAST(et.retries AS TEXT) ILIKE %s")
-                params.append(f"%{retries}%")
+            if command:
+                where_conditions.append("command ILIKE %s")
+                params.append(f"%{command}%")
 
             if created_at:
-                where_conditions.append("CAST(et.created_at AS TEXT) ILIKE %s")
+                where_conditions.append("CAST(created_at AS TEXT) ILIKE %s")
                 params.append(f"%{created_at}%")
 
             if assigned_at:
-                where_conditions.append("CAST(et.assigned_at AS TEXT) ILIKE %s")
+                where_conditions.append("CAST(assigned_at AS TEXT) ILIKE %s")
                 params.append(f"%{assigned_at}%")
-
-            if updated_at:
-                where_conditions.append("CAST(et.updated_at AS TEXT) ILIKE %s")
-                params.append(f"%{updated_at}%")
 
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
 
             # Get total count
             count_query = f"""
                 SELECT COUNT(*)
-                FROM eval_tasks et
-                LEFT JOIN policies p ON et.policy_id = p.id
+                FROM eval_tasks_view
                 WHERE {where_clause}
             """
             count_result = await con.execute(count_query, params)
-            total_count = (await count_result.fetchone())[0]
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
 
             # Get paginated results
             offset = (page - 1) * page_size
             params.extend([page_size, offset])
 
-            # Conditionally include attributes field
-            # When not including full attributes, return minimal subset for UI display
-            if include_attributes:
-                attributes_field = "et.attributes"
-            else:
-                attributes_field = """
-                    jsonb_build_object(
-                        'git_hash', et.attributes->>'git_hash',
-                        'output_log_path', et.attributes->>'output_log_path',
-                        'stderr_log_path', et.attributes->>'stderr_log_path',
-                        'stdout_log_path', et.attributes->>'stdout_log_path',
-                        'details', et.attributes->'details'
-                    ) as attributes
-                """.strip()
-
-            async with con.cursor(row_factory=class_row(EvalTaskWithPolicyName)) as cur:
+            async with con.cursor(row_factory=class_row(EvalTaskRow)) as cur:
                 await cur.execute(
                     f"""
-                    SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, {attributes_field}, et.retries,
-                           p.name as policy_name, p.url as policy_url, et.user_id, et.updated_at
-                    FROM eval_tasks et
-                    LEFT JOIN policies p ON et.policy_id = p.id
+                    SELECT * FROM eval_tasks_view
                     WHERE {where_clause}
-                    ORDER BY et.created_at DESC
+                    ORDER BY created_at DESC
                     LIMIT %s OFFSET %s
                     """,
                     params,
@@ -1729,7 +590,11 @@ class MettaRepo:
 
             # Use ANY() for proper list handling in PostgreSQL
             queryRes = await con.execute(
-                "SELECT DISTINCT assignee, attributes->>'git_hash' FROM eval_tasks WHERE assignee = ANY(%s)",
+                """
+                SELECT DISTINCT assignee, git_hash
+                FROM eval_tasks_view
+                WHERE assignee = ANY(%s)
+                """,
                 (assignees,),
             )
             rows = await queryRes.fetchall()
@@ -1739,155 +604,498 @@ class MettaRepo:
                     res[row[0]].append(row[1])
             return res
 
-    async def create_leaderboard(
-        self,
-        name: str,
-        user_id: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> uuid.UUID:
-        """Create a new leaderboard."""
+    # Stats queries
+    async def upsert_policy(self, name: str, user_id: str, attributes: dict[str, Any]) -> uuid.UUID:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                INSERT INTO leaderboards (
-                    name, user_id, evals, metric, start_date
-                ) VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO policies (name, user_id, attributes)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
-                (
-                    name,
-                    user_id,
-                    evals,
-                    metric,
-                    start_date,
-                ),
+                (name, user_id, Jsonb(attributes)),
+            )
+            row = await result.fetchone()
+            if row is not None:
+                return row[0]
+            else:
+                # Policy already exists, get the id
+                result = await con.execute(
+                    """
+                    SELECT id FROM policies WHERE user_id = %s AND name = %s
+                    """,
+                    (user_id, name),
+                )
+                row = await result.fetchone()
+                if row is not None:
+                    return row[0]
+                else:
+                    raise ValueError(f"Policy {name} not found")
+
+    async def get_latest_policy_version(self, policy_id: uuid.UUID) -> int | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                SELECT MAX(version) FROM policy_versions WHERE policy_id = %s
+                """,
+                (policy_id,),
+            )
+            res = await result.fetchone()
+            if res:
+                return res[0]
+
+    async def create_policy_version(
+        self,
+        policy_id: uuid.UUID,
+        s3_path: str | None,
+        git_hash: str | None,
+        policy_spec: dict[str, Any],
+        attributes: dict[str, Any],
+    ) -> uuid.UUID:
+        async with self.connect() as con:
+            latest_version = await self.get_latest_policy_version(policy_id)
+            next_version = latest_version + 1 if latest_version is not None else 1
+
+            result = await con.execute(
+                """
+                INSERT INTO policy_versions (policy_id, version, s3_path, git_hash, policy_spec, attributes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (policy_id, next_version, s3_path, git_hash, Jsonb(policy_spec), Jsonb(attributes)),
             )
             row = await result.fetchone()
             if row is None:
-                raise RuntimeError("Failed to create leaderboard")
+                raise ValueError("Failed to create policy version")
             return row[0]
 
-    async def update_leaderboard(
-        self,
-        leaderboard_id: uuid.UUID,
-        user_id: str,
-        name: str,
-        evals: list[str],
-        metric: str,
-        start_date: str,
-    ) -> LeaderboardRow:
-        """Update a leaderboard."""
-
+    async def get_policy_version_with_name(self, policy_version_id: uuid.UUID) -> PolicyVersionWithName | None:
         async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                cur_leaderboard_cursor = await cur.execute(
-                    "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
-                    (leaderboard_id, user_id),
-                )
-                cur_leaderboard = await cur_leaderboard_cursor.fetchone()
-                if not cur_leaderboard:
-                    raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-            if (
-                cur_leaderboard.name != name
-                or cur_leaderboard.evals != evals
-                or cur_leaderboard.metric != metric
-                or cur_leaderboard.start_date != start_date
-            ):
-                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
-                    query = """
-                    UPDATE leaderboards
-                    SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
-                    WHERE id = %s AND user_id = %s
-                    RETURNING *
-                  """
-                    params = (name, evals, metric, start_date, leaderboard_id, user_id)
-
-                    await update_cur.execute(query, params)
-                    updated_leaderboard = await update_cur.fetchone()
-                    if not updated_leaderboard:
-                        raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
-
-                    if (
-                        cur_leaderboard.evals != evals
-                        or cur_leaderboard.metric != metric
-                        or cur_leaderboard.start_date != start_date
-                    ):
-                        # TODO: Technically we shouldn't need to delete the scores if only start_date changes
-                        await con.execute(
-                            "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
-                            (leaderboard_id,),
-                        )
-                    return updated_leaderboard
-            else:
-                return cur_leaderboard
-
-    async def list_leaderboards(self) -> list[LeaderboardRow]:
-        """List all leaderboards for a user."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+            async with con.cursor(row_factory=class_row(PolicyVersionWithName)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
-                    FROM leaderboards
-                    ORDER BY updated_at DESC
+                SELECT pv.*, p.name
+                FROM policy_versions pv JOIN policies p ON pv.policy_id = p.id
+                WHERE pv.id = %s""",
+                    (policy_version_id,),
+                )
+                return await cur.fetchone()
+
+    async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
+        """Get a single policy version with public fields by ID.
+
+        Returns None if the policy version does not exist.
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.id = %s
                     """,
+                    (policy_version_id,),
+                )
+                return await cur.fetchone()
+
+    async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions AS pv, policies AS p
+                    WHERE pv.policy_id = p.id AND p.user_id = %s
+                    ORDER BY pv.created_at DESC, pv.version DESC
+                    """,
+                    (user_id,),
+                )
+                return await cur.fetchall()
+
+    async def get_policies(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PolicyRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            policy_query = f"""
+                    SELECT
+                        p.id,
+                        p.name,
+                        p.created_at,
+                        p.user_id,
+                        p.attributes,
+                        COALESCE(vc.version_count, 0) AS version_count
+                    FROM policies p
+                    LEFT JOIN (
+                        SELECT policy_id, COUNT(*) AS version_count
+                        FROM policy_versions
+                        GROUP BY policy_id
+                    ) vc ON p.id = vc.policy_id
+                    {where_clause}
+                    ORDER BY p.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(policy_query, params)  # type: ignore[arg-type]
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
+    async def get_policy_versions(
+        self,
+        name_exact: str | None = None,
+        name_fuzzy: str | None = None,
+        version: int | None = None,
+        policy_version_ids: list[uuid.UUID] | None = None,
+        user_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            where_conditions: list[str] = []
+            params: list[Any] = []
+
+            if policy_version_ids:
+                where_conditions.append("pv.id = ANY(%s)")
+                params.append(policy_version_ids)
+
+            if name_exact:
+                where_conditions.append("p.name = %s")
+                params.append(name_exact)
+
+            if name_fuzzy:
+                where_conditions.append("p.name ILIKE %s")
+                params.append(f"%{name_fuzzy}%")
+
+            if version is not None:
+                where_conditions.append("pv.version = %s")
+                params.append(version)
+
+            if user_id is not None:
+                where_conditions.append("p.user_id = %s")
+                params.append(user_id)
+
+            where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+
+            count_query = f"""
+                SELECT COUNT(DISTINCT pv.policy_id)
+                FROM policy_versions pv
+                JOIN policies p ON pv.policy_id = p.id
+                {where_clause}
+            """
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            params.extend([limit, offset])
+
+            version_query = f"""
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version,
+                        pv.version AS version_count
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    {where_clause}
+                    ORDER BY pv.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(version_query, params)  # type: ignore[arg-type]
+                rows = await cur.fetchall()
+
+            return rows, total_count
+
+    async def get_versions_for_policy(
+        self,
+        policy_id: str,
+        limit: int = 500,
+        offset: int = 0,
+    ) -> tuple[list[PublicPolicyVersionRow], int]:
+        async with self.connect() as con:
+            count_query = """
+                SELECT COUNT(*)
+                FROM policy_versions pv
+                WHERE pv.policy_id = %s
+            """
+            count_result = await con.execute(count_query, (policy_id,))
+            result_row = await count_result.fetchone()
+            total_count: int = result_row[0] if result_row else 0
+
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.policy_id = %s
+                    ORDER BY pv.version DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (policy_id, limit, offset),
                 )
                 rows = await cur.fetchall()
-                return rows
 
-    async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
-        """Get a specific leaderboard by ID."""
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
-                row = await cur.fetchone()
-                return row
+            return rows, total_count
 
-    async def delete_leaderboard(self, leaderboard_id: str, user_id: str) -> bool:
-        """Delete a leaderboard."""
-        try:
-            leaderboard_uuid = uuid.UUID(leaderboard_id)
-        except ValueError:
-            return False
+    async def upsert_policy_version_tags(self, policy_version_id: uuid.UUID, tags: dict[str, str]) -> None:
+        if not tags:
+            return
+
+        rows = [(policy_version_id, key, value) for key, value in tags.items()]
 
         async with self.connect() as con:
-            result = await con.execute(
-                """
-                DELETE FROM leaderboards
-                WHERE id = %s AND user_id = %s
-                """,
-                (leaderboard_uuid, user_id),
-            )
-            return result.rowcount > 0
+            async with con.cursor() as cur:
+                await cur.executemany(
+                    """
+                    INSERT INTO policy_version_tags (policy_version_id, key, value)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (policy_version_id, key)
+                    DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    rows,
+                )
 
-    async def update_leaderboard_latest_episode(
-        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
-    ) -> None:
-        """Update the latest episode for a leaderboard."""
-        await con.execute(
-            """
-            UPDATE leaderboards SET latest_episode = %s WHERE id = %s
-            """,
-            (latest_episode, leaderboard_id),
-        )
-
-    async def create_cogames_submission(
-        self, submission_id: uuid.UUID, user_id: str, s3_path: str, name: str | None = None
+    async def record_episode(
+        self,
+        id: UUID,
+        data_uri: str,
+        primary_pv_id: uuid.UUID | None,
+        replay_url: str | None,
+        attributes: dict[str, Any],
+        eval_task_id: uuid.UUID | None,
+        thumbnail_url: str | None,
+        tags: list[tuple[str, str]],
+        policy_versions: list[tuple[uuid.UUID, int]],  # pv_id, num_agents
+        policy_metrics: list[tuple[uuid.UUID, str, float]],  # pv_id, metric_name, metric_value
     ) -> uuid.UUID:
-        """Create a new CoGames policy submission with a specific ID."""
         async with self.connect() as con:
+            # Insert into episodes table
             result = await con.execute(
                 """
-                INSERT INTO cogames_policy_submissions (id, user_id, name, s3_path)
-                VALUES (%s, %s, %s, %s)
-                RETURNING id
+                INSERT INTO episodes (
+                    id,
+                    data_uri,
+                    primary_pv_id,
+                    replay_url,
+                    thumbnail_url,
+                    attributes,
+                    eval_task_id
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s
+                ) RETURNING internal_id
                 """,
-                (submission_id, user_id, name, s3_path),
+                (id, data_uri, primary_pv_id, replay_url, thumbnail_url, Jsonb(attributes), eval_task_id),
             )
             row = await result.fetchone()
             if row is None:
-                raise RuntimeError("Failed to create CoGames submission")
-            return row[0]
+                raise RuntimeError("Failed to insert episode record")
+            episode_internal_id = row[0]
+
+            # Insert episode policies in bulk
+            async with con.cursor() as cur:
+                rows = [(id, pv_id, num_agents) for pv_id, num_agents in policy_versions]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_policies (episode_id, policy_version_id, num_agents)
+                    VALUES (%s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            # Get internal_id for each policy version UUID
+            pv_uuid_to_internal_id: dict[uuid.UUID, int] = {}
+            if policy_metrics:
+                pv_uuids = list({pv_id for pv_id, _, _ in policy_metrics})
+                result = await con.execute(
+                    """
+                    SELECT id, internal_id FROM policy_versions WHERE id = ANY(%s)
+                    """,
+                    (pv_uuids,),
+                )
+                rows = await result.fetchall()
+                for row in rows:
+                    pv_uuid_to_internal_id[row[0]] = row[1]
+
+            # Insert episode policy metrics in bulk
+            async with con.cursor() as cur:
+                rows = [
+                    (episode_internal_id, pv_uuid_to_internal_id[pv_id], metric_name, metric_value)
+                    for pv_id, metric_name, metric_value in policy_metrics
+                ]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_policy_metrics (episode_internal_id, pv_internal_id, metric_name, value)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            # Insert episode tags in bulk
+            async with con.cursor() as cur:
+                rows = [(id, key, value) for key, value in tags]
+                await cur.executemany(
+                    """
+                    INSERT INTO episode_tags (episode_id, key, value)
+                    VALUES (%s, %s, %s)
+                    """,
+                    rows,
+                )
+
+            return id
+
+    async def get_episodes(
+        self,
+        *,
+        primary_policy_version_ids: Optional[list[uuid.UUID]] = None,
+        episode_ids: Optional[list[uuid.UUID]] = None,
+        tag_filters: Optional[dict[str, Optional[list[str]]]] = None,
+        limit: Optional[int] = 200,
+        offset: int = 0,
+    ) -> list[EpisodeWithTags]:
+        """Fetch episodes with optional filters and tag aggregation."""
+        where_conditions: list[str] = []
+        params: list[Any] = []
+
+        if primary_policy_version_ids:
+            where_conditions.append("e.primary_pv_id = ANY(%s)")
+            params.append(primary_policy_version_ids)
+
+        if episode_ids:
+            where_conditions.append("e.id = ANY(%s)")
+            params.append(episode_ids)
+
+        if tag_filters:
+            for idx, (tag_key, tag_values) in enumerate(tag_filters.items()):
+                if tag_values:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                              AND et_{idx}.value = ANY(%s)
+                        )"""
+                    )
+                    params.extend([tag_key, tag_values])
+                else:
+                    where_conditions.append(
+                        f"""EXISTS (
+                            SELECT 1 FROM episode_tags et_{idx}
+                            WHERE et_{idx}.episode_id = e.id
+                              AND et_{idx}.key = %s
+                        )"""
+                    )
+                    params.append(tag_key)
+
+        where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
+        limit_clause = ""
+        if limit is not None:
+            limit_clause = "LIMIT %s"
+            params.append(limit)
+        if offset > 0:
+            limit_clause += " OFFSET %s" if limit_clause else "OFFSET %s"
+            params.append(offset)
+
+        query = f"""
+WITH episode_tags_agg AS (
+    SELECT episode_id, jsonb_object_agg(key, value) AS tags
+    FROM episode_tags
+    GROUP BY episode_id
+),
+episode_avg_rewards AS (
+    SELECT
+        e_sub.id AS episode_id,
+        jsonb_object_agg(
+            pv.id::text,
+            epm.value / NULLIF(ep.num_agents, 0)
+        ) FILTER (
+            WHERE epm.metric_name = 'reward'
+              AND ep.num_agents IS NOT NULL
+              AND ep.num_agents > 0
+        ) AS avg_rewards
+    FROM episodes e_sub
+    JOIN episode_policies ep ON ep.episode_id = e_sub.id
+    JOIN policy_versions pv ON pv.id = ep.policy_version_id
+    JOIN episode_policy_metrics epm
+        ON epm.episode_internal_id = e_sub.internal_id
+       AND epm.pv_internal_id = pv.internal_id
+    GROUP BY e_sub.id
+)
+SELECT
+    e.id,
+    e.primary_pv_id,
+    e.replay_url,
+    e.thumbnail_url,
+    COALESCE(e.attributes, '{{}}'::jsonb) AS attributes,
+    e.eval_task_id,
+    e.created_at,
+    COALESCE(t.tags, '{{}}'::jsonb) AS tags,
+    COALESCE(r.avg_rewards, '{{}}'::jsonb) AS avg_rewards
+FROM episodes e
+LEFT JOIN episode_tags_agg t ON t.episode_id = e.id
+LEFT JOIN episode_avg_rewards r ON r.episode_id = e.id
+{where_clause}
+ORDER BY e.created_at DESC
+{limit_clause}
+"""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(EpisodeWithTags)) as cur:
+                await cur.execute(query, params)  # type: ignore
+                rows = await cur.fetchall()
+
+        for row in rows:
+            # `class_row` returns a dict for this attr but doesn't coerce its inner types
+            row.avg_rewards = {uuid.UUID(str(key)): value for key, value in row.avg_rewards.items()}
+        return list(rows)

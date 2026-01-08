@@ -29,11 +29,11 @@ def _register_task(algorithm: LearningProgressAlgorithm, task_id: int) -> int:
 def _create_tasks(
     algorithm: LearningProgressAlgorithm,
     count: int,
-    rng: random.Random | None = None,
+    rng: random.Random,
 ) -> list[int]:
     task_ids: list[int] = []
-    for index in range(count):
-        task_id = rng.randint(0, 1_000_000) if rng is not None else index
+    for _index in range(count):
+        task_id = rng.randint(0, 1_000_000)
         task_ids.append(_register_task(algorithm, task_id))
     return task_ids
 
@@ -438,3 +438,40 @@ class TestBidirectionalLearningProgressBehavior:
             assert key in stats, f"Missing stat key: {key}"
 
         assert stats["num_tracked_tasks"] > 0, "Should track some tasks"
+
+    def test_progress_smoothing_affects_bidirectional_scores(self):
+        """Ensure progress_smoothing still influences bidirectional task scores."""
+        smoothed_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.2,
+        )
+        raw_config = LearningProgressConfig(
+            use_bidirectional=True,
+            progress_smoothing=0.0,
+        )
+
+        smoothed_algo = LearningProgressAlgorithm(num_tasks=2, hypers=smoothed_config)
+        raw_algo = LearningProgressAlgorithm(num_tasks=2, hypers=raw_config)
+
+        # Need at least two tasks; bidirectional scoring normalizes over the batch
+        task_id_1 = _register_task(smoothed_algo, 0)
+        task_id_2 = _register_task(smoothed_algo, 1)
+        _register_task(raw_algo, task_id_1)
+        _register_task(raw_algo, task_id_2)
+
+        # Seed identical EMA values and outcomes so only smoothing differs
+        for algo in (smoothed_algo, raw_algo):
+            algo._outcomes[task_id_1] = [0.2, 0.8]
+            algo._per_task_fast[task_id_1] = 0.9
+            algo._per_task_slow[task_id_1] = 0.3
+            algo._outcomes[task_id_2] = [0.5, 0.5]
+            algo._per_task_fast[task_id_2] = 0.5
+            algo._per_task_slow[task_id_2] = 0.5
+
+        smoothed_scores = smoothed_algo.score_tasks([task_id_1, task_id_2])
+        raw_scores = raw_algo.score_tasks([task_id_1, task_id_2])
+
+        assert smoothed_scores[task_id_1] != raw_scores[task_id_1], (
+            "progress_smoothing should alter bidirectional scores"
+        )
+        assert smoothed_scores[task_id_1] < raw_scores[task_id_1], "smoothing should dampen the raw bidirectional score"

@@ -5,14 +5,13 @@
 #include <memory>
 #include <vector>
 
-#include "actions/orientation.hpp"
 #include "core/grid_object.hpp"
 #include "objects/constants.hpp"
 
 using std::max;
 using std::unique_ptr;
 using std::vector;
-using GridType = std::vector<std::vector<std::vector<GridObject*>>>;
+using GridType = std::vector<std::vector<GridObject*>>;
 
 class Grid {
 public:
@@ -29,9 +28,7 @@ public:
         width(width),
         objects(),  // Initialize objects in member init list
         grid() {    // Initialize grid in member init list
-    grid.resize(
-        height,
-        std::vector<std::vector<GridObject*>>(width, std::vector<GridObject*>(GridLayer::GridLayerCount, nullptr)));
+    grid.resize(height, std::vector<GridObject*>(width, nullptr));
 
     // Reserve space for objects to avoid frequent reallocations
     // Assume ~50% of grid cells will contain objects
@@ -53,20 +50,20 @@ public:
   ~Grid() = default;
 
   inline bool is_valid_location(const GridLocation& loc) const {
-    return loc.r < height && loc.c < width && loc.layer < GridLayer::GridLayerCount;
+    return loc.r < height && loc.c < width;
   }
 
   inline bool add_object(GridObject* obj) {
     if (!is_valid_location(obj->location)) {
       return false;
     }
-    if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != nullptr) {
+    if (this->grid[obj->location.r][obj->location.c] != nullptr) {
       return false;
     }
 
     obj->id = static_cast<GridObjectId>(this->objects.size());
     this->objects.push_back(std::unique_ptr<GridObject>(obj));
-    this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj;
+    this->grid[obj->location.r][obj->location.c] = obj;
     return true;
   }
 
@@ -75,32 +72,25 @@ public:
       return false;
     }
 
-    if (grid[loc.r][loc.c][loc.layer] != nullptr) {
+    if (grid[loc.r][loc.c] != nullptr) {
       return false;
     }
 
-    grid[loc.r][loc.c][loc.layer] = &obj;
-    grid[obj.location.r][obj.location.c][obj.location.layer] = nullptr;
+    grid[loc.r][loc.c] = &obj;
+    grid[obj.location.r][obj.location.c] = nullptr;
     obj.location = loc;
     return true;
   }
 
-  inline void swap_objects(GridObject& obj1, GridObject& obj2) {
-    // Store the original locations.
+  inline bool swap_objects(GridObject& obj1, GridObject& obj2) {
     GridLocation loc1 = obj1.location;
     GridLocation loc2 = obj2.location;
 
-    // Clear the objects from their original positions in the grid.
-    grid[loc1.r][loc1.c][loc1.layer] = nullptr;
-    grid[loc2.r][loc2.c][loc2.layer] = nullptr;
-
-    // Update the location property of each object, preserving their original layers.
-    obj1.location = {loc2.r, loc2.c, loc1.layer};
-    obj2.location = {loc1.r, loc1.c, loc2.layer};
-
-    // Place the objects in their new positions in the grid.
-    grid[obj1.location.r][obj1.location.c][obj1.location.layer] = &obj1;
-    grid[obj2.location.r][obj2.location.c][obj2.location.layer] = &obj2;
+    grid[loc1.r][loc1.c] = &obj2;
+    grid[loc2.r][loc2.c] = &obj1;
+    obj1.location = loc2;
+    obj2.location = loc1;
+    return true;
   }
 
   inline GridObject* object(GridObjectId obj_id) const {
@@ -112,66 +102,11 @@ public:
     if (!is_valid_location(loc)) {
       return nullptr;
     }
-    return grid[loc.r][loc.c][loc.layer];
-  }
-
-  inline const GridLocation relative_location(const GridLocation& loc,
-                                              Orientation facing,
-                                              short forward_distance,
-                                              short lateral_offset) {
-    const int r = static_cast<int>(loc.r);
-    const int c = static_cast<int>(loc.c);
-    int new_r = r;
-    int new_c = c;
-
-    // Get the forward direction deltas
-    int forward_dr, forward_dc;
-    getOrientationDelta(facing, forward_dc, forward_dr);
-
-    // Apply forward/backward movement
-    new_r += forward_dr * forward_distance;
-    new_c += forward_dc * forward_distance;
-
-    // Apply lateral movement (right/left)
-    if (lateral_offset != 0) {
-      // Right is 90 degrees clockwise from facing direction
-      Orientation right_facing = getClockwise(facing);
-
-      // Get the right direction deltas
-      int right_dr, right_dc;
-      getOrientationDelta(right_facing, right_dc, right_dr);
-
-      // Apply lateral movement
-      new_r += right_dr * lateral_offset;
-      new_c += right_dc * lateral_offset;
-    }
-
-    // Clamp to grid bounds
-    new_r = std::clamp(new_r, 0, static_cast<int>(this->height - 1));
-    new_c = std::clamp(new_c, 0, static_cast<int>(this->width - 1));
-
-    return GridLocation(static_cast<GridCoord>(new_r), static_cast<GridCoord>(new_c), loc.layer);
-  }
-
-  /**
-   * Get the location one step forward in the given orientation.
-   * Note: The returned location has the same layer as the input location.
-   */
-  inline const GridLocation relative_location(const GridLocation& loc, Orientation orientation) {
-    return this->relative_location(loc, orientation, 1, 0);
+    return grid[loc.r][loc.c];
   }
 
   inline bool is_empty(GridCoord row, GridCoord col) const {
-    for (const auto& layer_objects : grid[row][col]) {
-      if (layer_objects != nullptr) return false;
-    }
-    return true;
-  }
-
-  // is_empty for a specific layer
-  inline bool is_empty_at_layer(GridCoord row, GridCoord col, ObservationType layer) const {
-    if (grid[row][col][layer] != nullptr) return false;
-    return true;
+    return grid[row][col] == nullptr;
   }
 };
 

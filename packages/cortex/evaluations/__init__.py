@@ -1,1 +1,0 @@
-"""Cortex synthetic evaluations package."""

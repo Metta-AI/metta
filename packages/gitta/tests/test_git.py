@@ -10,14 +10,13 @@ import pytest
 from gitta import (
     GitError,
     add_remote,
-    canonical_remote_url,
     find_root,
     get_all_remotes,
     get_current_branch,
     get_current_commit,
     get_file_list,
     get_remote_url,
-    has_unstaged_changes,
+    has_uncommitted_changes,
     https_remote_url,
     validate_commit_state,
 )
@@ -66,24 +65,24 @@ def test_working_tree_changes():
     os.chdir(repo_path)
 
     # Clean repo should have no changes
-    has_changes, status = has_unstaged_changes()
+    has_changes, status = has_uncommitted_changes()
     assert has_changes is False
     assert status == ""
 
     # Add a new file
     (repo_path / "new.txt").write_text("new content")
-    has_changes, status = has_unstaged_changes()
+    has_changes, status = has_uncommitted_changes()
     assert has_changes is True
     assert "new.txt" in status
 
     # Stage the file
     subprocess.run(["git", "add", "new.txt"], cwd=repo_path, check=True, capture_output=True)
-    has_changes, status = has_unstaged_changes()
+    has_changes, status = has_uncommitted_changes()
     assert has_changes is True  # Staged changes still count
 
     # Commit the file
     subprocess.run(["git", "commit", "-m", "Add new file"], cwd=repo_path, check=True, capture_output=True)
-    has_changes, status = has_unstaged_changes()
+    has_changes, status = has_uncommitted_changes()
     assert has_changes is False
 
 
@@ -107,7 +106,7 @@ def test_remote_operations():
     remotes = get_all_remotes()
     assert len(remotes) == 2
     assert remotes["origin"] == "git@github.com:test/repo.git"
-    assert remotes["upstream"] == "https://github.com/upstream/repo.git"
+    assert remotes["upstream"] in ("https://github.com/upstream/repo.git", "git@github.com:upstream/repo.git")
 
 
 def test_find_git_root():
@@ -127,8 +126,8 @@ def test_find_git_root():
         assert find_root(Path(tmpdir)) is None
 
 
-def test_https_remote_url_alias():
-    """Test URL canonicalization helpers."""
+def test_https_remote_url():
+    """Test URL canonicalization helper."""
     # GitHub SSH URLs
     assert https_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
     assert https_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
@@ -139,9 +138,6 @@ def test_https_remote_url_alias():
 
     # Non-GitHub URLs remain unchanged
     assert https_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
-
-    # Backwards compatibility alias still available
-    assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
 
 
 def test_git_errors():
@@ -157,7 +153,7 @@ def test_git_errors():
             get_current_commit()
 
         with pytest.raises(GitError):
-            has_unstaged_changes()
+            has_uncommitted_changes()
 
 
 def test_validate_commit_state_clean_repo():

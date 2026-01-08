@@ -1,9 +1,6 @@
 # Metta AI
 
 <p align="center">
-  <a href="https://codecov.io/gh/Metta-AI/metta">
-    <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
-  </a>
   <a href="https://github.com/Metta-AI/metta/actions/workflows/checks.yml">
     <img src="https://github.com/Metta-AI/metta/actions/workflows/checks.yml/badge.svg" alt="Tests">
   </a>
@@ -29,7 +26,6 @@ A reinforcement learning codebase focusing on the emergence of cooperation and a
 <p align="middle">
 <img src="docs/readme_showoff.gif" alt="Metta learning example video">
 <br>
-<a href="https://metta-ai.github.io/metta/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fandre_pufferbox_33%2Freplay.77200.json.z&play=true">Interactive demo</a>
 </p>
 
 Metta AI is an open-source research project investigating the emergence of cooperation and alignment in multi-agent AI
@@ -71,7 +67,7 @@ with the following dynamics:
 
 - **Agents and Vision**: Agents can see a limited number of squares around them.
 - **Resources**: Agents harvest diamonds, convert them to energy at charger stations, and use energy to power the "heart
-  altar" for rewards.
+  assembler" for rewards.
 - **Energy Management**: All actions cost energy, so agents learn to manage their energy budgets efficiently.
 - **Combat**: Agents can attack others, temporarily freezing the target and stealing resources.
 - **Defense**: Agents can toggle shields, which drain energy but absorb attacks.
@@ -139,6 +135,39 @@ cluster management, experiment tracking and visualization, and continuous integr
 This README provides only a brief overview of research explorations. Visit the
 [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
+## Folder Hierarchy
+
+The `metta/` package has a folder hierarchy where higher folders can import from lower folders, but not vice versa. To
+add or reorder folders, edit `.importlinter` then run `metta codebase generate-folder-diagram`. Run
+`uv run lint-imports` to check for violations.
+
+<!-- FOLDER_DIAGRAM_START -->
+
+```mermaid
+graph TD
+    tools[tools]
+    gridworks[gridworks]
+    setup[setup]
+    sim[sim]
+    rl[rl]
+    sweep[sweep]
+    cogworks[cogworks]
+    adaptive[adaptive]
+    map[map]
+    common[common]
+    tools --> gridworks
+    gridworks --> setup
+    setup --> sim
+    sim --> rl
+    rl --> sweep
+    sweep --> cogworks
+    cogworks --> adaptive
+    adaptive --> map
+    map --> common
+```
+
+<!-- FOLDER_DIAGRAM_END -->
+
 ## Installation
 
 ### Quick Start
@@ -188,6 +217,14 @@ builds its configuration, and runs it.
 
 **Navigation recipe**: Replace `arena` with `navigation` for navigation tasks
 
+### Example Training Notebooks
+
+All the notebooks available at `./notebooks`
+
+#### Train on Cogames:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1YaIdg5a5Ji5_J_HkVOdY9itJTFju54oG?usp=sharing)
+
 ### Task arguments
 
 run.py applies arguments provided through `[key=value ...]`, classifying each:
@@ -234,7 +271,7 @@ Examples:
 
 Shorthands are supported:
 
-- Omit `experiments.recipes.`: `arena.train` == `experiments.recipes.arena.train`
+- Omit `recipes.experiment.` or `recipes.prod.`: `arena.train` == `recipes.experiment.arena.train`
 - Two‑token form: `train arena` == `arena.train`
 
 Tips:
@@ -298,7 +335,8 @@ Notes:
 Mettascope allows you to run and view episodes in the environment you specify. It goes beyond just spectator mode, and
 allows taking over an agent and controlling it manually.
 
-For more information, see [./mettascope/README.md](./mettascope/README.md).
+For more information, see
+[./packages/mettagrid/nim/mettascope/README.md](./packages/mettagrid/nim/mettascope/README.md).
 
 #### Run the interactive simulation
 

@@ -1,3 +1,4 @@
+eval_plots/
 external/
 resources
 
@@ -41,6 +42,7 @@ build-coverage/
 **/bazel-*
 **/.bazel_output/
 **/bazel-mettagrid/*
+**/.bazel_output/*
 
 # Node.js / Frontend
 node_modules/
@@ -94,16 +96,16 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-experiments/notebooks/.ipynb_checkpoints
-experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-experiments/recipes/scratchpad/*.py
-!experiments/recipes/scratchpad/README.md
-!experiments/recipes/scratchpad/template.py
-!experiments/recipes/scratchpad/__init__.py
+notebooks/.ipynb_checkpoints
+notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js
+notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
+recipes/experiment/scratchpad/
+!recipes/experiment/scratchpad/README.md
+!recipes/experiment/scratchpad/template.py
+!recipes/experiment/scratchpad/__init__.py
 packages/cogames/experiments
 
 resources
-!library/src/lib/api/resources/
 LUNARVIM_CHEATSHEET.md
 metta/sweep/experiments/README.md
 metta/sweep/experiments/README_*.md
@@ -117,26 +119,34 @@ mettagrid/MODULE.bazel.lock
 
 # Stable Release System
 devops/stable/state/
-devops/stable/logs/
 devops/stable/release-notes/
+
 mcp_servers/pr_similarity/cache/
 
 # skypilot testing
 recipe_test_jobs.json
 cluster_test_jobs.json
 
-# MetaScope
+# MettaScope
 packages/mettagrid/nim/mettascope/dist/
 packages/mettagrid/nim/mettascope/bindings/generated/
 mettascope.out
 !packages/mettagrid/nim/mettascope/data/resources/
 packages/mettagrid/nim/mettascope/src/tmp
 packages/mettagrid/python/src/mettagrid/nim/mettascope/
-agent/src/metta/ops/agalite_kernels/_build/
+packages/mettagrid/nim/mettascope/nim.cfg
+packages/cogames/src/cogames/policy/nim_agents/nim.cfg
+packages/tribal_village/nim.cfg
 
-# Nim runtime
-.nim_runtime
+# Nim Agents
+packages/cogames/src/cogames/policy/nim_agents/bindings/generated
 
+# Uncategorized
 .terraform*
 terraform.tfstate
 .cache/torch_ext/
+
+# Python import analysis
+tools/dev/python_imports/*.json
+tools/dev/python_imports/*.txt
+.import_linter_cache/

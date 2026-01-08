@@ -1,9 +1,16 @@
-from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX
+from typing import TypedDict
+
+from metta.common.util.constants import SOFTMAX_S3_POLICY_PREFIX, SOFTMAX_S3_REPLAYS_PREFIX
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info
+
+
+class AwsConfigSettings(TypedDict):
+    replay_dir: str
+    policy_remote_prefix: str | None
 
 
 @register_module
@@ -52,6 +59,7 @@ class AWSSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
+            # Keep local import: optional dependency
             import boto3
 
             sts = boto3.client("sts")
@@ -64,11 +72,11 @@ class AWSSetup(SetupModule):
     def can_remediate_connected_status_with_install(self) -> bool:
         return True
 
-    def to_config_settings(self) -> dict[str, str | bool]:
+    def to_config_settings(self) -> AwsConfigSettings:
         saved_settings = get_saved_settings()
         if saved_settings.user_type.is_softmax:
-            return dict(
-                replay_dir="s3://softmax-public/replays/",
+            return AwsConfigSettings(
+                replay_dir=SOFTMAX_S3_REPLAYS_PREFIX,
                 policy_remote_prefix=SOFTMAX_S3_POLICY_PREFIX,
             )
-        return dict(replay_dir="./train_dir/replays/")
+        return AwsConfigSettings(replay_dir="./train_dir/replays/", policy_remote_prefix=None)

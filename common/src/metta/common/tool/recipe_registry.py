@@ -29,7 +29,9 @@ class RecipeRegistry:
     def _ensure_discovered(self) -> None:
         """Lazily discover all recipes on first access."""
         if not self._discovered:
-            self.discover_all()
+            # Discover from both prod and experiment locations
+            self.discover_all("recipes.prod")
+            self.discover_all("recipes.experiment")
             self._discovered = True
 
     def get(self, module_path: str) -> Recipe | None:
@@ -41,12 +43,14 @@ class RecipeRegistry:
             return self.path_to_recipe[module_path]
 
         # Try with prefix if it's a short name
-        if not module_path.startswith("experiments.recipes."):
-            full_path = f"experiments.recipes.{module_path}"
-            if full_path in self.path_to_recipe:
-                return self.path_to_recipe[full_path]
+        if not module_path.startswith("recipes."):
+            # Try prod first, then experiment
+            for prefix in ["recipes.prod", "recipes.experiment"]:
+                full_path = f"{prefix}.{module_path}"
+                if full_path in self.path_to_recipe:
+                    return self.path_to_recipe[full_path]
 
-        # Try to load directly as a fallback for recipes outside experiments.recipes
+        # Try to load directly as a fallback for recipes outside recipes package
         # This supports test fixtures and external recipe packages
         recipe = Recipe.load(module_path)
         if recipe:
@@ -58,23 +62,19 @@ class RecipeRegistry:
 
         return None
 
-    def has(self, module_path: str) -> bool:
-        """Check if a recipe exists at the given module path."""
-        return self.get(module_path) is not None
-
     def get_all(self) -> list[Recipe]:
         """Get all discovered recipes."""
         self._ensure_discovered()
         return list(self.path_to_recipe.values())
 
-    def discover_all(self, base_package: str = "experiments.recipes") -> None:
+    def discover_all(self, base_package: str = "recipes.prod") -> None:
         """Discover all recipe modules under a base package and add to registry.
 
         Uses pkgutil.walk_packages() to recursively walk all subpackages.
         Requires __init__.py files for proper package structure.
 
         Args:
-            base_package: Base package to search for recipes (default: experiments.recipes)
+            base_package: Base package to search for recipes (e.g., recipes.prod, recipes.experiment)
         """
         if importlib.util.find_spec(base_package) is None:
             return None

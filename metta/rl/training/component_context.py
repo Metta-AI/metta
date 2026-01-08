@@ -5,15 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
+import torch
 from torch.optim import Optimizer
 
 from metta.agent.policy import Policy
-from metta.eval.eval_request_config import EvalRewardSummary
 from metta.rl.training import Experience, TrainingEnvironment
 from mettagrid.profiling.memory_monitor import MemoryMonitor
 from mettagrid.profiling.stopwatch import Stopwatch
 from mettagrid.profiling.system_monitor import SystemMonitor
 
+# Keep: heavy (curriculum, distributed_helper, stats_reporter)
 if TYPE_CHECKING:
     from metta.cogworks.curriculum import Curriculum
     from metta.rl.training.distributed_helper import DistributedHelper
@@ -45,8 +46,8 @@ class TrainerState:
 
     epoch: int = 0
     agent_step: int = 0
+    avg_reward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0, dtype=torch.float32))
     latest_policy_uri: Optional[str] = None
-    latest_eval_scores: Optional[EvalRewardSummary] = None
     latest_losses_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     training_env_window: Optional[TrainingEnvWindow] = None
@@ -63,7 +64,7 @@ class ComponentContext:
     def __init__(
         self,
         *,
-        state: Optional[TrainerState],
+        state: TrainerState,
         policy: Policy,
         env: TrainingEnvironment,
         experience: Experience,
@@ -71,10 +72,12 @@ class ComponentContext:
         config: Any,
         stopwatch: Stopwatch,
         distributed: DistributedHelper,
+        get_train_epoch_fn: Callable[[], Callable[[], None]],
+        set_train_epoch_fn: Callable[[Callable[[], None]], None],
         run_name: Optional[str] = None,
         curriculum: Optional["Curriculum"] = None,
     ) -> None:
-        self.state = state or TrainerState()
+        self.state = state
         self.policy = policy
         self.env = env
         self.experience = experience
@@ -93,8 +96,12 @@ class ComponentContext:
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
         self.losses: Dict[str, Any] = {}
 
-        self.get_train_epoch_fn: Callable[[], Callable[[], None]] | None = None
-        self.set_train_epoch_fn: Callable[[Callable[[], None]], None] | None = None
+        # Scheduler-related state
+        self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
+        self.loss_scheduler: Any | None = None
+
+        self.get_train_epoch_fn = get_train_epoch_fn
+        self.set_train_epoch_fn = set_train_epoch_fn
 
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
@@ -166,14 +173,6 @@ class ComponentContext:
     # Stats tracking
     # ------------------------------------------------------------------
     @property
-    def latest_eval_scores(self) -> Optional[EvalRewardSummary]:
-        return self.state.latest_eval_scores
-
-    @latest_eval_scores.setter
-    def latest_eval_scores(self, value: Optional[EvalRewardSummary]) -> None:
-        self.state.latest_eval_scores = value
-
-    @property
     def latest_losses_stats(self) -> Dict[str, float]:
         return self.state.latest_losses_stats
 
@@ -208,11 +207,7 @@ class ComponentContext:
     # Training epoch callable indirection
     # ------------------------------------------------------------------
     def get_train_epoch_callable(self) -> Callable[[], None]:
-        if self.get_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no getter for train epoch callable")
         return self.get_train_epoch_fn()
 
     def set_train_epoch_callable(self, fn: Callable[[], None]) -> None:
-        if self.set_train_epoch_fn is None:
-            raise RuntimeError("ComponentContext has no setter for train epoch callable")
         self.set_train_epoch_fn(fn)

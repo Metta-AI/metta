@@ -31,18 +31,20 @@ cogames = "cogames.main:app"
 where = ["src"]
 include = ["cogames", "cogames.*"]
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.package-data]
-cogames = ["py.typed"]
+cogames = ["py.typed", "maps/*.map", "maps/**/*.map", "assets/**/*"]
 
 [tool.setuptools_scm]
 tag_regex = "^cogames-v(?P<version>\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?)$"
 version_scheme = "no-guess-dev"
-local_scheme = "node-and-date"
+local_scheme = "no-local-version"
 root = "../.."
 fallback_version = "0.0.0"
 # Provide a specific git command to be used in order to find the correct versioning tags
 git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "cogames-v*"]
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
@@ -52,3 +54,13 @@ source = ["cogames"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
+
+[tool.uv]
+cache-keys = [
+  { file = "src/cogames/policy/nim_agents/nim_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/nim_agents.nims" },
+  { file = "src/cogames/policy/nim_agents/common.nim" },
+  { file = "src/cogames/policy/nim_agents/random_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/thinky_agents.nim" },
+  { file = "src/cogames/policy/nim_agents/racecar_agents.nim" },
+]

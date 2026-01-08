@@ -9,32 +9,32 @@ from mettagrid.mapgen.scenes.room_grid import RoomGrid
 class MultiLeftAndRightConfig(SceneConfig):
     rows: int
     columns: int
-    altar_ratio: float
-    total_altars: int
+    assembler_ratio: float
+    total_assemblers: int
 
 
 class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
     """
     Produce multiple left-or-right maps in a grid, with agents assigned randomly
-    to teams, and rooms all identical otherwise. Altars are placed asymmetrically
-    with configurable total count and ratio between sides. The side with more altars
+    to teams, and rooms all identical otherwise. assemblers are placed asymmetrically
+    with configurable total count and ratio between sides. The side with more assemblers
     is randomly determined at the start of each episode.
     """
 
     def get_children(self):
         # Pregenerate seeds so that we could make rooms deterministic.
         agent_seed = random.randint(0, int(1e9))
-        altar_seed = random.randint(0, int(1e9))
-        altar_distribution_seed = random.randint(0, int(1e9))
+        assembler_seed = random.randint(0, int(1e9))
+        assembler_distribution_seed = random.randint(0, int(1e9))
 
-        # Calculate altar counts based on ratio
-        more_altars = int(self.config.total_altars * self.config.altar_ratio)
-        less_altars = self.config.total_altars - more_altars
+        # Calculate assembler counts based on ratio
+        more_assemblers = int(self.config.total_assemblers * self.config.assembler_ratio)
+        less_assemblers = self.config.total_assemblers - more_assemblers
 
-        # Randomly determine which side gets more altars
-        random.seed(altar_distribution_seed)
-        left_altars = more_altars if random.random() < 0.5 else less_altars
-        right_altars = self.config.total_altars - left_altars
+        # Randomly determine which side gets more assemblers
+        random.seed(assembler_distribution_seed)
+        left_assemblers = more_assemblers if random.random() < 0.5 else less_assemblers
+        right_assemblers = self.config.total_assemblers - left_assemblers
 
         agent_groups = [
             "team_1",
@@ -57,13 +57,13 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
                                 border_width=0,
                                 layout=[
                                     [
-                                        "maybe_altars_left",
+                                        "maybe_assemblers_left",
                                         "empty",
                                         "empty",
                                         "agents",
                                         "empty",
                                         "empty",
-                                        "maybe_altars_right",
+                                        "maybe_assemblers_right",
                                     ],
                                 ],
                                 children=[
@@ -78,17 +78,17 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightConfig]):
                                     ),
                                     ChildrenAction(
                                         scene=Random.Config(
-                                            objects={"altar": left_altars},
-                                            seed=altar_seed,
+                                            objects={"assembler": left_assemblers},
+                                            seed=assembler_seed,
                                         ),
-                                        where=AreaWhere(tags=["maybe_altars_left"]),
+                                        where=AreaWhere(tags=["maybe_assemblers_left"]),
                                     ),
                                     ChildrenAction(
                                         scene=Random.Config(
-                                            objects={"altar": right_altars},
-                                            seed=altar_seed + 1,
+                                            objects={"assembler": right_assemblers},
+                                            seed=assembler_seed + 1,
                                         ),
-                                        where=AreaWhere(tags=["maybe_altars_right"]),
+                                        where=AreaWhere(tags=["maybe_assemblers_right"]),
                                     ),
                                 ],
                             ),

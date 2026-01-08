@@ -9,7 +9,8 @@ on:
       - main
     paths:
       - "app_backend/**"
-      - ".github/workflows/**"
+      - "metta/sim/**"
+      - ".github/workflows/build-policy-evaluator-image.yml"
   workflow_dispatch: {}
 
 jobs:
@@ -23,6 +24,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Build Docker image
         id: build-image
@@ -32,10 +35,16 @@ jobs:
           dockerfile: ./devops/docker/Dockerfile.policy_evaluator
           aws_role: ${{ vars.AWS_ROLE }}
 
-      - name: Deploy helm chart
+      - name: Configure EKS
         if: github.ref == 'refs/heads/main'
-        run: |
-          aws eks update-kubeconfig --name main --region us-east-1
-          helm dependency build ./devops/charts/orchestrator
-          helm upgrade -n orchestrator orchestrator ./devops/charts/orchestrator \
-            --set image.tag=${{ steps.build-image.outputs.tag }}
+        uses: ./.github/actions/eks-configure
+
+      - name: Deploy with Helm
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: orchestrator
+          release: orchestrator
+          chart: ./devops/charts/orchestrator
+          image_tag: ${{ steps.build-image.outputs.tag }}
+          dependency_build: true

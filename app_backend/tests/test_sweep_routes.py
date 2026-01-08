@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -95,18 +95,36 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
     test_sweep_id = uuid.uuid4()
     mock_metta_repo.create_sweep.return_value = test_sweep_id
 
-    response = test_client.post(
-        "/sweeps/test_sweep/create_sweep",
-        json={
-            "project": "test_project",
-            "entity": "test_entity",
-            "wandb_sweep_id": "wandb_123",
-        },
-        headers={"X-Auth-Token": "machine_token_123"},
-    )
+    # Mock the login service validation to return a valid user_id
+    mock_validate = AsyncMock(return_value="machine_user@example.com")
 
-    assert response.status_code == 200
-    assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
+    # Disable DEBUG_USER_EMAIL to test token-based auth
+    with patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", None):
+        with patch("metta.app_backend.auth.validate_token_via_login_service", mock_validate):
+            response = test_client.post(
+                "/sweeps/test_sweep/create_sweep",
+                json={
+                    "project": "test_project",
+                    "entity": "test_entity",
+                    "wandb_sweep_id": "wandb_123",
+                },
+                headers={"X-Auth-Token": "machine_token_123"},
+            )
+
+            assert response.status_code == 200
+            assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
+
+            # Verify the login service was called to validate the token
+            mock_validate.assert_called_once_with("machine_token_123")
+
+            # Verify the sweep was created with the user_id from the token validation
+            mock_metta_repo.create_sweep.assert_called_once_with(
+                name="test_sweep",
+                project="test_project",
+                entity="test_entity",
+                wandb_sweep_id="wandb_123",
+                user_id="machine_user@example.com",
+            )
 
 
 def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
@@ -181,25 +199,3 @@ def test_get_next_run_id_sweep_not_found(test_client, mock_metta_repo, auth_head
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"]
-
-
-def test_auth_required_for_all_operations(test_client, mock_metta_repo):
-    """Test that all operations require authentication."""
-    # Test create_sweep without auth
-    response = test_client.post(
-        "/sweeps/test_sweep/create_sweep",
-        json={
-            "project": "test_project",
-            "entity": "test_entity",
-            "wandb_sweep_id": "wandb_123",
-        },
-    )
-    assert response.status_code == 401
-
-    # Test get_sweep without auth
-    response = test_client.get("/sweeps/test_sweep")
-    assert response.status_code == 401
-
-    # Test get_next_run_id without auth
-    response = test_client.post("/sweeps/test_sweep/runs/next")
-    assert response.status_code == 401

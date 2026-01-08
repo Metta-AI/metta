@@ -5,11 +5,10 @@ from typing import List
 from rich import box
 from rich.table import Table
 
-from mettagrid import MettaGridEnv
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class HelpPanelComponent(MiniscopeComponent):
@@ -17,24 +16,28 @@ class HelpPanelComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        env: MettaGridEnv,
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
         """Initialize the help panel component.
 
         Args:
-            env: MettaGrid environment reference
+            sim: MettaGrid simulator reference
             state: Miniscope state reference
             panels: Panel layout containing all panels
         """
-        super().__init__(env=env, state=state, panels=panels)
-        self._set_panel(panels.get_sidebar_panel("help"))
+        super().__init__(sim=sim, state=state, panels=panels)
+        sidebar_panel = panels.get_sidebar_panel("help")
+        assert sidebar_panel is not None
+        self._set_panel(sidebar_panel)
 
     def update(self) -> None:
         """Render the help panel."""
+        panel = self._panel
+        assert panel is not None
         if not self.state.is_sidebar_visible("help"):
-            self._panel.clear()
+            panel.clear()
             return
 
         lines = []
@@ -63,7 +66,7 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append("  m       - Toggle manual mode for selected agent")
         lines.append("  w/a/s/d - Move selected agent (North/West/South/East)")
         lines.append("  r       - Rest (no action)")
-        lines.append("  e       - Change glyph/emote")
+        lines.append("  e       - Change vibe/emote")
         lines.append("")
 
         # Simulation section
@@ -92,7 +95,7 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append(" " * ((width - 24) // 2) + "Press any key to continue")
         lines.append("=" * width)
 
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def render_as_table(self) -> List[str]:
         """Render the help panel as a Rich table.
@@ -126,7 +129,7 @@ class HelpPanelComponent(MiniscopeComponent):
         table.add_row("", "m", "Toggle manual mode")
         table.add_row("", "w/a/s/d", "Move agent (North/West/South/East)")
         table.add_row("", "r", "Rest (no action)")
-        table.add_row("", "e", "Change glyph/emote")
+        table.add_row("", "e", "Change vibe/emote")
         table.add_row("", "", "")
 
         # Simulation

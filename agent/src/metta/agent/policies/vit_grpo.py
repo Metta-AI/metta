@@ -1,8 +1,10 @@
 from typing import List
 
+from cortex.stacks import build_cortex_auto_config
+
 from metta.agent.components.actor import ActionProbsConfig, ActorHeadConfig
 from metta.agent.components.component_config import ComponentConfig
-from metta.agent.components.lstm import LSTMConfig
+from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.components.misc import MLPConfig
 from metta.agent.components.obs_enc import ObsPerceiverLatentConfig
 from metta.agent.components.obs_shim import ObsShimTokensConfig
@@ -23,7 +25,6 @@ class ViTGRPOConfig(PolicyArchitecture):
     _token_embed_dim = 8
     _fourier_freqs = 3
     _latent_dim = 64
-    _lstm_latent = 32
     _actor_hidden = 256
 
     components: List[ComponentConfig] = [
@@ -43,18 +44,25 @@ class ViTGRPOConfig(PolicyArchitecture):
             num_heads=4,
             num_layers=2,
         ),
-        LSTMConfig(
+        CortexTDConfig(
             in_key="obs_latent_attn",
             out_key="core",
-            latent_size=_latent_dim,
-            hidden_size=_lstm_latent,
-            num_layers=1,
+            d_hidden=_latent_dim,
+            out_features=_latent_dim,
+            key_prefix="vit_grpo_cortex_state",
+            stack_cfg=build_cortex_auto_config(
+                d_hidden=_latent_dim,
+                num_layers=1,
+                pattern="L",
+                post_norm=False,
+                compile_blocks=False,
+            ),
         ),
         MLPConfig(
             in_key="core",
             out_key="actor_hidden",
             name="actor_mlp",
-            in_features=_lstm_latent,
+            in_features=_latent_dim,
             hidden_features=[_actor_hidden],
             out_features=_actor_hidden,
         ),

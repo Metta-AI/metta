@@ -3,13 +3,15 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from gymnasium.spaces import Discrete
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 
 import pufferlib.pytorch
 from metta.agent.components.component_config import ComponentConfig
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.rl.training import GameRules
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class ActorQueryConfig(ComponentConfig):
@@ -102,6 +104,8 @@ class ActorKey(nn.Module):
 
 
 class ActionProbsConfig(ComponentConfig):
+    model_config = ConfigDict(extra="ignore")
+
     in_key: str
     name: str = "action_probs"
 
@@ -119,13 +123,15 @@ class ActionProbs(nn.Module):
         self.config = config
         self.num_actions = 0
 
+    def _ensure_initialized(self) -> None:
+        if self.num_actions <= 0:
+            raise RuntimeError("ActionProbs not initialized; call initialize_to_environment before forward.")
+
     def initialize_to_environment(
         self,
-        env: GameRules,
+        env: PolicyEnvInterface,
         device: torch.device,
     ) -> None:
-        from gymnasium.spaces import Discrete
-
         action_space = env.action_space
         if not isinstance(action_space, Discrete):
             msg = f"ActionProbs expects a Discrete action space, got {type(action_space).__name__}"
@@ -133,15 +139,24 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
+    def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
+        """Sanitize logits and mask past the first 21 actions (keep full action_dim for checkpoint compatibility)."""
+        mask_value = -1e9
+        logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
+        if logits.size(-1) > 21:
+            logits = logits.clone()
+            logits[..., 21:] = mask_value
+        return logits
+
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        if action is None:
-            return self.forward_inference(td)
-        else:
-            return self.forward_training(td, action)
+        return self.forward_inference(td) if action is None else self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
+
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
@@ -169,6 +184,8 @@ class ActionProbs(nn.Module):
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
         action_logit_index = action.to(dtype=torch.long)
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
@@ -178,11 +195,6 @@ class ActionProbs(nn.Module):
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
-        if "batch" in td.keys() and "bptt" in td.keys():
-            batch_size = td["batch"][0].item()
-            bptt_size = td["bptt"][0].item()
-            td = td.reshape(batch_size, bptt_size)
-
         return td
 
 
@@ -193,27 +205,60 @@ class ActorHeadConfig(ComponentConfig):
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: GameRules | None = None):
-        if env is None:
-            raise ValueError("ActorHeadConfig requires GameRules to determine action dimensions")
+    def make_component(self, env: PolicyEnvInterface):
         return ActorHead(config=self, env=env)
 
 
 class ActorHead(nn.Module):
     """Simple linear head that maps hidden features to environment logits."""
 
-    def __init__(self, config: ActorHeadConfig, env: GameRules):
+    def __init__(self, config: ActorHeadConfig, env: PolicyEnvInterface):
         super().__init__()
         self.config = config
         self.in_key = self.config.in_key
         self.out_key = self.config.out_key
-        num_actions = int(env.action_space.n)
+        self.num_actions = int(env.action_space.n)
 
         linear = pufferlib.pytorch.layer_init(
-            nn.Linear(self.config.input_dim, num_actions),
+            nn.Linear(self.config.input_dim, self.num_actions),
             std=self.config.layer_init_std,
         )
         self._module = TDM(linear, in_keys=[self.in_key], out_keys=[self.out_key])
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Pad actor_head weights/bias if checkpoint has fewer actions than env."""
+        weight_key = prefix + "_module.module.weight"
+        bias_key = prefix + "_module.module.bias"
+
+        weight = state_dict.get(weight_key)
+        bias = state_dict.get(bias_key)
+
+        if weight is not None and bias is not None and weight.shape[0] < self.num_actions:
+            pad = self.num_actions - weight.shape[0]
+            # Pad weights with zeros; pad biases with -inf to keep zero prob.
+            weight_pad = torch.zeros(pad, weight.shape[1], dtype=weight.dtype, device=weight.device)
+            bias_pad = torch.full((pad,), -1e9, dtype=bias.dtype, device=bias.device)
+            state_dict[weight_key] = torch.cat([weight, weight_pad], dim=0)
+            state_dict[bias_key] = torch.cat([bias, bias_pad], dim=0)
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def forward(self, td: TensorDict) -> TensorDict:
         return self._module(td)

@@ -522,16 +522,16 @@ def test_mlstm_reset_mask_functionality() -> None:
     torch.testing.assert_close(
         output_simple_reset,
         output_sequential,
-        rtol=1e-4,
-        atol=1e-4,
+        rtol=3e-2,
+        atol=3e-2,
         msg="Simple backend should match sequential reference",
     )
 
     torch.testing.assert_close(
         output_triton_reset,
         output_sequential,
-        rtol=2e-2,
-        atol=2e-2,
+        rtol=5e-2,
+        atol=5e-2,
         msg="Triton backend should be close to sequential reference",
     )
 

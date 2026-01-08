@@ -10,12 +10,11 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.policy import Policy
-from metta.rl.loss import Loss
+from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from mettagrid.base_config import Config
 
 
-class StableLatentStateConfig(Config):
+class StableLatentStateConfig(LossConfig):
     """Configuration for the stable latent state loss."""
 
     target_key: str | Sequence[str] = Field(
@@ -36,7 +35,6 @@ class StableLatentStateConfig(Config):
         env: TrainingEnvironment,
         device: torch.device,
         instance_name: str,
-        loss_config: Any,
     ) -> "StableLatentStateLoss":
         """Instantiate the stable latent state loss."""
         return StableLatentStateLoss(
@@ -45,7 +43,7 @@ class StableLatentStateConfig(Config):
             env,
             device,
             instance_name=instance_name,
-            loss_cfg=loss_config,
+            loss_cfg=self,
         )
 
 
@@ -109,11 +107,11 @@ class StableLatentStateLoss(Loss):
         else:
             denom = torch.tensor(squared.numel(), device=squared.device, dtype=squared.dtype)
 
-        if denom <= self.loss_cfg.epsilon:
+        if denom <= self.cfg.epsilon:
             return self._record(self._zero(), 0.0, shared_loss_data)
 
         loss = squared.sum() / denom
-        loss = loss * self.loss_cfg.loss_coef
+        loss = loss * self.cfg.loss_coef
 
         mean_delta = self._mean_delta_norm(deltas, mask)
         return self._record(loss, mean_delta, shared_loss_data)
@@ -129,7 +127,7 @@ class StableLatentStateLoss(Loss):
         )
 
     def _valid_transition_mask(self, minibatch: TensorDict) -> Tensor | None:
-        if not self.loss_cfg.exclude_done_transitions:
+        if not self.cfg.exclude_done_transitions:
             return None
 
         segments, horizon = map(int, minibatch.batch_size)
@@ -154,7 +152,7 @@ class StableLatentStateLoss(Loss):
                 return float(norm.mean().item())
             mask = mask.to(device=deltas.device, dtype=norm.dtype)
             denom = mask.sum()
-            if denom <= self.loss_cfg.epsilon:
+            if denom <= self.cfg.epsilon:
                 return 0.0
             return float((norm * mask).sum().item() / denom.item())
 

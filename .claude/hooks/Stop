@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# Run metta lint with auto-fix
-echo "Running metta lint..."
-metta lint --fix
-
-echo "Linting complete!"

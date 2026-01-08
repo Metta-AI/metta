@@ -19,8 +19,8 @@ from mettagrid.test_support.mapgen import assert_connected, render_scene
 def common_params() -> AutoConfig:
     return AutoConfig(
         num_agents=4,
-        objects={"altar": FloatConstantDistribution(value=0.02)},
-        room_objects={"altar": FloatUniformDistribution(low=0.0005, high=0.01)},
+        objects={"assembler": FloatConstantDistribution(value=0.02)},
+        room_objects={"assembler": FloatUniformDistribution(low=0.0005, high=0.01)},
         room_symmetry=AutoConfigRoomSymmetry(horizontal=1, vertical=1, x4=1, none=1),
         layout=AutoConfigLayout(grid=1, bsp=1),
         grid=AutoConfigGrid(rows=IntConstantDistribution(value=3), columns=IntConstantDistribution(value=3)),

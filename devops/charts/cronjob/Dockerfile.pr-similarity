@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy everything (copying is cheap, reduces maintenance burden)
+WORKDIR /app
+COPY . .
+
+# Install dependencies using existing pyproject.toml files
+RUN pip install -e /app/packages/gitta
+RUN pip install -e /app/mcp_servers/pr_similarity
+
+ENV PYTHONPATH="/app"
+
+# Default command runs PR similarity cache build with S3 download/upload
+CMD ["python", "/app/mcp_servers/pr_similarity/build_cache.py", "--download-from-s3"]

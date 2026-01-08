@@ -4,7 +4,6 @@ from typing import Optional
 import torch
 import triton
 import triton.language as tl
-from einops import rearrange
 
 from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
@@ -42,11 +41,10 @@ def _backward_sequence_kernel(
     states_all,  # (NH, T+1, NS=4, B, DH) all states
     gates_all,  # (NH, T, NGI, B, DH) all gates
     resets,  # (T, B) per-timestep reset mask (optional)
+    delta_h_tmp,  # (NH, B, DH) scratch for recurrent delta_h propagation
     # outputs
     delta_states_initial,  # (NH, NS=4, B, DH) delta errors to initial states
     delta_Wx,  # (NH, T, NGI, B, DH) delta errors to inputs
-    delta_R,  # (NH, NGR, DHout, DHin) delta errors to recurrent weights
-    delta_b,  # (NH, NGI, DH) delta errors to biases
     # dimensions
     T: tl.constexpr,  # sequence length
     NS: tl.constexpr,  # number of states
@@ -60,6 +58,7 @@ def _backward_sequence_kernel(
     DTYPE: tl.constexpr = tl.float32,
     HAS_RESETS: tl.constexpr = False,
     backward_recurrent_clip_val: tl.constexpr = -1.0,  # if > 0, clip the recurrent gradients
+    TN: tl.constexpr = 16,  # output-column tile for recurrent matmul
 ):
     idx_b_NH, idx_b_B = tl.program_id(0), tl.program_id(1)
 
@@ -74,6 +73,7 @@ def _backward_sequence_kernel(
     str_delta_states_all_outside_T = NS * B * DH
     str_matDeltaWx_NH = T * NGI * B * DH
     str_matDeltaWx_T = NGI * B * DH
+    str_delta_h_tmp_NH = B * DH
     ##
 
     ## load delta errors from last state
@@ -111,60 +111,6 @@ def _backward_sequence_kernel(
     matDeltaN_tplus1 = tl.load(matDeltaNtrans_last_ptr).to(tl.float32)  # (siz_B, DH)
 
     # Note: we do not need to load the m state as the gradients through this state cancel out
-
-    ## load the recurrent weights only once
-    matR_i_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * str_matR_NH + 0 * str_matR_NGR,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matR_i = tl.load(matR_i_ptr)  # (DHout, DHin)
-
-    matR_f_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * str_matR_NH + 1 * str_matR_NGR,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matR_f = tl.load(matR_f_ptr)  # (DHout, DHin)
-
-    matR_z_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * str_matR_NH + 2 * str_matR_NGR,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matR_z = tl.load(matR_z_ptr)  # (DHout, DHin)
-
-    matR_o_ptr = tl.make_block_ptr(
-        base=R + idx_b_NH * str_matR_NH + 3 * str_matR_NGR,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    matR_o = tl.load(matR_o_ptr)  # (DHout, DHin)
-
-    ## init the delta errors for the recurrent weights and the biases
-    # in shared memory
-    # we accumulate the gradients in float32
-    matDeltaR_i = tl.zeros((DH, DH), dtype=tl.float32)
-    matDeltaR_f = tl.zeros((DH, DH), dtype=tl.float32)
-    matDeltaR_z = tl.zeros((DH, DH), dtype=tl.float32)
-    matDeltaR_o = tl.zeros((DH, DH), dtype=tl.float32)
-
-    vecDeltaB_i = tl.zeros((DH,), dtype=tl.float32)
-    vecDeltaB_f = tl.zeros((DH,), dtype=tl.float32)
-    vecDeltaB_z = tl.zeros((DH,), dtype=tl.float32)
-    vecDeltaB_o = tl.zeros((DH,), dtype=tl.float32)
 
     ## loop over the sequence from T-1 to 0 (inclduding 0)
     for idx_t in range(T - 1, -1, -1):
@@ -251,17 +197,7 @@ def _backward_sequence_kernel(
         )
         matM_t = tl.load(matM_t_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
 
-        ## load the h_t-1, c_t-1, n_t-1, m_t-1 states for the previous time step idx_t-1 from idx_t
-        matH_tminus1_ptr = tl.make_block_ptr(
-            base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 0 * B * DH,
-            shape=(B, DH),
-            strides=(DH, 1),
-            offsets=(idx_b_B * siz_B, 0),
-            block_shape=(siz_B, DH),
-            order=(0, 1),
-        )
-        matH_tminus1 = tl.load(matH_tminus1_ptr, boundary_check=(0, 1))  # (siz_B, DH)
-
+        ## load the c_t-1, n_t-1, m_t-1 states for the previous time step idx_t-1 from idx_t
         matC_tminus1_ptr = tl.make_block_ptr(
             base=states_all + idx_b_NH * str_matStatesAll_NH + (idx_t) * str_matStatesAll_T + 1 * B * DH,
             shape=(B, DH),
@@ -361,27 +297,67 @@ def _backward_sequence_kernel(
         matDeltaC_tminus1 = matDeltaC_t * matG_f
         matDeltaN_tminus1 = matDeltaN_t * matG_f
 
-        matDeltaH_tminus1 = tl.dot(matDeltaGI.to(DTYPE), matR_i)  # (siz_B, DHin)
-        matDeltaH_tminus1 += tl.dot(matDeltaGF.to(DTYPE), matR_f)  # (siz_B, DHin)
-        matDeltaH_tminus1 += tl.dot(matDeltaGZ.to(DTYPE), matR_z)  # (siz_B, DHin)
-        matDeltaH_tminus1 += tl.dot(matDeltaGO.to(DTYPE), matR_o)  # (siz_B, DHin)
-
-        # compute the delta errors to the recurrent weights
-        matDeltaR_i += tl.dot(tl.trans(matDeltaGI.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
-        matDeltaR_f += tl.dot(tl.trans(matDeltaGF.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
-        matDeltaR_z += tl.dot(tl.trans(matDeltaGZ.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
-        matDeltaR_o += tl.dot(tl.trans(matDeltaGO.to(DTYPE)), matH_tminus1)  # (DHout, DHin)
-
-        # compute the delta errors to the biases
-        vecDeltaB_i += tl.sum(matDeltaGI, axis=0)  # (DH,)
-        vecDeltaB_f += tl.sum(matDeltaGF, axis=0)  # (DH,)
-        vecDeltaB_z += tl.sum(matDeltaGZ, axis=0)  # (DH,)
-        vecDeltaB_o += tl.sum(matDeltaGO, axis=0)  # (DH,)
-
         keep_broadcast = reset_keep[:, None]
-        matDeltaH_tminus1 = matDeltaH_tminus1 * keep_broadcast
         matDeltaC_tminus1 = matDeltaC_tminus1 * keep_broadcast
         matDeltaN_tminus1 = matDeltaN_tminus1 * keep_broadcast
+
+        # Store delta_h_{t-1} in tiles to avoid loading full R (DH x DH) into shared memory.
+        for n0 in range(0, DH, TN):
+            matR_i_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * str_matR_NH + 0 * str_matR_NGR,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_i_tile = tl.load(matR_i_tile_ptr, boundary_check=(0, 1))
+
+            matR_f_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * str_matR_NH + 1 * str_matR_NGR,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_f_tile = tl.load(matR_f_tile_ptr, boundary_check=(0, 1))
+
+            matR_z_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * str_matR_NH + 2 * str_matR_NGR,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_z_tile = tl.load(matR_z_tile_ptr, boundary_check=(0, 1))
+
+            matR_o_tile_ptr = tl.make_block_ptr(
+                base=R + idx_b_NH * str_matR_NH + 3 * str_matR_NGR,
+                shape=(DH, DH),
+                strides=(DH, 1),
+                offsets=(0, n0),
+                block_shape=(DH, TN),
+                order=(0, 1),
+            )
+            matR_o_tile = tl.load(matR_o_tile_ptr, boundary_check=(0, 1))
+
+            matDeltaH_tile = tl.dot(matDeltaGI.to(DTYPE), matR_i_tile)  # (siz_B, TN)
+            matDeltaH_tile += tl.dot(matDeltaGF.to(DTYPE), matR_f_tile)
+            matDeltaH_tile += tl.dot(matDeltaGZ.to(DTYPE), matR_z_tile)
+            matDeltaH_tile += tl.dot(matDeltaGO.to(DTYPE), matR_o_tile)
+            matDeltaH_tile = matDeltaH_tile * keep_broadcast
+
+            matDeltaH_store_ptr = tl.make_block_ptr(
+                base=delta_h_tmp + idx_b_NH * str_delta_h_tmp_NH,
+                shape=(B, DH),
+                strides=(DH, 1),
+                offsets=(idx_b_B * siz_B, n0),
+                block_shape=(siz_B, TN),
+                order=(0, 1),
+            )
+            tl.store(matDeltaH_store_ptr, matDeltaH_tile.to(DTYPE), boundary_check=(0, 1))
 
         ## store the deltaGate errors
         matDeltaGI_ptr = tl.make_block_ptr(
@@ -425,7 +401,15 @@ def _backward_sequence_kernel(
         tl.store(matDeltaGO_ptr, matDeltaGO.to(DTYPE), boundary_check=(0, 1))
 
         ## next iteration
-        matDeltaH_tplus1 = matDeltaH_tminus1  # (siz_B, DH)
+        matDeltaH_tplus1_ptr = tl.make_block_ptr(
+            base=delta_h_tmp + idx_b_NH * str_delta_h_tmp_NH,
+            shape=(B, DH),
+            strides=(DH, 1),
+            offsets=(idx_b_B * siz_B, 0),
+            block_shape=(siz_B, DH),
+            order=(0, 1),
+        )
+        matDeltaH_tplus1 = tl.load(matDeltaH_tplus1_ptr, boundary_check=(0, 1)).to(tl.float32)  # (siz_B, DH)
         matDeltaC_tplus1 = matDeltaC_tminus1  # (siz_B, DH)
         matDeltaN_tplus1 = matDeltaN_tminus1  # (siz_B, DH)
 
@@ -471,61 +455,6 @@ def _backward_sequence_kernel(
     )
     tl.store(matDeltaMtrans_initial_ptr, tl.zeros((siz_B, DH), dtype=DTYPE), boundary_check=(0, 1))
 
-    ## store the delta errors to the recurrent weights
-    matDeltaR_i_ptr = tl.make_block_ptr(
-        base=delta_R + idx_b_B * NH * NGR * DH * DH + idx_b_NH * NGR * DH * DH + 0 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    tl.store(matDeltaR_i_ptr, matDeltaR_i.to(DTYPE))
-
-    matDeltaR_f_ptr = tl.make_block_ptr(
-        base=delta_R + idx_b_B * NH * NGR * DH * DH + idx_b_NH * NGR * DH * DH + 1 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    tl.store(matDeltaR_f_ptr, matDeltaR_f.to(DTYPE))
-
-    matDeltaR_z_ptr = tl.make_block_ptr(
-        base=delta_R + idx_b_B * NH * NGR * DH * DH + idx_b_NH * NGR * DH * DH + 2 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    tl.store(matDeltaR_z_ptr, matDeltaR_z.to(DTYPE))
-
-    matDeltaR_o_ptr = tl.make_block_ptr(
-        base=delta_R + idx_b_B * NH * NGR * DH * DH + idx_b_NH * NGR * DH * DH + 3 * DH * DH,
-        shape=(DH, DH),
-        strides=(DH, 1),
-        offsets=(0, 0),
-        block_shape=(DH, DH),
-        order=(0, 1),
-    )
-    tl.store(matDeltaR_o_ptr, matDeltaR_o.to(DTYPE))
-
-    ## store the delta errors to the biases
-    vec_idx = tl.arange(0, DH)
-    vecDeltaB_i_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 0 * DH + vec_idx
-    tl.store(vecDeltaB_i_ptr, vecDeltaB_i.to(DTYPE))
-
-    vecDeltaB_f_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 1 * DH + vec_idx
-    tl.store(vecDeltaB_f_ptr, vecDeltaB_f.to(DTYPE))
-
-    vecDeltaB_z_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 2 * DH + vec_idx
-    tl.store(vecDeltaB_z_ptr, vecDeltaB_z.to(DTYPE))
-
-    vecDeltaB_o_ptr = delta_b + idx_b_B * NH * NGI * DH + idx_b_NH * NGI * DH + 3 * DH + vec_idx
-    tl.store(vecDeltaB_o_ptr, vecDeltaB_o.to(DTYPE))
-
 
 def backward_sequence(
     delta_states_all_outside: torch.Tensor,  # (T, NS, B, NH, D) all state delta errors from outside
@@ -559,7 +488,6 @@ def backward_sequence(
     assert NS == 4, "sLSTM has 4 states: h, c, n, m."
     assert NGR == 4, "sLSTM has 4 gates: i, f, z, o."
     NGI = NGR
-    DHout, DHin = DH, DH
     dtype = R.dtype
     device = R.device
 
@@ -619,13 +547,13 @@ def backward_sequence(
         resets_kshaped = torch.empty((0,), device=device, dtype=torch.float32)
 
     # Reshapes for kernel
-    R_kshaped = rearrange(R, "ngr nh dout din -> nh ngr dout din").contiguous()
+    R_kshaped = R.permute(1, 0, 2, 3).contiguous()
 
-    delta_states_all_outside_kshaped = rearrange(delta_states_all_outside, "t ns b nh dh -> nh t ns b dh").contiguous()
-    delta_states_last_outside_kshaped = rearrange(delta_states_last_outside, "ns b nh dh -> nh ns b dh").contiguous()
+    delta_states_all_outside_kshaped = delta_states_all_outside.permute(3, 0, 1, 2, 4).contiguous()
+    delta_states_last_outside_kshaped = delta_states_last_outside.permute(2, 0, 1, 3).contiguous()
 
-    states_all_kshaped = rearrange(states_all, "t ns b nh dh -> nh t ns b dh").contiguous()
-    gates_all_kshaped = rearrange(gates_all, "t ngi b nh dh -> nh t ngi b dh").contiguous()
+    states_all_kshaped = states_all.permute(3, 0, 1, 2, 4).contiguous()
+    gates_all_kshaped = gates_all.permute(3, 0, 1, 2, 4).contiguous()
 
     # kernel call
     num_B = triton.cdiv(effective_B, siz_B)
@@ -634,8 +562,7 @@ def backward_sequence(
     # Allocate output tensors
     delta_Wx = torch.empty([NH, T, NGI, effective_B, DH], dtype=dtype, device=device)
     delta_states_initial = torch.empty([NH, NS, effective_B, DH], dtype=dtype, device=device)
-    delta_R = torch.empty([num_B, NH, NGR, DHout, DHin], dtype=dtype, device=device)
-    delta_b = torch.empty([num_B, NH, NGI, DH], dtype=dtype, device=device)
+    delta_h_tmp = torch.empty([NH, effective_B, DH], dtype=dtype, device=device)
 
     if backward_recurrent_clip_val is None:
         backward_recurrent_clip_val = -1.0
@@ -647,10 +574,9 @@ def backward_sequence(
         states_all=states_all_kshaped,
         gates_all=gates_all_kshaped,
         resets=resets_kshaped,
+        delta_h_tmp=delta_h_tmp,
         delta_states_initial=delta_states_initial,
         delta_Wx=delta_Wx,
-        delta_R=delta_R,
-        delta_b=delta_b,
         T=T,
         NS=NS,
         B=effective_B,
@@ -662,19 +588,25 @@ def backward_sequence(
         DTYPE=torch2triton_dtype(dtype),
         HAS_RESETS=has_resets,
         backward_recurrent_clip_val=backward_recurrent_clip_val,
+        TN=16,
         num_warps=4,
     )
 
-    delta_R = delta_R.sum(0)
-    delta_b = delta_b.sum(0)
-
-    delta_R = rearrange(delta_R, "nh ngr dout din -> ngr nh dout din")
-    delta_Wx = rearrange(delta_Wx, "nh t ngi b dh -> b t ngi nh dh")
-    delta_b = rearrange(delta_b, "nh ngi dh -> ngi nh dh")
-    delta_states_initial = rearrange(delta_states_initial, "nh ns b dh -> ns b nh dh")
+    delta_Wx = delta_Wx.permute(3, 1, 2, 0, 4)
+    delta_states_initial = delta_states_initial.permute(1, 2, 0, 3)
     ## batch_size padding
     delta_states_initial = delta_states_initial[:, :true_B, ...]
     delta_Wx = delta_Wx[:true_B, ...]
+
+    # Compute recurrent weight and bias gradients with PyTorch ops to avoid large
+    # per-program shared memory requirements (especially when DH is large).
+    h_prev = states_all[:-1, 0, :true_B].permute(1, 0, 2, 3)  # (B, T, NH, DH)
+    if has_resets:
+        assert resets is not None
+        keep = (1.0 - resets[:true_B].to(device=device, dtype=dtype)).view(true_B, T, 1, 1)
+        h_prev = h_prev * keep
+    delta_b = delta_Wx.sum(dim=(0, 1))  # (NGI, NH, DH)
+    delta_R = torch.einsum("btghd,bthk->ghdk", delta_Wx, h_prev).contiguous()  # (NGR, NH, DH, DH)
 
     if T_dim_explicit:
         delta_states_initial = delta_states_initial.unsqueeze(0)

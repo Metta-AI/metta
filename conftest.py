@@ -1,13 +1,12 @@
-# conftest.py
+# ruff: noqa: E402
+# need this to import and call suppress_noisy_logs first
+from metta.common.util.log_config import suppress_noisy_logs
 
-import logging
+suppress_noisy_logs()
 
 import pytest
 
-from metta.common.test_support import docker_client_fixture
-
-# Silence PyTorch distributed elastic warning about redirects on MacOS
-logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").setLevel(logging.ERROR)
+from metta.common.tests_support import docker_client_fixture
 
 
 def pytest_configure(config):

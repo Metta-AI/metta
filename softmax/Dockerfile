@@ -2,20 +2,23 @@ FROM ubuntu:24.04
 
 WORKDIR /workspace
 
-# Copy the entire metta repo
 COPY . /workspace/metta
 
 WORKDIR /workspace/metta
 
-# Install system dependencies
-RUN bash ./devops/tools/install-system.sh
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies for softmax package only
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+
+COPY .python-version pyproject.toml uv.lock ./
+RUN uv python install
+
+RUN bash install.sh --profile softmax-docker --non-interactive
+
 WORKDIR /workspace/metta/softmax
 RUN uv sync --frozen --no-dev
-
-# Verify imports work
-RUN uv run python -c "import softmax.dashboard.report" 
-
-# Run the dashboard
-CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]

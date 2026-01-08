@@ -9,6 +9,8 @@ class AdaptiveConfig(BaseModel):
 
     # Execution settings
     monitoring_interval: int = Field(default=60, gt=0)
+    # Optional shorter first poll delay when resuming; set to 0 to skip the initial wait
+    initial_monitoring_interval: int = Field(default=0, ge=0)
     resume: bool = False  # Whether we are resuming from an existing experiment
     # TODO: In future, this check should be automatic.
 

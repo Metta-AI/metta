@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Dict
 
+import torch
 from cortex.config import (
     AxonConfig,
     CortexStackConfig,
@@ -26,8 +27,7 @@ from cortex.config import (
     sLSTMCellConfig,
 )
 from cortex.factory import build_cortex
-from cortex.stacks import CortexStack, build_cortex_auto_stack
-from cortex.stacks.xlstm import build_xlstm_stack
+from cortex.stacks import CortexStack, build_cortex_auto_stack, build_hf_stack
 
 # cortex_auto_stack is implemented in core (cortex.stacks.auto);
 # this module simply imports and registers it below.
@@ -152,6 +152,17 @@ def build_axons_preup(*, d_hidden: int = 128, proj_factor: float = 2.0) -> Corte
     return build_cortex(cfg)
 
 
+def build_smollm_stack(*, model_name: str = "HuggingFaceTB/SmolLM-360M") -> CortexStack:
+    """SmolLM (LLaMA-derivative) HF stack with lightweight dtype defaults."""
+    return build_hf_stack(
+        model_name=model_name,
+        torch_dtype=torch.bfloat16,
+        trust_remote_code=False,
+        mem_len=64,
+        compile_blocks=False,
+    )
+
+
 # Registry of available stacks for the evaluation harness
 STACKS: Dict[str, StackSpec] = {
     # Single‑block templates
@@ -161,25 +172,27 @@ STACKS: Dict[str, StackSpec] = {
     "mlstm_axon": StackSpec(name="mlstm_preup_axon", builder=lambda: build_mlstm_preup_axon(), d_hidden=128),
     "axons": StackSpec(name="axons_preup", builder=lambda: build_axons_preup(), d_hidden=128),
     # Composite templates
-    # xLSTM: alternates mLSTM (PreUp) and sLSTM (PostUp)
-    "xlstm": StackSpec(name="xlstm", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=3), d_hidden=128),
-    # Small and deeper variants for quick sweeps
-    "xlstm_tiny": StackSpec(
-        name="xlstm_tiny", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=2), d_hidden=128
-    ),
-    "xlstm_deep": StackSpec(
-        name="xlstm_deep", builder=lambda: build_xlstm_stack(d_hidden=128, num_blocks=6), d_hidden=128
-    ),
     # Mixed auto stack cycling Axon/mLSTM/sLSTM with PreUp/PreUp/PostUp
     "cortex_auto": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=False, pattern="AMS"),
+        d_hidden=128,
+    ),
+    # Variant with per-block torch.compile enabled for A/B comparisons
+    "cortex_auto_compiled": StackSpec(
+        name="cortex_auto_stack",
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, compile_blocks=True, pattern="AXMS"),
         d_hidden=128,
     ),
     "cortex_auto_axon": StackSpec(
         name="cortex_auto_stack",
-        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=3, use_axonlayers=True),
+        builder=lambda: build_cortex_auto_stack(d_hidden=128, num_layers=2, pattern="M^X^S^"),
         d_hidden=128,
+    ),
+    "smollm": StackSpec(
+        name="smollm_stack",
+        builder=lambda: build_smollm_stack(),
+        d_hidden=960,
     ),
 }
 
@@ -191,4 +204,5 @@ __all__ = [
     "build_mlstm_preup",
     "build_axons_preup",
     "build_cortex_auto_stack",
+    "build_smollm_stack",
 ]

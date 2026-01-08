@@ -6,9 +6,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 
-FOLLOW_MODE_KEY = "f"
-PAN_MODE_KEY = "p"
-SELECT_MODE_KEY = "t"
+from mettagrid.simulator.types import Action
 
 
 class RenderMode(str, Enum):
@@ -17,7 +15,7 @@ class RenderMode(str, Enum):
     FOLLOW = "follow"
     PAN = "pan"
     SELECT = "select"
-    GLYPH_PICKER = "glyph_picker"
+    VIBE_PICKER = "vibe_picker"
     HELP = "help"
 
 
@@ -37,6 +35,7 @@ class MiniscopeState:
     # Playback state
     playback: PlaybackState = PlaybackState.STOPPED
     fps: float = 4.0
+    true_fps: float = 0.0  # Actual measured FPS
     step_count: int = 0
     max_steps: Optional[int] = None
 
@@ -54,7 +53,7 @@ class MiniscopeState:
 
     # Agent control
     manual_agents: Set[int] = field(default_factory=set)
-    user_action: Optional[tuple[int, int]] = None
+    user_action: Optional[Action] = None
     should_step: bool = False
 
     # User input
@@ -70,10 +69,9 @@ class MiniscopeState:
     map_width: int = 0
 
     # Shared data for components
-    object_type_names: Optional[List[str]] = None
     resource_names: Optional[List[str]] = None
     symbol_map: Optional[Dict[str, str]] = None
-    glyphs: Optional[List[str]] = None
+    vibes: Optional[List[str]] = None
 
     # Sidebar panel visibility
     sidebar_visibility: Dict[str, bool] = field(default_factory=dict)
@@ -96,11 +94,11 @@ class MiniscopeState:
 
     def increase_speed(self) -> None:
         """Increase playback speed."""
-        self.fps = min(60.0, self.fps * 1.5)
+        self.fps = min(600.0, self.fps * 1.5)
 
     def decrease_speed(self) -> None:
         """Decrease playback speed."""
-        self.fps = max(0.5, self.fps / 1.5)
+        self.fps = max(0.01, self.fps / 1.5)
 
     def get_frame_delay(self) -> float:
         """Get the delay between frames in seconds."""
@@ -108,7 +106,7 @@ class MiniscopeState:
 
     def set_mode(self, mode: RenderMode) -> None:
         """Set the render mode when manually selected."""
-        if mode in (RenderMode.GLYPH_PICKER, RenderMode.HELP):
+        if mode in (RenderMode.VIBE_PICKER, RenderMode.HELP):
             return
         self.mode = mode
 
@@ -116,18 +114,18 @@ class MiniscopeState:
         if mode == RenderMode.SELECT and "object_info" in self.sidebar_visibility:
             self.sidebar_visibility["object_info"] = True
 
-    def enter_glyph_picker(self) -> None:
-        """Enter glyph picker mode and configure sidebar."""
+    def enter_vibe_picker(self) -> None:
+        """Enter vibe picker mode and configure sidebar."""
         # Save current sidebar state before modifying
         self._saved_sidebar_visibility = self.sidebar_visibility.copy()
 
-        self.mode = RenderMode.GLYPH_PICKER
-        # Hide all sidebar panels except agent_info and glyph_picker
+        self.mode = RenderMode.VIBE_PICKER
+        # Hide all sidebar panels except agent_info and vibe_picker
         for name in self.sidebar_visibility.keys():
-            self.sidebar_visibility[name] = name in ("agent_info", "glyph_picker")
+            self.sidebar_visibility[name] = name in ("agent_info", "vibe_picker")
 
-    def exit_glyph_picker(self) -> None:
-        """Exit glyph picker mode and restore previous state."""
+    def exit_vibe_picker(self) -> None:
+        """Exit vibe picker mode and restore previous state."""
         self.mode = RenderMode.FOLLOW
 
         # Restore saved sidebar visibility if available
@@ -237,8 +235,8 @@ class MiniscopeState:
     def initialize_sidebar_visibility(self, panels: list[str]) -> None:
         """Initialize visibility of sidebar panels, defaulting to visible for regular panels."""
         for name in panels:
-            # Modal panels (glyph_picker, help) start hidden
-            if name in ("glyph_picker", "help"):
+            # Modal panels (vibe_picker, help) start hidden
+            if name in ("vibe_picker", "help"):
                 self.sidebar_visibility[name] = False
             else:
                 self.sidebar_visibility[name] = True

@@ -20,7 +20,13 @@ defaultRules:
 
 alertmanager:
   enabled: true
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
   alertmanagerSpec:
+    replicas: 2
     # externalUrl: TODO
     alertmanagerConfiguration:
       name: global-config # TODO
@@ -90,22 +96,27 @@ prometheusOperator:
 prometheus:
   enabled: true
 
-  # additionalServiceMonitors:
-  # # Uncomment the following section to enable ingress-nginx service monitoring
-  #   - name: "ingress-nginx-monitor"
-  #     selector:
-  #       matchLabels:
-  #         app.kubernetes.io/name: ingress-nginx
-  #     namespaceSelector:
-  #       matchNames:
-  #         - ingress-nginx
-  #     endpoints:
-  #       - port: "metrics"
+  ## Disabled - not compatible with 1 replica, and multiple replicas of prometheus are tricky
+  ## TODO - look into Thanos and into https://prometheus-operator.dev/docs/platform/high-availability/
+  # podDisruptionBudget:
+  #   enabled: true
+  #   minAvailable: 1
 
   prometheusSpec:
     # via https://github.com/prometheus-community/helm-charts/issues/1911 (note that last comment has a few typos)
     ruleSelectorNilUsesHelmValues: false
     serviceMonitorSelectorNilUsesHelmValues: false
+
+    retention: 30d
+    retentionSize: 400GB
+
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "2"
+        memory: 6Gi
 
     # externalUrl: TODO
 
@@ -116,4 +127,4 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 100Gi
+              storage: 500Gi
