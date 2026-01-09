@@ -60,7 +60,12 @@ def play(
         seed=seed,
         event_handlers=event_handlers,
     )
-    rollout.run_until_done()
+    try:
+        rollout.run_until_done()
+    except KeyboardInterrupt:
+        logger.info("Interrupted; ending episode early.")
+        rollout._sim.end_episode()
+        return
 
     # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")
