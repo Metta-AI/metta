@@ -194,7 +194,7 @@ class CoreTrainingLoop:
         if slot_ids is None:
             return
 
-        num_agents = ctx.env.policy_env_info.num_agents
+        num_agents = int(slot_ids.numel())
         if env_slice is None:
             num_envs = td.batch_size.numel() // num_agents
         else:
