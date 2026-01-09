@@ -1,7 +1,5 @@
 """Test that mettagrid.policy package exports are correct and all submodules are importable."""
 
-import pytest
-
 
 def test_policy_package_exists():
     """Test that mettagrid.policy can be imported as a package."""
@@ -76,9 +74,9 @@ def test_prepare_policy_spec_importable():
 
 def test_policy_implementations_importable():
     """Test that common policy implementations can be imported."""
-    from mettagrid.policy.random_agent import RandomMultiAgentPolicy
     from mettagrid.policy.lstm import LSTMPolicy
     from mettagrid.policy.noop import NoopPolicy
+    from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 
     assert RandomMultiAgentPolicy is not None
     assert LSTMPolicy is not None
@@ -99,6 +97,4 @@ def test_all_exports_from_init():
     # All items in __all__ should be importable from the package
     if hasattr(mettagrid.policy, "__all__"):
         for name in mettagrid.policy.__all__:
-            assert hasattr(
-                mettagrid.policy, name
-            ), f"{name} in __all__ but not available in mettagrid.policy"
+            assert hasattr(mettagrid.policy, name), f"{name} in __all__ but not available in mettagrid.policy"
