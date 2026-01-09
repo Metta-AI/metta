@@ -136,6 +136,8 @@ class CoreTrainingLoop:
                 for loss in self.losses.values():
                     loss.rollout(td, context)
 
+            self.experience.store(data_td=td, env_id=agent_ids)
+
             avg_reward = context.state.avg_reward
             beta = float(context.config.advantage.reward_centering.beta)
             with torch.no_grad():

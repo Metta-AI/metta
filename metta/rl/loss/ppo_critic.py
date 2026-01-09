@@ -68,21 +68,21 @@ class PPOCritic(Loss):
             truncateds=scalar_f32,
         )
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        with torch.no_grad():
-            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
-            # reuse them to avoid overwriting while still computing values/logprobs.
-            if "actions" in td.keys():
-                self.policy.forward(td, action=td["actions"])
-            else:
-                self.policy.forward(td)
+    # def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    #     with torch.no_grad():
+    #         # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+    #         # reuse them to avoid overwriting while still computing values/logprobs.
+    #         if "actions" in td.keys():
+    #             self.policy.forward(td, action=td["actions"])
+    #         else:
+    #             self.policy.forward(td)
 
-        if self.burn_in_steps_iter < self.burn_in_steps:
-            self.burn_in_steps_iter += 1
-            return
+    #     if self.burn_in_steps_iter < self.burn_in_steps:
+    #         self.burn_in_steps_iter += 1
+    #         return
 
-        env_slice = self._training_env_id(context)
-        self.replay.store(data_td=td, env_id=env_slice)
+    #     env_slice = self._training_env_id(context)
+    #     self.replay.store(data_td=td, env_id=env_slice)
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         return {"values"}

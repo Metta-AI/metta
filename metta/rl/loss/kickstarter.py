@@ -84,22 +84,27 @@ class Kickstarter(Loss):
             teacher_values=scalar_f32,
         )
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        with torch.no_grad():
-            teacher_td = td.clone()
-            self.teacher_policy.forward(teacher_td)
-            teacher_actions = teacher_td["actions"]
-            td["teacher_logits"] = teacher_td["logits"]
-            td["teacher_values"] = teacher_td["values"]
-            self.policy.forward(td)
-
-        # Store experience
-        env_slice = self._training_env_id(context)
-        self.replay.store(data_td=td, env_id=env_slice)
-
+    def run_rollout_postprocess(self, td: TensorDict, context: ComponentContext) -> None:
         if torch.rand(1) < self.cfg.teacher_led_proportion:
             # overwrite student actions w teacher actions with some probability. anneal this.
-            td["actions"] = teacher_actions
+            td["actions"] = td["teacher"]["actions"]
+
+    # def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    #     with torch.no_grad():
+    #         teacher_td = td.clone()
+    #         self.teacher_policy.forward(teacher_td)
+    #         teacher_actions = teacher_td["actions"]
+    #         td["teacher_logits"] = teacher_td["logits"]
+    #         td["teacher_values"] = teacher_td["values"]
+    #         self.policy.forward(td)
+
+    #     # Store experience
+    #     env_slice = self._training_env_id(context)
+    #     self.replay.store(data_td=td, env_id=env_slice)
+
+    #     if torch.rand(1) < self.cfg.teacher_led_proportion:
+    #         # overwrite student actions w teacher actions with some probability. anneal this.
+    #         td["actions"] = teacher_actions
 
     def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
         return {"logits", "values"}

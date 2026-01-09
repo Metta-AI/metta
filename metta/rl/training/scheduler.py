@@ -381,7 +381,7 @@ class LossScheduler(TrainerComponent):
         experience.set_store_keys(active_keys)
 
     def _sync_optimizer_from_config(self) -> None:
-        """No-op: optimizer config is per-policy via PolicyAssetConfig now."""
+        """AV Fix this no-op: optimizer config is per-policy via PolicyAssetConfig now."""
         return
 
 

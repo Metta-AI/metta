@@ -178,16 +178,38 @@ class Loss:
         self._ensure_context(context)
         self.policy.reset_memory()
 
-    def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
-        """Rollout step executed while experience buffer requests more data."""
+    def rollout_preprocess(self, td: TensorDict, context: ComponentContext | None = None) -> TensorDict:
+        """Called before starting a rollout phase."""
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("rollout", ctx):
             return
-        self.run_rollout(td, ctx)
+        self.run_rollout_preprocess(td, ctx)
 
-    def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        """Override in subclasses to implement rollout logic."""
+    def run_rollout_preprocess(self, td: TensorDict, context: ComponentContext) -> None:
+        """Override in subclasses to implement rollout preprocess logic."""
         return
+
+    def rollout_postprocess(self, td: TensorDict, context: ComponentContext | None = None) -> TensorDict:
+        """Called after finishing a rollout phase."""
+        ctx = self._ensure_context(context)
+        if not self._loss_gate_allows("rollout", ctx):
+            return
+        self.run_rollout_postprocess(td, ctx)
+
+    def run_rollout_postprocess(self, td: TensorDict, context: ComponentContext) -> None:
+        """Override in subclasses to implement rollout postprocess logic."""
+        return
+
+    # def rollout(self, td: TensorDict, context: ComponentContext | None = None) -> None:
+    #     """Rollout step executed while experience buffer requests more data."""
+    #     ctx = self._ensure_context(context)
+    #     if not self._loss_gate_allows("rollout", ctx):
+    #         return
+    #     self.run_rollout(td, ctx)
+
+    # def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
+    #     """Override in subclasses to implement rollout logic."""
+    #     return
 
     def train(
         self,
