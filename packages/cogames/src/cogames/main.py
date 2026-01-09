@@ -378,11 +378,11 @@ def play_cmd(
     policy: str = typer.Option("class=noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
-    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for simulator/policy RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Optional MapGen seed override for deterministic procedural maps",
+        help="MapGen seed override for procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -590,11 +590,11 @@ def train_cmd(
         "--device",
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
-    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for training RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Optional MapGen seed override for procedural maps (for deterministic map layouts)",
+        help="MapGen seed override for procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -728,11 +728,11 @@ def run_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for evaluation RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Optional MapGen seed override for deterministic procedural maps",
+        help="MapGen seed override for procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
