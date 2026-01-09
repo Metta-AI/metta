@@ -1,37 +1,28 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
-from torch.profiler import record_function
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from typing_extensions import Literal
 
 from metta.agent.policy import Policy
-from metta.rl.advantage import compute_advantage
-from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.replay_samplers import prio_sample
+from metta.rl.advantage import td_lambda_reverse_scan
+from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import prepare_policy_forward_td
 
 
 class PPOCriticConfig(LossConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
-    vf_coef: float = Field(default=0.897619, ge=0)
+    vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
     clip_vloss: bool = True
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
-    gae_lambda: float = Field(default=0.891477, ge=0, le=1.0)
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
-
-    # control flow for forwarding and sampling. clunky but needed if other losses want to drive (e.g. action supervised)
-    sample_enabled: bool = Field(default=True)  # if true, this loss samples from buffer during training
-    train_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under training
-    rollout_forward_enabled: bool = Field(default=True)  # if true, this forwards the policy under rollout
-
-    deferred_training_start_step: int | None = None  # if set, sample/train_forward enable after this step
+    critic_update: Literal["mse", "gtd_lambda"] = "gtd_lambda"
+    aux_coef: float = Field(default=1.0, ge=0)
+    beta: float = Field(default=1.0, ge=0)
+    teacher_offpolicy_rho_clip: float = Field(default=1.0, gt=0)
 
     def create(
         self,
@@ -48,12 +39,8 @@ class PPOCritic(Loss):
     """PPO value loss."""
 
     __slots__ = (
-        "advantages",
         "burn_in_steps",
         "burn_in_steps_iter",
-        "sample_enabled",
-        "train_forward_enabled",
-        "rollout_forward_enabled",
     )
 
     def __init__(
@@ -66,10 +53,6 @@ class PPOCritic(Loss):
         cfg: "PPOCriticConfig",
     ):
         super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
-        self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
-        self.sample_enabled = self.cfg.sample_enabled
-        self.train_forward_enabled = self.cfg.train_forward_enabled
-        self.rollout_forward_enabled = self.cfg.rollout_forward_enabled
 
         if hasattr(self.policy, "burn_in_steps"):
             self.burn_in_steps = self.policy.burn_in_steps
@@ -90,116 +73,145 @@ class PPOCritic(Loss):
             truncateds=scalar_f32,
         )
 
-    def on_rollout_start(self, context: ComponentContext | None = None) -> None:
-        """Called before starting a rollout phase."""
-        super().on_rollout_start(context)
-        if self.cfg.deferred_training_start_step is not None:
-            if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
-                self.sample_enabled = True
-                self.train_forward_enabled = True
-
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
-        if not self.rollout_forward_enabled:
-            return
-
         with torch.no_grad():
-            self.policy.forward(td)
+            # If another loss already produced actions (e.g., sliced_cloner teacher slice),
+            # reuse them to avoid overwriting while still computing values/logprobs.
+            if "actions" in td.keys():
+                self.policy.forward(td, action=td["actions"])
+            else:
+                self.policy.forward(td)
 
         if self.burn_in_steps_iter < self.burn_in_steps:
             self.burn_in_steps_iter += 1
             return
 
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is missing in rollout.")
+        env_slice = self._training_env_id(context)
         self.replay.store(data_td=td, env_id=env_slice)
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        if self.cfg.critic_update == "gtd_lambda":
+            return {"values", "h_values"}
+        return {"values"}
+
+    def _importance_sampled_delta_lambda(
+        self,
+        *,
+        values: Tensor,
+        rewards: Tensor,
+        dones: Tensor,
+        rho: Tensor,
+        gamma: float,
+        gae_lambda: float,
+    ) -> Tensor:
+        _, tt = values.shape
+        delta_lambda = torch.zeros_like(values)
+        if tt <= 1:
+            return delta_lambda
+
+        terminal_next = dones[:, 1:]
+        mask_next = 1.0 - terminal_next
+
+        delta = rewards[:, 1:] + gamma * mask_next * values[:, 1:] - values[:, :-1]  # [B, TT-1]
+        rho = rho[:, :-1].clamp(max=float(self.cfg.teacher_offpolicy_rho_clip))
+
+        x = rho * delta
+        discounts = rho * mask_next
+        delta_lambda[:, :-1] = td_lambda_reverse_scan(x, discounts, float(gamma * gae_lambda))
+
+        return delta_lambda
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
     ) -> tuple[Tensor, TensorDict, bool]:
-        # compute advantages on the first mb
-        if mb_idx == 0:
-            # a hack because loss run gates can get updated between rollout and train
-            if self.cfg.deferred_training_start_step is not None:
-                if self._require_context(context).agent_step >= self.cfg.deferred_training_start_step:
-                    self.sample_enabled = True
-                    self.train_forward_enabled = True
-
-            with record_function("ppo_critic.compute_advantage"):
-                advantages = torch.zeros_like(self.replay.buffer["values"], device=self.device)
-                self.advantages = compute_advantage(
-                    self.replay.buffer["values"],
-                    self.replay.buffer["rewards"],
-                    self.replay.buffer["dones"],
-                    torch.ones_like(self.replay.buffer["values"]),
-                    advantages,
-                    self.cfg.gamma,
-                    self.cfg.gae_lambda,
-                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                    1.0,  # v-trace is used in PPO actor instead. 1.0 means no v-trace
-                    self.device,
-                )
-
-        # sample from the buffer if called for
-        if self.sample_enabled:
-            with record_function("ppo_critic.prio_sample"):
-                minibatch, indices, prio_weights = prio_sample(
-                    buffer=self.replay,
-                    mb_idx=mb_idx,
-                    epoch=context.epoch,
-                    total_timesteps=self.trainer_cfg.total_timesteps,
-                    batch_size=self.trainer_cfg.batch_size,
-                    prio_alpha=self.cfg.prio_alpha,
-                    prio_beta0=self.cfg.prio_beta0,
-                    advantages=self.advantages,
-                )
-            # mb data should have been computed with policy under torch.no_grad()
-            shared_loss_data["sampled_mb"] = minibatch
-            shared_loss_data["indices"] = NonTensorData(indices)  # this may break compile if we ever use it again
-            shared_loss_data["prio_weights"] = prio_weights
-        else:
-            minibatch = shared_loss_data["sampled_mb"]
-            indices = shared_loss_data["indices"]
-            if isinstance(indices, NonTensorData):
-                indices = indices.data
-
-            if "prio_weights" not in shared_loss_data:
-                # just in case ppo_actor runs after this and is expecting
-                shared_loss_data["prio_weights"] = torch.ones(
-                    (minibatch.shape[0], minibatch.shape[1]),
-                    device=self.device,
-                    dtype=torch.float32,
-                )
+        # Sampling happens in the core loop; use the shared minibatch and indices.
+        minibatch = shared_loss_data["sampled_mb"]
 
         if minibatch.batch_size.numel() == 0:  # early exit if minibatch is empty
             return self._zero_tensor, shared_loss_data, False
 
-        shared_loss_data["advantages"] = self.advantages[indices]
-        # Share gamma/lambda with other losses (e.g. actor) to ensure consistency
-        batch_size = shared_loss_data.batch_size
-        shared_loss_data["gamma"] = torch.full(batch_size, self.cfg.gamma, device=self.device)
-        shared_loss_data["gae_lambda"] = torch.full(batch_size, self.cfg.gae_lambda, device=self.device)
-
-        # forward the policy if called for
-        if self.train_forward_enabled:
-            with record_function("ppo_critic.prepare_policy_td"):
-                policy_td, B, TT = prepare_policy_forward_td(minibatch, self.policy_experience_spec, clone=False)
-                flat_actions = minibatch["actions"].reshape(B * TT, -1)
-
-            with record_function("ppo_critic.policy_reset"):
-                self.policy.reset_memory()
-
-            with record_function("ppo_critic.policy_forward"):
-                policy_td = self.policy.forward(policy_td, action=flat_actions)
-
-            with record_function("ppo_critic.policy_td_reshape"):
-                policy_td = policy_td.reshape(B, TT)
-            shared_loss_data["policy_td"] = policy_td
-
-        # compute value loss
+        # Advantages are computed in the core loop and passed through shared_loss_data.
+        # Keep the full advantages around for explained variance logging and prioritized sampling.
         old_values = minibatch["values"]
-        returns = shared_loss_data["advantages"] + minibatch["values"]
+        if self.cfg.critic_update == "gtd_lambda":
+            policy_td = shared_loss_data["policy_td"]
+            if "h_values" not in policy_td.keys():
+                raise RuntimeError("Policy must output 'h_values' for critic_update='gtd_lambda'")
+
+            new_values = policy_td["values"].reshape(old_values.shape)
+            h_values = policy_td["h_values"]
+            if h_values.dim() == 3 and h_values.shape[-1] == 1:
+                h_values = h_values.squeeze(-1)
+            h_values = h_values.reshape(old_values.shape)
+
+            delta_lambda = shared_loss_data["advantages_pg"]
+            if "teacher_mask" in minibatch.keys():
+                teacher_mask = minibatch["teacher_mask"][:, 0]
+                if bool(teacher_mask.any()):
+                    if "act_log_prob" not in policy_td.keys():
+                        raise RuntimeError("Teacher-slice TD(λ) correction requires policy_td['act_log_prob']")
+                    rho = policy_td["act_log_prob"].reshape(minibatch["actions"].shape).exp()
+                    rho_trim = rho.detach()[teacher_mask][:, :-1]
+                    rho_clip = float(self.cfg.teacher_offpolicy_rho_clip)
+                    self.loss_tracker["teacher_td_lambda_rho_clipfrac"].append(
+                        float((rho_trim > rho_clip).float().mean().item())
+                    )
+                    centered_rewards = minibatch["rewards"] - minibatch["reward_baseline"]
+                    corrected = self._importance_sampled_delta_lambda(
+                        values=new_values[teacher_mask],
+                        rewards=centered_rewards[teacher_mask],
+                        dones=minibatch["dones"][teacher_mask],
+                        rho=rho.detach()[teacher_mask],
+                        gamma=float(context.config.advantage.gamma),
+                        gae_lambda=float(context.config.advantage.gae_lambda),
+                    )
+                    delta_lambda = delta_lambda.clone()
+                    delta_lambda[teacher_mask] = corrected
+
+            # Use only valid transitions (t=0..TT-2). The last step is padding.
+            dl = delta_lambda[:, :-1]
+            v_t = new_values[:, :-1]
+            h_t = h_values[:, :-1]
+
+            critic_loss = (h_t.detach() * dl).mean() - ((dl.detach() - h_t.detach()) * v_t).mean()
+
+            l2_sum = torch.tensor(0.0, device=critic_loss.device, dtype=critic_loss.dtype)
+            l2_count = 0
+            if self.cfg.beta > 0:
+                aux_module = getattr(self.policy, "gtd_aux", None)
+                components = getattr(self.policy, "components", None)
+                if aux_module is None and components is not None:
+                    aux_module = components.get("gtd_aux", None)
+                if aux_module is not None:
+                    for param in aux_module.parameters():
+                        l2_sum = l2_sum + (param * param).sum()
+                        l2_count += int(param.numel())
+            l2 = l2_sum / max(l2_count, 1)
+            aux_loss = 0.5 * ((dl.detach() - h_t) ** 2).mean() + 0.5 * float(self.cfg.beta) * l2
+
+            total = float(self.cfg.vf_coef) * critic_loss + float(self.cfg.aux_coef) * aux_loss
+            self.loss_tracker["value_loss"].append(float(total.item()))
+            self.loss_tracker["gtd_critic_loss"].append(float(critic_loss.item()))
+            self.loss_tracker["gtd_aux_loss"].append(float(aux_loss.item()))
+            self.loss_tracker["gtd_h_mse"].append(float(((dl.detach() - h_t) ** 2).mean().item()))
+            self.loss_tracker["gtd_delta_lambda_abs"].append(float(dl.detach().abs().mean().item()))
+
+            # Update values in experience buffer for advantage_full recomputation + EV logging.
+            update_td = TensorDict(
+                {
+                    "values": new_values.reshape(minibatch["values"].shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            indices = shared_loss_data["indices"][:, 0]
+            self.replay.update(indices, update_td)
+
+            return total, shared_loss_data, False
+
+        advantages_mb = shared_loss_data["advantages"]
+        returns = advantages_mb + minibatch["values"]
         minibatch["returns"] = returns
+        # Read policy forward results from the core loop (forward_policy_for_training).
         policy_td = shared_loss_data.get("policy_td", None)
         newvalue_reshaped = None
         if policy_td is not None:
@@ -207,32 +219,44 @@ class PPOCritic(Loss):
             newvalue_reshaped = newvalue.view(returns.shape)
 
         if newvalue_reshaped is not None:
-            with record_function("ppo_critic.value_loss"):
-                if self.cfg.clip_vloss:
-                    v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-                    vf_clip_coef = self.cfg.vf_clip_coef
-                    v_clipped = old_values + torch.clamp(
-                        newvalue_reshaped - old_values,
-                        -vf_clip_coef,
-                        vf_clip_coef,
-                    )
-                    v_loss_clipped = (v_clipped - returns) ** 2
-                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-                else:
-                    v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
-
-                # Update values in experience buffer
-                update_td = TensorDict(
-                    {
-                        "values": newvalue.view(minibatch["values"].shape).detach(),
-                    },
-                    batch_size=minibatch.batch_size,
+            if self.cfg.clip_vloss:
+                v_loss_unclipped = (newvalue_reshaped - returns) ** 2
+                vf_clip_coef = self.cfg.vf_clip_coef
+                v_clipped = old_values + torch.clamp(
+                    newvalue_reshaped - old_values,
+                    -vf_clip_coef,
+                    vf_clip_coef,
                 )
-                self.replay.update(indices, update_td)
-        else:
-            with record_function("ppo_critic.value_loss"):
-                v_loss = 0.5 * ((old_values - returns) ** 2).mean()
+                v_loss_clipped = (v_clipped - returns) ** 2
+                v_loss_vec = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped)
+            else:
+                v_loss_vec = 0.5 * ((newvalue_reshaped - returns) ** 2)
 
+            v_loss = v_loss_vec.mean()
+
+            shared_loss_data["ppo_val_loss_vec"] = v_loss_vec
+
+            # 12-21-25 av experimental code. cute but delete later (compare with Kickstarter value loss if available)
+            if "ks_val_loss_vec" in shared_loss_data:
+                analyze_loss_alignment(
+                    shared_data=shared_loss_data,
+                    name1="ks_val",
+                    name2="ppo_val",
+                    params=list(self.policy.parameters()),
+                    tracker=self.loss_tracker,
+                )
+
+            # Update values in experience buffer
+            update_td = TensorDict(
+                {
+                    "values": newvalue.view(minibatch["values"].shape).detach(),
+                },
+                batch_size=minibatch.batch_size,
+            )
+            indices = shared_loss_data["indices"][:, 0]
+            self.replay.update(indices, update_td)
+        else:
+            v_loss = 0.5 * ((old_values - returns) ** 2).mean()
         # Scale value loss by coefficient
         v_loss = v_loss * self.cfg.vf_coef
         self.loss_tracker["value_loss"].append(float(v_loss.item()))
@@ -243,7 +267,7 @@ class PPOCritic(Loss):
         """Compute value-function explained variance for logging, mirroring monolithic PPO."""
         with torch.no_grad():
             y_pred = self.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
+            y_true = self.replay.buffer["advantages_full"].flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))

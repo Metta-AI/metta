@@ -1,16 +1,15 @@
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
 from pydantic import Field
-from tensordict import NonTensorData, TensorDict
+from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
-from metta.rl.utils import add_dummy_loss_for_unused_params
 
 
 class GRPOConfig(LossConfig):
@@ -105,12 +104,15 @@ class GRPO(Loss):
             return
 
         # Store experience
-        env_slice = context.training_env_id
-        if env_slice is None:
-            raise RuntimeError("ComponentContext.training_env_id is required for GRPO rollout")
+        env_slice = self._training_env_id(
+            context, error="ComponentContext.training_env_id is required for GRPO rollout"
+        )
         self.replay.store(data_td=td, env_id=env_slice)
 
         return
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"act_log_prob", "entropy"}
 
     def run_train(
         self, shared_loss_data: TensorDict, context: ComponentContext, mb_idx: int
@@ -127,28 +129,16 @@ class GRPO(Loss):
                 stop_update_epoch = True
 
         if mb_idx == 0:
-            self.advantages = self._compute_group_advantages(context)
-
-        minibatch, indices = self._sample_minibatch()
-
-        shared_loss_data["sampled_mb"] = minibatch
-        shared_loss_data["indices"] = NonTensorData(indices)
-
-        policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
-        B, TT = policy_td.batch_size
-        policy_td = policy_td.reshape(B * TT)
-        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
-        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
-
-        flat_actions = minibatch["actions"].reshape(B * TT, -1)
-
-        policy_td = self.policy.forward(policy_td, action=flat_actions)
-        shared_loss_data["policy_td"] = policy_td.reshape(B, TT)
+            # overwrite advantages in the replay buffer with the group-based advantages
+            self.replay.buffer["advantages"] = self._compute_group_advantages(context)
+            self.replay.buffer["advantages_full"] = self.replay.buffer["advantages"]  # maybe we don't need this?
+            indices = shared_loss_data["indices"][:, 0]
+            shared_loss_data["advantages"] = self.replay.buffer["advantages"][indices]
 
         loss = self._process_minibatch_update(
-            minibatch=minibatch,
-            policy_td=policy_td,
-            indices=indices,
+            minibatch=shared_loss_data["sampled_mb"],
+            policy_td=shared_loss_data["policy_td"],
+            indices=shared_loss_data["indices"][:, 0],
         )
 
         return loss, shared_loss_data, stop_update_epoch
@@ -247,7 +237,6 @@ class GRPO(Loss):
         )
 
         loss = pg_loss - cfg.ent_coef * entropy_loss
-        loss = add_dummy_loss_for_unused_params(loss, td=policy_td, used_keys=["act_log_prob", "entropy"])
 
         self._track("policy_loss", pg_loss)
         self._track("entropy", entropy_loss)
@@ -285,19 +274,6 @@ class GRPO(Loss):
             clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.cfg.clip_coef).float().mean()
 
         return pg_loss, entropy_loss, approx_kl, clipfrac
-
-    def _sample_minibatch(self) -> tuple[TensorDict, Tensor]:
-        """Sample a minibatch uniformly from the replay buffer."""
-        # For GRPO, we use uniform sampling
-        num_segments = self.replay.buffer.shape[0]
-        idx = torch.randint(0, num_segments, (self.replay.minibatch_segments,), device=self.device)
-
-        minibatch = self.replay.buffer[idx]
-
-        with torch.no_grad():
-            minibatch["advantages"] = self.advantages[idx]
-
-        return minibatch.clone(), idx
 
     def _importance_ratio(self, new_logprob: Tensor, old_logprob: Tensor) -> Tensor:
         logratio = torch.clamp(new_logprob - old_logprob, -10, 10)

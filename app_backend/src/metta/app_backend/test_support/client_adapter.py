@@ -26,6 +26,10 @@ class TestClientAdapter:
         """Make a POST request using the TestClient synchronously."""
         return self.request("POST", url, **kwargs)
 
+    def get(self, url: str, **kwargs) -> httpx.Response:
+        """Make a GET request using the TestClient synchronously."""
+        return self.request("GET", url, **kwargs)
+
 
 def create_test_stats_client(test_client: TestClient, machine_token: str):
     """Create a StatsClient that works with TestClient."""

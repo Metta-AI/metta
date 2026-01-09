@@ -10,7 +10,8 @@ from metta.cogworks.curriculum.curriculum import (
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.loss.losses import LossesConfig
-from metta.rl.loss.ppo import PPOConfig
+from metta.rl.loss.ppo_actor import PPOActorConfig
+from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
@@ -18,7 +19,7 @@ from metta.rl.training import (
     EvaluatorConfig,
     TrainingEnvironmentConfig,
 )
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -107,10 +108,11 @@ def train(
     eval_simulations = simulations()
 
     loss_config = LossesConfig(
-        ppo=PPOConfig(enabled=True),
+        ppo_actor=PPOActorConfig(enabled=True),
+        ppo_critic=PPOCriticConfig(enabled=True),
         sl_checkpointed_kickstarter=SLCheckpointedKickstarterConfig(
             enabled=True,
-            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016.mpt",
+            teacher_uri="s3://softmax-public/policies/av.teach.24checks.11.10.10/av.teach.24checks.11.10.10:v8016",
             checkpointed_interval=24,
             epochs_per_checkpoint=1,
             terminating_epoch=334,
@@ -145,9 +147,8 @@ def train(
             ),
         ],
         rules=[
-            HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
-                attr_path="action_loss_coef",
+            ScheduleRule(
+                target_path="losses.sl_checkpointed_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -155,9 +156,8 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-            HyperUpdateRule(
-                loss_instance_name="sl_checkpointed_kickstarter",
-                attr_path="value_loss_coef",
+            ScheduleRule(
+                target_path="losses.sl_checkpointed_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,
@@ -285,7 +285,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.experiment.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.checked",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both

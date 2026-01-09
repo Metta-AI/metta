@@ -1,17 +1,14 @@
 """Help panel component for miniscope renderer."""
 
-from typing import TYPE_CHECKING, List
+from typing import List
 
 from rich import box
 from rich.table import Table
 
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class HelpPanelComponent(MiniscopeComponent):
@@ -19,7 +16,7 @@ class HelpPanelComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
     ):
@@ -32,14 +29,15 @@ class HelpPanelComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("help")
-        if sidebar_panel is None:
-            sidebar_panel = panels.register_sidebar_panel("help")
+        assert sidebar_panel is not None
         self._set_panel(sidebar_panel)
 
     def update(self) -> None:
         """Render the help panel."""
+        panel = self._panel
+        assert panel is not None
         if not self.state.is_sidebar_visible("help"):
-            self._panel.clear()
+            panel.clear()
             return
 
         lines = []
@@ -97,7 +95,7 @@ class HelpPanelComponent(MiniscopeComponent):
         lines.append(" " * ((width - 24) // 2) + "Press any key to continue")
         lines.append("=" * width)
 
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def render_as_table(self) -> List[str]:
         """Render the help panel as a Rich table.

@@ -29,7 +29,7 @@ class BinarySymlinksSetup(SetupModule):
             status = _check_existing(target_symlink, wrapper_script)
             name = target_symlink.name
             if status in ("ours", "other-but-same-content"):
-                debug(f"{name} command is properly installed")
+                pass
             elif status == "other":
                 info(f"""
               {name} command is installed from a different checkout

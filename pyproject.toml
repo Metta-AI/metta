@@ -61,14 +61,14 @@ dependencies = [
   "scipy>=1.15.3",
   "setuptools>=80.9.0",
   "simple-term-menu>=1.6.4",
-  "skypilot==0.10.3.post2",
+  "skypilot==0.11.1",
   "softmax",
   "sympy>=1.13.3",
   "tabulate>=0.9.0",
   "tensordict>=0.8.3",
   "termcolor>=2.4.0",
   "tiktoken>=0.9.0",
-  "torch>=2.9.1",
+  "torch==2.9.0",
   "transformers>=4.46.0",
   "torchrl>=0.8.1",
   "tqdm>=4.67.1",
@@ -77,7 +77,6 @@ dependencies = [
   "wandb-core>=0.17.0b11",
   "sqlmodel>=0.0.27",
   "wandb>=0.23.0",
-  "xformers>=0.0.33",
 ]
 name = "metta"
 version = "0.1"
@@ -88,6 +87,7 @@ license = { text = "MIT" }
 [dependency-groups]
 testing = [
   "gcovr>=8.3",
+  "grpcio-tools>=1.76.0",
   "pytest>=8.3.3",
   "pytest-benchmark>=5.1.0",
   "pytest-json-report>=1.5.0",
@@ -96,8 +96,9 @@ testing = [
   "pytest-xdist>=3.8.0",
   "testcontainers>=4.10.0",
   "pyright>=1.1.401",
+  "freezegun>=1.5.5",
 ]
-lint = ["cpplint>=2.0.2", "mypy>=1.18.2", "ruff>=0.11.13"]
+lint = ["cpplint>=2.0.2", "import-linter>=2.1", "mypy>=1.18.2", "ruff>=0.11.13"]
 interactive = [
   "anywidget>=0.9.18",
   "ipykernel>=6.29.5",
@@ -109,15 +110,13 @@ interactive = [
   "traitlets>=5.14.3",
   "widgetsnbextension>=4.0.14",
 ]
-mcp-servers = ["wandb-dashboard-mcp", "metta-pr-similarity-mcp"]
+mcp-servers = ["metta-pr-similarity-mcp"]
 dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
 
 [project.scripts]
-metta = "metta.setup.metta_cli:main"
-skypilot = "devops.skypilot.launch:main"
-skypilot-sandbox = "devops.skypilot.sandbox:main"
-mapgen = "tools.map.gen:main"
-mapgen-scene = "tools.map.gen_scene:main"
+metta = "metta.setup.metta_cli:cli_entry"
+skypilot = "devops.skypilot.launch:cli_entry"
+skypilot-sandbox = "devops.skypilot.sandbox:cli_entry"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -136,12 +135,7 @@ norecursedirs = ["bazel-*", ".bazel_output"]
 
 [tool.uv]
 required-version = ">=0.9.0"
-cache-keys = [
-  { file = "pyproject.toml" },
-  { file = "packages/mettagrid/BUILD" },
-  { file = "packages/mettagrid/MODULE.bazel" },
-  { file = "metta/**/*.{cpp,hpp}" },
-]
+cache-keys = [{ file = "pyproject.toml" }]
 default-groups = ["interactive", "dev"]
 
 [tool.uv.workspace]
@@ -157,7 +151,6 @@ members = [
   "packages/pufferlib-core",
   "softmax",
   "mcp_servers/pr_similarity",
-  "mcp_servers/wandb_dashboard",
 ]
 
 [tool.uv.sources]
@@ -170,5 +163,4 @@ metta-app-backend = { workspace = true }
 metta-common = { workspace = true }
 pufferlib-core = { workspace = true }
 softmax = { workspace = true }
-wandb-dashboard-mcp = { workspace = true }
 metta-pr-similarity-mcp = { workspace = true }

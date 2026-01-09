@@ -13,6 +13,7 @@ from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
 from metta.rl.training import ComponentContext
 
+# Keep: heavy modules, TrainerConfig manages circular dep (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
     from metta.rl.training import TrainingEnvironment
@@ -167,6 +168,9 @@ class ViTReconstructionLoss(Loss):
         self.cfg: ViTReconstructionLossConfig = cfg  # type: ignore
         self.decoder = None
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"obs_shim_tokens", "obs_latent_attn"}
+
     def _init_decoder(self, latent_dim: int, context: ComponentContext) -> None:
         # 1. Derive num_attribute_classes from environment
         if self.cfg.num_attribute_classes is not None:
@@ -231,12 +235,10 @@ class ViTReconstructionLoss(Loss):
 
         # Attach to policy to ensure parameters are accessible if needed
         # Unwrapping policy if it's wrapped (e.g. DDP)
-        target_policy = self.policy
-        if hasattr(target_policy, "module"):
-            target_policy = target_policy.module
-
         # Use a unique name
-        target_policy.vit_reconstruction_decoder = self.decoder
+        (
+            self.policy.module if hasattr(self.policy, "module") else self.policy
+        ).vit_reconstruction_decoder = self.decoder
 
     def run_train(
         self,
@@ -278,8 +280,7 @@ class ViTReconstructionLoss(Loss):
 
         # Use the derived num_attribute_classes for normalization
         # Handle both wrapped and unwrapped decoder
-        decoder_module = self.decoder.module if isinstance(self.decoder, DDP) else self.decoder
-        num_classes = decoder_module._num_attribute_classes
+        num_classes = (self.decoder.module if isinstance(self.decoder, DDP) else self.decoder)._num_attribute_classes
         mask_expanded = valid_mask.unsqueeze(-1)
         loss_id = (loss_id * mask_expanded).sum() / (mask_expanded.sum() * num_classes + 1e-6)
 

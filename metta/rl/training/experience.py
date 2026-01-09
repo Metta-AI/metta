@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, List
 
 import torch
 from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.common.util.collections import duplicates
+from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 
 class Experience:
@@ -20,15 +23,19 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        sampling_config: Any,
     ):
         """Initialize experience buffer with segmented storage."""
-        self._check_for_duplicate_keys(experience_spec)
+        all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
+        if duplicate_keys := duplicates(all_keys):
+            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
         # Store parameters
         self.total_agents = total_agents
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
+        self.sampling_config = sampling_config
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -45,8 +52,9 @@ class Experience:
         self.buffer = spec.zero()
 
         # Row-aligned tracking (per-agent row slot id and position within row)
-        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
-        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.t_in_row = torch.zeros(total_agents, device=self.device, dtype=torch.int64)
+        self.t_in_row_cpu = torch.zeros(total_agents, device="cpu", dtype=torch.int64)
+        self.row_slot_ids = torch.arange(total_agents, device=self.device, dtype=torch.int64) % self.segments
         self.free_idx = total_agents % self.segments
 
         # Minibatch configuration
@@ -74,16 +82,29 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
+        num_minibatches = max(self.num_minibatches, 1)
+        sequential_idx_cache: List[Tensor] = []
+        for mb_idx in range(num_minibatches):
+            start = mb_idx * self.minibatch_segments
+            end = start + self.minibatch_segments
+            if end <= self.segments:
+                idx = torch.arange(start, end, dtype=torch.long, device=self.device)
+            else:
+                overflow = end - self.segments
+                front = torch.arange(start, self.segments, dtype=torch.long, device=self.device)
+                back = torch.arange(0, overflow, dtype=torch.long, device=self.device)
+                idx = torch.cat((front, back), dim=0)
+            sequential_idx_cache.append(idx)
+        self._sequential_idx_cache = sequential_idx_cache
+        self._ones_prio_weights = torch.ones(
+            (self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+            dtype=torch.float32,
+        )
+        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int64)
 
         # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
-
-    def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
-        """Check for duplicate keys in the experience spec."""
-        all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
-        if duplicate_keys := duplicates(all_keys):
-            raise ValueError(f"Duplicate keys found in experience_spec: {[str(d) for d in duplicate_keys]}")
 
     @property
     def ready_for_training(self) -> bool:
@@ -95,7 +116,7 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
-        t_in_row_val = self.t_in_row[env_id.start].item()
+        t_in_row_val = int(self.t_in_row_cpu[env_id.start].item())
         row_ids = self.row_slot_ids[env_id]
 
         # Scheduler updates these keys based on the active losses for the epoch.
@@ -105,6 +126,7 @@ class Experience:
             raise ValueError("No store keys set. set_store_keys() was likely used incorrectly.")
 
         self.t_in_row[env_id] += 1
+        self.t_in_row_cpu[env_id] += 1
 
         if t_in_row_val + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
@@ -114,6 +136,7 @@ class Experience:
         num_full = env_id.stop - env_id.start
         self.row_slot_ids[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.t_in_row[env_id] = 0
+        self.t_in_row_cpu[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
@@ -123,6 +146,7 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.row_slot_ids = self._range_tensor % self.segments
         self.t_in_row.zero_()
+        self.t_in_row_cpu.zero_()
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -196,6 +220,87 @@ class Experience:
             device=self.device,
         )
 
+    def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
+        """Sample a contiguous minibatch from the buffer in sequential order."""
+        num_minibatches = max(self.num_minibatches, 1)
+
+        mb_idx_mod = int(mb_idx % num_minibatches)
+        idx = self._sequential_idx_cache[mb_idx_mod]
+
+        minibatch = self.buffer[idx]
+        return minibatch.clone(), idx
+
+    def sample_prioritized(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        prio_alpha: float,
+        prio_beta0: float,
+        advantages: Tensor,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """Sample minibatch using prioritized experience replay."""
+        if prio_alpha <= 0.0:
+            minibatch, idx = self.sample_sequential(mb_idx)
+            return (
+                minibatch,
+                idx,
+                torch.ones((minibatch.shape[0], minibatch.shape[1]), device=self.device, dtype=torch.float32),
+            )
+
+        anneal_beta = calculate_prioritized_sampling_params(
+            epoch=epoch,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            prio_alpha=prio_alpha,
+            prio_beta0=prio_beta0,
+        )
+
+        adv_magnitude = advantages.abs().sum(dim=1)
+        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
+        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
+        all_prio_is_weights = (self.segments * prio_probs) ** -anneal_beta
+
+        idx = torch.multinomial(prio_probs, self.minibatch_segments)
+        minibatch = self.buffer[idx].clone()
+
+        prio_is_weights = all_prio_is_weights[idx, None].expand(-1, self.bptt_horizon)
+        return minibatch, idx, prio_is_weights
+
+    def sample(
+        self,
+        mb_idx: int,
+        epoch: int,
+        total_timesteps: int,
+        batch_size: int,
+        advantages: Tensor,
+    ) -> TensorDict:
+        shared_loss_mb_data = self.give_me_empty_md_td()
+
+        if self.sampling_config.method == "sequential":
+            minibatch, indices = self.sample_sequential(mb_idx)
+            prio_weights = self._ones_prio_weights
+        else:
+            assert advantages is not None, "Advantages must be provided for prioritized sampling"
+            minibatch, indices, prio_weights = self.sample_prioritized(
+                mb_idx,
+                epoch,
+                total_timesteps,
+                batch_size,
+                self.sampling_config.prio_alpha,
+                self.sampling_config.prio_beta0,
+                advantages,
+            )
+        shared_loss_mb_data["prio_weights"] = prio_weights
+
+        shared_loss_mb_data["sampled_mb"] = minibatch
+        # broadcasting indices lets slicing work on it too. that way losses can more easily update buffer using indices
+        shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
+        shared_loss_mb_data["advantages"] = advantages[indices]
+
+        return shared_loss_mb_data
+
     @staticmethod
     def from_losses(
         total_agents: int,
@@ -204,8 +309,9 @@ class Experience:
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],  # av fix circular import issue when setting value to Loss
+        losses: Dict[str, Any],
         device: torch.device | str,
+        sampling_config: Any,  # av fix
     ) -> "Experience":
         """Create experience buffer with merged specs from policy and losses."""
 
@@ -214,6 +320,11 @@ class Experience:
         for loss in losses.values():
             spec = loss.get_experience_spec()
             merged_spec_dict.update(dict(spec.items()))
+
+        merged_spec_dict.setdefault(
+            "reward_baseline",
+            UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32),
+        )
 
         # Create experience buffer
         experience = Experience(
@@ -224,6 +335,7 @@ class Experience:
             max_minibatch_size=max_minibatch_size,
             experience_spec=Composite(merged_spec_dict),
             device=device,
+            sampling_config=sampling_config,
         )
         for loss in losses.values():
             loss.attach_replay_buffer(experience)

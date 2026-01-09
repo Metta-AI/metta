@@ -36,31 +36,6 @@ class RankAwareLogger(logging.Logger):
             self._is_master = (get_node_rank() or "0") == "0"
         return self._is_master
 
-    def debug_master(self, msg, *args, **kwargs):
-        """Log debug message only on master (rank 0)."""
-        if self.is_master:
-            self.debug(msg, *args, **kwargs)
-
-    def info_master(self, msg, *args, **kwargs):
-        """Log info message only on master (rank 0)."""
-        if self.is_master:
-            self.info(msg, *args, **kwargs)
-
-    def warning_master(self, msg, *args, **kwargs):
-        """Log warning message only on master (rank 0)."""
-        if self.is_master:
-            self.warning(msg, *args, **kwargs)
-
-    def error_master(self, msg, *args, **kwargs):
-        """Log error message only on master (rank 0)."""
-        if self.is_master:
-            self.error(msg, *args, **kwargs)
-
-    def critical_master(self, msg, *args, **kwargs):
-        """Log critical message only on master (rank 0)."""
-        if self.is_master:
-            self.critical(msg, *args, **kwargs)
-
 
 def getRankAwareLogger(name: str | None = None) -> RankAwareLogger:
     init_logging()
@@ -251,6 +226,10 @@ def suppress_noisy_logs() -> None:
 
     # Silence ddtrace CI Visibility spam
     logging.getLogger("ddtrace").setLevel(logging.WARNING)
+
+    # Silence AWS SDK credential/token loading noise
+    logging.getLogger("botocore.tokens").setLevel(logging.WARNING)
+    logging.getLogger("botocore.credentials").setLevel(logging.WARNING)
 
 
 def init_mettagrid_system_environment() -> None:

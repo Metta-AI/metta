@@ -1,7 +1,11 @@
-import { FC, useContext, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { FC, useContext, useEffect, useState } from 'react'
 
 import { AppContext } from './AppContext'
+import { Input } from './components/Input'
+import { Spinner } from './components/Spinner'
+import { StyledLink } from './components/StyledLink'
+import { Table, TD, TH, TR } from './components/Table'
+import { useDebouncedValue } from './hooks/useDebouncedValue'
 import type { PolicyRow } from './repo'
 import { formatDate, formatRelativeTime } from './utils/datetime'
 
@@ -21,23 +25,7 @@ export const PoliciesPage: FC = () => {
     error: null,
   })
   const [nameFilter, setNameFilter] = useState('')
-  const [debouncedFilter, setDebouncedFilter] = useState('')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-    debounceRef.current = setTimeout(() => {
-      setDebouncedFilter(nameFilter)
-    }, DEBOUNCE_MS)
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
-      }
-    }
-  }, [nameFilter])
+  const debouncedFilter = useDebouncedValue(nameFilter, DEBOUNCE_MS)
 
   useEffect(() => {
     let isMounted = true
@@ -63,7 +51,7 @@ export const PoliciesPage: FC = () => {
       }
     }
 
-    void loadPolicies()
+    loadPolicies()
 
     return () => {
       isMounted = false
@@ -88,69 +76,42 @@ export const PoliciesPage: FC = () => {
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
         <div className="px-5 py-4 border-b border-gray-200 flex items-center gap-3">
-          <input
-            type="text"
-            placeholder="Search by name..."
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
-            className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          {isSearching && (
-            <svg
-              className="animate-spin h-4 w-4 text-gray-400"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-          )}
+          <div className="w-full max-w-xs">
+            <Input placeholder="Search by name..." value={nameFilter} onChange={(value) => setNameFilter(value)} />
+          </div>
+          {isSearching && <Spinner />}
         </div>
         <div className="p-5">
           {isInitialLoad ? (
-            <div className="text-gray-500 text-sm">Loading policies...</div>
+            <Spinner size="lg" />
           ) : policiesState.error ? (
             <div className="text-red-600 text-sm">{policiesState.error}</div>
           ) : filteredPolicies.length === 0 ? (
             <div className="text-gray-500 text-sm">No policies found.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-600">
-                    <th className="px-3 py-2 border-b border-gray-200">Name</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Versions</th>
-                    <th className="px-3 py-2 border-b border-gray-200">Created</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <Table.Header>
+                  <TH>Name</TH>
+                  <TH>Versions</TH>
+                  <TH>Created</TH>
+                </Table.Header>
+                <Table.Body>
                   {filteredPolicies.map((policy) => (
-                    <tr key={policy.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-3 py-2">
-                        <Link
-                          to={`/policies/${policy.id}`}
-                          className="text-blue-600 no-underline hover:underline font-medium"
-                        >
-                          {policy.name}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200">
+                    <TR key={policy.id}>
+                      <TD>
+                        <StyledLink to={`/policies/${policy.id}`}>{policy.name}</StyledLink>
+                      </TD>
+                      <TD>
+                        <span className="inline-flex items-center px-2 py-1 text-xs rounded bg-gray-100 border border-gray-200 text-nowrap">
                           {policy.version_count} version{policy.version_count !== 1 ? 's' : ''}
                         </span>
-                      </td>
-                      <td className="px-3 py-2 text-gray-600" title={formatDate(policy.created_at)}>
-                        {formatRelativeTime(policy.created_at)}
-                      </td>
-                    </tr>
+                      </TD>
+                      <TD title={formatDate(policy.created_at)}>{formatRelativeTime(policy.created_at)}</TD>
+                    </TR>
                   ))}
-                </tbody>
-              </table>
+                </Table.Body>
+              </Table>
             </div>
           )}
         </div>

@@ -18,13 +18,17 @@
 #include "actions/move.hpp"
 #include "actions/move_config.hpp"
 #include "actions/noop.hpp"
+#include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
+#include "objects/alignable.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
+#include "objects/collective.hpp"
+#include "objects/collective_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
 #include "objects/protocol.hpp"
@@ -68,7 +72,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
-      game_config.protocol_details_obs, resource_names, game_config.feature_ids);
+      game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
   // Initialize ObservationFeature namespace with feature IDs
   ObservationFeature::Initialize(game_config.feature_ids);
@@ -82,9 +86,53 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
 
   _action_success.resize(num_agents);
 
-  init_action_handlers(game_config);
+  init_action_handlers();
 
   _init_grid(game_config, map);
+
+  // Initialize collectives from config
+  for (const auto& [name, collective_cfg] : game_config.collectives) {
+    auto collective = std::make_unique<Collective>(*collective_cfg, &resource_names);
+    _collectives_by_name[name] = collective.get();
+    _collectives.push_back(std::move(collective));
+  }
+
+  // Associate alignable objects with their collective based on tags
+  // Tags of the form "collective:name" indicate membership
+  // Only objects that implement Alignable can belong to a collective
+  const std::string collective_tag_prefix = "collective:";
+  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    auto obj = _grid->object(obj_id);
+    if (!obj) continue;
+
+    // Try to cast to Alignable - only alignable objects can have a collective
+    Alignable* alignable = dynamic_cast<Alignable*>(obj);
+    if (!alignable) continue;
+
+    // Check for collective tags
+    for (int tag_id : obj->tag_ids) {
+      auto tag_it = game_config.tag_id_map.find(tag_id);
+      if (tag_it != game_config.tag_id_map.end()) {
+        const std::string& tag_name = tag_it->second;
+        if (tag_name.rfind(collective_tag_prefix, 0) == 0) {
+          // Extract collective name from tag
+          std::string collective_name = tag_name.substr(collective_tag_prefix.length());
+          auto collective_it = _collectives_by_name.find(collective_name);
+          if (collective_it != _collectives_by_name.end()) {
+            alignable->setCollective(collective_it->second);
+          }
+        }
+      }
+    }
+  }
+
+  // Pre-compute goal_obs tokens for each agent
+  if (_global_obs_config.goal_obs) {
+    _agent_goal_obs_tokens.resize(_agents.size());
+    for (size_t i = 0; i < _agents.size(); i++) {
+      _compute_agent_goal_obs_tokens(i);
+    }
+  }
 
   // Create buffers
   _make_buffers(num_agents);
@@ -156,7 +204,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -238,11 +286,11 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
   _compute_observations(executed_actions);
 }
 
-void MettaGrid::init_action_handlers(const GameConfig& game_config) {
+void MettaGrid::init_action_handlers() {
   _max_action_priority = 0;
 
   // Noop
-  auto noop = std::make_unique<Noop>(*game_config.actions.at("noop"));
+  auto noop = std::make_unique<Noop>(*_game_config.actions.at("noop"));
   noop->init(_grid.get(), &_rng);
   if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
   for (const auto& action : noop->actions()) {
@@ -251,29 +299,48 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
   _action_handler_impl.push_back(std::move(noop));
 
   // Move
-  auto move_config = std::static_pointer_cast<const MoveActionConfig>(game_config.actions.at("move"));
-  auto move = std::make_unique<Move>(*move_config, &game_config);
+  auto move_config = std::static_pointer_cast<const MoveActionConfig>(_game_config.actions.at("move"));
+  auto move = std::make_unique<Move>(*move_config, &_game_config);
   move->init(_grid.get(), &_rng);
   if (move->priority > _max_action_priority) _max_action_priority = move->priority;
   for (const auto& action : move->actions()) {
     _action_handlers.push_back(action);
   }
+  // Capture the raw pointer to pass to other handlers
+  Move* move_ptr = move.get();
   _action_handler_impl.push_back(std::move(move));
 
   // Attack
-  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(game_config.actions.at("attack"));
-  auto attack = std::make_unique<Attack>(*attack_config, &game_config);
+  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(_game_config.actions.at("attack"));
+  auto attack = std::make_unique<Attack>(*attack_config, &_game_config);
   attack->init(_grid.get(), &_rng);
   if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
   for (const auto& action : attack->actions()) {
     _action_handlers.push_back(action);
   }
+
+  // Transfer
+  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(_game_config.actions.at("transfer"));
+  auto transfer = std::make_unique<Transfer>(*transfer_config, &_game_config);
+  transfer->init(_grid.get(), &_rng);
+  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
+  for (const auto& action : transfer->actions()) {
+    _action_handlers.push_back(action);
+  }
+
+  // Register vibe-triggered action handlers with Move
+  std::unordered_map<std::string, ActionHandler*> handlers;
+  handlers["attack"] = attack.get();
+  handlers["transfer"] = transfer.get();
+  move_ptr->set_action_handlers(handlers);
+
   _action_handler_impl.push_back(std::move(attack));
+  _action_handler_impl.push_back(std::move(transfer));
 
   // ChangeVibe
   auto change_vibe_config =
-      std::static_pointer_cast<const ChangeVibeActionConfig>(game_config.actions.at("change_vibe"));
-  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &game_config);
+      std::static_pointer_cast<const ChangeVibeActionConfig>(_game_config.actions.at("change_vibe"));
+  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &_game_config);
   change_vibe->init(_grid.get(), &_rng);
   if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
   for (const auto& action : change_vibe->actions()) {
@@ -285,6 +352,44 @@ void MettaGrid::init_action_handlers(const GameConfig& game_config) {
 void MettaGrid::add_agent(Agent* agent) {
   agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
+  if (_global_obs_config.goal_obs) {
+    _agent_goal_obs_tokens.resize(_agents.size());
+    _compute_agent_goal_obs_tokens(_agents.size() - 1);
+  }
+}
+
+void MettaGrid::_compute_agent_goal_obs_tokens(size_t agent_idx) {
+  auto& agent = _agents[agent_idx];
+  std::vector<PartialObservationToken> goal_tokens;
+
+  // Track which resources we've already added goal tokens for
+  std::unordered_set<std::string> added_resources;
+
+  // Iterate through stat_rewards to find rewarding resources
+  for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
+    // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
+    size_t dot_pos = stat_name.find('.');
+    if (dot_pos != std::string::npos) {
+      std::string resource_name = stat_name.substr(0, dot_pos);
+      // Only add one goal token per resource
+      if (added_resources.find(resource_name) == added_resources.end()) {
+        // Find the resource index in resource_names
+        for (size_t i = 0; i < resource_names.size(); i++) {
+          if (resource_names[i] == resource_name) {
+            // Get the inventory feature ID for this resource
+            ObservationType inventory_feature_id =
+                _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
+            // Add a goal token with the resource's inventory feature ID as the value
+            goal_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
+            added_resources.insert(resource_name);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  _agent_goal_obs_tokens[agent_idx] = std::move(goal_tokens);
 }
 
 void MettaGrid::_compute_observation(GridCoord observer_row,
@@ -348,33 +453,10 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     global_tokens.push_back({ObservationFeature::LastReward, reward_int});
   }
 
-  // Add goal tokens for rewarding resources when enabled
+  // Add pre-computed goal tokens for rewarding resources when enabled
   if (_global_obs_config.goal_obs) {
-    auto& agent = _agents[agent_idx];
-    // Track which resources we've already added goal tokens for
-    std::unordered_set<std::string> added_resources;
-    // Iterate through stat_rewards to find rewarding resources
-    for (const auto& [stat_name, reward_value] : agent->stat_rewards) {
-      // Extract resource name from stat name (e.g., "carbon.amount" -> "carbon", "carbon.gained" -> "carbon")
-      size_t dot_pos = stat_name.find('.');
-      if (dot_pos != std::string::npos) {
-        std::string resource_name = stat_name.substr(0, dot_pos);
-        // Only add one goal token per resource
-        if (added_resources.find(resource_name) == added_resources.end()) {
-          // Find the resource index in resource_names
-          for (size_t i = 0; i < resource_names.size(); i++) {
-            if (resource_names[i] == resource_name) {
-              // Get the inventory feature ID for this resource
-              ObservationType inventory_feature_id = _obs_encoder->get_inventory_feature_id(static_cast<InventoryItem>(i));
-              // Add a goal token with the resource's inventory feature ID as the value
-              global_tokens.push_back({ObservationFeature::Goal, inventory_feature_id});
-              added_resources.insert(resource_name);
-              break;
-            }
-          }
-        }
-      }
-    }
+    global_tokens.insert(
+        global_tokens.end(), _agent_goal_obs_tokens[agent_idx].begin(), _agent_goal_obs_tokens[agent_idx].end());
   }
 
   // Global tokens are always at the center of the observation.
@@ -537,15 +619,27 @@ void MettaGrid::_step() {
     }
   }
 
-  // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
+  // Handle per-agent inventory regeneration (global interval check, vibe-dependent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
       if (!agent->inventory_regen_amounts.empty()) {
-        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
-          agent->inventory.update(item, amount);
+        // Look up regen amounts for agent's current vibe, fall back to "default" (vibe ID 0)
+        auto vibe_it = agent->inventory_regen_amounts.find(agent->vibe);
+        if (vibe_it == agent->inventory_regen_amounts.end()) {
+          vibe_it = agent->inventory_regen_amounts.find(0);  // "default" is vibe ID 0
+        }
+        if (vibe_it != agent->inventory_regen_amounts.end()) {
+          for (const auto& [item, amount] : vibe_it->second) {
+            agent->inventory.update(item, amount);
+          }
         }
       }
     }
+  }
+
+  // Check and apply damage for all agents
+  for (auto* agent : _agents) {
+    agent->check_and_apply_damage(_rng);
   }
 
   // Apply global systems
@@ -959,11 +1053,14 @@ PYBIND11_MODULE(mettagrid_c, m) {
   // We're, like 80% sure on this reasoning.
 
   bind_inventory_config(m);
+  bind_collective_config(m);
   bind_agent_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
+  bind_vibe_transfer_effect(m);
+  bind_transfer_action_config(m);
   bind_change_vibe_action_config(m);
   bind_move_action_config(m);
   bind_global_obs_config(m);

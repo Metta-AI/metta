@@ -24,14 +24,13 @@ NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.13")
 
 def _build_nim() -> None:
     system = platform.system()
-    arch = platform.machine().lower()
-    if system == "Linux":
+    arch = platform.machine()
+    if system == "Linux" and arch == "x86_64":
         url = f"https://github.com/treeform/nimby/releases/download/{NIMBY_VERSION}/nimby-Linux-X64"
-    elif system == "Darwin":
-        suffix = "ARM64" if "arm" in arch else "X64"
-        url = f"https://github.com/treeform/nimby/releases/download/{NIMBY_VERSION}/nimby-macOS-{suffix}"
+    elif system == "Darwin" and arch == "arm64":
+        url = f"https://github.com/treeform/nimby/releases/download/{NIMBY_VERSION}/nimby-macOS-ARM64"
     else:
-        raise RuntimeError(f"Unsupported OS: {system}")
+        raise RuntimeError(f"Unsupported OS: {system} {arch}")
 
     dst = Path.home() / ".nimby" / "nim" / "bin" / "nimby"
     with tempfile.TemporaryDirectory() as tmp:
@@ -62,7 +61,7 @@ def _build_nim() -> None:
 class _EnsureNimMixin:
     def run(self, *args, **kwargs):  # type: ignore[override]
         _build_nim()
-        super().run(*args, **kwargs)
+        super().run(*args, **kwargs)  # type: ignore[misc]
 
 
 class BuildPyCommand(_EnsureNimMixin, build_py): ...

@@ -1,9 +1,10 @@
 import copy
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 import torch
+import torch.nn.functional as F
 from pydantic import Field
 from tensordict import TensorDict
 from torch import Tensor
@@ -13,8 +14,97 @@ from metta.agent.policy import Policy
 from metta.rl.training import ComponentContext, Experience, TrainingEnvironment
 from mettagrid.base_config import Config
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
+
+
+def analyze_loss_alignment(
+    shared_data: TensorDict,
+    name1: str,
+    name2: str,
+    params: list[Tensor],
+    tracker: dict[str, list[float]],
+) -> None:
+    """
+    Computes alignment metrics between two losses stored in shared_data.
+
+    Args:
+        shared_data: TensorDict containing the unreduced loss vectors.
+                     Expects keys '{name1}_loss_vec' and '{name2}_loss_vec'
+                     to contain *attached* tensors (part of the graph).
+        name1: Name of the first loss (e.g. "ks_val").
+        name2: Name of the second loss (e.g. "ppo_val").
+        params: List of policy parameters to compute gradients for.
+        tracker: Dictionary list to append metrics to.
+    """
+    key1 = f"{name1}_loss_vec"
+    key2 = f"{name2}_loss_vec"
+
+    if key1 not in shared_data or key2 not in shared_data:
+        return
+
+    # 1. Retrieve attached loss vectors
+    loss_vec1 = shared_data[key1]
+    loss_vec2 = shared_data[key2]
+
+    # Flatten for comparison
+    vec1_flat = loss_vec1.flatten()
+    vec2_flat = loss_vec2.flatten()
+
+    if vec1_flat.shape != vec2_flat.shape:
+        return
+
+    # 2. Vector-level metrics (detached)
+    with torch.no_grad():
+        # Cosine similarity of loss vectors (batch alignment)
+        loss_cos = F.cosine_similarity(vec1_flat, vec2_flat, dim=0)
+        tracker[f"{name1}_{name2}_loss_cos"].append(float(loss_cos.item()))
+
+        # Variance of loss difference
+        loss_diff_var = (vec1_flat - vec2_flat).var()
+        tracker[f"{name1}_{name2}_loss_diff_var"].append(float(loss_diff_var.item()))
+
+    # 3. Gradient-level metrics
+    params_with_grad = [p for p in params if p.requires_grad]
+    if not params_with_grad:
+        return
+
+    # Compute gradients of the scalar means
+    loss_scalar1 = loss_vec1.mean()
+    loss_scalar2 = loss_vec2.mean()
+
+    # We must retain_graph because the graph is needed for the actual optimization step later
+    # allow_unused=True is needed because some policy parameters (e.g. actor head)
+    # might not be part of the value loss graph.
+    grads1 = torch.autograd.grad(
+        loss_scalar1, params_with_grad, retain_graph=True, create_graph=False, allow_unused=True
+    )
+
+    grads2 = torch.autograd.grad(
+        loss_scalar2, params_with_grad, retain_graph=True, create_graph=False, allow_unused=True
+    )
+
+    # Flatten and concatenate, treating None as zeros
+    def flatten_grads(grads, params):
+        flat_list = []
+        for g, p in zip(grads, params, strict=True):
+            if g is None:
+                flat_list.append(torch.zeros_like(p).flatten())
+            else:
+                flat_list.append(g.flatten())
+        return torch.cat(flat_list)
+
+    grad1_flat = flatten_grads(grads1, params_with_grad).detach()
+    grad2_flat = flatten_grads(grads2, params_with_grad).detach()
+
+    # Cosine similarity of gradients
+    grad_cos = F.cosine_similarity(grad1_flat, grad2_flat, dim=0)
+    tracker[f"{name1}_{name2}_grad_cos"].append(float(grad_cos.item()))
+
+    # Variance of gradient differences
+    grad_diff_var = (grad1_flat - grad2_flat).var()
+    tracker[f"{name1}_{name2}_grad_diff_var"].append(float(grad_diff_var.item()))
 
 
 class LossConfig(Config):
@@ -72,9 +162,12 @@ class Loss:
         """Optional extension of the experience replay buffer spec required by this loss."""
         return Composite()
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        raise NotImplementedError("Losses must implement policy_output_keys")
+
     # --------- Control flow hooks; override in subclasses when custom behaviour is needed ---------
 
-    def on_new_training_run(self, context: ComponentContext | None = None) -> None:
+    def on_epoch_start(self, context: ComponentContext | None = None) -> None:
         """Called at the very beginning of a training epoch."""
         self._require_context(context)
 
@@ -88,8 +181,6 @@ class Loss:
         ctx = self._ensure_context(context)
         if not self._loss_gate_allows("rollout", ctx):
             return
-        if ctx.training_env_id is None:
-            raise RuntimeError("ComponentContext.training_env_id must be set before calling Loss.rollout")
         self.run_rollout(td, ctx)
 
     def run_rollout(self, td: TensorDict, context: ComponentContext) -> None:
@@ -160,6 +251,12 @@ class Loss:
         if self._context is None:
             raise RuntimeError("Loss has not been attached to a ComponentContext")
         return self._context
+
+    def _training_env_id(self, context: ComponentContext, *, error: Optional[str] = None) -> slice:
+        env_slice = context.training_env_id
+        if env_slice is None:
+            raise RuntimeError(error or "ComponentContext.training_env_id is missing in rollout.")
+        return env_slice
 
     def _zero(self) -> Tensor:
         assert self._zero_tensor is not None

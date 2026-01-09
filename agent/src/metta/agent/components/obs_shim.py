@@ -1,15 +1,14 @@
+import re
 import warnings
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.token_encoder import coordinates
-
-if TYPE_CHECKING:
-    from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 # =========================== Token-based observation shaping ===========================
 # The two nn.Module-based classes below are composed into ObsShaperTokens. You can simply call that class in your policy
@@ -34,19 +33,44 @@ class ObsTokenPadStrip(nn.Module):
         in_key: str = "env_obs",
         out_key: str = "obs_token_pad_strip",
         max_tokens: int | None = None,
+        ignore_inventory_power_tokens: bool = False,
     ) -> None:
         super().__init__()
         self.in_key = in_key
         self.out_key = out_key
         self._max_tokens = max_tokens
+        self._ignore_inventory_power_tokens = ignore_inventory_power_tokens
         # Initialize feature remapping as identity by default
         self.register_buffer("feature_id_remap", torch.arange(256, dtype=torch.uint8))
         self._remapping_active = False
         self.register_buffer("_positions_cache", torch.empty(0, dtype=torch.int64), persistent=False)
+        self._feature_normalizations_override: dict[int, float] | None = None
+
+    def feature_normalizations_override(self) -> dict[int, float] | None:
+        return self._feature_normalizations_override
+
+    @staticmethod
+    def _is_inventory_power_feature(name: str) -> bool:
+        return bool(re.match(r"^inv:[^:]+:p\d+$", name))
+
+    def _build_legacy_feature_map(self, features_list: list) -> tuple[dict[str, int], dict[int, float]]:
+        legacy_name_to_id: dict[str, int] = {}
+        legacy_norms: dict[int, float] = {}
+        legacy_id = 0
+        for props in features_list:
+            if self._is_inventory_power_feature(props.name):
+                continue
+            legacy_name_to_id[props.name] = legacy_id
+            if props.name.startswith("inv:"):
+                legacy_norms[legacy_id] = 100.0
+            else:
+                legacy_norms[legacy_id] = props.normalization
+            legacy_id += 1
+        return legacy_name_to_id, legacy_norms
 
     def initialize_to_environment(
         self,
-        policy_env_info: "PolicyEnvInterface",
+        policy_env_info: PolicyEnvInterface,
         device: torch.device,
     ) -> str:
         # Build feature mappings from policy_env_info.obs_features list
@@ -55,6 +79,35 @@ class ObsTokenPadStrip(nn.Module):
         self.feature_normalizations = {
             props.id: props.normalization for props in features_list if hasattr(props, "normalization")
         }
+
+        if self._ignore_inventory_power_tokens:
+            UNKNOWN_FEATURE_ID = 255
+            legacy_map, legacy_norms = self._build_legacy_feature_map(features_list)
+            stored_log = None
+            if not hasattr(self, "original_feature_mapping"):
+                self.original_feature_mapping = legacy_map
+                stored_log = f"Stored original feature mapping with {len(self.original_feature_mapping)} features"
+            feature_remap: dict[int, int] = {}
+
+            for props in features_list:
+                name = props.name
+                if self._is_inventory_power_feature(name):
+                    feature_remap[props.id] = UNKNOWN_FEATURE_ID
+                    continue
+                if name in legacy_map:
+                    legacy_id = legacy_map[name]
+                    if props.id != legacy_id:
+                        feature_remap[props.id] = legacy_id
+                elif not self.training:
+                    feature_remap[props.id] = UNKNOWN_FEATURE_ID
+
+            if feature_remap:
+                current_features = {feat.name: feat for feat in features_list}
+                self._apply_feature_remapping(feature_remap, current_features, UNKNOWN_FEATURE_ID, device)
+            self._feature_normalizations_override = legacy_norms
+            if stored_log:
+                return f"{stored_log}; Created inventory power-token remapping"
+            return "Created inventory power-token remapping"
 
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {props.name: props.id for props in features_list}
@@ -174,13 +227,21 @@ class ObsAttrValNorm(nn.Module):
         self,
         policy_env_info: "PolicyEnvInterface",
         device: torch.device,
+        feature_normalizations_override: dict[int, float] | None = None,
     ) -> None:
-        self._set_feature_normalizations(policy_env_info, device)
+        self._set_feature_normalizations(policy_env_info, device, feature_normalizations_override)
 
-    def _set_feature_normalizations(self, policy_env_info, device: Optional[torch.device] = None):
-        feature_list = list(policy_env_info.obs_features)
-        features = {feat.id: feat.normalization for feat in feature_list}
-        self._feature_normalizations = features
+    def _set_feature_normalizations(
+        self,
+        policy_env_info,
+        device: Optional[torch.device] = None,
+        feature_normalizations_override: dict[int, float] | None = None,
+    ):
+        if feature_normalizations_override is not None:
+            self._feature_normalizations = dict(feature_normalizations_override)
+        else:
+            feature_list = list(policy_env_info.obs_features)
+            self._feature_normalizations = {feat.id: feat.normalization for feat in feature_list}
         self._update_norm_factors(device)
         return None
 
@@ -215,6 +276,7 @@ class ObsShimTokensConfig(ComponentConfig):
     in_key: str
     out_key: str
     max_tokens: int | None = None
+    ignore_inventory_power_tokens: bool = True
     name: str = "obs_shim_tokens"
 
     def make_component(self, env):
@@ -226,7 +288,12 @@ class ObsShimTokens(nn.Module):
         super().__init__()
         self.in_key = config.in_key
         self.out_key = config.out_key
-        self.token_pad_striper = ObsTokenPadStrip(policy_env_info, in_key=self.in_key, max_tokens=config.max_tokens)
+        self.token_pad_striper = ObsTokenPadStrip(
+            policy_env_info,
+            in_key=self.in_key,
+            max_tokens=config.max_tokens,
+            ignore_inventory_power_tokens=config.ignore_inventory_power_tokens,
+        )
         self.attr_val_normer = ObsAttrValNorm(policy_env_info, out_key=self.out_key)
 
     def initialize_to_environment(
@@ -235,7 +302,11 @@ class ObsShimTokens(nn.Module):
         device: torch.device,
     ) -> str:
         log = self.token_pad_striper.initialize_to_environment(policy_env_info, device)
-        self.attr_val_normer.initialize_to_environment(policy_env_info, device)
+        self.attr_val_normer.initialize_to_environment(
+            policy_env_info,
+            device,
+            feature_normalizations_override=self.token_pad_striper.feature_normalizations_override(),
+        )
         return log
 
     def forward(self, td: TensorDict) -> TensorDict:

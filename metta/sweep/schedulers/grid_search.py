@@ -16,7 +16,7 @@ from pydantic import Field
 
 from metta.adaptive.models import JobDefinition, JobStatus, RunInfo
 from metta.adaptive.utils import create_eval_job, create_training_job, generate_run_id
-from metta.sweep.core import CategoricalParameterConfig
+from metta.sweep.parameter_config import CategoricalParameterConfig
 from metta.sweep.schedulers.state import SchedulerState
 from mettagrid.base_config import Config
 

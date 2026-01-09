@@ -27,10 +27,15 @@ dependencies = [
   "wandb>=0.22.3",
   "metta-common",
   "gitta",
+  "sqlmodel>=0.0.22",
+  "greenlet>=3.0.0",
+  "kopf>=1.37.0",
+  "kubernetes>=31.0.0",
 ]
 
 [dependency-groups]
 dev = [
+  "kubernetes-stubs>=22.6.0",
   "pyright>=1.1.401",
   "pytest>=8.3.3",
   "pytest-benchmark>=5.1.0",

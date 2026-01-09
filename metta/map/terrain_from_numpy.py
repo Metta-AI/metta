@@ -13,7 +13,7 @@ from pydantic import Field
 from metta.common.util.log_config import getRankAwareLogger
 from mettagrid.map_builder import MapGrid
 from mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, WithMaxRetriesConfig
-from mettagrid.util.file import ParsedURI
+from mettagrid.util.file import parse_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -33,8 +33,11 @@ def pick_random_file(path, rng):
 
 
 def download_from_s3(s3_path: str, save_path: str):
-    parsed = ParsedURI.parse(s3_path)
-    bucket, key = parsed.require_s3()
+    parsed = parse_uri(s3_path, allow_none=False)
+
+    if parsed.scheme != "s3":
+        raise ValueError(f"Expected S3 URI, got: {parsed.scheme}")
+    bucket, key = parsed.bucket, parsed.key
 
     try:
         # Create directory if it doesn't exist
@@ -271,110 +274,3 @@ class NavigationFromNumpy(MapBuilder[NavigationFromNumpyConfig]):
         grid[grid == "altar"] = "assembler"
 
         return GameMap(grid=grid)
-
-
-class CogsVClippiesFromNumpy(TerrainFromNumpy):
-    def carve_out_patches(self, grid: MapGrid, valid_positions_set: set[tuple[int, int]]):
-        # Carve out 9x9 empties at random coordinates (not in valid_positions_set) and gather the center points
-        grid_shape = grid.shape
-        empty_centers = []
-        num_patches = sum(self.config.objects.values()) - len(valid_positions_set)
-        patch_size = 9
-        half_patch = patch_size // 2
-
-        # Build a set of all valid positions for quick exclusion
-        valid_positions_set_lookup = set(valid_positions_set)
-
-        attempts = 0
-        max_attempts = num_patches * 20  # avoid infinite loop
-
-        while len(empty_centers) < num_patches and attempts < max_attempts:
-            # Randomly pick a center not in valid_positions_set and not too close to the edge
-            x = self.rng.randint(half_patch, grid_shape[0] - half_patch - 1)
-            y = self.rng.randint(half_patch, grid_shape[1] - half_patch - 1)
-            center = (x, y)
-            if center in valid_positions_set_lookup or center in empty_centers:
-                attempts += 1
-                continue
-
-            # Check if the patch overlaps any valid position
-            patch_indices = [
-                (i, j)
-                for i in range(x - half_patch, x + half_patch + 1)
-                for j in range(y - half_patch, y + half_patch + 1)
-            ]
-            if any(idx in valid_positions_set_lookup for idx in patch_indices):
-                attempts += 1
-                continue
-
-            # Carve out the patch
-            for i, j in patch_indices:
-                grid[i, j] = "empty"
-            empty_centers.append(center)
-            attempts += 1
-        return grid, empty_centers
-
-    def build(self):
-        map_dir = self.setup()
-        if self.config.file is None:
-            uri = pick_random_file(map_dir, self.rng)
-        else:
-            uri = self.config.file
-
-        grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-        grid, valid_positions, agent_labels = self.clean_grid(grid, assemblers=True)
-        num_agents = len(agent_labels)
-        # Place agents in first slice
-        agent_positions = valid_positions[:num_agents]
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
-            grid[pos] = label
-
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
-
-        if len(valid_positions_set) < sum(self.config.objects.values()):
-            grid, empty_centers = self.carve_out_patches(grid, valid_positions_set)
-            valid_positions_set.update(empty_centers)
-
-        for obj_name, count in self.config.objects.items():
-            # Sample from remaining valid positions
-            positions = self.rng.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
-            for pos in positions:
-                grid[pos] = obj_name
-                valid_positions_set.remove(pos)
-
-        return GameMap(grid=grid)
-
-
-# class InContextLearningFromNumpy(TerrainFromNumpy):
-#     def __init__(self, config: TerrainFromNumpy.Config):
-#         super().__init__(config)
-
-#     def build(self):
-#         map_dir = self.setup()
-
-#         if self.config.file is None:
-#             uri = pick_random_file(map_dir, self.rng)
-#         else:
-#             uri = self.config.file
-
-#         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
-
-#         grid, valid_positions, agent_labels = self.clean_grid(grid)
-#         num_agents = len(agent_labels)
-#         agent_positions = valid_positions[:num_agents]
-#         for pos, label in zip(agent_positions, agent_labels, strict=False):
-#             grid[pos] = label
-#         # placeholder indices for objects
-#         mask = ~np.isin(grid, ("agent.agent", "wall", "empty"))
-#         converter_indices = np.argwhere(mask)
-#         grid[mask] = "empty"
-
-#         object_names = [name for name in self.config.objects for _ in range(self.config.objects[name])]
-#         self.rng.shuffle(object_names)
-
-#         for idx, object in zip(converter_indices, object_names, strict=False):
-#             grid[tuple(idx)] = object
-
-#         return GameMap(grid=grid)

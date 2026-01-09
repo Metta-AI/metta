@@ -4,6 +4,7 @@ from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
 from typing import Dict
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -14,7 +15,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
 from metta.app_backend.test_support.client_adapter import create_test_stats_client
-from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
+from metta.common.tests_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()
@@ -63,6 +64,14 @@ def db_uri(postgres_container: PostgresContainer) -> str:
 @pytest.fixture(scope="class")
 def stats_repo(db_uri: str) -> MettaRepo:
     """Create a MettaRepo instance with the test database."""
+    from metta.app_backend import config as app_config
+    from metta.app_backend import database
+
+    # Reset the engine singleton and point it at the test database
+    database._engine = None
+    database._session_factory = None
+    app_config.settings.STATS_DB_URI = db_uri
+
     return MettaRepo(db_uri)
 
 
@@ -95,6 +104,24 @@ def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
     # Auth is handled via debug_user_email, no need for headers
     return create_test_stats_client(test_client, machine_token="dummy_token")
+
+
+@pytest.fixture(autouse=True)
+def mock_k8s_client(monkeypatch):
+    """Prevent any accidental k8s API calls in tests."""
+    from metta.app_backend.job_runner import dispatcher
+
+    mock_client = MagicMock()
+    monkeypatch.setattr(dispatcher, "get_k8s_client", lambda: mock_client)
+    yield mock_client
+
+
+@pytest.fixture(autouse=True)
+def mock_dispatch_job(monkeypatch):
+    def stub_dispatch(job):
+        return f"mock-k8s-job-{job.id.hex[:8]}"
+
+    monkeypatch.setattr("metta.app_backend.routes.job_routes.dispatch_job", stub_dispatch)
 
 
 # Isolated fixtures for function-scoped testing

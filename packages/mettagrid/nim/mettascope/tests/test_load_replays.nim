@@ -69,7 +69,7 @@ proc drawAsciiMap(replay: Replay): string =
 let replayDir = "tests" / "data" / "replays"
 var count = 0
 for file in walkDirRec(replayDir):
-  if file.endsWith(".json.z") or file.endsWith(".json"):
+  if file.endsWith(".json.gz") or file.endsWith(".json.z") or file.endsWith(".json"):
     echo "Loading ", file.extractFilename
 
     let r = loadReplay(file)

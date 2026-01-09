@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
 
 import numpy as np
+import torch
 import torch.nn as nn
 from pydantic import BaseModel, Field
 
@@ -64,7 +65,7 @@ class MultiAgentPolicy(metaclass=PolicyRegistryMeta):
 
     short_names: list[str] | None = None
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, **kwargs: Any):
+    def __init__(self, policy_env_info: PolicyEnvInterface, device: str = "cpu", **kwargs: Any):
         self._policy_env_info = policy_env_info
         self._actions = policy_env_info.actions
 
@@ -122,8 +123,9 @@ class NimMultiAgentPolicy(MultiAgentPolicy):
         policy_env_info: PolicyEnvInterface,
         nim_policy_factory,
         agent_ids: Sequence[int] | None = None,
+        device: str = "cpu",
     ) -> None:
-        super().__init__(policy_env_info)
+        super().__init__(policy_env_info, device=device)
         self._nim_policy = nim_policy_factory(policy_env_info.to_json())
         self._num_agents = policy_env_info.num_agents
         obs_shape = policy_env_info.observation_space.shape
@@ -253,7 +255,8 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
         state = cast(StateType, self._state)
-        action, self._state = self._base_policy.step_with_state(obs, state)
+        with torch.no_grad():
+            action, self._state = self._base_policy.step_with_state(obs, state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action

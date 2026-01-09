@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from rich.console import Console
 
@@ -13,10 +13,6 @@ from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.replay_log_writer import ReplayLogWriter
 from mettagrid.simulator.rollout import Rollout
-
-if TYPE_CHECKING:
-    from mettagrid import MettaGridConfig
-
 
 logger = logging.getLogger("cogames.play")
 
@@ -64,7 +60,12 @@ def play(
         seed=seed,
         event_handlers=event_handlers,
     )
-    rollout.run_until_done()
+    try:
+        rollout.run_until_done()
+    except KeyboardInterrupt:
+        logger.info("Interrupted; ending episode early.")
+        rollout._sim.end_episode()
+        return
 
     # Print summary
     console.print("\n[bold green]Episode Complete![/bold green]")

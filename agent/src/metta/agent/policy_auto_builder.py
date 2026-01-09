@@ -48,17 +48,13 @@ class PolicyAutoBuilder(Policy):
         )
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        for name, component in self.components.items():
-            with torch.profiler.record_function(f"policy.component.{name}"):
-                td = component(td)
-
-        with torch.profiler.record_function("policy.action_probs"):
-            self.action_probs(td, action)
-
+        td = self._sequential_network(td)
+        self.action_probs(td, action)
         # Only flatten values if they exist (GRPO policies don't have critic networks)
         if "values" in td.keys():
-            with torch.profiler.record_function("policy.flatten_values"):
-                td["values"] = td["values"].flatten()
+            td["values"] = td["values"].flatten()
+        if "h_values" in td.keys():
+            td["h_values"] = td["h_values"].flatten()
         return td
 
     def initialize_to_environment(
@@ -67,9 +63,8 @@ class PolicyAutoBuilder(Policy):
         device: torch.device,
     ):
         self.to(device)
-        if device.type == "cuda":
+        if torch.cuda.is_available():
             self._configure_sdp()
-            torch.set_float32_matmul_precision("high")
         logs = []
         for _, value in self.components.items():
             if hasattr(value, "initialize_to_environment"):

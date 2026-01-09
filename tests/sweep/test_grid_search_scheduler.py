@@ -10,7 +10,7 @@ Covers:
 from datetime import datetime, timezone
 
 from metta.adaptive.models import JobTypes, RunInfo
-from metta.sweep.core import CategoricalParameterConfig
+from metta.sweep.parameter_config import CategoricalParameterConfig
 from metta.sweep.schedulers.grid_search import GridSearchScheduler, GridSearchSchedulerConfig
 
 

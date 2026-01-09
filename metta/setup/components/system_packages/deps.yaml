@@ -12,14 +12,6 @@ packages:
     apt:
       name: docker.io
 
-  node:
-    brew:
-      name: node
-      version: "24"
-      installed_name: node@24
-    apt:
-      name: nodejs
-
   gh:
     brew:
       name: gh
@@ -104,3 +96,12 @@ packages:
     brew:
       name: amazon-efs-utils
       tap: aws/aws
+
+  process-compose:
+    brew:
+      name: process-compose
+      tap: f1bonacc1/tap
+
+  docker-compose:
+    brew:
+      name: docker-compose
