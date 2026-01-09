@@ -349,7 +349,8 @@ def _build_train_nodes(
             name="train.zero_grad",
             deps=("train.sample_mb",),
             fn=_train_zero_grad_fn(core),
-            enabled=lambda _ctx, workspace: workspace["mb_idx"] % core.accumulate_minibatches == 0,
+            enabled=lambda _ctx, workspace: workspace.get("phase") == "train"
+            and workspace["mb_idx"] % core.accumulate_minibatches == 0,
         ),
     ]
 
