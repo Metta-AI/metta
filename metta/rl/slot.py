@@ -200,11 +200,16 @@ class SlotControllerPolicy(Policy):
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
         if "slot_id" not in td.keys():
             slot_map = self._agent_slot_map
-            num_agents = slot_map.numel()
+            if slot_map is None:
+                raise RuntimeError("slot_id missing and agent_slot_map is not configured.")
+            num_agents = int(slot_map.numel())
+            if num_agents == 0:
+                raise RuntimeError("agent_slot_map cannot be empty for slot-aware policy routing.")
             num_envs = td.batch_size.numel() // num_agents
             if slot_map.device != td.device:
                 slot_map = slot_map.to(device=td.device)
-            td.set("slot_id", slot_map.repeat(num_envs))
+            reshaped_map = slot_map.view(1, num_agents).expand(num_envs, num_agents)
+            td.set("slot_id", reshaped_map.reshape(td.batch_size))
 
         slot_ids = td.get("slot_id")
 
