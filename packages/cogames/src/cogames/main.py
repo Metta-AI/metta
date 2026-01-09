@@ -263,9 +263,7 @@ def tutorial_cmd(
             render_mode="gui",
         )
     except KeyboardInterrupt:
-        stop_event.set()
         logger.info("Tutorial interrupted; exiting.")
-        return
     finally:
         stop_event.set()
 
