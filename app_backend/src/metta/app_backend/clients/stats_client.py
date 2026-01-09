@@ -2,17 +2,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Type, TypeVar
+from typing import Any, TypeVar
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from metta.app_backend.clients.base_client import NotAuthenticatedError, get_machine_token
 from metta.app_backend.metta_repo import EvalTaskRow, PolicyVersionWithName
+from metta.app_backend.models.job_request import JobRequest, JobRequestCreate, JobRequestUpdate, JobStatus, JobType
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TasksResponse
-from metta.app_backend.routes.leaderboard_routes import (
-    LeaderboardPoliciesResponse,
-)
 from metta.app_backend.routes.sql_routes import SQLQueryResponse
 from metta.app_backend.routes.stats_routes import (
     BulkEpisodeUploadResponse,
@@ -31,7 +29,11 @@ from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 logger = logging.getLogger("stats_client")
 
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T")
+
+
+class WhoAmIResponse(BaseModel):
+    user_email: str
 
 
 class StatsClient:
@@ -56,15 +58,13 @@ class StatsClient:
     def close(self):
         self._http_client.close()
 
-    def _make_sync_request(self, response_type: Type[T], method: str, url: str, **kwargs) -> T:
+    def _make_sync_request(self, response_type: type[T], method: str, url: str, **kwargs) -> T:
         headers = remove_none_values({"X-Auth-Token": self._machine_token})
         response = self._http_client.request(method, url, headers=headers, **kwargs)
         response.raise_for_status()
-        return response_type.model_validate(response.json())
+        return TypeAdapter(response_type).validate_python(response.json())
 
     def _validate_authenticated(self) -> str:
-        from metta.app_backend.server import WhoAmIResponse
-
         auth_user = self._make_sync_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
             raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
@@ -148,12 +148,6 @@ class StatsClient:
             UUIDResponse, "PUT", f"/stats/policies/versions/{policy_version_id}/tags", json=tags
         )
 
-    def get_leaderboard_policies_v2(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2")
-
-    def get_leaderboard_policies_with_vor(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(LeaderboardPoliciesResponse, "GET", "/leaderboard/v2/vor")
-
     def get_my_policy_versions(self) -> MyPolicyVersionsResponse:
         return self._make_sync_request(
             MyPolicyVersionsResponse,
@@ -191,24 +185,48 @@ class StatsClient:
             PolicyVersionsResponse, "GET", f"/stats/policies/{policy_id}/versions", params=params
         )
 
-    def get_leaderboard_policies_v2_users_me(self) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(
-            LeaderboardPoliciesResponse,
-            "GET",
-            "/leaderboard/v2/users/me",
-        )
-
-    def get_leaderboard_policies_v2_for_policy(self, policy_version_id: uuid.UUID) -> LeaderboardPoliciesResponse:
-        return self._make_sync_request(
-            LeaderboardPoliciesResponse,
-            "GET",
-            f"/leaderboard/v2/policy/{policy_version_id}",
-        )
-
     def query_episodes(self, request: EpisodeQueryRequest) -> EpisodeQueryResponse:
         return self._make_sync_request(
             EpisodeQueryResponse, "POST", "/stats/episodes/query", json=request.model_dump(mode="json")
         )
+
+    def create_jobs(self, jobs: list[JobRequestCreate]) -> list[uuid.UUID]:
+        return self._make_sync_request(
+            list[uuid.UUID], "POST", "/jobs/batch", json=[j.model_dump(mode="json") for j in jobs]
+        )
+
+    def list_jobs(
+        self,
+        statuses: list[JobStatus] | None = None,
+        job_type: JobType | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[JobRequest]:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if statuses is not None:
+            params["statuses"] = [s.value for s in statuses]
+        if job_type is not None:
+            params["job_type"] = job_type.value
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = self._http_client.get("/jobs", headers=headers, params=params)
+        response.raise_for_status()
+        return [JobRequest.model_validate(item) for item in response.json()]
+
+    def get_job(self, job_id: uuid.UUID) -> JobRequest:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = self._http_client.get(f"/jobs/{job_id}", headers=headers)
+        response.raise_for_status()
+        return JobRequest.model_validate(response.json())
+
+    def update_job(
+        self,
+        job_id: uuid.UUID,
+        update: JobRequestUpdate,
+    ) -> JobRequest:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = self._http_client.post(f"/jobs/{job_id}", headers=headers, json=update.model_dump(mode="json"))
+        response.raise_for_status()
+        return JobRequest.model_validate(response.json())
 
     @staticmethod
     def create(stats_server_uri: str) -> "StatsClient":

@@ -11,6 +11,7 @@ from mettagrid.config.mettagrid_config import (
     ObsConfig,
     WallConfig,
 )
+from mettagrid.config.vibes import VIBES
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.utils import create_grid
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
@@ -385,7 +386,7 @@ class TestGlobalTokens:
                 actions=ActionsConfig(
                     noop=NoopActionConfig(),
                     move=MoveActionConfig(),
-                    change_vibe=ChangeVibeActionConfig(enabled=True, number_of_vibes=8),
+                    change_vibe=ChangeVibeActionConfig(enabled=True, vibes=VIBES[:8]),
                 ),
                 objects={"wall": WallConfig(tags=["wall"])},
                 resource_names=["laser", "armor"],

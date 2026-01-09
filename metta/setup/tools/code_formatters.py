@@ -1,9 +1,10 @@
 import subprocess
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable, Dict, Iterable, Optional, Sequence, Set
+from typing import Annotated, Callable, DefaultDict, Iterable, Optional, Sequence
 
 import typer
 from pydantic import BaseModel
@@ -32,13 +33,13 @@ class FormatterConfig(BaseModel):
     def run(self, fix: bool = False, files: set[str] | None = None) -> FormatterResult:
         if self.runner is not None:
             return self.runner(fix, files)
+        if files is not None and not self.accepts_file_args:
+            return FormatterResult(success=True, processed_files=0)
         commands = self.check_cmds if not fix else self.format_cmds
         if not commands:
             return FormatterResult(success=True, processed_files=len(files or []))
         file_count = len(files or [])
         file_args = sorted(files) if files else []
-        if file_args and not self.accepts_file_args:
-            file_args = []
         for base_cmd in commands:
             cmd = list(base_cmd)
             if file_args:
@@ -131,8 +132,6 @@ def _format_progress_message(formatter_name: str, action: str, file_count: int, 
 
 
 def _make_cpp_runner() -> Callable[[bool, set[str] | None], FormatterResult]:
-    """Create a runner for C++ formatting using clang-format."""
-
     def _runner(fix: bool, _files: set[str] | None) -> FormatterResult:
         repo_root = get_repo_root()
         mettagrid_dir = repo_root / "packages" / "mettagrid"
@@ -215,6 +214,45 @@ def _make_prettier_runner(
     return _runner
 
 
+def _make_turbo_js_runner(
+    extensions: Sequence[str],
+) -> Callable[[bool, set[str] | None], FormatterResult]:
+    def _runner(fix: bool, files: set[str] | None) -> FormatterResult:
+        repo_root = get_repo_root()
+        normalized_exts = _normalize_extensions(extensions)
+
+        if files:
+            # For file-specific operations, run prettier directly (turbo runs all packages
+            # which causes issues when packages like gridworks can't handle external paths)
+            targets = [f for f in files if Path(f).suffix.lower() in normalized_exts]
+            if not targets:
+                return FormatterResult(success=True, processed_files=0)
+            mode_arg = "--write" if fix else "--check"
+            cmd = ["pnpm", "exec", "prettier", mode_arg, *targets]
+        else:
+            # For full runs, use turbo to get caching and run all package lint/format scripts
+            task = "format" if fix else "lint"
+            cmd = ["pnpm", "exec", "turbo", task, "--", "."]
+
+        result = subprocess.run(
+            cmd,
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        file_count = len(files) if files else 0
+        if result.returncode != 0:
+            return FormatterResult(
+                success=False,
+                output=result.stderr + result.stdout,
+                processed_files=file_count,
+            )
+        return FormatterResult(success=True, processed_files=file_count)
+
+    return _runner
+
+
 def get_formatters() -> dict[str, FormatterConfig]:
     return {
         f.name: f
@@ -233,6 +271,13 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 extensions=(".py",),
             ),
             FormatterConfig(
+                name="Python Import Linter",
+                check_cmds=(("uv", "run", "lint-imports"),),
+                format_cmds=(("uv", "run", "lint-imports"),),
+                extensions=(".py",),
+                accepts_file_args=False,
+            ),
+            FormatterConfig(
                 name="JSON",
                 extensions=(".json", ".jsonc", ".code-workspace"),
                 runner=_make_prettier_runner(
@@ -241,6 +286,7 @@ def get_formatters() -> dict[str, FormatterConfig]:
                         "/charts/",
                         "packages/mettagrid/python/src/mettagrid/renderer/assets/",
                         "packages/mettagrid/nim/mettascope/data/",
+                        ".import_linter_cache/",
                     ),
                 ),
             ),
@@ -284,12 +330,16 @@ def get_formatters() -> dict[str, FormatterConfig]:
                 runner=_make_cpp_runner(),
                 accepts_file_args=False,
             ),
+            # Javascript/Typescript:
+            # - Full runs use turbo to run lint/format scripts in each package
+            # - File-specific runs use prettier directly (turbo can't handle cross-package paths)
+            # Each package.json should define:
+            #   - "lint": type checking + eslint + prettier --check
+            #   - "format": prettier --write (without trailing "." - args passed via turbo)
             FormatterConfig(
                 name="Javascript",
-                extensions=(".js", ".jsx", ".ts", ".tsx"),
-                runner=_make_prettier_runner(
-                    extensions=(".js", ".jsx", ".ts", ".tsx"),
-                ),
+                extensions=(".ts", ".tsx", ".js", ".jsx"),
+                runner=_make_turbo_js_runner(extensions=(".ts", ".tsx", ".js", ".jsx")),
             ),
         ]
     }
@@ -324,13 +374,12 @@ def cmd_lint(
     # Determine which files to process
     target_files = _resolve_target_files(files, staged)
 
-    files_by_formatter: Dict[str, Set[str]] = {}
+    files_by_formatter: DefaultDict[str, set[str]] = defaultdict(set)
     for f in target_files or []:
         ext = Path(f).suffix.lower()
         for formatter_name, formatter in formatters.items():
-            if formatter.extensions and ext in formatter.extensions:
-                files_by_formatter.setdefault(formatter_name, set()).add(f)
-                break
+            if ext in formatter.extensions:
+                files_by_formatter[formatter_name].add(f)
 
     # Run formatters for each type
     if not files_by_formatter:

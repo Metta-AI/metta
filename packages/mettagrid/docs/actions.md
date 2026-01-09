@@ -97,7 +97,7 @@ Example action names:
 - `change_vibe_sad`
 - `change_vibe_neutral`
 
-> **Note**: The number of available vibes is configurable via `change_vibe.number_of_vibes`.
+> **Note**: The available vibes are configurable via `change_vibe.vibes`.
 
 ### Attack Actions
 

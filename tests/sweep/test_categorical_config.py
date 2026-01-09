@@ -1,4 +1,5 @@
-from metta.sweep.core import CategoricalParameterConfig, SweepParameters
+from metta.sweep.core import SweepParameters
+from metta.sweep.parameter_config import CategoricalParameterConfig
 
 
 def test_categorical_parameter_config_creation():

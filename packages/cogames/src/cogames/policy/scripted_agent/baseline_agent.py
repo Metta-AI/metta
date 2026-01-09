@@ -1014,10 +1014,15 @@ class BaselineAgentPolicyImpl(StatefulPolicyImpl[SimpleAgentState]):
 
 
 class BaselinePolicy(MultiAgentPolicy):
-    short_names = ["scripted_baseline"]
+    short_names = ["baseline", "scripted_baseline"]
 
-    def __init__(self, policy_env_info: PolicyEnvInterface, hyperparams: Optional[BaselineHyperparameters] = None):
-        super().__init__(policy_env_info)
+    def __init__(
+        self,
+        policy_env_info: PolicyEnvInterface,
+        device: str = "cpu",
+        hyperparams: Optional[BaselineHyperparameters] = None,
+    ):
+        super().__init__(policy_env_info, device=device)
         self._agent_policies: dict[int, StatefulAgentPolicy[SimpleAgentState]] = {}
         self._hyperparams = hyperparams or BaselineHyperparameters()
 

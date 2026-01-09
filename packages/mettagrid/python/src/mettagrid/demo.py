@@ -10,7 +10,7 @@ from typing import get_args
 
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.random_agent import RandomMultiAgentPolicy
 from mettagrid.renderer.renderer import RenderMode
@@ -65,7 +65,9 @@ def main():
 
     # Enable change_vibe for GUI control, but create a policy config without it for random actions
     cfg.game.actions.change_vibe.enabled = True
-    cfg.game.actions.change_vibe.number_of_vibes = 10
+    from mettagrid.config.vibes import VIBES as ALL_VIBES
+
+    cfg.game.actions.change_vibe.vibes = list(ALL_VIBES[:10])
 
     # Define objects used in the map
     cfg.game.objects = {

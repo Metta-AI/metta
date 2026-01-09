@@ -86,9 +86,4 @@ def select_backend(
     return pytorch_fn_resolved
 
 
-def configure_tf32_precision() -> None:
-    """Ensure TF32 fast paths are enabled."""
-    torch.set_float32_matmul_precision("high")
-
-
-__all__ = ["TRITON_AVAILABLE", "select_backend", "configure_tf32_precision"]
+__all__ = ["TRITON_AVAILABLE", "select_backend"]

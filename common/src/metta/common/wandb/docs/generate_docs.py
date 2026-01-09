@@ -36,28 +36,6 @@ def parse_metrics_file(filepath):
     return dict(sections)
 
 
-def analyze_metric_patterns(metrics):
-    """Analyze common patterns in metrics."""
-    patterns = {
-        "statistics": [".avg", ".std_dev", ".min", ".max", ".first_step", ".last_step", ".rate", ".updates"],
-        "activity": [".activity_rate", ".activity_rate.std_dev"],
-        "agent_specific": [".agent", ".agent.agent"],
-        "outcomes": [".success", ".failed", ".won", ".lost"],
-        "timing": ["msec/", "frac/", "active_frac/"],
-    }
-
-    categorized = defaultdict(list)
-    for metric in metrics:
-        for category, pattern_list in patterns.items():
-            if any(p in metric for p in pattern_list):
-                categorized[category].append(metric)
-                break
-        else:
-            categorized["other"].append(metric)
-
-    return dict(categorized)
-
-
 def generate_aggregation_section():
     """Generate the metric aggregation documentation section."""
     aggregation_section = """

@@ -22,6 +22,3 @@ RUN bash install.sh --profile softmax-docker --non-interactive
 
 WORKDIR /workspace/metta/softmax
 RUN uv sync --frozen --no-dev
-RUN uv run python -c "import softmax.dashboard.report"
-
-CMD ["uv", "run", "python", "-m", "softmax.dashboard.report", "--push"]

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -9,10 +10,8 @@ from typing import Optional
 import numpy as np
 
 from mettagrid.renderer.renderer import Renderer
-from mettagrid.simulator import Action
+from mettagrid.simulator.types import Action
 from mettagrid.util.grid_object_formatter import format_grid_object
-
-METTASCOPE_REPLAY_URL_PREFIX = "https://metta-ai.github.io/metta/mettascope/mettascope.html?replay="
 
 logger = logging.getLogger(__name__)
 
@@ -22,39 +21,19 @@ class MettascopeRenderer(Renderer):
 
     def __init__(self):
         super().__init__()
-        nim_root, _nim_search_paths = _resolve_nim_root()
+        nim_root = _resolve_nim_root()
         nim_bindings_path = nim_root / "bindings" / "generated" if nim_root else None
         sys.path.insert(0, str(nim_bindings_path))
         import mettascope
 
         self._mettascope = mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
+        os.environ.setdefault("METTASCOPE_DISABLE_CTRL_C", "1")
 
     def on_episode_start(self) -> None:
-        assert self._sim is not None
-
         # Get the GameConfig from MettaGridConfig
         game_config = self._sim.config.game
         game_config_dict = game_config.model_dump(mode="json", exclude_none=True)
-
-        # Convert snake_case to camelCase for Nim compatibility
-        field_mappings = {
-            "vibe_names": "vibeNames",
-            "resource_names": "resourceNames",
-            "num_agents": "numAgents",
-            "max_steps": "maxSteps",
-        }
-        for snake, camel in field_mappings.items():
-            if snake in game_config_dict:
-                game_config_dict[camel] = game_config_dict.pop(snake)
-
-        # Extract obs config to top level for Nim compatibility
-        if "obs" in game_config_dict:
-            obs_config = game_config_dict.pop("obs")
-            if "width" in obs_config:
-                game_config_dict["obsWidth"] = obs_config["width"]
-            if "height" in obs_config:
-                game_config_dict["obsHeight"] = obs_config["height"]
 
         initial_replay = {
             "version": 2,
@@ -76,12 +55,15 @@ class MettascopeRenderer(Renderer):
 
         # mettascope.init requires data_dir and replay arguments
         json_str = json.dumps(initial_replay, allow_nan=False)
-        self.response = self._mettascope.init(self._data_dir, json_str)
+        try:
+            self.response = self._mettascope.init(self._data_dir, json_str)
+        except KeyboardInterrupt:
+            logger.info("Interrupt received during mettascope init; ending episode.")
+            self._sim.end_episode()
+            return
 
     def render(self) -> None:
         """Render current state and capture user input."""
-        assert self._sim is not None
-
         # Generate replay data for current state
         grid_objects = []
         total_rewards = self._sim.episode_rewards
@@ -109,7 +91,12 @@ class MettascopeRenderer(Renderer):
         step_replay = {"step": self._sim.current_step, "objects": grid_objects}
 
         # Render and get user input
-        self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
+        try:
+            self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
+        except KeyboardInterrupt:
+            logger.info("Interrupt received during mettascope render; ending episode.")
+            self._sim.end_episode()
+            return
         if self.response.should_close:
             self._sim.end_episode()
             return
@@ -146,34 +133,31 @@ class MettascopeRenderer(Renderer):
                     continue
 
 
-# Find the Nim bindings. Published wheels bundle the generated artifacts under
-# ``mettagrid/nim/mettascope`` (because our PEP‑517 backend copies the Nim
-# project into ``python/src`` during the build).  Editable installs, however,
-# serve the package straight from the repository checkout where the canonical
-# sources remain in ``packages/mettagrid/nim/mettascope`` and the copy step
-# never runs.  To support both layouts we try the packaged location first and,
-# if it is missing the bindings, walk upwards looking for the repository copy.
-package_root = Path(__file__).resolve().parent
+# Find the Nim bindings. Two possible locations:
+#
+# Source: packages/mettagrid/nim/mettascope/bindings/generated
+#   - The canonical location where `nim build` outputs bindings
+#   - Present when running from a repo checkout
+#
+# Packaged: <site-packages>/mettagrid/nim/mettascope/bindings/generated
+#   - Created by PEP-517 backend copying nim/ into python/src/mettagrid/ during wheel build
+#   - The copy becomes part of the installed package
+_python_package_root = Path(__file__).resolve().parent.parent
 
 
-def _resolve_nim_root() -> tuple[Optional[Path], list[Path]]:
-    search_paths: list[Path] = []
+def _resolve_nim_root() -> Optional[Path]:
+    # Source location (repo checkout): packages/mettagrid/nim/mettascope
+    # This will not exist when installed in packaged form
+    source = _python_package_root.parent.parent.parent / "nim" / "mettascope"
 
-    packaged = package_root / "nim" / "mettascope"
-    search_paths.append(packaged)
-    if (packaged / "bindings" / "generated").exists():
-        return packaged, search_paths
+    # Packaged location (installed wheel): <site-packages>/mettagrid/nim/mettascope
+    packaged = _python_package_root / "nim" / "mettascope"
 
-    current = package_root
-    for _ in range(8):
-        candidate = current / "mettagrid" / "nim" / "mettascope"
-        search_paths.append(candidate)
-        if candidate.exists():
-            return candidate, search_paths
-        if current == current.parent:
-            break
-        current = current.parent
-    return None, search_paths
+    for root in [source, packaged]:
+        if (root / "bindings" / "generated").exists():
+            return root
+
+    return None
 
 
 # # Type stubs for static analysis

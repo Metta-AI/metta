@@ -675,11 +675,6 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Print system diagnostics in a clean format - kept for backward compatibility."""
-    print(format_system_diagnostics(diagnostics))
-
-
 def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
     """Format GPU diagnostics as a string instead of printing directly."""
     output = io.StringIO()
@@ -752,11 +747,6 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
                 output.write(f"    • {rec}\n")
 
     return output.getvalue()
-
-
-def print_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Pretty print GPU diagnostics information - kept for backward compatibility."""
-    print(format_gpu_diagnostics(diagnostics))
 
 
 def setup_nccl_debug_env(master_addr: str | None = None) -> None:

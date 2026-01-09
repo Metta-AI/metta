@@ -62,10 +62,6 @@ class RecipeRegistry:
 
         return None
 
-    def has(self, module_path: str) -> bool:
-        """Check if a recipe exists at the given module path."""
-        return self.get(module_path) is not None
-
     def get_all(self) -> list[Recipe]:
         """Get all discovered recipes."""
         self._ensure_discovered()

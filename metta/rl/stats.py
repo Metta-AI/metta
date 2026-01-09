@@ -50,7 +50,7 @@ def accumulate_rollout_stats(
 
 
 def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
-    """Filter movement metrics to only keep core values, removing derived stats."""
+    """Filter verbose environment metrics while keeping core values."""
     filtered = {}
 
     # Core movement metrics we want to keep (without any suffix)
@@ -60,14 +60,18 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
         "env_agent/movement.direction.down",
         "env_agent/movement.direction.left",
         "env_agent/movement.direction.right",
-        "env_agent/movement.sequential_rotations",
-        "env_agent/movement.rotation.to_up",
-        "env_agent/movement.rotation.to_down",
-        "env_agent/movement.rotation.to_left",
-        "env_agent/movement.rotation.to_right",
     }
+    noisy_prefixes = (
+        "env_reward_estimates/",
+        "env_timing_per_epoch/",
+        "env_timing_cumulative/",
+    )
 
     for key, value in stats.items():
+        if key.startswith("env_attributes/"):
+            continue
+        if key.startswith(noisy_prefixes):
+            continue
         # Check if this is a core metric (exact match)
         if key in core_metrics:
             filtered[key] = value

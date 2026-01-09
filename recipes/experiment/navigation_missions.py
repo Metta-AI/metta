@@ -28,11 +28,11 @@ def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
     """Cleanup navigation environment to be compatible with CVC training.
 
     Ensures the environment configuration satisfies CVC constraints and matches
-    the standard action space (using TRAINING_VIBES) to allow joint training.
+    the standard action space (using full VIBES) to allow joint training.
 
     This includes adding all CVC objects and resources even if not used in navigation.
     """
-    env.game.vibe_names = [vibe.name for vibe in vibes.TRAINING_VIBES]
+    env.game.vibe_names = [vibe.name for vibe in vibes.VIBES]
 
     carbon_cfg = CarbonExtractorConfig()
     oxygen_cfg = OxygenExtractorConfig()
@@ -108,9 +108,9 @@ def _cleanup_nav_env(env: MettaGridConfig) -> MettaGridConfig:
     if env.game.actions:
         if env.game.actions.change_vibe:
             env.game.actions.change_vibe.enabled = True
-            env.game.actions.change_vibe.number_of_vibes = len(vibes.TRAINING_VIBES)
+            env.game.actions.change_vibe.vibes = list(vibes.VIBES)
 
-            if env.game.agent.initial_vibe >= len(vibes.TRAINING_VIBES):
+            if env.game.agent.initial_vibe >= len(vibes.VIBES):
                 env.game.agent.initial_vibe = 0
 
         if env.game.actions.attack:

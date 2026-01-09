@@ -8,26 +8,14 @@ from typing import Any, Literal, Optional
 from uuid import UUID
 
 from psycopg import Connection
-from psycopg.rows import class_row, dict_row
+from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field, field_validator
 
 from metta.app_backend.config import settings
-from metta.app_backend.leaderboard_constants import (
-    LEADERBOARD_CANDIDATE_COUNT_KEY,
-    LEADERBOARD_LADYBUG_COUNT_KEY,
-    LEADERBOARD_SCENARIO_KEY,
-    LEADERBOARD_THINKY_COUNT_KEY,
-    REPLACEMENT_BASELINE_MEAN,
-)
 from metta.app_backend.migrations import MIGRATIONS
 from metta.app_backend.schema_manager import run_migrations
-from metta.app_backend.value_over_replacement import (
-    RunningStats,
-    compute_overall_vor_from_stats,
-)
-from metta.common.util.memoization import memoize
 
 TaskStatus = Literal["unprocessed", "running", "canceled", "done", "error", "system_error"]
 FinishedTaskStatus = Literal["done", "error", "canceled", "system_error"]
@@ -173,15 +161,6 @@ class EpisodeWithTags(BaseModel):
                 raise ValueError("attributes must be a JSON object")
             return parsed
         raise ValueError("attributes must be a dictionary")
-
-
-class LeaderboardPolicyEntry(BaseModel):
-    policy_version: PublicPolicyVersionRow
-    scores: dict[str, float]
-    avg_score: float | None = None
-    overall_vor: float | None = None  # Value Over Replacement (fetched separately)
-    replays: dict[str, list[EpisodeReplay]] = Field(default_factory=dict)
-    score_episode_ids: dict[str, uuid.UUID | None] = Field(default_factory=dict)
 
 
 logger = logging.getLogger(name="metta_repo")
@@ -703,6 +682,31 @@ class MettaRepo:
                 )
                 return await cur.fetchone()
 
+    async def get_public_policy_version_by_id(self, policy_version_id: uuid.UUID) -> PublicPolicyVersionRow | None:
+        """Get a single policy version with public fields by ID.
+
+        Returns None if the policy version does not exist.
+        """
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT
+                        pv.id,
+                        pv.policy_id,
+                        pv.created_at,
+                        p.created_at AS policy_created_at,
+                        p.user_id,
+                        p.name,
+                        pv.version
+                    FROM policy_versions pv
+                    JOIN policies p ON pv.policy_id = p.id
+                    WHERE pv.id = %s
+                    """,
+                    (policy_version_id,),
+                )
+                return await cur.fetchone()
+
     async def get_user_policy_versions(self, user_id: str) -> list[PublicPolicyVersionRow]:
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
@@ -746,15 +750,13 @@ class MettaRepo:
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
 
             count_query = f"SELECT COUNT(*) FROM policies p {where_clause}"
-            count_result = await con.execute(count_query, params)
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
             result_row = await count_result.fetchone()
             total_count: int = result_row[0] if result_row else 0
 
             params.extend([limit, offset])
 
-            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
-                await cur.execute(
-                    f"""
+            policy_query = f"""
                     SELECT
                         p.id,
                         p.name,
@@ -771,9 +773,9 @@ class MettaRepo:
                     {where_clause}
                     ORDER BY p.created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
+                    """
+            async with con.cursor(row_factory=class_row(PolicyRow)) as cur:
+                await cur.execute(policy_query, params)  # type: ignore[arg-type]
                 rows = await cur.fetchall()
 
             return rows, total_count
@@ -784,6 +786,7 @@ class MettaRepo:
         name_fuzzy: str | None = None,
         version: int | None = None,
         policy_version_ids: list[uuid.UUID] | None = None,
+        user_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[PublicPolicyVersionRow], int]:
@@ -807,6 +810,10 @@ class MettaRepo:
                 where_conditions.append("pv.version = %s")
                 params.append(version)
 
+            if user_id is not None:
+                where_conditions.append("p.user_id = %s")
+                params.append(user_id)
+
             where_clause = f"WHERE {' AND '.join(where_conditions)}" if where_conditions else ""
 
             count_query = f"""
@@ -815,15 +822,13 @@ class MettaRepo:
                 JOIN policies p ON pv.policy_id = p.id
                 {where_clause}
             """
-            count_result = await con.execute(count_query, params)
+            count_result = await con.execute(count_query, params)  # type: ignore[arg-type]
             result_row = await count_result.fetchone()
             total_count: int = result_row[0] if result_row else 0
 
             params.extend([limit, offset])
 
-            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
-                await cur.execute(
-                    f"""
+            version_query = f"""
                     SELECT
                         pv.id,
                         pv.policy_id,
@@ -838,9 +843,9 @@ class MettaRepo:
                     {where_clause}
                     ORDER BY pv.created_at DESC
                     LIMIT %s OFFSET %s
-                    """,
-                    params,
-                )
+                    """
+            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
+                await cur.execute(version_query, params)  # type: ignore[arg-type]
                 rows = await cur.fetchall()
 
             return rows, total_count
@@ -989,214 +994,6 @@ class MettaRepo:
                 )
 
             return id
-
-    async def get_leaderboard_policies(
-        self,
-        policy_version_tags: dict[str, str],
-        score_group_episode_tag: str,
-        user_id: str | None = None,
-        policy_version_id: uuid.UUID | None = None,
-    ) -> list[LeaderboardPolicyEntry]:
-        """Return leaderboard entries for policy versions matching the given tag filters."""
-        policy_conditions: list[str] = []
-        params: list[Any] = []
-
-        if user_id is not None:
-            policy_conditions.append("pol.user_id = %s")
-            params.append(user_id)
-
-        if policy_version_id is not None:
-            policy_conditions.append("pv.id = %s")
-            params.append(policy_version_id)
-
-        for idx, (tag_key, tag_value) in enumerate(policy_version_tags.items()):
-            policy_conditions.append(
-                f"""EXISTS (
-                        SELECT 1 FROM policy_version_tags pvt_{idx}
-                        WHERE pvt_{idx}.policy_version_id = pv.id
-                          AND pvt_{idx}.key = %s
-                          AND pvt_{idx}.value = %s
-                    )"""
-            )
-            params.extend([tag_key, tag_value])
-
-        where_clause = f"WHERE {' AND '.join(policy_conditions)}" if policy_conditions else ""
-
-        policy_query = f"""
-SELECT
-    pv.id,
-    pv.policy_id,
-    pv.created_at,
-    pol.created_at AS policy_created_at,
-    pol.user_id,
-    pol.name,
-    pv.version,
-    '{{}}'::jsonb AS tags
-FROM policy_versions pv
-JOIN policies pol ON pol.id = pv.policy_id
-{where_clause}
-ORDER BY pol.created_at DESC, pv.created_at DESC
-"""
-
-        async with self.connect() as con:
-            async with con.cursor(row_factory=class_row(PublicPolicyVersionRow)) as cur:
-                await cur.execute(policy_query, params)  # type: ignore
-                policy_rows = await cur.fetchall()
-
-            if not policy_rows:
-                return []
-
-            policy_version_ids = [row.id for row in policy_rows]
-            scores_by_policy: dict[uuid.UUID, dict[str, float]] = {pv_id: {} for pv_id in policy_version_ids}
-            score_episode_ids: dict[uuid.UUID, dict[str, uuid.UUID | None]] = {
-                pv_id: {} for pv_id in policy_version_ids
-            }
-
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(
-                    """
-SELECT policy_version_id, key, value
-FROM policy_version_tags
-WHERE policy_version_id = ANY(%s)
-""",
-                    (policy_version_ids,),
-                )
-                tag_rows = await cur.fetchall()
-
-            tags_by_policy: dict[uuid.UUID, dict[str, str]] = {pv_id: {} for pv_id in policy_version_ids}
-            for tag_row in tag_rows:
-                tags_by_policy[tag_row["policy_version_id"]][tag_row["key"]] = tag_row["value"]
-
-            if score_group_episode_tag:
-                scores_query = """
-SELECT
-    pv.id AS policy_version_id,
-    et.key AS tag_key,
-    et.value AS tag_value,
-    AVG(epm.value / ep.num_agents) AS avg_reward_per_agent,
-    (ARRAY_AGG(e.id ORDER BY e.created_at DESC, e.id DESC))[1] AS latest_episode_id
-FROM policy_versions pv
-JOIN episode_policies ep ON ep.policy_version_id = pv.id
-JOIN episodes e ON e.id = ep.episode_id
-JOIN episode_policy_metrics epm
-    ON epm.episode_internal_id = e.internal_id
-   AND epm.pv_internal_id = pv.internal_id
-JOIN episode_tags et ON et.episode_id = e.id
-WHERE epm.metric_name = 'reward'
-  AND et.key = %s
-  AND pv.id = ANY(%s)
-GROUP BY pv.id, et.key, et.value
-"""
-
-                async with con.cursor(row_factory=dict_row) as cur:
-                    await cur.execute(scores_query, (score_group_episode_tag, policy_version_ids))
-                    score_rows = await cur.fetchall()
-
-                for score_row in score_rows:
-                    pv_id = score_row["policy_version_id"]
-                    tag_identifier = f"{score_row['tag_key']}:{score_row['tag_value']}"
-                    scores_by_policy.setdefault(pv_id, {})[tag_identifier] = float(score_row["avg_reward_per_agent"])
-                    score_episode_ids.setdefault(pv_id, {})[tag_identifier] = score_row["latest_episode_id"]
-
-        entries: list[LeaderboardPolicyEntry] = []
-        for policy_row in policy_rows:
-            pv_id = policy_row.id
-            scores = scores_by_policy.get(pv_id, {})
-            avg_score = sum(scores.values()) / len(scores) if scores else None
-            policy_version = policy_row.model_copy(update={"tags": tags_by_policy.get(pv_id, {})})
-            entries.append(
-                LeaderboardPolicyEntry(
-                    policy_version=policy_version,
-                    scores=dict(scores),
-                    avg_score=avg_score,
-                    score_episode_ids=dict(score_episode_ids.get(pv_id, {})),
-                )
-            )
-
-        entries.sort(
-            key=lambda entry: (
-                0 if entry.avg_score is not None else 1,
-                -(entry.avg_score or 0.0),
-                -entry.policy_version.created_at.timestamp(),
-            )
-        )
-        return entries
-
-    @memoize(max_age=60.0)
-    async def _get_vor_stats(
-        self, policy_version_ids: tuple[uuid.UUID | str, ...]
-    ) -> defaultdict[uuid.UUID, defaultdict[int, RunningStats]]:
-        query = f"""
-        SELECT
-            ep.policy_version_id,
-            et_cand.value::int AS candidate_count,
-            et_thinky.value::int AS thinky_count,
-            et_lady.value::int AS ladybug_count,
-            epm.value / NULLIF(ep.num_agents, 0) AS avg_reward
-        FROM episodes e
-        JOIN episode_tags et_scen
-            ON et_scen.episode_id = e.id AND et_scen.key = '{LEADERBOARD_SCENARIO_KEY}'
-        JOIN episode_tags et_cand
-            ON et_cand.episode_id = e.id AND et_cand.key = '{LEADERBOARD_CANDIDATE_COUNT_KEY}'
-        LEFT JOIN episode_tags et_thinky
-            ON et_thinky.episode_id = e.id AND et_thinky.key = '{LEADERBOARD_THINKY_COUNT_KEY}'
-        LEFT JOIN episode_tags et_lady
-            ON et_lady.episode_id = e.id AND et_lady.key = '{LEADERBOARD_LADYBUG_COUNT_KEY}'
-        JOIN episode_policies ep ON ep.episode_id = e.id
-        JOIN policy_versions pv ON pv.id = ep.policy_version_id
-        JOIN episode_policy_metrics epm
-            ON epm.episode_internal_id = e.internal_id AND epm.pv_internal_id = pv.internal_id
-        WHERE e.primary_pv_id = ANY(%s)
-            AND epm.metric_name = 'reward'
-            AND ep.num_agents > 0
-        """
-        async with self.connect() as con:
-            async with con.cursor(row_factory=dict_row) as cur:
-                await cur.execute(query, (list(policy_version_ids),))
-                rows = await cur.fetchall()
-        stats_by_policy: defaultdict[uuid.UUID, defaultdict[int, RunningStats]] = defaultdict(
-            lambda: defaultdict(RunningStats)
-        )
-        for row in rows:
-            candidate_count = row.get("candidate_count")
-            avg_reward = row.get("avg_reward")
-            if candidate_count is None or avg_reward is None:
-                continue
-            candidate_count = int(candidate_count)
-            reward = float(avg_reward)
-
-            if candidate_count == 0:
-                # Replacement: weight = thinky + ladybug
-                thinky_count = int(row.get("thinky_count") or 0)
-                ladybug_count = int(row.get("ladybug_count") or 0)
-                weight = thinky_count + ladybug_count
-            else:
-                weight = candidate_count
-
-            stats_by_policy[row["policy_version_id"]][candidate_count].update(reward, weight=weight)
-        return stats_by_policy
-
-    async def get_leaderboard_policies_with_vor(
-        self,
-        policy_version_tags: dict[str, str],
-        score_group_episode_tag: str,
-    ) -> list[LeaderboardPolicyEntry]:
-        """Return leaderboard entries with overall_vor computed for each policy."""
-        entries = await self.get_leaderboard_policies(
-            policy_version_tags=policy_version_tags,
-            score_group_episode_tag=score_group_episode_tag,
-            user_id=None,
-            policy_version_id=None,
-        )
-        candidate_vor_stats = await self._get_vor_stats(tuple(entry.policy_version.id for entry in entries))
-
-        for entry in entries:
-            pv_id = entry.policy_version.id
-            candidate_stats = candidate_vor_stats.get(pv_id, {})
-            if candidate_stats:
-                entry.overall_vor = compute_overall_vor_from_stats(candidate_stats, REPLACEMENT_BASELINE_MEAN)
-
-        return entries
 
     async def get_episodes(
         self,

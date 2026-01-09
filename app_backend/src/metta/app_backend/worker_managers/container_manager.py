@@ -14,12 +14,14 @@ class ContainerWorkerManager(AbstractWorkerManager):
         self._docker_image = docker_image
         self._machine_token = machine_token
 
-    def start_worker(self) -> str:
+    def start_worker(self, num_cpus_request: int = 3, memory_request: int = 12) -> str:
         """Start a worker using the underlying container manager."""
         return self._container_manager.start_worker_container(
             backend_url=self._backend_url,
             docker_image=self._docker_image,
             machine_token=self._machine_token,
+            num_cpus_request=num_cpus_request,
+            memory_request=memory_request,
         )
 
     def cleanup_worker(self, worker_id: str) -> None:

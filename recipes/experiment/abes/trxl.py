@@ -1,7 +1,5 @@
-from metta.agent.policies.transformer import TransformerPolicyConfig
-from metta.agent.policies.trxl import TRXLConfig
 from metta.agent.policy import PolicyArchitecture
-from metta.rl.trainer_config import OptimizerConfig
+from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -16,8 +14,6 @@ from recipes.prod.arena_basic_easy_shaped import (
     train as base_train,
 )
 
-DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
-
 
 def train(
     *,
@@ -25,22 +21,11 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: PolicyArchitecture | None = None,
 ):
-    if policy_architecture is None:
-        policy_architecture = TransformerPolicyConfig(transformer=TRXLConfig())
-
-    tool = base_train(
+    return base_train(
         curriculum=curriculum,
         enable_detailed_slice_logging=enable_detailed_slice_logging,
-        policy_architecture=policy_architecture,
+        policy_architecture=policy_architecture or get_architecture("trxl"),
     )
-
-    if isinstance(policy_architecture, TransformerPolicyConfig):
-        hint = policy_architecture.learning_rate_hint
-        optimizer = tool.trainer.optimizer
-        if hint is not None and optimizer.learning_rate == DEFAULT_LR:
-            optimizer.learning_rate = hint
-
-    return tool
 
 
 __all__ = [

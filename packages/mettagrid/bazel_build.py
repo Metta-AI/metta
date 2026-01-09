@@ -174,7 +174,7 @@ def _nim_artifacts_up_to_date() -> bool:
     return oldest_output_mtime >= latest_source_mtime
 
 
-def _sync_mettascope_package_data() -> None:
+def _copy_mettascope_python_bindings() -> None:
     """Ensure Nim artifacts are vendored inside the Python package."""
 
     destination_root = METTASCOPE_PACKAGE_DIR
@@ -191,12 +191,13 @@ def _sync_mettascope_package_data() -> None:
     )
 
 
-def _run_mettascope_build() -> None:
+def _run_mettascope_build(copy_bindings: bool = False) -> None:
     """Build Nim artifacts when cache misses."""
 
     if _nim_artifacts_up_to_date():
         print("Skipping Nim build; artifacts up to date.")
-        _sync_mettascope_package_data()
+        if not copy_bindings:
+            _copy_mettascope_python_bindings()
         return
 
     for x in ["nim", "nimby"]:
@@ -209,7 +210,8 @@ def _run_mettascope_build() -> None:
     cmd("nim c bindings/bindings.nim")
 
     print("Successfully built mettascope")
-    _sync_mettascope_package_data()
+    if not copy_bindings:
+        _copy_mettascope_python_bindings()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
@@ -229,7 +231,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 def build_editable(wheel_directory, config_settings=None, metadata_directory=None):
     """Build an editable install, compiling the C++ extension with Bazel first, then mettascope."""
     _run_bazel_build()
-    _run_mettascope_build()
+    _run_mettascope_build(copy_bindings=True)  # Editable installs use source directly
     return _build_editable(wheel_directory, config_settings, metadata_directory)
 
 

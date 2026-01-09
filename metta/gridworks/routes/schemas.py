@@ -20,7 +20,7 @@ from metta.tools.train import TrainTool
 from mettagrid.base_config import Config
 from mettagrid.builder.envs import MettaGridConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 
 logger = logging.getLogger(__name__)

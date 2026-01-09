@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -14,7 +15,7 @@ from cortex.types import Tensor
 class BaseRouter(nn.Module):
     """Abstract router that returns a global expert gate via forward()."""
 
-    def forward(self, expert_outputs: list[Tensor]) -> Tensor:  # shape: [K]
+    def forward(self, expert_outputs: Optional[list[Tensor]] = None) -> Tensor:  # shape: [K]
         raise NotImplementedError
 
 
@@ -65,8 +66,8 @@ class GlobalContextRouter(BaseRouter):
         logits = scores / max(self.temperature, 1e-6)
         return logits
 
-    def forward(self, expert_outputs: list[Tensor]) -> Tensor:
-        # Kept for backward-compat: ignore expert_outputs and return global prior gate.
+    def forward(self, expert_outputs: Optional[list[Tensor]] = None) -> Tensor:
+        """Return the global gate; expert_outputs is ignored for backward-compat."""
         logits = self.global_logits(restrict_topk=True)
         gate = torch.softmax(logits, dim=-1)
         return gate

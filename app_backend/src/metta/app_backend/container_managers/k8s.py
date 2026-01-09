@@ -29,6 +29,8 @@ class K8sPodManager(AbstractContainerManager):
         backend_url: str,
         docker_image: str,
         machine_token: str,
+        num_cpus_request: int = 3,
+        memory_request: int = 12,
     ) -> dict:
         pod_name = self._format_container_name()
         return {
@@ -57,8 +59,8 @@ class K8sPodManager(AbstractContainerManager):
                         "env": self._get_pod_env(backend_url, pod_name, machine_token),
                         "resources": {
                             "requests": {
-                                "cpu": "3",
-                                "memory": "12Gi",
+                                "cpu": str(num_cpus_request),
+                                "memory": f"{memory_request}Gi",
                             },
                         },
                     }
@@ -112,9 +114,13 @@ class K8sPodManager(AbstractContainerManager):
         backend_url: str,
         docker_image: str,
         machine_token: str,
+        num_cpus_request: int = 3,
+        memory_request: int = 12,
     ) -> str:
         # Create pod via kubectl
-        pod_manifest = self._get_pod_manifest(backend_url, docker_image, machine_token)
+        pod_manifest = self._get_pod_manifest(
+            backend_url, docker_image, machine_token, num_cpus_request, memory_request
+        )
         pod_name = pod_manifest["metadata"]["name"]
         cmd = self._get_kubectl_cmd() + ["create", "-f", "-"]
         manifest_str = json.dumps(pod_manifest)

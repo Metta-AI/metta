@@ -17,7 +17,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -101,6 +102,7 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -110,54 +112,33 @@ def train(
         policy_architecture = ViTDefaultConfig()
 
     losses_config = LossesConfig()
-    losses_config.sliced_kickstarter.enabled = True
-
-    losses_config.sliced_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000.mpt"
-    )
-    ks_end_step = 1_000_000_000
-    losses_config.ppo_critic.sample_enabled = False
-    losses_config.ppo_critic.train_forward_enabled = False
-    losses_config.ppo_critic.deferred_training_start_step = ks_end_step
-
     trainer_cfg = TrainerConfig(losses=losses_config)
-
-    scheduler = SchedulerConfig(
-        run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=ks_end_step),
-            LossRunGate(
-                loss_instance_name="sliced_kickstarter",
-                phase="rollout",
-                end_at_step=ks_end_step,
-            ),
-            LossRunGate(
-                loss_instance_name="sliced_kickstarter",
-                phase="train",
-                end_at_step=ks_end_step,
-            ),
-        ],
-        rules=[
-            HyperUpdateRule(
-                loss_instance_name="sliced_kickstarter",
-                attr_path="teacher_led_proportion",
-                mode="progress",
-                style="linear",
-                start_value=0.2,
-                end_value=0.0,
-                start_agent_step=0,
-                end_agent_step=ks_end_step,
-            ),
-        ],
+    teacher = teacher or TeacherConfig(
+        policy_uri="s3://softmax-public/policies/av.student.11.26.28/av.student.11.26.28:v4000",
+        mode="sliced_kickstarter",
+        steps=1_000_000_000,
+        teacher_led_proportion=0.2,
     )
 
-    return TrainTool(
+    tt = TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
-        scheduler=scheduler,
     )
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[ScheduleRule] = []
+    apply_teacher_phase(
+        trainer_cfg=tt.trainer,
+        training_env_cfg=tt.training_env,
+        scheduler_rules=scheduler_rules,
+        scheduler_run_gates=scheduler_run_gates,
+        teacher_cfg=teacher,
+        default_steps=teacher.steps or 1_000_000_000,
+    )
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+    return tt
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
@@ -167,11 +148,11 @@ def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
+    checkpoints = [p for p in dir_path.iterdir() if p.is_dir() and (p / "policy_spec.json").exists()]
+    checkpoints = sorted(checkpoints, key=lambda x: x.stat().st_mtime)
+    if not checkpoints:
         raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
+    policy_uri = checkpoints[-1].as_posix()
     sim = mettagrid(num_agents=6)
     return EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
@@ -283,7 +264,7 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.sliced",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
