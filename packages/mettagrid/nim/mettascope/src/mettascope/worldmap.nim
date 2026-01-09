@@ -61,7 +61,7 @@ proc generateTerrainMap(): TileMap =
     width = width,
     height = height,
     tileSize = 128,
-    atlasPath = dataDir & "/terrain/blob7x8.png"
+    atlasPath = dataDir / "terrain/blob7x8.png"
   )
 
   var asteroidMap: seq[bool] = newSeq[bool](width * height)
@@ -187,7 +187,7 @@ proc generateVisibilityMap(): TileMap =
     width = width,
     height = height,
     tileSize = 64,
-    atlasPath = dataDir & "/fog7x8.png"
+    atlasPath = dataDir / "fog7x8.png"
   )
   visibilityMap.rebuildVisibilityMap()
   visibilityMap.setupGPU()
@@ -459,7 +459,7 @@ proc drawGrid*() =
   # Draw the grid using a single quad and shader-based lines.
   bxy.enterRawOpenGLMode()
   if sq == nil:
-    sq = newGridQuad(dataDir & "/view/grid10.png", 10, 10)
+    sq = newGridQuad(dataDir / "view/grid10.png", 10, 10)
   let
     mvp = getProjectionView()
     mapSize = vec2(replay.mapSize[0].float32, replay.mapSize[1].float32)
@@ -566,8 +566,8 @@ proc drawTerrain*() =
   if terrainMap == nil:
     terrainMap = generateTerrainMap()
     px = newPixelator(
-      dataDir & "/atlas.png",
-      dataDir & "/atlas.json"
+      dataDir / "atlas.png",
+      dataDir / "atlas.json"
     )
 
   terrainMap.draw(getProjectionView(), 2.0f, 1.5f)
