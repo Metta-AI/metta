@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -41,6 +41,9 @@ class FutureLatentEMALossConfig(LossConfig):
 
 class FutureLatentEMALoss(Loss):
     """Encourages policies to predict an EMA of future latent states."""
+
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"future_latent_pred", "core"}
 
     def run_train(
         self,
