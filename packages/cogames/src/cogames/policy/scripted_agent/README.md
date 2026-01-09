@@ -237,8 +237,8 @@ uv run cogames play --mission training_facility.harvest --variant clip_hub_stati
 uv run python packages/cogames/scripts/run_evaluation.py
 
 # Evaluate specific agent
-uv run python packages/cogames/scripts/run_evaluation.py --agent simple
-uv run python packages/cogames/scripts/run_evaluation.py --agent unclipping
+uv run python packages/cogames/scripts/run_evaluation.py --policy class=baseline
+uv run python packages/cogames/scripts/run_evaluation.py --policy class=ladybug
 ```
 
 ## Evaluation Results

@@ -417,7 +417,7 @@ def play_cmd(
         if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
             map_builder.seed = effective_map_seed
 
-    policy_spec = get_policy_spec(ctx, policy)
+    _ = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Render: {render}")
 
@@ -954,10 +954,7 @@ def diagnose_cmd(
     if no_plots:
         cmd.append("--no-plots")
 
-    if policy_spec.data_path or policy_spec.init_kwargs:
-        cmd.extend(["--policy", policy])
-    else:
-        cmd.extend(["--agent", policy_spec.class_path])
+    cmd.extend(["--policy", policy])
 
     console.print("[cyan]Running diagnostic evaluation...[/cyan]")
     console.print(f"[dim]{' '.join(cmd)}[/dim]")
