@@ -361,7 +361,7 @@ def play_cmd(
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="Optional MapGen seed override for deterministic procedural maps",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -386,15 +386,13 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    # Optional MapGen seed override for deterministic procedural maps.
     from mettagrid.mapgen.mapgen import MapGen
 
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    if map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
         if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
-            map_builder.seed = effective_map_seed
+            map_builder.seed = map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
@@ -713,7 +711,7 @@ def run_cmd(
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="Optional MapGen seed override for deterministic procedural maps",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
@@ -752,16 +750,14 @@ def run_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
+    # Optional MapGen seed override for deterministic procedural maps.
     from mettagrid.mapgen.mapgen import MapGen
 
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    if map_seed is not None:
         for _, env_cfg in selected_missions:
             map_builder = getattr(env_cfg.game, "map_builder", None)
             if isinstance(map_builder, MapGen.Config):
-                map_builder.seed = effective_map_seed
+                map_builder.seed = map_seed
 
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
