@@ -118,6 +118,17 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name="test_activation_handler_bin",
+    srcs=["test_activation_handler.cpp"],
+    copts=COPTS + ["-Icpp/include/mettagrid", "-Itests"],
+    linkstatic=True,
+    deps=[
+        "//:mettagrid_lib",
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
 # Python test wrappers
 py_test(
     name="test_stats_tracker",
@@ -191,6 +202,15 @@ py_test(
     size="small",
 )
 
+py_test(
+    name="test_activation_handler",
+    srcs=["run_test.py"],
+    main="run_test.py",
+    args=["--bin=test_activation_handler_bin"],
+    data=[":test_activation_handler_bin"],
+    size="small",
+)
+
 # Test suite that runs all tests
 test_suite(
     name="tests_all",
@@ -203,5 +223,6 @@ test_suite(
         ":test_has_inventory",
         ":test_collective",
         ":test_aoe",
+        ":test_activation_handler",
     ],
 )
