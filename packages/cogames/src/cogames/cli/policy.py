@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
@@ -12,7 +13,7 @@ from cogames.cli.base import console
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME
-from mettagrid.util.uri_resolvers.schemes import parse_uri, policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 RawPolicyValues = Optional[Sequence[str]]
 ParsedPolicies = list[PolicySpec]
@@ -65,6 +66,8 @@ def _translate_error(e: Exception) -> str:
     translated = str(e).replace("Invalid symbol name", "Could not find policy class")
     if isinstance(e, ModuleNotFoundError):
         translated += ". Please make sure to specify your policy class."
+    if isinstance(e, FileNotFoundError):
+        translated += ". If a checkpoint URI, ensure it points at a bundle directory or .zip with policy_spec.json."
     return translated
 
 
@@ -75,7 +78,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     else:
         try:
             return _parse_policy_spec(spec=policy_arg).to_policy_spec()
-        except (ValueError, ModuleNotFoundError) as e:
+        except (ValueError, ModuleNotFoundError, FileNotFoundError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
@@ -98,7 +101,7 @@ def get_policy_specs_with_proportions(
     else:
         try:
             return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
-        except (ValueError, ModuleNotFoundError) as e:
+        except (ValueError, ModuleNotFoundError, FileNotFoundError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
             console.print()
@@ -144,7 +147,35 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     fraction = 1.0
     first = entries[0]
-    if parse_uri(first, allow_none=True, default_scheme=None):
+
+    def _looks_like_checkpoint_uri(value: str) -> bool:
+        # Explicit schemes
+        if "://" in value:
+            return True
+        # Windows drive paths like C:\ or C:/
+        if len(value) >= 3 and value[1] == ":" and value[0].isalpha() and value[2] in ("\\", "/"):
+            return True
+        # Reject strings like "random:train_dir/model.pt" which are neither schemes nor paths.
+        first_colon = value.find(":")
+        if first_colon != -1:
+            first_slash = value.find("/")
+            first_backslash = value.find("\\")
+            separators = [idx for idx in (first_slash, first_backslash) if idx != -1]
+            if separators and first_colon < min(separators):
+                return False
+        # Common path-ish forms
+        if value.startswith(("~", "/", "./", "../")):
+            return True
+        if "/" in value or "\\" in value:
+            return True
+        # Common checkpoint suffixes
+        if value.endswith(".zip") or value.endswith(":latest") or re.search(r":v\d+", value):
+            return True
+        return False
+
+    # URI / checkpoint-bundle format (directory or .zip containing policy_spec.json).
+    # IMPORTANT: do not treat key=value specs like "class=lstm" as URIs.
+    if _looks_like_checkpoint_uri(first) and "=" not in first:
         policy = policy_spec_from_uri(first)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)

@@ -19,7 +19,6 @@ from mettagrid.envs.early_reset_handler import EarlyResetHandler
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import (
-    get_policy_class_shorthand,
     initialize_or_load_policy,
 )
 from mettagrid.policy.policy import PolicySpec
@@ -371,12 +370,9 @@ def train(
                     style="yellow",
                 )
 
-            # Show shorthand version if available
-            policy_shorthand = get_policy_class_shorthand(policy_class_path)
-
-            # Build the command with game name if provided
-            policy_class_arg = policy_shorthand if policy_shorthand else policy_class_path
-            policy_arg = f"class={policy_class_arg},data={final_checkpoint}"
+            # Prefer checkpoint bundle URI format (directory contains policy_spec.json).
+            # This avoids having to point data= at the underlying weights file.
+            policy_arg = str(final_checkpoint)
 
             first_mission = missions_arg[0] if missions_arg else "training_facility_1"
             all_missions = " ".join(f"-m {m}" for m in (missions_arg or ["training_facility_1"]))
