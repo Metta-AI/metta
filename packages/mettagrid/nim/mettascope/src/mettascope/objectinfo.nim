@@ -102,16 +102,19 @@ proc protocolCmp(a, b: Protocol): int =
 
 proc getCollectiveName(collectiveId: int): string =
   ## Get the collective name by ID from the mg_config.
+  ## Iterates to the nth key in the collectives dict.
   if replay.isNil or replay.mgConfig.isNil:
     return ""
   if "game" notin replay.mgConfig or "collectives" notin replay.mgConfig["game"]:
     return ""
-  let collectiveArr = replay.mgConfig["game"]["collectives"]
-  if collectiveArr.kind != JArray or collectiveId < 0 or collectiveId >= collectiveArr.len:
+  let collectives = replay.mgConfig["game"]["collectives"]
+  if collectiveId < 0 or collectives.kind != JObject:
     return ""
-  let collectiveConfig = collectiveArr[collectiveId]
-  if collectiveConfig.kind == JObject and "name" in collectiveConfig:
-    return collectiveConfig["name"].getStr
+  var idx = 0
+  for name, _ in collectives.pairs:
+    if idx == collectiveId:
+      return name
+    inc idx
   return ""
 
 proc getAoeConfigs(typeName: string): JsonNode =

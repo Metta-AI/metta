@@ -150,12 +150,15 @@ proc rebuildVisibilityMap*(visibilityMap: TileMap) =
 
   # Walk the agents and clear the visibility map.
   # If lockFocus is on with an agent selected, only show that agent's vision.
+  # Use index-based iteration to avoid issues with seq being modified elsewhere.
   let agentsToProcess = if settings.lockFocus and selection != nil and selection.isAgent:
     @[selection]
   else:
     replay.agents
 
-  for obj in agentsToProcess:
+  let numAgentsToProcess = agentsToProcess.len
+  for i in 0 ..< numAgentsToProcess:
+    let obj = agentsToProcess[i]
     let center = ivec2(int32(obj.visionSize div 2), int32(obj.visionSize div 2))
     let pos = obj.location.at
     for i in 0 ..< obj.visionSize:

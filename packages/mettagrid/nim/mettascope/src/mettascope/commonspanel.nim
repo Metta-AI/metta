@@ -16,15 +16,8 @@ type
 proc getCollectiveInitialInventory(collectiveId: int): Table[string, int] =
   ## Get the initial inventory of a collective from the config.
   result = initTable[string, int]()
-  if replay.isNil or replay.mgConfig.isNil:
-    return
-  if "game" notin replay.mgConfig or "collectives" notin replay.mgConfig["game"]:
-    return
-  let collectiveArr = replay.mgConfig["game"]["collectives"]
-  if collectiveArr.kind != JArray or collectiveId < 0 or collectiveId >= collectiveArr.len:
-    return
-  let collectiveConfig = collectiveArr[collectiveId]
-  if collectiveConfig.kind != JObject:
+  let collectiveConfig = getCollectiveConfig(collectiveId)
+  if collectiveConfig.isNil or collectiveConfig.kind != JObject:
     return
   if "inventory" notin collectiveConfig:
     return

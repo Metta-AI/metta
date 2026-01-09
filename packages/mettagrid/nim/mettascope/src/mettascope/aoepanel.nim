@@ -8,30 +8,49 @@ import
 const
   UnalignedId* = -1
 
+proc getCollectivesNode(): JsonNode =
+  ## Get the collectives JSON node (dict) from the replay config.
+  if replay.isNil or replay.mgConfig.isNil:
+    return nil
+  if "game" notin replay.mgConfig or "collectives" notin replay.mgConfig["game"]:
+    return nil
+  let collectives = replay.mgConfig["game"]["collectives"]
+  if collectives.kind != JObject:
+    return nil
+  return collectives
+
 proc getNumCollectives*(): int =
   ## Get the number of collectives from the replay config.
-  if replay.isNil or replay.mgConfig.isNil:
+  let collectives = getCollectivesNode()
+  if collectives.isNil:
     return 0
-  if "game" notin replay.mgConfig or "collectives" notin replay.mgConfig["game"]:
-    return 0
-  let collectiveArr = replay.mgConfig["game"]["collectives"]
-  if collectiveArr.kind == JArray:
-    return collectiveArr.len
-  return 0
+  return collectives.len
 
 proc getCollectiveName*(collectiveId: int): string =
   ## Get the collective name by ID from the mg_config.
-  if replay.isNil or replay.mgConfig.isNil:
+  ## Iterates to the nth key in the dict.
+  let collectives = getCollectivesNode()
+  if collectives.isNil or collectiveId < 0:
     return ""
-  if "game" notin replay.mgConfig or "collectives" notin replay.mgConfig["game"]:
-    return ""
-  let collectiveArr = replay.mgConfig["game"]["collectives"]
-  if collectiveArr.kind != JArray or collectiveId < 0 or collectiveId >= collectiveArr.len:
-    return ""
-  let collectiveConfig = collectiveArr[collectiveId]
-  if collectiveConfig.kind == JObject and "name" in collectiveConfig:
-    return collectiveConfig["name"].getStr
+  var idx = 0
+  for name, _ in collectives.pairs:
+    if idx == collectiveId:
+      return name
+    inc idx
   return ""
+
+proc getCollectiveConfig*(collectiveId: int): JsonNode =
+  ## Get the collective config by ID from the mg_config.
+  ## Iterates to the nth value in the dict.
+  let collectives = getCollectivesNode()
+  if collectives.isNil or collectiveId < 0:
+    return nil
+  var idx = 0
+  for _, config in collectives.pairs:
+    if idx == collectiveId:
+      return config
+    inc idx
+  return nil
 
 proc getAoeColor*(collectiveId: int): Color =
   ## Get color for each collective ID: Cogs (0) = green, Clips (1) = red, Neutral = grey.
