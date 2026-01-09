@@ -20,5 +20,5 @@ proc onReplayLoaded*() =
   agentObjectives = initTable[int, seq[Objective]]()
 
   needsInitialFit = true
-  
+
   echo "Replay loaded: ", replay.fileName

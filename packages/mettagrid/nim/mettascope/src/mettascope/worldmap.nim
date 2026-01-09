@@ -23,7 +23,7 @@ var
   px*: Pixelator
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
-  needsInitialFit*: bool = false
+  needsInitialFit*: bool = true
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
