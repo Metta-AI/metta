@@ -3,7 +3,7 @@
 import
   std/[sequtils, strformat],
   bumpy, chroma, windy, boxy, silky,
-  common
+  common, windowstate
 
 type
   AreaLayout* = enum
@@ -53,6 +53,8 @@ const
 
 var
   worldMapZoomInfo*: ZoomInfo
+  viewStateChanged*: bool = false  ## Set when pan/zoom changes, consumed by state saver
+  panelRegistry*: seq[(string, PanelDraw)]  ## Registry of panel names to draw functions
 
 proc clampMapPan*(zoomInfo: ZoomInfo) =
   ## Clamp pan so the world map remains at least partially visible.
@@ -129,6 +131,8 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
     else:
       zoomInfo.vel *= 0.9
 
+    if zoomInfo.vel.x != 0 or zoomInfo.vel.y != 0:
+      viewStateChanged = true
     zoomInfo.pos += zoomInfo.vel
 
   if zoomInfo.hasMouse:
@@ -155,6 +159,7 @@ proc beginPanAndZoom*(zoomInfo: ZoomInfo) =
       let zoomFactor = pow(1.0 - zoomSensitivity, window.scrollDelta.y)
       zoomInfo.zoom *= zoomFactor
       zoomInfo.zoom = clamp(zoomInfo.zoom, zoomInfo.minZoom, zoomInfo.maxZoom)
+      viewStateChanged = true
 
       let newMat = translate(vec2(zoomInfo.pos.x, zoomInfo.pos.y)) *
         scale(vec2(zoomInfo.zoom*zoomInfo.zoom, zoomInfo.zoom*zoomInfo.zoom))
@@ -189,10 +194,10 @@ proc movePanels*(area: Area, panels: seq[Panel])
 
 proc clear*(area: Area) =
   ## Clear the area.
-  for panel in area.panels:
-    panel.parentArea = nil
-  for subarea in area.areas:
-    subarea.clear()
+  for i in 0 ..< area.panels.len:
+    area.panels[i].parentArea = nil
+  for i in 0 ..< area.areas.len:
+    area.areas[i].clear()
   area.panels.setLen(0)
   area.areas.setLen(0)
 
@@ -223,8 +228,8 @@ proc removeBlankAreas*(area: Area) =
       else:
         discard
 
-    for subarea in area.areas:
-      removeBlankAreas(subarea)
+    for i in 0 ..< area.areas.len:
+      removeBlankAreas(area.areas[i])
 
 proc addPanel*(area: Area, name: string, draw: PanelDraw) =
   ## Add a panel to the area.
@@ -279,7 +284,8 @@ proc getTabInsertInfo(area: Area, mousePos: Vec2): (int, Rect) =
   bestX = x
   bestIndex = 0
 
-  for i, panel in area.panels:
+  for i in 0 ..< area.panels.len:
+    let panel = area.panels[i]
     let textSize = sk.getTextSize("Default", panel.name)
     let tabW = textSize.x + 16
 
@@ -324,8 +330,8 @@ proc scan*(area: Area): (Area, AreaScan, Rect) =
       return
 
     if area.areas.len > 0:
-      for subarea in area.areas:
-        visit(subarea)
+      for i in 0 ..< area.areas.len:
+        visit(area.areas[i])
     else:
       let
         headerRect = rect(
@@ -427,7 +433,9 @@ proc drawAreaRecursive(area: Area, r: Rect) =
     # Draw Tabs
     var x = r.x + 4
     sk.pushClipRect(rect(r.x, r.y, r.w - 2, AreaHeaderHeight))
-    for i, panel in area.panels:
+    let numPanels = area.panels.len
+    for i in 0 ..< numPanels:
+      let panel = area.panels[i]
       let textSize = sk.getTextSize("Default", panel.name)
       let tabW = textSize.x + 16
       let tabRect = rect(x, r.y + 4, tabW, AreaHeaderHeight - 4)
@@ -438,6 +446,8 @@ proc drawAreaRecursive(area: Area, r: Rect) =
       # Handle Tab Clicks and Dragging
       if isHovered:
         if window.buttonPressed[MouseLeft]:
+          if area.selectedPanelNum != i:
+            viewStateChanged = true  # Tab changed, save state
           area.selectedPanelNum = i
           # Only start dragging if the mouse moves 10 pixels.
           maybeDragStartPos = window.mousePos.vec2
@@ -485,6 +495,7 @@ proc drawPanels*() =
   if dragArea != nil:
     if not window.buttonDown[MouseLeft]:
       dragArea = nil
+      viewStateChanged = true  # Split changed, save state
     else:
       if dragArea.layout == Horizontal:
         sk.cursor = Cursor(kind: ResizeUpDownCursor)
@@ -525,6 +536,7 @@ proc drawPanels*() =
             targetArea.areas[1].movePanels(targetArea.panels)
 
         rootArea.removeBlankAreas()
+        viewStateChanged = true  # Panel moved, save state
       dragPanel = nil
     else:
       # Dragging
@@ -549,3 +561,71 @@ proc drawPanels*() =
     let size = textSize + vec2(16, 8)
     sk.draw9Patch("tooltip.9patch", 4, window.mousePos.vec2 + vec2(10, 10), size, rgbx(255, 255, 255, 200))
     discard sk.drawText("Default", label, window.mousePos.vec2 + vec2(18, 14), rgbx(255, 255, 255, 255))
+
+proc captureAreaState*(area: Area): AreaState =
+  ## Capture the current state of an area tree for serialization.
+  result.layout = area.layout.ord
+  result.split = area.split
+  result.selectedPanelNum = area.selectedPanelNum
+  # Copy seqs to avoid modification issues
+  let panelsCopy = area.panels
+  let areasCopy = area.areas
+  for panel in panelsCopy:
+    result.panelNames.add(panel.name)
+  for subarea in areasCopy:
+    result.areas.add(captureAreaState(subarea))
+
+proc capturePanelState*(): AreaState =
+  ## Capture the current panel layout state.
+  if rootArea != nil:
+    result = captureAreaState(rootArea)
+
+proc registerPanel*(name: string, draw: PanelDraw) =
+  ## Register a panel draw function by name for later reconstruction.
+  panelRegistry.add((name, draw))
+
+proc getPanelDraw(name: string): PanelDraw =
+  ## Get a panel draw function by name.
+  for (n, d) in panelRegistry:
+    if n == name:
+      return d
+  return nil
+
+proc rebuildAreaFromState*(state: AreaState): Area =
+  ## Rebuild an area tree from saved state.
+  result = Area()
+  result.layout = AreaLayout(state.layout)
+  result.split = state.split
+  result.selectedPanelNum = state.selectedPanelNum
+
+  if state.areas.len > 0:
+    # Has sub-areas
+    for subState in state.areas:
+      result.areas.add(rebuildAreaFromState(subState))
+  else:
+    # Leaf area with panels
+    for panelName in state.panelNames:
+      let drawProc = getPanelDraw(panelName)
+      if drawProc != nil:
+        let panel = Panel(name: panelName, parentArea: result, draw: drawProc)
+        result.panels.add(panel)
+      else:
+        echo "Warning: Unknown panel '", panelName, "' in saved state"
+
+proc applyPanelState*(state: AreaState) =
+  ## Apply saved panel state by rebuilding the entire panel tree.
+  if state.areas.len > 0 or state.panelNames.len > 0:
+    rootArea = rebuildAreaFromState(state)
+
+proc captureZoomState*(): ZoomState =
+  ## Capture the current zoom state with center in world coordinates.
+  if worldMapZoomInfo != nil:
+    result.zoom = worldMapZoomInfo.zoom
+    # Calculate center in world coordinates from pan position
+    let
+      z = worldMapZoomInfo.zoom * worldMapZoomInfo.zoom
+      rectW = worldMapZoomInfo.rect.w.float32
+      rectH = worldMapZoomInfo.rect.h.float32
+    if z > 0:
+      result.centerX = (rectW / 2.0f - worldMapZoomInfo.pos.x) / z
+      result.centerY = (rectH / 2.0f - worldMapZoomInfo.pos.y) / z

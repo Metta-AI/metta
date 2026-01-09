@@ -69,7 +69,9 @@ proc drawAgentTraces*(panel: Panel) =
   )
 
   # Agents
-  for obj in replay.agents:
+  let numAgents = replay.agents.len
+  for a in 0 ..< numAgents:
+    let obj = replay.agents[a]
     let j = obj.agentId
     for i in 0 ..< replay.maxSteps:
       let pos = vec2(
