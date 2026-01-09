@@ -287,6 +287,9 @@ class TrainTool(Tool):
             except ValueError as exc:
                 logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
                 parsed = None
+            if parsed and parsed.scheme == "mock":
+                logger.debug("Skipping resume hints for mock policy %s", parsed.canonical)
+                parsed = None
             if parsed and parsed.checkpoint_info:
                 run_from_uri = parsed.checkpoint_info[0]
             elif parsed:
