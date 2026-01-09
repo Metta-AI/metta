@@ -54,9 +54,9 @@ proc render(currentStep: int, replayStep: string): RenderResponse =
     previousStep = currentStep
     requestPython = false
 
-    # If agents were just loaded for the first time, refit the visible map
+    # If agents were just loaded for the first time, refit the world panel.
     if not hadAgentsBefore and common.replay.agents.len > 0:
-      fitVisibleMap(worldMapZoomInfo)
+      needsInitialFit = true
     result = RenderResponse(shouldClose: false, actions: @[])
     while true:
       if window.closeRequested:
