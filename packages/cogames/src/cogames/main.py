@@ -412,7 +412,7 @@ def play_cmd(
 
     if map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
-        if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
+        if isinstance(map_builder, MapGen.Config):
             map_builder.seed = map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
@@ -642,7 +642,7 @@ def train_cmd(
 
         def _maybe_seed(cfg: Any) -> None:
             mb = getattr(cfg.game, "map_builder", None)
-            if isinstance(mb, MapGen.Config) and mb.seed is None:
+            if isinstance(mb, MapGen.Config):
                 mb.seed = map_seed
 
         if env_cfg is not None:
