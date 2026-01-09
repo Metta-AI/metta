@@ -246,6 +246,7 @@ AttackMutation.model_rebuild()
 class Handler(Config):
     """Configuration for a handler on GridObject.
 
+<<<<<<< HEAD
     Used for all three handler types:
       - on_use: Triggered when agent uses/activates this object
       - on_update: Triggered after mutations are applied to this object
@@ -258,6 +259,16 @@ class Handler(Config):
     """
 
     filters: list[AnyFilter] = Field(
+=======
+    When an agent moves onto a target, handlers are checked in registration order.
+    The first handler where all filters pass has its mutations applied.
+
+    Note: Handler name is typically provided as the dict key when defining handlers.
+    """
+
+    name: str = Field(default="", description="Handler name for debugging/stats (typically set from dict key)")
+    filters: list[AnyActivationFilter] = Field(
+>>>>>>> cf88d01b85 (cp)
         default_factory=list,
         description="All filters must pass for handler to trigger",
     )

@@ -319,71 +319,47 @@ class JunctionConfig(CvCStationConfig):
     map_name: str = Field(description="Map name for this junction")
     team: Optional[str] = Field(default=None, description="Team/collective this junction belongs to")
     aoe_range: int = Field(default=10, description="Range for AOE effects")
-    influence_deltas: Optional[dict[str, int]] = Field(
-        default_factory=lambda: {"influence": 10, "energy": 100, "hp": 100}
-    )
-    attack_deltas: Optional[dict[str, int]] = Field(default_factory=lambda: {"hp": -1, "influence": -100})
+    influence_deltas: dict[str, int] = Field(default_factory=lambda: {"influence": 10, "energy": 100, "hp": 100})
+    attack_deltas: dict[str, int] = Field(default_factory=lambda: {"hp": -1, "influence": -100})
     elements: list[str] = Field(default_factory=lambda: COGSGUARD_ELEMENTS)
     align_cost: dict[str, int] = Field(default_factory=lambda: COGSGUARD_ALIGN_COST)
     scramble_cost: dict[str, int] = Field(default_factory=lambda: COGSGUARD_SCRAMBLE_COST)
 
-    def _get_aoes(self) -> list[AOEEffectConfig]:
-        aoes = []
-        if self.influence_deltas:
-            aoes.append(
-                AOEEffectConfig(range=self.aoe_range, resource_deltas=self.influence_deltas, filters=[isAligned()])
-            )
-        if self.attack_deltas:
-            aoes.append(AOEEffectConfig(range=self.aoe_range, resource_deltas=self.attack_deltas, filters=[isEnemy()]))
-        return aoes
-
     def station_cfg(self) -> GridObjectConfig:
         return GridObjectConfig(
-            name="supply_depot",
+            name="junction",
             map_name=self.map_name,
             render_symbol="📦",
             collective=self.team,
-            aoes=self._get_aoes(),
-            handlers=[
-                ActivationHandler(
-                    name="deposit",
+            aoes=[
+                AOEEffectConfig(range=self.aoe_range, resource_deltas=self.influence_deltas, filters=[isAligned()]),
+                AOEEffectConfig(range=self.aoe_range, resource_deltas=self.attack_deltas, filters=[isEnemy()]),
+            ],
+            handlers={
+                "deposit": ActivationHandler(
                     filters=[isAligned()],
                     mutations=[CollectiveDeposit({resource: 100 for resource in self.elements})],
                 ),
-                ActivationHandler(
-                    name="align",
+                "align": ActivationHandler(
                     filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, **self.align_cost})],
                     mutations=[UpdateActor(_neg(self.align_cost)), Align()],
                 ),
-                ActivationHandler(
-                    name="scramble",
+                "scramble": ActivationHandler(
                     filters=[isEnemy(), ActorHas({"scrambler": 1, **self.scramble_cost})],
                     mutations=[RemoveAlignment(), UpdateActor(_neg(self.scramble_cost))],
                 ),
-            ],
+            },
         )
 
 
 class HubConfig(JunctionConfig):
-    """Main nexus with influence AOE effect. A junction without align/scramble handlers."""
-
-    team: Optional[str] = Field(default="cogs", description="Team/collective this hub belongs to")
+    """Main hub with influence AOE effect. A junction without align/scramble handlers."""
 
     def station_cfg(self) -> GridObjectConfig:
-        return GridObjectConfig(
-            name="main_nexus",
-            map_name=self.map_name,
-            render_symbol="🏛️",
-            collective=self.team,
-            aoes=self._get_aoes(),
-            handlers=[
-                ActivationHandler(
-                    name="deposit",
-                    filters=[isAligned()],
-                    mutations=[CollectiveDeposit({resource: 100 for resource in self.elements})],
-                ),
-            ],
-        )
+        cfg = super().station_cfg()
+        cfg.name = "hub"  # override the name
+        cfg.handlers = {}  # remove the align/scramble handlers
+        return cfg
 
 
 class CogsGuardChestConfig(CvCStationConfig):
@@ -398,21 +374,19 @@ class CogsGuardChestConfig(CvCStationConfig):
             map_name="chest",
             render_symbol="📦",
             collective=self.collective,
-            handlers=[
-                ActivationHandler(
-                    name="get_heart",
+            handlers={
+                "get_heart": ActivationHandler(
                     filters=[isAligned()],
                     mutations=[CollectiveWithdraw({"heart": 1})],
                 ),
-                ActivationHandler(
-                    name="make_heart",
+                "make_heart": ActivationHandler(
                     filters=[isAligned(), ActorCollectiveHas(self.heart_cost)],
                     mutations=[
                         TargetCollectiveUpdate(_neg(self.heart_cost)),
                         UpdateActor({"heart": 1}),
                     ],
                 ),
-            ],
+            },
         )
 
 
@@ -430,14 +404,12 @@ class GearStationConfig(CvCStationConfig):
             map_name=f"{self.gear_type}_station",
             render_symbol=COGSGUARD_GEAR_SYMBOLS.get(self.gear_type, "⚙️"),
             collective=self.collective,
-            handlers=[
-                ActivationHandler(
-                    name="keep_gear",
+            handlers={
+                "keep_gear": ActivationHandler(
                     filters=[isAligned(), ActorHas({self.gear_type: 1})],
                     mutations=[],
                 ),
-                ActivationHandler(
-                    name="change_gear",
+                "change_gear": ActivationHandler(
                     filters=[isAligned(), ActorCollectiveHas(cost)],
                     mutations=[
                         ClearInventoryMutation(target="actor", limit_name="gear"),
@@ -445,5 +417,5 @@ class GearStationConfig(CvCStationConfig):
                         UpdateActor({self.gear_type: 1}),
                     ],
                 ),
-            ],
+            },
         )

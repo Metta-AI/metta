@@ -403,22 +403,21 @@ class CogsGuardMission(Config):
                 ),
                 rewards=AgentRewards(
                     collective_stats={
-                        "aligned.charger.held": 1.0 / self.max_steps,
+                        "aligned.junction.held": 1.0 / self.max_steps,
                     },
                 ),
             ),
             inventory_regen_interval=self.inventory_regen_interval,
             objects={
                 "wall": self.wall.station_cfg(),
-                "assembler": HubConfig(map_name="assembler").station_cfg(),
-                "charger": JunctionConfig(map_name="charger", team="clips").station_cfg(),
+                "assembler": HubConfig(map_name="assembler", team="cogs").station_cfg(),
+                "junction": JunctionConfig(map_name="charger", team="clips").station_cfg(),
                 "chest": CogsGuardChestConfig().station_cfg(),
                 **extractor_objects,
                 **gear_objects,
             },
-            collectives=[
-                CollectiveConfig(
-                    name="cogs",
+            collectives={
+                "cogs": CollectiveConfig(
                     inventory=InventoryConfig(
                         limits={
                             "resources": ResourceLimitsConfig(limit=10000, resources=elements),
@@ -433,8 +432,8 @@ class CogsGuardMission(Config):
                         },
                     ),
                 ),
-                CollectiveConfig(name="clips"),
-            ],
+                "clips": CollectiveConfig(),
+            },
         )
 
         env = MettaGridConfig(game=game)
