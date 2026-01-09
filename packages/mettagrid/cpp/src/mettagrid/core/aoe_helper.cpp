@@ -90,8 +90,9 @@ bool AOEEffectGrid::passes_tag_filter(const AOEConfig& config, const GridObject&
   return false;
 }
 
-bool AOEEffectGrid::passes_alignment_filter(
-    const AOEConfig& config, const GridObject& source, const GridObject& target) {
+bool AOEEffectGrid::passes_alignment_filter(const AOEConfig& config,
+                                            const GridObject& source,
+                                            const GridObject& target) {
   if (config.alignment_filter == AOEAlignmentFilter::any) {
     return true;
   }
