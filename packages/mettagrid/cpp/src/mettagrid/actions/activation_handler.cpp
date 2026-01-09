@@ -21,16 +21,11 @@ ActivationHandler::ActivationHandler(const ActivationHandlerConfig& config) : _n
 }
 
 bool ActivationHandler::try_apply(HasInventory* actor, HasInventory* target) {
-  ActivationContext ctx(actor, target);
-
-  // Check all filters
-  for (const auto& filter : _filters) {
-    if (!filter->passes(ctx)) {
-      return false;
-    }
+  if (!check_filters(actor, target)) {
+    return false;
   }
 
-  // All filters passed - apply mutations
+  ActivationContext ctx(actor, target);
   for (auto& mutation : _mutations) {
     mutation->apply(ctx);
   }
