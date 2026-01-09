@@ -7,6 +7,9 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from opentelemetry import trace as otel_trace
+from opentelemetry.trace import SpanKind
+from opentelemetry.trace.status import Status, StatusCode
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -36,8 +39,10 @@ from metta.app_backend.tournament.settings import (
     POLL_INTERVAL_SECONDS,
     settings,
 )
+from metta.common.otel.tracing import trace
 
 logger = logging.getLogger(__name__)
+tracer = otel_trace.get_tracer(__name__)
 
 SOFTMAX_S3_REPLAYS_PREFIX = "s3://softmax-public/replays/tournament"
 
@@ -105,9 +110,14 @@ class CommissionerBase(ABC):
             await session.commit()
             logger.info(f"Created season '{self.season_name}'")
 
+    @trace("commissioner.run_cycle")
     @with_db
     async def _run_cycle(self) -> bool:
         """Run one cycle of the commissioner. Returns True if there was activity."""
+        span = otel_trace.get_current_span()
+        if span.is_recording():
+            span.set_attribute("tournament.season", self.season_name)
+
         pools = await self._ensure_pools_exist(list(self.referees.keys()))
 
         status_changed = await self._sync_match_statuses()
@@ -177,6 +187,7 @@ class CommissionerBase(ABC):
         )
         return {p.name: p for p in all_pools if p.name}
 
+    @trace("commissioner.sync_match_statuses")
     async def _sync_match_statuses(self) -> bool:
         """Sync match statuses from job statuses. Returns True if any changed."""
         session = get_db()
@@ -443,58 +454,77 @@ class CommissionerBase(ABC):
         await session.commit()
 
     async def _create_and_dispatch_match(self, pool_id: UUID, request: MatchRequest) -> bool:
-        session = get_db()
+        with tracer.start_as_current_span("tournament.job.enqueue", kind=SpanKind.PRODUCER) as span:
+            span.set_attribute("tournament.season", self.season_name)
+            span.set_attribute("tournament.pool_id", str(pool_id))
+            span.set_attribute("job.type", JobType.episode.value)
+            span.set_attribute("job.queue", "episode-runner")
 
-        pv_result = await session.execute(
-            select(PoolPlayer.id, PoolPlayer.policy_version_id).where(col(PoolPlayer.id).in_(request.pool_player_ids))
-        )
-        pv_ids = {row[0]: row[1] for row in pv_result.all()}
+            session = get_db()
 
-        missing = set(request.pool_player_ids) - set(pv_ids.keys())
-        if missing:
-            logger.error(f"PoolPlayers not found when creating match: {missing}")
-            return False
-
-        match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
-        session.add(match)
-        await session.flush()
-        match_id = match.id
-
-        # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
-        job_spec = dict(
-            policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
-            assignments=request.assignments,
-            env=request.env.model_dump(),
-            replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
-            seed=request.seed,
-            episode_tags=request.episode_tags,
-        )
-
-        stats_client = StatsClient(settings.STATS_SERVER_URI, machine_token=settings.MACHINE_TOKEN)
-        try:
-            job_ids = await asyncio.to_thread(
-                stats_client.create_jobs, [JobRequestCreate(job_type=JobType.episode, job=job_spec)]
+            pv_result = await session.execute(
+                select(PoolPlayer.id, PoolPlayer.policy_version_id).where(
+                    col(PoolPlayer.id).in_(request.pool_player_ids)
+                )
             )
-            job_id = job_ids[0] if job_ids else None
-        except Exception as e:
-            logger.error(f"Failed to create job for match {match_id}: {e}")
-            return False
-        finally:
-            stats_client.close()
+            pv_ids = {row[0]: row[1] for row in pv_result.all()}
 
-        if not job_id:
-            logger.error(f"Failed to create job for match {match_id}")
-            return False
+            missing = set(request.pool_player_ids) - set(pv_ids.keys())
+            if missing:
+                logger.error(f"PoolPlayers not found when creating match: {missing}")
+                span.set_attribute("job.enqueue.outcome", "failure")
+                span.set_status(Status(StatusCode.ERROR, "pool_players_missing"))
+                return False
 
-        session.add_all(
-            [
-                MatchPlayer(match_id=match.id, pool_player_id=pp_id, policy_index=idx)
-                for idx, pp_id in enumerate(request.pool_player_ids)
-            ]
-        )
-        match.job_id = job_id
-        match.status = MatchStatus.scheduled
-        await session.commit()
+            match = Match(pool_id=pool_id, assignments=request.assignments)  # type: ignore[call-arg]
+            session.add(match)
+            await session.flush()
+            match_id = match.id
+            span.set_attribute("match.id", str(match_id))
 
-        logger.debug(f"Match {match_id} -> job {job_id}")
-        return True
+            # Same shape as SingleEpisodeJob. Not importing it here to avoid dependency on metta.sim for now
+            job_spec = dict(
+                policy_uris=[f"metta://policy/{pv_ids[pp_id]}" for pp_id in request.pool_player_ids],
+                assignments=request.assignments,
+                env=request.env.model_dump(),
+                replay_uri=f"{SOFTMAX_S3_REPLAYS_PREFIX}/{match_id}.json.z",
+                seed=request.seed,
+                episode_tags=request.episode_tags,
+            )
+
+            stats_client = StatsClient(settings.STATS_SERVER_URI, machine_token=settings.MACHINE_TOKEN)
+            try:
+                job_ids = await asyncio.to_thread(
+                    stats_client.create_jobs, [JobRequestCreate(job_type=JobType.episode, job=job_spec)]
+                )
+                job_id = job_ids[0] if job_ids else None
+            except Exception as e:
+                span.record_exception(e)
+                span.set_attribute("job.enqueue.outcome", "failure")
+                span.set_status(Status(StatusCode.ERROR, "job_create_failed"))
+                logger.error(f"Failed to create job for match {match_id}: {e}")
+                return False
+            finally:
+                stats_client.close()
+
+            if not job_id:
+                span.set_attribute("job.enqueue.outcome", "failure")
+                span.set_status(Status(StatusCode.ERROR, "job_id_missing"))
+                logger.error(f"Failed to create job for match {match_id}")
+                return False
+
+            span.set_attribute("job.id", str(job_id))
+            span.set_attribute("job.enqueue.outcome", "success")
+
+            session.add_all(
+                [
+                    MatchPlayer(match_id=match.id, pool_player_id=pp_id, policy_index=idx)
+                    for idx, pp_id in enumerate(request.pool_player_ids)
+                ]
+            )
+            match.job_id = job_id
+            match.status = MatchStatus.scheduled
+            await session.commit()
+
+            logger.debug(f"Match {match_id} -> job {job_id}")
+            return True

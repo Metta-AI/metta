@@ -10,10 +10,12 @@ from metta.app_backend.tournament.scorers.weighted import WeightedScorer
 NUM_AGENTS = 4
 
 
-def _make_env() -> MettaGridConfig:
+def _make_env(seed: int) -> MettaGridConfig:
     mission = Machina1OpenWorldSharedRewardsMission.model_copy(deep=True)
     mission.num_cogs = NUM_AGENTS
-    return mission.make_env()
+    env = mission.make_env()
+    env.game.map_builder.seed = seed  # type: ignore
+    return env
 
 
 MATCH_CONFIGURATIONS: list[list[int]] = [
@@ -53,7 +55,7 @@ class PairingReferee(RefereeBase):
                 pair: Tuple[UUID, UUID] = (pp_list[0], pp_list[1])
                 config_counts[(pair[0], pair[1], tuple(md.assignments))] += 1
 
-        pending: list[Tuple[int, UUID, UUID, list[int]]] = []
+        pending: list[Tuple[int, UUID, UUID, list[int], int]] = []
         player_ids = [p.id for p in players]
 
         for i, pp1 in enumerate(player_ids):
@@ -61,25 +63,28 @@ class PairingReferee(RefereeBase):
                 pp_list = sorted([pp1, pp2])
                 pair = (pp_list[0], pp_list[1])
 
-                for config in MATCH_CONFIGURATIONS:
+                for c_idx, config in enumerate(MATCH_CONFIGURATIONS):
                     key = (pair[0], pair[1], tuple(config))
                     existing = config_counts[key]
                     needed = self.matches_per_config - existing
-                    for _ in range(needed):
-                        pending.append((existing, pp1, pp2, config))
+                    for match_i in range(needed):
+                        map_seed_offset = c_idx * 1000 + match_i + existing
+                        pending.append((existing, pp1, pp2, config, map_seed_offset))
                         existing += 1
 
         pending.sort(key=lambda x: x[0])
-
+        # map_seed_offset ensures all pairs get the same map for a given (config, match_num)
+        seed = 42
         return [
             MatchRequest(
                 pool_player_ids=[pp1, pp2],
                 assignments=config,
-                env=_make_env(),
+                env=_make_env(seed + map_seed_offset),
                 episode_tags={
                     "match_type": "pairing",
                     "assignments": str(config),
                 },
+                seed=seed,
             )
-            for _, pp1, pp2, config in pending
+            for _, pp1, pp2, config, map_seed_offset in pending
         ]
