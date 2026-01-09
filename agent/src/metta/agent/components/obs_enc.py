@@ -315,7 +315,7 @@ class ObsPerceiverLatent(nn.Module):
         attn_mask: torch.Tensor | None,
     ) -> torch.Tensor:
         """Compute attention using xformers when available, otherwise SDPA."""
-        if q.is_cuda:
+        if q.is_cuda and self._xops is not None:
             # xformers expects [B, N, H, D]
             q_x = q.permute(0, 2, 1, 3)
             k_x = k.permute(0, 2, 1, 3)
