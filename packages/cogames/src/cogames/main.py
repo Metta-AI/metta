@@ -417,7 +417,7 @@ def play_cmd(
         if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
             map_builder.seed = effective_map_seed
 
-    _ = get_policy_spec(ctx, policy)
+    policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
     console.print(f"Max Steps: {steps}, Render: {render}")
 
@@ -928,7 +928,6 @@ def diagnose_cmd(
     ),
     no_plots: bool = typer.Option(True, "--no-plots/--plots", help="Skip generating plots"),
 ) -> None:
-    policy_spec = get_policy_spec(ctx, policy)
     script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
 
     cmd = [sys.executable, str(script_path)]
