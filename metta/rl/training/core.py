@@ -133,6 +133,9 @@ class CoreTrainingLoop:
             # Allow losses to mutate td (policy inference, bookkeeping, etc.)
             with context.stopwatch("_rollout.inference"):
                 context.training_env_id = training_env_id
+                trajectory_isolator = getattr(context, "trajectory_isolator", None)
+                if trajectory_isolator is not None:
+                    trajectory_isolator.route_rollout(td, training_env_id=training_env_id, context=context)
                 for loss in self.losses.values():
                     loss.rollout(td, context)
 

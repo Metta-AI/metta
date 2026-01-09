@@ -20,6 +20,7 @@ from metta.rl.training import (
     TrainingEnvironment,
 )
 from metta.rl.training.optimizer import create_optimizer, is_schedulefree_optimizer
+from metta.rl.training.trajectory_isolation import TrajectoryIsolator
 from mettagrid.profiling.stopwatch import Stopwatch
 
 try:
@@ -199,6 +200,11 @@ class Trainer:
             loss.attach_context(self._context)
 
         self._prev_agent_step_for_step_callbacks: int = 0
+
+        # Trajectory isolation runtime controller (no-op unless configured).
+        trajectory_isolator = TrajectoryIsolator()
+        # Register for lifecycle callbacks; TrajectoryIsolator.register attaches to context.
+        self.register(trajectory_isolator)
 
     @property
     def context(self) -> ComponentContext:

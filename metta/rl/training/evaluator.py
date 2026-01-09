@@ -206,6 +206,12 @@ class Evaluator(TrainerComponent):
         # Build simulation configurations
         sims = self._build_simulations(curriculum)
         sim_run_configs = [sim.to_simulation_run_config() for sim in sims]
+
+        # Trajectory isolation integration point
+        trajectory_isolator = getattr(self.context, "trajectory_isolator", None)
+        if trajectory_isolator is not None:
+            trajectory_isolator.build_eval_plan(simulations=sims, policy_uri=policy_uri, context=self.context)
+
         policy_spec = policy_spec_from_uri(policy_uri, device=str(self._device))
         policy_version_id: uuid.UUID | None = None
         if self._stats_client:

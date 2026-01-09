@@ -4,6 +4,8 @@ from typing import Any, Literal, Mapping
 
 from pydantic import Field, model_validator
 
+from metta.rl.training.component import TrainerComponent
+from metta.rl.training.scheduler import ScheduleRule
 from mettagrid.base_config import Config
 
 
@@ -132,3 +134,59 @@ def _available_loss_keys(losses: Any) -> set[str]:
         return {str(k) for k in fields.keys()}
 
     return set()
+
+
+class TrajectoryIsolator(TrainerComponent):
+    """Runtime controller for trajectory isolation."""
+
+    def __init__(
+        self,
+        config: TrajectoryIsolationConfig | None = None,
+        *,
+        rules: list[ScheduleRule] | None = None,
+    ) -> None:
+        super().__init__(epoch_interval=1, step_interval=0)
+        self.config = config or TrajectoryIsolationConfig()
+        self.rules: list[ScheduleRule] = list(rules or [])
+
+    def register(self, context) -> None:  # type: ignore[override]
+        super().register(context)
+        # Attach to context so other components can discover it.
+        context.trajectory_isolator = self
+        # Initialize scheduled values for epoch 0 / first rollout.
+        self.apply_rules()
+
+    def apply_rules(self) -> None:
+        if not self.rules:
+            return
+        for rule in self.rules:
+            rule.apply(obj=self.config, ctx=self.context)
+
+    # ----------------- Trainer callbacks -----------------
+    def on_rollout_end(self) -> None:
+        # Allow step/metric-driven rules to update between rollout and train.
+        self.apply_rules()
+
+    def on_epoch_end(self, epoch: int) -> None:  # type: ignore[override]
+        # Prepare values for next epoch's rollout.
+        self.apply_rules()
+
+    # ----------------- Future integration points -----------------
+    def route_rollout(self, td: Any, *, training_env_id: slice, context: Any) -> None:
+        """Hook called from the core training loop near inference.
+
+        The implementation will eventually split `td` by slice, forward the appropriate policy/policies,
+        and stitch outputs (including actions) back into `td`.
+        """
+
+        _ = (td, training_env_id, context)
+        return
+
+    def build_eval_plan(self, *args: Any, **kwargs: Any) -> None:
+        """Hook called from the evaluator to plan per-slice evaluations.
+
+        This will eventually return a plan describing per-slice policy specs and episode allocations.
+        """
+
+        _ = (args, kwargs)
+        return None
