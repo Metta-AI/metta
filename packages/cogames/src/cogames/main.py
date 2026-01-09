@@ -634,7 +634,7 @@ def train_cmd(
         # Should not get here
         raise ValueError("Please specify at least one mission")
 
-    _ = get_policy_spec(ctx, policy)
+    policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
     # Optional MapGen seed override for deterministic procedural maps during training.
@@ -885,6 +885,7 @@ app.command(
     name="leaderboard",
     help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
+
 
 @app.command(name="diagnose", help="Run diagnostic evals for a policy checkpoint")
 def diagnose_cmd(
