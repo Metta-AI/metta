@@ -179,7 +179,7 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
 
 
 def validate_policy_in_isolation(
-    policy_spec: PolicySpec,
+    policy_spec: PolicySpec | str,
     include_files: list[Path],
     console: Console,
     setup_script: str | None = None,
@@ -207,12 +207,12 @@ def validate_policy_in_isolation(
         temp_dir = create_temp_validation_env()
         copy_files_maintaining_structure(include_files, temp_dir)
 
-        policy_arg = _format_policy_arg(policy_spec)
+        policy_arg = _format_policy_arg(policy_spec) if isinstance(policy_spec, PolicySpec) else policy_spec
 
         def _run_from_tmp_dir(cmd: list[str]) -> subprocess.CompletedProcess:
             env = os.environ.copy()
             env["UV_NO_CACHE"] = "1"
-            res = subprocess.run(
+            return subprocess.run(
                 cmd,
                 cwd=temp_dir,
                 capture_output=True,
@@ -220,15 +220,14 @@ def validate_policy_in_isolation(
                 timeout=300,  # 5 minute timeout
                 env=env,
             )
-            if not res.returncode == 0:
-                console.print("[red]Validation failed[/red]")
-                console.print(f"\n[red]Error:[/red]\n{res.stderr}")
-                if res.stdout:
-                    console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
-                raise Exception("Validation failed")
-            return res
 
-        _run_from_tmp_dir(["uv", "run", "cogames", "version"])
+        res = _run_from_tmp_dir(["uv", "run", "cogames", "version"])
+        if res.returncode != 0:
+            console.print("[red]Validation failed[/red]")
+            console.print(f"\n[red]Error:[/red]\n{res.stderr}")
+            if res.stdout:
+                console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
+            return False
 
         validate_cmd = [
             "uv",
@@ -240,15 +239,19 @@ def validate_policy_in_isolation(
         if setup_script:
             validate_cmd.extend(["--setup-script", setup_script])
 
-        _run_from_tmp_dir(validate_cmd)
+        res = _run_from_tmp_dir(validate_cmd)
+        if res.returncode != 0:
+            console.print("[red]Validation failed[/red]")
+            console.print(f"\n[red]Error:[/red]\n{res.stderr}")
+            if res.stdout:
+                console.print(f"\n[dim]Output:[/dim]\n{res.stdout}")
+            return False
 
         console.print("[green]Validation passed[/green]")
         return True
 
     except subprocess.TimeoutExpired:
         console.print("[red]Validation timed out after 5 minutes[/red]")
-        return False
-    except Exception:
         return False
     finally:
         if temp_dir and temp_dir.exists():
@@ -418,11 +421,7 @@ def upload_policy(
             return None
 
         if not skip_validation:
-            try:
-                policy_spec = policy_spec_from_uri(str(bundle_path))
-                validate_policy_spec(policy_spec)
-            except Exception as e:
-                console.print(f"[red]Validation failed:[/red] {e}")
+            if not validate_policy_in_isolation(str(bundle_path), [], console):
                 if cleanup_bundle:
                     bundle_path.unlink(missing_ok=True)
                 return None
