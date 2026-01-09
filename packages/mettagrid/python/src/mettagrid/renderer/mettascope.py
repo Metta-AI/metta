@@ -133,7 +133,6 @@ class MettascopeRenderer(Renderer):
                     continue
 
 
-
 # Find the Nim bindings. Two possible locations:
 #
 # Source: packages/mettagrid/nim/mettascope/bindings/generated
