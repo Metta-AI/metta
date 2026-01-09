@@ -1,4 +1,8 @@
-"""Test that mettagrid.policy package exports are correct and all submodules are importable."""
+"""Test that mettagrid.policy package exports are correct and all submodules are importable.
+
+Note: The __init__.py intentionally contains no imports to avoid circular dependencies.
+All imports should be done directly from submodules.
+"""
 
 
 def test_policy_package_exists():
@@ -90,11 +94,12 @@ def test_token_encoder_importable():
     assert coordinates is not None
 
 
-def test_all_exports_from_init():
-    """Test that __all__ exports from __init__.py are importable."""
-    import mettagrid.policy
+def test_no_circular_import_with_config():
+    """Test that importing policy doesn't create circular import with config."""
+    # This import chain previously caused circular imports:
+    # config -> simulator -> util.file -> policy -> config
+    from mettagrid.config.mettagrid_c_config import convert_to_cpp_game_config
+    from mettagrid.policy.policy import MultiAgentPolicy
 
-    # All items in __all__ should be importable from the package
-    if hasattr(mettagrid.policy, "__all__"):
-        for name in mettagrid.policy.__all__:
-            assert hasattr(mettagrid.policy, name), f"{name} in __all__ but not available in mettagrid.policy"
+    assert convert_to_cpp_game_config is not None
+    assert MultiAgentPolicy is not None
