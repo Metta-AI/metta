@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
+import xformers.ops as xops
 
 from metta.agent.components.component_config import ComponentConfig
 
@@ -157,7 +158,7 @@ class ObsLatentAttn(nn.Module):
         x_features = td[self.config.in_key]
         key_mask = None
         if self._use_mask:
-            key_mask = td["obs_mask"]
+            key_mask = td.get("obs_mask")
         BT = x_features.shape[0]
 
         queries = self._q_token.expand(BT, -1, -1)
@@ -269,12 +270,7 @@ class ObsPerceiverLatent(nn.Module):
             )
 
         self.final_norm = nn.LayerNorm(self._latent_dim)
-        try:
-            from xformers import ops as xops  # type: ignore[import-not-found]
-        except ImportError:
-            self._xops = None
-        else:
-            self._xops = xops
+        self._xops = xops
 
     def forward(self, td: TensorDict) -> TensorDict:
         x_features = td[self.config.in_key]
@@ -319,23 +315,19 @@ class ObsPerceiverLatent(nn.Module):
         attn_mask: torch.Tensor | None,
     ) -> torch.Tensor:
         """Compute attention using xformers when available, otherwise SDPA."""
-        if self._xops is not None:
-            xops = self._xops
-            try:
-                # xformers expects [B, N, H, D]
-                q_x = q.permute(0, 2, 1, 3)
-                k_x = k.permute(0, 2, 1, 3)
-                v_x = v.permute(0, 2, 1, 3)
-                attn_bias = None
-                if attn_mask is not None:
-                    # attn_mask: [B,1,1,M] -> padding mask [B,M]
-                    pad_mask = attn_mask.view(attn_mask.shape[0], -1)
-                    attn_bias = xops.fmha.attn_bias.PaddingMask(pad_mask)
-                with torch.profiler.record_function("obs_perceiver_latent.xops"):
-                    out = xops.memory_efficient_attention(q_x, k_x, v_x, attn_bias=attn_bias, p=0.0)
-                return out.permute(0, 2, 1, 3)
-            except Exception:
-                pass
+        if q.is_cuda:
+            # xformers expects [B, N, H, D]
+            q_x = q.permute(0, 2, 1, 3)
+            k_x = k.permute(0, 2, 1, 3)
+            v_x = v.permute(0, 2, 1, 3)
+            attn_bias = None
+            if attn_mask is not None:
+                # attn_mask: [B,1,1,M] -> padding mask [B,M]
+                pad_mask = attn_mask.view(attn_mask.shape[0], -1)
+                attn_bias = self._xops.fmha.attn_bias.PaddingMask(pad_mask)
+            with torch.profiler.record_function("obs_perceiver_latent.xops"):
+                out = self._xops.memory_efficient_attention(q_x, k_x, v_x, attn_bias=attn_bias, p=0.0)
+            return out.permute(0, 2, 1, 3)
 
         # Prefer flash attention when available; fall back to mem-efficient/math otherwise.
         with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_mem_efficient=True, enable_math=False):
@@ -409,12 +401,14 @@ class ObsSelfAttn(nn.Module):
 
         attn_bias = None
         if self._use_mask:
-            key_mask = td["obs_mask"].to(torch.bool)
-            if self._use_cls_token:
-                cls_pad = torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=torch.bool)
-                key_mask = torch.cat([cls_pad, key_mask], dim=1)
-            mask_value = -torch.finfo(x_features.dtype).max
-            attn_bias = einops.rearrange(key_mask, "b m -> b 1 1 m").to(x_features.dtype) * mask_value
+            key_mask = td.get("obs_mask")
+            if key_mask is not None:
+                key_mask = key_mask.to(torch.bool)
+                if self._use_cls_token:
+                    cls_pad = torch.zeros(key_mask.shape[0], 1, device=key_mask.device, dtype=torch.bool)
+                    key_mask = torch.cat([cls_pad, key_mask], dim=1)
+                mask_value = -torch.finfo(x_features.dtype).max
+                attn_bias = einops.rearrange(key_mask, "b m -> b 1 1 m").to(x_features.dtype) * mask_value
 
         x = x_features
 
