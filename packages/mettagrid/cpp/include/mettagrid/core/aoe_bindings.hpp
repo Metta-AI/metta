@@ -27,7 +27,7 @@ inline void bind_aoe_config(py::module& m) {
   // AOEConfig struct
   py::class_<AOEConfig, std::shared_ptr<AOEConfig>>(m, "AOEConfig")
       .def(py::init<>())
-      .def_readwrite("range", &AOEConfig::range)
+      .def_readwrite("radius", &AOEConfig::radius)
       .def_readwrite("deltas", &AOEConfig::deltas)
       .def_readwrite("target_tag_ids", &AOEConfig::target_tag_ids)
       .def_readwrite("alignment_filter", &AOEConfig::alignment_filter);
