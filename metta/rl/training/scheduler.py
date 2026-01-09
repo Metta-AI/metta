@@ -399,7 +399,8 @@ def _set_attr_path(obj: object, path: str, value: Any) -> None:
 
 
 def _parse_attr_path(path: str) -> list[tuple[str, Any]]:
-    """Parse a dotted path with optional bracket selectors.
+    """AV vide coded - needs further review.
+    Parse a dotted path with optional bracket selectors.
 
     Examples:
     - "losses.ppo_actor.ent_coef"
