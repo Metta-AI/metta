@@ -382,7 +382,7 @@ def play_cmd(
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="MapGen seed override for procedural map layout",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -407,9 +407,7 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    # Optional MapGen seed override for deterministic procedural maps.
-    from mettagrid.mapgen.mapgen import MapGen
-
+    # Optional MapGen seed override for procedural maps.
     if map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
         if isinstance(map_builder, MapGen.Config):
@@ -594,7 +592,7 @@ def train_cmd(
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="MapGen seed override for procedural map layout",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -635,29 +633,6 @@ def train_cmd(
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
-    # Optional MapGen seed override for deterministic procedural maps during training.
-    # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
-
-    if map_seed is not None:
-
-        def _maybe_seed(cfg: Any) -> None:
-            mb = getattr(cfg.game, "map_builder", None)
-            if isinstance(mb, MapGen.Config):
-                mb.seed = map_seed
-
-        if env_cfg is not None:
-            _maybe_seed(env_cfg)
-
-        if supplier is not None:
-            base_supplier = supplier
-
-            def _seeded_supplier() -> Any:
-                cfg = base_supplier()
-                _maybe_seed(cfg)
-                return cfg
-
-            supplier = _seeded_supplier
-
     try:
         train_module.train(
             env_cfg=env_cfg,
@@ -667,6 +642,7 @@ def train_cmd(
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
+            map_seed=map_seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             vector_num_workers=num_workers,
@@ -732,7 +708,7 @@ def run_cmd(
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="MapGen seed override for procedural map layout",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
@@ -771,9 +747,7 @@ def run_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Optional MapGen seed override for deterministic procedural maps.
-    from mettagrid.mapgen.mapgen import MapGen
-
+    # Optional MapGen seed override for procedural maps.
     if map_seed is not None:
         for _, env_cfg in selected_missions:
             map_builder = getattr(env_cfg.game, "map_builder", None)

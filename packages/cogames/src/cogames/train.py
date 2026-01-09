@@ -84,6 +84,7 @@ def train(
     num_steps: int,
     checkpoints_path: Path,
     seed: int,
+    map_seed: Optional[int] = None,
     batch_size: int,
     minibatch_size: int,
     missions_arg: Optional[list[str]] = None,
@@ -175,7 +176,7 @@ def train(
         envs_per_worker,
     )
 
-    env_creator = _EnvCreator(env_cfg, env_cfg_supplier)
+    env_creator = _EnvCreator(env_cfg, env_cfg_supplier, map_seed, seed)
     base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
@@ -409,9 +410,13 @@ class _EnvCreator:
         self,
         env_cfg: Optional[MettaGridConfig],
         env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+        map_seed: Optional[int],
+        fallback_seed: Optional[int],
     ) -> None:
         self._env_cfg = env_cfg
         self._env_cfg_supplier = env_cfg_supplier
+        self._map_seed = map_seed
+        self._fallback_seed = fallback_seed
 
     def clone_cfg(self) -> MettaGridConfig:
         if self._env_cfg_supplier is not None:
@@ -430,11 +435,11 @@ class _EnvCreator:
     ) -> PufferMettaGridEnv:
         target_cfg = cfg.model_copy(deep=True) if cfg is not None else self.clone_cfg()
 
-        # If this mission uses MapGen and the builder seed is unset, derive a deterministic
-        # MapGen seed from the per-env seed provided by the vectorized runner.
         map_builder = getattr(target_cfg.game, "map_builder", None)
-        if isinstance(map_builder, MapGen.Config) and seed is not None and map_builder.seed is None:
-            map_builder.seed = seed
+        if isinstance(map_builder, MapGen.Config):
+            base_seed = self._map_seed if self._map_seed is not None else self._fallback_seed
+            if base_seed is not None and (self._map_seed is not None or map_builder.seed is None):
+                map_builder.seed = base_seed + (seed or 0)
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
