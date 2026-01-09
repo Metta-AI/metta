@@ -907,7 +907,7 @@ def diagnose_cmd(
     ),
     no_plots: bool = typer.Option(True, "--no-plots/--plots", help="Skip generating plots"),
 ) -> None:
-    _ = get_policy_spec(ctx, policy)
+    policy_spec = get_policy_spec(ctx, policy)
     script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
 
     cmd = [sys.executable, str(script_path)]
@@ -933,7 +933,10 @@ def diagnose_cmd(
     if no_plots:
         cmd.append("--no-plots")
 
-    cmd.extend(["--policy", policy])
+    if policy_spec.data_path or policy_spec.init_kwargs:
+        cmd.extend(["--policy", policy])
+    else:
+        cmd.extend(["--agent", policy_spec.class_path])
 
     console.print("[cyan]Running diagnostic evaluation...[/cyan]")
     console.print(f"[dim]{' '.join(cmd)}[/dim]")
