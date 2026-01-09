@@ -10,13 +10,18 @@ from metta.agent.policy import Policy
 from metta.rl.loss.future_latent_ema import FutureLatentEMALoss, FutureLatentEMALossConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.training import ComponentContext, TrainingEnvironment
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 
 class _StubPolicy(Policy):
     """Minimal policy implementation for exercising the future latent EMA loss."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, policy_env_info: PolicyEnvInterface | None = None) -> None:
+        if policy_env_info is None:
+            from mettagrid.config.mettagrid_config import MettaGridConfig
+
+            policy_env_info = PolicyEnvInterface.from_mg_cfg(MettaGridConfig())
+        super().__init__(policy_env_info)
         self._device = torch.device("cpu")
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:  # noqa: D401
