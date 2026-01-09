@@ -45,6 +45,7 @@ bool ActivationHandler::check_filters(HasInventory* actor, HasInventory* target)
   return true;
 }
 
+// By using a visitor pattern here, we can keep the configs and the creation of the filters/mutations separate.
 std::unique_ptr<Filter> ActivationHandler::create_filter(const FilterConfig& config) {
   return std::visit(
       [](auto&& cfg) -> std::unique_ptr<Filter> {
