@@ -23,6 +23,7 @@ var
   px*: Pixelator
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
+  needsInitialFit*: bool = false
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -749,6 +750,11 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
     # Replay has not been loaded yet.
     return
 
+  if needsInitialFit:
+    # initial fit needs to happen after the the panel is set up to the correct size and the replay is loaded
+    fitVisibleMap(zoomInfo)
+    # fitFullMap(zoomInfo)
+    needsInitialFit = false
 
   ## Draw the world map.
   if settings.lockFocus:
