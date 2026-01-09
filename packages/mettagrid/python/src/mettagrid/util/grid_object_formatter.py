@@ -16,6 +16,9 @@ def format_grid_object_base(grid_object: dict) -> dict:
     update_object["inventory"] = list(grid_object.get("inventory", {}).items())
     update_object["inventory_max"] = grid_object.get("inventory_max", 0)
     update_object["color"] = grid_object.get("color", 0)
+    # Add collective_id for alignable objects (if present)
+    if "collective_id" in grid_object:
+        update_object["collective_id"] = grid_object["collective_id"]
     return update_object
 
 
