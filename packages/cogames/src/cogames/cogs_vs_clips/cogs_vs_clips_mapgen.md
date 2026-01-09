@@ -220,8 +220,8 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 
 - `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**: set it for deterministic terrain/building
   placement for a mission/site.
-- `--map-seed` is an **opt-in** override: when set, procedural missions use that fixed MapGen seed (overrides any
-  MapGen seed in the mission).
+- `--map-seed` is an **opt-in** override: when set, procedural missions use that fixed MapGen seed (overrides any MapGen
+  seed in the mission).
 - If `--map-seed` is unset: `train` derives per-env map seeds from `--seed` (reproducible but varied); `play`/`eval`
   leave the map builder seed untouched (often `None`, so maps vary).
 - `--seed` still controls simulator/policy RNG. For fully reproducible play/eval runs, set **both** `--seed` and
