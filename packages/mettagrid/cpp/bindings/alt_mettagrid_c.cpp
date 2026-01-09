@@ -177,7 +177,7 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names, &game_config.feature_ids);
+        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
@@ -557,10 +557,18 @@ void MettaGrid::_step() {
   // Handle per-agent inventory regeneration (global interval check, per-agent amounts)
   if (_inventory_regen_interval > 0 && current_step % _inventory_regen_interval == 0) {
     for (auto* agent : _agents) {
-      if (!agent->inventory_regen_amounts.empty()) {
-        for (const auto& [item, amount] : agent->inventory_regen_amounts) {
-          agent->inventory.update(item, amount);
-        }
+      if (agent->inventory_regen_amounts.empty()) {
+        continue;
+      }
+      auto regen_it = agent->inventory_regen_amounts.find(agent->vibe);
+      if (regen_it == agent->inventory_regen_amounts.end()) {
+        regen_it = agent->inventory_regen_amounts.find(0);
+      }
+      if (regen_it == agent->inventory_regen_amounts.end()) {
+        continue;
+      }
+      for (const auto& [item, amount] : regen_it->second) {
+        agent->inventory.update(item, amount);
       }
     }
   }
