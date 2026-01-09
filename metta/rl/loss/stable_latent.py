@@ -73,6 +73,10 @@ class StableLatentStateLoss(Loss):
             return key
         return tuple(key)
 
+    def policy_output_keys(self, policy_td: TensorDict | None = None) -> set[str]:
+        key = self._target_key
+        return {key} if isinstance(key, str) else {key}
+
     def run_train(
         self,
         shared_loss_data: TensorDict,
