@@ -15,10 +15,10 @@ namespace mettagrid {
 // An AOE effect source registered at a cell location
 struct AOEEffectSource {
   AOEConfig config;
-  GridObject* source;  // The object that created this effect
+  const GridObject* source;  // The object that created this effect
 
   AOEEffectSource() : source(nullptr) {}
-  AOEEffectSource(const AOEConfig& cfg, GridObject* src) : config(cfg), source(src) {}
+  AOEEffectSource(const AOEConfig& cfg, const GridObject* src) : config(cfg), source(src) {}
 };
 
 /**
@@ -39,10 +39,10 @@ public:
   ~AOEEffectGrid() = default;
 
   // Register an AOE source - adds effect to all cells within radius
-  void register_source(GridObject& source, const AOEConfig& config);
+  void register_source(const GridObject& source, const AOEConfig& config);
 
   // Unregister an AOE source - removes effect from all cells
-  void unregister_source(GridObject& source);
+  void unregister_source(const GridObject& source);
 
   // Apply all AOE effects at a location to a target object
   // Filters are checked before applying each effect
@@ -56,7 +56,7 @@ private:
   static bool passes_tag_filter(const AOEConfig& config, const GridObject& target);
 
   // Check if target passes alignment filter for an effect
-  static bool passes_alignment_filter(const AOEConfig& config, GridObject& source, GridObject& target);
+  static bool passes_alignment_filter(const AOEConfig& config, const GridObject& source, const GridObject& target);
 
   // Hash function for GridLocation
   struct LocationHash {
@@ -72,7 +72,7 @@ private:
   std::unordered_map<GridLocation, std::vector<AOEEffectSource>, LocationHash> _cell_effects;
 
   // Map from source object to its registered config (for unregistration)
-  std::unordered_map<GridObject*, AOEConfig> _source_configs;
+  std::unordered_map<const GridObject*, AOEConfig> _source_configs;
 };
 
 }  // namespace mettagrid

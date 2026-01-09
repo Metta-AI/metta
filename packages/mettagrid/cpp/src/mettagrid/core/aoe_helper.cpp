@@ -10,7 +10,7 @@ namespace mettagrid {
 
 AOEEffectGrid::AOEEffectGrid(GridCoord height, GridCoord width) : _height(height), _width(width) {}
 
-void AOEEffectGrid::register_source(GridObject& source, const AOEConfig& config) {
+void AOEEffectGrid::register_source(const GridObject& source, const AOEConfig& config) {
   // Store the config for later unregistration
   _source_configs[&source] = config;
 
@@ -35,7 +35,7 @@ void AOEEffectGrid::register_source(GridObject& source, const AOEConfig& config)
   }
 }
 
-void AOEEffectGrid::unregister_source(GridObject& source) {
+void AOEEffectGrid::unregister_source(const GridObject& source) {
   auto config_it = _source_configs.find(&source);
   if (config_it == _source_configs.end()) {
     return;
@@ -90,13 +90,14 @@ bool AOEEffectGrid::passes_tag_filter(const AOEConfig& config, const GridObject&
   return false;
 }
 
-bool AOEEffectGrid::passes_alignment_filter(const AOEConfig& config, GridObject& source, GridObject& target) {
+bool AOEEffectGrid::passes_alignment_filter(
+    const AOEConfig& config, const GridObject& source, const GridObject& target) {
   if (config.alignment_filter == AOEAlignmentFilter::any) {
     return true;
   }
 
-  Alignable* source_alignable = dynamic_cast<Alignable*>(&source);
-  Alignable* target_alignable = dynamic_cast<Alignable*>(&target);
+  const Alignable* source_alignable = dynamic_cast<const Alignable*>(&source);
+  const Alignable* target_alignable = dynamic_cast<const Alignable*>(&target);
 
   if (source_alignable == nullptr || target_alignable == nullptr) {
     return false;
