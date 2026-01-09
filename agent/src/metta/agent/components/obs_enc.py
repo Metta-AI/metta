@@ -4,8 +4,8 @@ import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensordict import TensorDict
 import xformers.ops as xops
+from tensordict import TensorDict
 
 from metta.agent.components.component_config import ComponentConfig
 

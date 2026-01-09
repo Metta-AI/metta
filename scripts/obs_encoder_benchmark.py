@@ -199,9 +199,7 @@ def main() -> None:
     benchmark_variant(
         "LatentAttn (q=8,L=1)", obs_sequences, shim, embed, latent_attn, device, dtype, args.warmup, args.iters
     )
-    benchmark_variant(
-        "SelfAttn (L=1)", obs_sequences, shim, embed, self_attn, device, dtype, args.warmup, args.iters
-    )
+    benchmark_variant("SelfAttn (L=1)", obs_sequences, shim, embed, self_attn, device, dtype, args.warmup, args.iters)
 
 
 if __name__ == "__main__":
