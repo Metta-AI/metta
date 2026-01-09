@@ -11,9 +11,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Optional, Sequence, Union
 
+import torch
+
 import pufferlib.models  # type: ignore[import-untyped]
 import pufferlib.pytorch  # type: ignore[import-untyped]
-import torch
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
