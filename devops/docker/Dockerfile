@@ -4,6 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
 ENV READTHEDOCS=True
 ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -44,7 +45,7 @@ COPY . .
 
 RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   uv sync --locked && \
-  rm -rf /root/.cache/uv/*
+  rm -rf /root/.cache/uv/* /tmp/* /var/tmp/*
 
 # == RUNTIME ==
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS runtime
@@ -53,6 +54,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
 ENV READTHEDOCS=True
 ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -65,6 +67,7 @@ WORKDIR /workspace/metta
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
 COPY --from=builder /workspace/metta /workspace/metta/
+COPY --from=builder /opt/uv-python /opt/uv-python
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
