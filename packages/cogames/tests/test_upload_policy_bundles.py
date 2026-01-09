@@ -25,7 +25,6 @@ def test_validate_paths_accepts_absolute_within_cwd(tmp_path: Path, monkeypatch:
 def test_validate_paths_rejects_outside_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     outside = tmp_path.parent / "outside.txt"
-    outside.write_text("nope")
     console = Console()
 
     with pytest.raises(ValueError):
