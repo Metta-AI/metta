@@ -224,8 +224,11 @@ def main() -> None:
         raise ValueError("--name is required unless --no-upload is set.")
     if args.season and args.no_upload:
         raise ValueError("--season requires Observatory upload; remove --no-upload.")
-    if args.delete_source and not args.mpt.startswith("s3://"):
-        raise ValueError("--delete-source requires --mpt to be an s3:// URI.")
+    if args.delete_source:
+        if not args.mpt.startswith("s3://"):
+            raise ValueError("--delete-source requires --mpt to be an s3:// URI.")
+        if not (args.s3_dest or args.replace_s3):
+            raise ValueError("--delete-source requires either --s3-dest or --replace-s3.")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
