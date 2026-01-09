@@ -1,5 +1,5 @@
 import
-  genny, openGL, jsony, vmath, windy, silky,
+  os, genny, openGL, jsony, vmath, windy, silky,
   ../src/mettascope,
   ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes]
 
@@ -22,7 +22,8 @@ proc ctrlCHandler() {.noconv.} =
 proc init(dataDir: string, replay: string): RenderResponse =
   try:
     echo "Initializing Mettascope..."
-    setControlCHook(ctrlCHandler)
+    if os.getEnv("METTASCOPE_DISABLE_CTRL_C", "") == "":
+      setControlCHook(ctrlCHandler)
     result = RenderResponse(shouldClose: false, actions: @[])
     playMode = Realtime
     setDataDir(dataDir)
