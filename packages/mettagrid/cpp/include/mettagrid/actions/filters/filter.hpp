@@ -31,13 +31,8 @@ public:
   explicit VibeFilter(const VibeFilterConfig& config) : _config(config) {}
 
   bool passes(const ActivationContext& ctx) const override {
-    HasInventory* entity = ctx.resolve(_config.entity);
-    if (entity == nullptr) {
-      return false;
-    }
-
     // Cast to GridObject to access vibe (GridObject inherits from HasVibe)
-    GridObject* grid_obj = dynamic_cast<GridObject*>(entity);
+    GridObject* grid_obj = dynamic_cast<GridObject*>(ctx.resolve(_config.entity));
     if (grid_obj == nullptr) {
       return false;
     }
@@ -110,13 +105,8 @@ public:
   explicit TagFilter(const TagFilterConfig& config) : _config(config) {}
 
   bool passes(const ActivationContext& ctx) const override {
-    HasInventory* entity = ctx.resolve(_config.entity);
-    if (entity == nullptr) {
-      return false;
-    }
-
     // Get GridObject to access tag_ids
-    GridObject* grid_obj = dynamic_cast<GridObject*>(entity);
+    GridObject* grid_obj = dynamic_cast<GridObject*>(ctx.resolve(_config.entity));
     if (grid_obj == nullptr) {
       return false;
     }
