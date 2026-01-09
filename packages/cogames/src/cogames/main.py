@@ -1031,7 +1031,6 @@ def upload_cmd(
     server: str = typer.Option(
         DEFAULT_SUBMIT_SERVER,
         "--server",
-        "-s",
         help="Server URL",
     ),
     dry_run: bool = typer.Option(
@@ -1099,7 +1098,6 @@ def submit_cmd(
     server: str = typer.Option(
         DEFAULT_SUBMIT_SERVER,
         "--server",
-        "-s",
         help="Server URL",
     ),
 ) -> None:
