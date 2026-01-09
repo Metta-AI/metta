@@ -8,8 +8,9 @@ from kubernetes import (
     client,
     watch,  # type: ignore[attr-defined]
 )
-from kubernetes import config as kubernetes_config
-from kubernetes.client.rest import ApiException
+from kubernetes.client.rest import ApiException  # type: ignore[attr-defined]
+from kubernetes.config.incluster_config import load_incluster_config
+from kubernetes.config.kube_config import load_kube_config
 from opentelemetry import trace as otel_trace
 
 from metta.app_backend.clients.stats_client import StatsClient
@@ -28,6 +29,7 @@ from metta.common.util.log_config import init_logging, suppress_noisy_logs
 logger = logging.getLogger(__name__)
 
 WATCH_TIMEOUT_SECONDS = 30
+RECONCILE_INTERVAL_SECONDS = 60
 
 
 @functools.cache
@@ -36,9 +38,9 @@ def _get_k8s_clients() -> tuple[client.CoreV1Api, client.BatchV1Api]:
     if cfg.LOCAL_DEV:
         if not cfg.LOCAL_DEV_K8S_CONTEXT:
             raise ValueError("LOCAL_DEV=true requires LOCAL_DEV_K8S_CONTEXT to be set")
-        kubernetes_config.load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
+        load_kube_config(context=cfg.LOCAL_DEV_K8S_CONTEXT)
     else:
-        kubernetes_config.load_incluster_config()
+        load_incluster_config()
     return client.CoreV1Api(), client.BatchV1Api()
 
 
@@ -65,10 +67,17 @@ def run_watcher():
     stats_client._validate_authenticated()
     logger.info(f"Watcher started: stats_server_uri={cfg.STATS_SERVER_URI}, namespace={JOB_NAMESPACE}")
 
+    last_reconcile = 0.0
+
     try:
         while True:
             try:
                 _watch_pods(stats_client)
+
+                now = time.monotonic()
+                if now - last_reconcile >= RECONCILE_INTERVAL_SECONDS:
+                    _reconcile_stale_jobs(stats_client)
+                    last_reconcile = now
             except Exception as e:
                 logger.error(f"Watch error, restarting: {e}", exc_info=True)
                 time.sleep(1)
@@ -109,6 +118,54 @@ def _watch_pods(stats_client: StatsClient):
             _handle_pod_deleted(stats_client, pod)
 
 
+@trace("tournament.job.reconcile")
+def _reconcile_stale_jobs(stats_client: StatsClient):
+    """Check for jobs marked running/dispatched that have no corresponding pod."""
+    core_v1, _ = _get_k8s_clients()
+    label_selector = f"{LABEL_APP}={LABEL_APP_VALUE}"
+
+    try:
+        pods = core_v1.list_namespaced_pod(namespace=JOB_NAMESPACE, label_selector=label_selector)
+    except Exception as e:
+        logger.error(f"Failed to list pods for reconciliation: {e}")
+        return
+
+    active_job_ids: set[UUID] = set()
+    for pod in pods.items:
+        info = _get_job_info(pod)
+        if info:
+            active_job_ids.add(info[0])
+
+    try:
+        running_jobs = stats_client.list_jobs(statuses=[JobStatus.running, JobStatus.dispatched])
+    except Exception as e:
+        logger.error(f"Failed to list running jobs for reconciliation: {e}")
+        return
+
+    stale_count = 0
+    completed_count = 0
+    for job in running_jobs:
+        if job.id not in active_job_ids:
+            if job.completed_at or job.result:
+                logger.info(f"Reconciliation: job {job.id} has results but status={job.status}, marking completed")
+                _update_job_status(stats_client, job.id, JobStatus.completed)
+                completed_count += 1
+            else:
+                logger.warning(f"Reconciliation: job {job.id} marked {job.status} but no pod found, marking failed")
+                _update_job_status(stats_client, job.id, JobStatus.failed, error="Pod not found (reconciliation)")
+                stale_count += 1
+
+    span = otel_trace.get_current_span()
+    if span.is_recording():
+        span.set_attribute("reconcile.jobs_checked", len(running_jobs))
+        span.set_attribute("reconcile.pods_found", len(active_job_ids))
+        span.set_attribute("reconcile.completed_count", completed_count)
+        span.set_attribute("reconcile.failed_count", stale_count)
+
+    if stale_count > 0 or completed_count > 0:
+        logger.info(f"Reconciliation complete: {completed_count} completed, {stale_count} failed")
+
+
 def _get_job_info(pod: client.V1Pod) -> tuple[UUID, str] | None:
     if not pod.metadata or not pod.metadata.labels:
         return None
@@ -131,7 +188,8 @@ def _handle_pod_state(stats_client: StatsClient, pod: client.V1Pod):
     if span.is_recording():
         span.set_attribute("job.id", str(job_id))
         span.set_attribute("pod.name", pod_name)
-        span.set_attribute("pod.phase", phase)
+        if phase:
+            span.set_attribute("pod.phase", phase)
 
     if phase == "Succeeded":
         _update_job_status(stats_client, job_id, JobStatus.completed)

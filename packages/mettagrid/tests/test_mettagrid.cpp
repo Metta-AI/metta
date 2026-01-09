@@ -15,6 +15,8 @@
 #include "objects/agent_config.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
+#include "objects/collective.hpp"
+#include "objects/collective_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory.hpp"
 #include "objects/inventory_config.hpp"
@@ -178,6 +180,56 @@ TEST_F(MettaGridCppTest, AgentRewardsWithAdditionalStatsTracker) {
   agent->stats.set("chest.heart.amount", 10.0f);
   agent->compute_stat_rewards(&additional_stats);
   EXPECT_FLOAT_EQ(agent_reward, 7.0f);  // 5 + 0.1 * 10 + 10
+}
+
+TEST_F(MettaGridCppTest, AgentRewardsFromCollectiveStats) {
+  // Create agent with reward for collective resource deposits
+  auto rewards = create_test_stats_rewards();
+  rewards["collective.ore_red.deposited"] = 0.5f;  // 0.5 reward per ore deposited to collective
+
+  auto stats_reward_max = create_test_stats_reward_max();
+  stats_reward_max["collective.ore_red.deposited"] = 10.0f;
+
+  AgentConfig agent_cfg(0, "agent", 1, "test_group", 100, 0, create_test_inventory_config(), rewards, stats_reward_max);
+  auto resource_names = create_test_resource_names();
+  std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg, &resource_names));
+
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+
+  // Create a collective with inventory
+  CollectiveConfig collective_cfg;
+  collective_cfg.name = "test_collective";
+  collective_cfg.inventory_config.limit_defs = {LimitDef({TestItems::ORE}, 100)};
+  Collective collective(collective_cfg, &resource_names);
+
+  // Deposit resources to the collective
+  collective.inventory.update(TestItems::ORE, 10);
+
+  // Verify the collective tracked the deposit
+  EXPECT_FLOAT_EQ(collective.stats.get("collective.ore_red.deposited"), 10.0f);
+
+  // Compute agent rewards using collective stats
+  agent->compute_stat_rewards(&collective.stats);
+  EXPECT_FLOAT_EQ(agent_reward, 5.0f);  // 10 * 0.5
+
+  // Deposit more resources
+  collective.inventory.update(TestItems::ORE, 8);
+  EXPECT_FLOAT_EQ(collective.stats.get("collective.ore_red.deposited"), 18.0f);
+
+  agent->compute_stat_rewards(&collective.stats);
+  EXPECT_FLOAT_EQ(agent_reward, 9.0f);  // 18 * 0.5
+
+  // Test cap behavior
+  collective.inventory.update(TestItems::ORE, 10);  // Total 28 deposited
+  EXPECT_FLOAT_EQ(collective.stats.get("collective.ore_red.deposited"), 28.0f);
+
+  agent->compute_stat_rewards(&collective.stats);
+  EXPECT_FLOAT_EQ(agent_reward, 10.0f);  // Capped at 10.0
+
+  // Test withdrawal tracking
+  collective.inventory.update(TestItems::ORE, -5);
+  EXPECT_FLOAT_EQ(collective.stats.get("collective.ore_red.withdrawn"), 5.0f);
 }
 
 TEST_F(MettaGridCppTest, AgentInventoryUpdate) {

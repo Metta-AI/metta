@@ -1,14 +1,17 @@
 import
-  std/[times, tables, os, strutils, pathnorm],
+  std/[times, tables, os, pathnorm],
   boxy, windy, vmath, silky,
   replays
 
-var rootDir* = "packages/mettagrid/nim/mettascope/"
-var dataDir* = rootDir / "data"
+# Compile-time fallback: derive data dir from source file location.
+# This works for standalone Nim builds and atlas generation.
+const defaultDataDir = currentSourcePath().parentDir.parentDir.parentDir / "data"
+var dataDir* = defaultDataDir
 
 proc setDataDir*(path: string) =
+  ## Set the data directory path. Called from Python bindings with absolute path.
+  ## Overrides the compile-time default for runtime use.
   dataDir = path.normalizePath
-  rootDir = dataDir.parentDir.normalizePath
 
 type
   IRect* = object

@@ -189,46 +189,45 @@ class LSTMAgentPolicy(StatefulPolicyImpl[LSTMState]):
     ) -> Tuple[MettaGridAction, Optional[LSTMState]]:
         obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, self._device)
 
-        with torch.no_grad():
-            self._net.eval()
-            # For inference, we pass state through a dict so forward_eval can populate it
-            state_dict: LSTMStateDict = {"lstm_h": None, "lstm_c": None}
-            if state is not None:
-                hidden, cell = state.to_tuple()
-                state_dict["lstm_h"], state_dict["lstm_c"] = hidden, cell
+        self._net.eval()
+        # For inference, we pass state through a dict so forward_eval can populate it
+        state_dict: LSTMStateDict = {"lstm_h": None, "lstm_c": None}
+        if state is not None:
+            hidden, cell = state.to_tuple()
+            state_dict["lstm_h"], state_dict["lstm_c"] = hidden, cell
 
-            # Debug: check observation
-            if torch.isnan(obs_tensor).any():
-                logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}")
-            if torch.isinf(obs_tensor).any():
-                logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
+        # Debug: check observation
+        if torch.isnan(obs_tensor).any():
+            logger.error(f"NaN in observation! obs shape: {obs_tensor.shape}, obs: {obs_tensor}")
+        if torch.isinf(obs_tensor).any():
+            logger.error(f"Inf in observation! obs shape: {obs_tensor.shape}")
 
-            logits, _ = self._net.forward_eval(obs_tensor, state_dict)
+        logits, _ = self._net.forward_eval(obs_tensor, state_dict)
 
-            # Debug: check logits
-            if torch.isnan(logits).any():
-                logger.error(
-                    f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
-                )
-                logger.error(f"Logits: {logits}")
-                for name, param in self._net.named_parameters():
-                    if torch.isnan(param).any():
-                        logger.error(f"NaN in parameter {name}")
+        # Debug: check logits
+        if torch.isnan(logits).any():
+            logger.error(
+                f"NaN in logits! obs shape: {obs_tensor.shape}, obs min/max: {obs_tensor.min()}/{obs_tensor.max()}"
+            )
+            logger.error(f"Logits: {logits}")
+            for name, param in self._net.named_parameters():
+                if torch.isnan(param).any():
+                    logger.error(f"NaN in parameter {name}")
 
-            # Extract the new state from the dict
-            new_state: Optional[LSTMState] = None
-            if "lstm_h" in state_dict and "lstm_c" in state_dict:
-                h, c = state_dict["lstm_h"], state_dict["lstm_c"]
-                tuple_state = (h.detach(), c.detach())
-                layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
-                new_state = LSTMState.from_tuple(tuple_state, layers)
+        # Extract the new state from the dict
+        new_state: Optional[LSTMState] = None
+        if "lstm_h" in state_dict and "lstm_c" in state_dict:
+            h, c = state_dict["lstm_h"], state_dict["lstm_c"]
+            tuple_state = (h.detach(), c.detach())
+            layers = self._net._rnn.num_layers * (2 if self._net._rnn.bidirectional else 1)
+            new_state = LSTMState.from_tuple(tuple_state, layers)
 
-            # Sample action from the logits
-            dist = torch.distributions.Categorical(logits=logits)
-            sampled_action = dist.sample().cpu().item()
-            # Convert action index to Action object
-            action = list(self._policy_env_info.actions.actions())[sampled_action]
-            return action, new_state.detach() if new_state is not None else None
+        # Sample action from the logits
+        dist = torch.distributions.Categorical(logits=logits)
+        sampled_action = dist.sample().cpu().item()
+        # Convert action index to Action object
+        action = list(self._policy_env_info.actions.actions())[sampled_action]
+        return action, new_state.detach() if new_state is not None else None
 
 
 class LSTMPolicy(MultiAgentPolicy):
