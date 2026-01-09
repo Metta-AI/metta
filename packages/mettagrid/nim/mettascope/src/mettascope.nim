@@ -7,14 +7,14 @@ import
 when isMainModule:
   # Build the atlas.
   var builder = newAtlasBuilder(1024, 4)
-  builder.addDir(rootDir / "data/theme/", rootDir / "data/theme/")
-  builder.addDir(rootDir / "data/ui/", rootDir / "data/")
-  builder.addDir(rootDir / "data/vibe/", rootDir / "data/")
-  builder.addDir(rootDir / "data/resources/", rootDir / "data/")
-  # builder.addDir(rootDir / "data/agents/", rootDir / "data/")
-  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "H1", 32.0)
-  builder.addFont(rootDir / "data/fonts/Inter-Regular.ttf", "Default", 18.0)
-  builder.write(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
+  builder.addDir(dataDir / "theme/", dataDir / "theme/")
+  builder.addDir(dataDir / "ui/", dataDir / "ui/")
+  builder.addDir(dataDir / "vibe/", dataDir / "vibe/")
+  builder.addDir(dataDir / "resources/", dataDir / "resources/")
+  # builder.addDir(dataDir / "agents/", dataDir / "agents/")
+  builder.addFont(dataDir / "fonts/Inter-Regular.ttf", "H1", 32.0)
+  builder.addFont(dataDir / "fonts/Inter-Regular.ttf", "Default", 18.0)
+  builder.write(dataDir / "silky.atlas.png", dataDir / "silky.atlas.json")
 
   window = newWindow(
     "MettaScope",
@@ -201,7 +201,7 @@ proc initMettascope*() =
 
   initPanels()
 
-  sk = newSilky(rootDir / "data/silky.atlas.png", rootDir / "data/silky.atlas.json")
+  sk = newSilky(dataDir / "silky.atlas.png", dataDir / "silky.atlas.json")
   bxy = newBoxy()
 
   ## Initialize the world map zoom info.
