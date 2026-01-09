@@ -50,11 +50,12 @@ public:
 struct GridObjectConfig {
   TypeId type_id;
   std::string type_name;
+  std::string name;  // Instance name (defaults to type_name if empty)
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), tag_ids({}), initial_vibe(initial_vibe) {}
+      : type_id(type_id), type_name(type_name), name(""), tag_ids({}), initial_vibe(initial_vibe) {}
 
   virtual ~GridObjectConfig() = default;
 };
@@ -64,7 +65,8 @@ public:
   GridObjectId id{};
   GridLocation location{};
   TypeId type_id{};
-  std::string type_name;
+  std::string type_name;  // Class type (e.g., "assembler")
+  std::string name;       // Instance name (e.g., "carbon_extractor"), defaults to type_name
   std::vector<int> tag_ids;
 
   virtual ~GridObject() = default;
@@ -73,9 +75,11 @@ public:
             const std::string& object_type_name,
             const GridLocation& object_location,
             const std::vector<int>& tags,
-            ObservationType object_vibe = 0) {
+            ObservationType object_vibe = 0,
+            const std::string& object_name = "") {
     this->type_id = object_type_id;
     this->type_name = object_type_name;
+    this->name = object_name.empty() ? object_type_name : object_name;
     this->location = object_location;
     this->tag_ids = tags;
     this->vibe = object_vibe;

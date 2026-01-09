@@ -153,6 +153,18 @@ def tutorial_cmd(
     # Force 1 agent for tutorial
     env_cfg.game.num_agents = 1
 
+    stop_event = threading.Event()
+
+    def _wait_for_enter(prompt: str) -> bool:
+        if stop_event.is_set():
+            return False
+        try:
+            Prompt.ask(prompt, default="", show_default=False)
+        except (KeyboardInterrupt, EOFError):
+            stop_event.set()
+            return False
+        return True
+
     def run_tutorial_steps():
         # Wait a moment for the window to appear
         time.sleep(3)
@@ -218,6 +230,8 @@ def tutorial_cmd(
         )
 
         for idx, step in enumerate(tutorial_steps):
+            if stop_event.is_set():
+                return
             console.print()
             console.print(f"[bold cyan]{step['title']}[/bold cyan]")
             console.print()
@@ -225,7 +239,8 @@ def tutorial_cmd(
                 console.print(f"  • {line}")
             console.print()
             if idx < len(tutorial_steps) - 1:
-                Prompt.ask("[dim]Press Enter for next step[/dim]", default="", show_default=False)
+                if not _wait_for_enter("[dim]Press Enter for next step[/dim]"):
+                    return
 
         console.print(
             "[bold green]REFERENCE DOSSIERS[/bold green]\n"
@@ -235,19 +250,25 @@ def tutorial_cmd(
         )
         console.print()
         console.print("[dim]Tutorial briefing complete. Good luck, Cognitive.[/dim]")
+        console.print("[dim]Close the Mettascope window to exit the tutorial.[/dim]")
 
     # Start tutorial interaction in a background thread
     tutorial_thread = threading.Thread(target=run_tutorial_steps, daemon=True)
     tutorial_thread.start()
 
     # Run play (blocks main thread)
-    play_module.play(
-        console,
-        env_cfg=env_cfg,
-        policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
-        game_name="tutorial",
-        render_mode="gui",
-    )
+    try:
+        play_module.play(
+            console,
+            env_cfg=env_cfg,
+            policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
+            game_name="tutorial",
+            render_mode="gui",
+        )
+    except KeyboardInterrupt:
+        logger.info("Tutorial interrupted; exiting.")
+    finally:
+        stop_event.set()
 
 
 app.add_typer(tutorial_app, name="tutorial")
