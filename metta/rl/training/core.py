@@ -195,10 +195,7 @@ class CoreTrainingLoop:
             return
 
         num_agents = int(slot_ids.numel())
-        if env_slice is None:
-            num_envs = td.batch_size.numel() // num_agents
-        else:
-            num_envs = env_slice.stop - env_slice.start
+        num_envs = td.batch_size.numel() // num_agents
         device = td.device
 
         def _expand(meta: torch.Tensor) -> torch.Tensor:
