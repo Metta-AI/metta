@@ -406,6 +406,48 @@ def upload_submission(
         return None
 
 
+def _upload_policy_bundle(
+    bundle_result: tuple[Path, bool],
+    *,
+    client: TournamentServerClient,
+    name: str,
+    console: Console,
+    init_kwargs: dict[str, str] | None,
+    include_files: list[str] | None,
+    setup_script: str | None,
+    skip_validation: bool,
+    dry_run: bool,
+) -> UploadResult | None:
+    bundle_zip, cleanup_bundle_zip = bundle_result
+
+    try:
+        if init_kwargs or include_files or setup_script:
+            console.print("[red]Error:[/red] Extra files/kwargs are not supported when uploading a bundle URI.")
+            console.print("Upload the bundle as-is, or use class=... with local files to build a new submission zip.")
+            return None
+
+        if not skip_validation:
+            if not validate_bundle_in_isolation(bundle_zip, console):
+                console.print("\n[red]Upload aborted due to validation failure.[/red]")
+                return None
+        else:
+            console.print("[dim]Skipping validation[/dim]")
+
+        if dry_run:
+            console.print("[green]Dry run complete[/green]")
+            return None
+
+        with client:
+            result = upload_submission(client, bundle_zip, name, console)
+        if not result:
+            console.print("\n[red]Upload failed.[/red]")
+            return None
+        return result
+    finally:
+        if cleanup_bundle_zip and bundle_zip.exists():
+            bundle_zip.unlink()
+
+
 def upload_policy(
     ctx: typer.Context,
     policy: str,
@@ -432,8 +474,6 @@ def upload_policy(
     if not client:
         return None
 
-    bundle_zip: Path | None = None
-    cleanup_bundle_zip = False
     try:
         bundle_result = _maybe_resolve_checkpoint_bundle_uri(policy)
     except Exception as e:
@@ -441,39 +481,17 @@ def upload_policy(
         return None
 
     if bundle_result is not None:
-        bundle_zip, cleanup_bundle_zip = bundle_result
-        if init_kwargs or include_files or setup_script:
-            console.print("[red]Error:[/red] Extra files/kwargs are not supported when uploading a bundle URI.")
-            console.print("Upload the bundle as-is, or use class=... with local files to build a new submission zip.")
-            if cleanup_bundle_zip and bundle_zip.exists():
-                bundle_zip.unlink()
-            return None
-
-        if not skip_validation:
-            if not validate_bundle_in_isolation(bundle_zip, console):
-                console.print("\n[red]Upload aborted due to validation failure.[/red]")
-                if cleanup_bundle_zip and bundle_zip.exists():
-                    bundle_zip.unlink()
-                return None
-        else:
-            console.print("[dim]Skipping validation[/dim]")
-
-        if dry_run:
-            console.print("[green]Dry run complete[/green]")
-            if cleanup_bundle_zip and bundle_zip.exists():
-                bundle_zip.unlink()
-            return None
-
-        try:
-            with client:
-                result = upload_submission(client, bundle_zip, name, console)
-            if not result:
-                console.print("\n[red]Upload failed.[/red]")
-                return None
-            return result
-        finally:
-            if cleanup_bundle_zip and bundle_zip.exists():
-                bundle_zip.unlink()
+        return _upload_policy_bundle(
+            bundle_result,
+            client=client,
+            name=name,
+            console=console,
+            init_kwargs=init_kwargs,
+            include_files=include_files,
+            setup_script=setup_script,
+            skip_validation=skip_validation,
+            dry_run=dry_run,
+        )
 
     try:
         policy_spec = get_policy_spec(ctx, policy)
