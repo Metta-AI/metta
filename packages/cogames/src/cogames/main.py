@@ -634,7 +634,7 @@ def train_cmd(
         # Should not get here
         raise ValueError("Please specify at least one mission")
 
-    policy_spec = get_policy_spec(ctx, policy)
+    _ = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
     # Optional MapGen seed override for deterministic procedural maps during training.
@@ -886,7 +886,6 @@ app.command(
     help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
 
-
 @app.command(name="diagnose", help="Run diagnostic evals for a policy checkpoint")
 def diagnose_cmd(
     ctx: typer.Context,
@@ -913,20 +912,7 @@ def diagnose_cmd(
         help="Agent counts to test (default depends on eval suite)",
     ),
     steps: int = typer.Option(1000, "--steps", help="Max steps per episode"),
-    seed: int = typer.Option(42, "--seed", help="Random seed"),
     repeats: int = typer.Option(3, "--repeats", help="Runs per case"),
-    jobs: int = typer.Option(0, "--jobs", help="Max parallel cases (0 = CPU count)"),
-    output: Optional[Path] = typer.Option(  # noqa: B008
-        None,
-        "--output",
-        help="Output JSON file for results",
-    ),
-    plot_dir: Optional[Path] = typer.Option(  # noqa: B008
-        None,
-        "--plot-dir",
-        help="Directory to save plots",
-    ),
-    no_plots: bool = typer.Option(True, "--no-plots/--plots", help="Skip generating plots"),
 ) -> None:
     policy_spec = get_policy_spec(ctx, policy)
     script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
@@ -943,16 +929,8 @@ def diagnose_cmd(
         cmd.extend(str(c) for c in cogs)
 
     cmd.extend(["--steps", str(steps)])
-    cmd.extend(["--seed", str(seed)])
     cmd.extend(["--repeats", str(repeats)])
-    cmd.extend(["--jobs", str(jobs)])
-
-    if output:
-        cmd.extend(["--output", str(output)])
-    if plot_dir:
-        cmd.extend(["--plot-dir", str(plot_dir)])
-    if no_plots:
-        cmd.append("--no-plots")
+    cmd.append("--no-plots")
 
     cmd.extend(["--policy", policy])
 
