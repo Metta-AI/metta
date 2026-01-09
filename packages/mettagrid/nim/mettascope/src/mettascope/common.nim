@@ -1,5 +1,5 @@
 import
-  std/[times, tables, os, strutils, pathnorm],
+  std/[times, tables, os, pathnorm],
   boxy, windy, vmath, silky,
   replays
 
