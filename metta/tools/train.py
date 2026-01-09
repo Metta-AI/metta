@@ -1,6 +1,9 @@
 import contextlib
+import logging
+import multiprocessing
 import os
 import platform
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -46,6 +49,8 @@ from metta.rl.training import (
 from metta.rl.training.scheduler import LossScheduler, SchedulerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import (
+    PolicyStorageDecision,
+    auto_policy_storage_decision,
     auto_run_name,
     auto_stats_server_uri,
     auto_wandb_config,
@@ -82,6 +87,14 @@ class TrainTool(Tool):
     disable_macbook_optimize: bool = False
     sandbox: bool = False
 
+    def output_references(self, job_name: str) -> dict:
+        storage = auto_policy_storage_decision(job_name)
+        if storage.remote_prefix:
+            policy_uri = storage.remote_prefix
+        else:
+            policy_uri = f"file://{self.system.data_dir / job_name / 'checkpoints'}"
+        return {"policy_uri": policy_uri}
+
     def invoke(self, args: dict[str, str]) -> int | None:
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
@@ -116,7 +129,7 @@ class TrainTool(Tool):
                 )
                 self.checkpointer.epoch_interval = self.evaluator.epoch_interval
 
-        if self.evaluator and self.evaluator.evaluate_local:
+        if self.evaluator.evaluate_local:
             # suppress NCCL watchdog timeouts while ranks wait for master to complete evals
             logger.warning("Local policy evaluation can be inefficient - consider switching to remote evaluation!")
             self.system.nccl_timeout = timedelta(hours=4)
@@ -130,23 +143,50 @@ class TrainTool(Tool):
         supervisor_policy_spec: PolicySpec | None = None
         if sup_uri:
             candidate = Path(sup_uri)
-            looks_like_path = candidate.suffix or os.sep in sup_uri or candidate.parent != Path(".")
-            looks_like_uri = "://" in sup_uri
-
-            if looks_like_uri or looks_like_path:
+            if "://" in sup_uri or candidate.suffix or os.sep in sup_uri or candidate.parent != Path("."):
                 supervisor_policy_spec = policy_spec_from_uri(sup_uri)
             else:
                 class_path = resolve_policy_class_path(sup_uri)
                 supervisor_policy_spec = PolicySpec(class_path=class_path)
 
+        run_name = self.run or "default"
+        preflight_executor: ThreadPoolExecutor | None = None
+        storage_future: Future[PolicyStorageDecision] | None = None
+        stats_future: Future[Optional[StatsClient]] | None = None
+        storage_decision: PolicyStorageDecision | None = None
+        stats_client: Optional[StatsClient] = None
+        needs_preflight = not self.system.local_only or (distributed_helper.is_master() and self.stats_server_uri)
+        start_method = multiprocessing.get_start_method(allow_none=True)
+        if start_method is None:
+            start_method = multiprocessing.get_context().get_start_method()
+        can_thread_preflight = needs_preflight and (
+            self.training_env.vectorization == "serial" or start_method != "fork"
+        )
+        if can_thread_preflight:
+            preflight_executor = ThreadPoolExecutor(max_workers=2)
+            if not self.system.local_only:
+                storage_future = preflight_executor.submit(auto_policy_storage_decision, run_name)
+            if distributed_helper.is_master() and self.stats_server_uri:
+                stats_future = preflight_executor.submit(self._maybe_create_stats_client, distributed_helper)
+
         env = VectorizedTrainingEnvironment(self.training_env, supervisor_policy_spec=supervisor_policy_spec)
+
+        if needs_preflight and not can_thread_preflight:
+            if not self.system.local_only:
+                storage_decision = auto_policy_storage_decision(run_name)
+            if distributed_helper.is_master() and self.stats_server_uri:
+                stats_client = self._maybe_create_stats_client(distributed_helper)
 
         self._configure_torch_backends()
 
+        if storage_future:
+            storage_decision = storage_future.result()
+
         checkpoint_manager = CheckpointManager(
-            run=self.run or "default",
+            run=run_name,
             system_cfg=self.system,
             require_remote_enabled=self.evaluator.evaluate_remote,
+            storage_decision=storage_decision,
         )
 
         init_logging(run_dir=checkpoint_manager.run_dir)
@@ -162,11 +202,23 @@ class TrainTool(Tool):
             env.policy_env_info,
             policy_uri=self.initial_policy_uri,
         )
+
+        if distributed_helper.is_master():
+            total_params = sum(param.numel() for param in policy.parameters())
+            trainable_params = sum(param.numel() for param in policy.parameters() if param.requires_grad)
+            logging.info("policy parameters: total=%d trainable=%d", total_params, trainable_params)
+
         trainer = self._initialize_trainer(env, policy, distributed_helper)
 
         self._log_run_configuration(distributed_helper, checkpoint_manager, env)
 
-        stats_client = self._maybe_create_stats_client(distributed_helper)
+        if stats_future:
+            stats_client = stats_future.result()
+        elif stats_client is None:
+            stats_client = self._maybe_create_stats_client(distributed_helper)
+
+        if preflight_executor is not None:
+            preflight_executor.shutdown(wait=False)
         wandb_manager = self._build_wandb_manager(distributed_helper)
 
         try:
@@ -246,8 +298,6 @@ class TrainTool(Tool):
         if autotune_cfg and getattr(autotune_cfg, "enabled", False):
             components.append(UpdateEpochAutoTuner(autotune_cfg))
 
-        stats_component: TrainerComponent | None = None
-
         if distributed_helper.is_master():
             stats_config = self.stats_reporter.model_copy(update={"report_to_wandb": bool(wandb_run)})
             reporting_enabled = stats_config.report_to_wandb or stats_config.report_to_console
@@ -259,9 +309,7 @@ class TrainTool(Tool):
                 stats_config,
                 wandb_run=wandb_run,
             )
-
-            if stats_component is not None:
-                components.append(stats_component)
+            components.append(stats_component)
 
             components.append(policy_checkpointer)
 
@@ -307,8 +355,6 @@ class TrainTool(Tool):
             )
 
         for component in components:
-            if component is None:
-                continue
             trainer.register(component)
 
         if wandb_run is not None and distributed_helper.is_master():
@@ -320,8 +366,6 @@ class TrainTool(Tool):
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():
             return
-
-        torch.set_float32_matmul_precision("high")
 
         # Opportunistically enable flash attention when available
         if os.environ.get("FLASH_ATTENTION") is None:

@@ -8,8 +8,8 @@ This test exercises the adapter path without monkeypatching:
 
 from typing import Any
 
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
 from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig
 from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 
 

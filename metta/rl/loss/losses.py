@@ -6,20 +6,24 @@ from pydantic import Field
 from metta.agent.policy import Policy
 from metta.rl.loss import contrastive_config
 from metta.rl.loss.action_supervised import ActionSupervisedConfig
+from metta.rl.loss.cmpo import CMPOConfig
+from metta.rl.loss.eer_cloner import EERClonerConfig
+from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
 from metta.rl.loss.loss import Loss, LossConfig
-from metta.rl.loss.ppo import PPOConfig
 from metta.rl.loss.ppo_actor import PPOActorConfig
 from metta.rl.loss.ppo_critic import PPOCriticConfig
 from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
+from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
 
+# Keep: heavy module + manages circular dependency (loss <-> trainer)
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
@@ -28,14 +32,17 @@ class LossesConfig(Config):
     _LOSS_ORDER: ClassVar[tuple[str, ...]] = (
         "sliced_kickstarter",
         "sliced_scripted_cloner",
+        "eer_kickstarter",
+        "eer_cloner",
         "ppo_critic",
         "quantile_ppo_critic",
         "ppo_actor",
-        "ppo",
+        "cmpo",
         "vit_reconstruction",
         "contrastive",
         "grpo",
         "supervisor",
+        "sl_checkpointed_kickstarter",
         "kickstarter",
         "logit_kickstarter",
     )
@@ -43,10 +50,9 @@ class LossesConfig(Config):
     # ENABLED BY DEFAULT: PPO split into two terms for flexibility, simplicity, and separation of concerns
     ppo_actor: PPOActorConfig = Field(default_factory=lambda: PPOActorConfig(enabled=True))
     ppo_critic: PPOCriticConfig = Field(default_factory=lambda: PPOCriticConfig(enabled=True))
-    quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
 
-    # our original PPO in a single file
-    ppo: PPOConfig = Field(default_factory=lambda: PPOConfig(enabled=False))
+    quantile_ppo_critic: QuantilePPOCriticConfig = Field(default_factory=lambda: QuantilePPOCriticConfig(enabled=False))
+    cmpo: CMPOConfig = Field(default_factory=lambda: CMPOConfig(enabled=False))
 
     # other aux losses below
     contrastive: contrastive_config.ContrastiveConfig = Field(
@@ -60,6 +66,11 @@ class LossesConfig(Config):
     sliced_scripted_cloner: SlicedScriptedClonerConfig = Field(
         default_factory=lambda: SlicedScriptedClonerConfig(enabled=False)
     )
+    sl_checkpointed_kickstarter: SLCheckpointedKickstarterConfig = Field(
+        default_factory=lambda: SLCheckpointedKickstarterConfig(enabled=False)
+    )
+    eer_kickstarter: EERKickstarterConfig = Field(default_factory=lambda: EERKickstarterConfig(enabled=False))
+    eer_cloner: EERClonerConfig = Field(default_factory=lambda: EERClonerConfig(enabled=False))
     vit_reconstruction: ViTReconstructionLossConfig = Field(
         default_factory=lambda: ViTReconstructionLossConfig(enabled=False)
     )
@@ -70,42 +81,11 @@ class LossesConfig(Config):
         loss_configs = {
             name: cfg for name, cfg in ((name, getattr(self, name)) for name in self._LOSS_ORDER) if cfg.enabled
         }
-        self._validate_sampler_dependencies()
         return loss_configs
 
     @property
     def loss_configs(self) -> dict[str, LossConfig]:
         return self._configs()
-
-    def _validate_sampler_dependencies(self) -> None:
-        """Fail fast when a consumer loss is enabled but no sampler writes sampled_mb."""
-
-        samplers = [
-            self.ppo.enabled,
-            self.ppo_critic.enabled and self.ppo_critic.sample_enabled,
-            self.quantile_ppo_critic.enabled and self.quantile_ppo_critic.sample_enabled,
-            self.grpo.enabled,
-            self.sliced_kickstarter.enabled,
-            self.sliced_scripted_cloner.enabled,
-            self.supervisor.enabled and self.supervisor.sample_enabled,
-        ]
-
-        consumers = [
-            self.ppo_actor.enabled,
-            self.kickstarter.enabled,
-            self.logit_kickstarter.enabled,
-            self.vit_reconstruction.enabled,
-            self.contrastive.enabled,
-            self.supervisor.enabled and not self.supervisor.sample_enabled,
-        ]
-
-        if any(consumers) and not any(samplers):
-            raise ValueError(
-                "Loss config invalid: a loss needs sampled_mb but no sampler is enabled. "
-                "Enable one of (ppo, ppo_critic.sample_enabled, quantile_ppo_critic.sample_enabled, grpo, "
-                "sliced_kickstarter, sliced_scripted_cloner, action_supervisor.sample_enabled=True) "
-                "or disable the consumer losses."
-            )
 
     def init_losses(
         self,

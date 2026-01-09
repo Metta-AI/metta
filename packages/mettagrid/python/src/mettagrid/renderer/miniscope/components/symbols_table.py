@@ -1,14 +1,9 @@
 """Symbols table component for miniscope renderer."""
 
-from typing import TYPE_CHECKING
-
+from mettagrid.renderer.miniscope.components.base import MiniscopeComponent
 from mettagrid.renderer.miniscope.miniscope_panel import PanelLayout
 from mettagrid.renderer.miniscope.miniscope_state import MiniscopeState
-
-if TYPE_CHECKING:
-    from mettagrid.simulator import Simulation
-
-from .base import MiniscopeComponent
+from mettagrid.simulator.simulator import Simulation
 
 
 class SymbolsTableComponent(MiniscopeComponent):
@@ -16,7 +11,7 @@ class SymbolsTableComponent(MiniscopeComponent):
 
     def __init__(
         self,
-        sim: "Simulation",
+        sim: Simulation,
         state: MiniscopeState,
         panels: PanelLayout,
         max_rows: int = 1000,
@@ -31,29 +26,32 @@ class SymbolsTableComponent(MiniscopeComponent):
         """
         super().__init__(sim=sim, state=state, panels=panels)
         sidebar_panel = panels.get_sidebar_panel("symbols")
-        if sidebar_panel is None:
-            sidebar_panel = panels.register_sidebar_panel("symbols")
+        assert sidebar_panel is not None
         self._set_panel(sidebar_panel)
         self._max_rows = max_rows
 
     def _get_symbol_map(self) -> dict[str, str]:
         """Get symbol map from state."""
-        return self.state.symbol_map if self.state else {}
+        symbol_map = self.state.symbol_map
+        assert symbol_map is not None
+        return symbol_map
 
     def update(self) -> None:
         """Render the symbols table."""
+        panel = self._panel
+        assert panel is not None
         if not self.state.is_sidebar_visible("symbols"):
-            self._panel.clear()
+            panel.clear()
             return
 
         symbol_map = self._get_symbol_map()
         if not symbol_map:
-            self._panel.set_content(["No symbol map available"])
+            panel.set_content(["No symbol map available"])
             return
 
         entries = self._build_entries(symbol_map)
         lines = self._build_lines(entries)
-        self._panel.set_content(lines)
+        panel.set_content(lines)
 
     def _build_entries(self, symbol_map: dict[str, str]) -> list[tuple[str, str]]:
         """Create the list of displayable symbol entries."""

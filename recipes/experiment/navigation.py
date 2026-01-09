@@ -16,9 +16,10 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
+from recipes.experiment.architectures import get_architecture
 from recipes.experiment.cfg import NAVIGATION_EVALS
 
 
@@ -169,6 +170,7 @@ def make_curriculum(
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
+    arch_type: str = "vit",
 ) -> TrainTool:
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -179,6 +181,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
+        policy_architecture=get_architecture(arch_type),
     )
 
 

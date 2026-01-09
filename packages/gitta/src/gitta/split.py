@@ -280,9 +280,6 @@ Return a JSON response with this exact structure:
         return patch if patch.endswith("\n") else f"{patch}\n"
 
     def apply_patch_to_new_branch(self, patch_content: str, branch_name: str) -> None:
-        if self.base_branch is None:
-            raise ValueError("Base branch is not set")
-
         # Create and checkout new branch from base
         run_git("checkout", "-b", branch_name, self.base_branch)
 
@@ -395,10 +392,6 @@ Return a JSON response with this exact structure:
         repo = self.get_repo_from_remote()
         if not repo:
             print("Could not determine GitHub repository from remote")
-            return None
-
-        if self.base_branch is None:
-            print("Base branch not set; skipping PR creation")
             return None
 
         # Get base branch name without origin/

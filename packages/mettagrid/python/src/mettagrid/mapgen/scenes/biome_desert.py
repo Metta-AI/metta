@@ -6,7 +6,7 @@ from mettagrid.mapgen.scenes.dither import dither_edges
 
 class BiomeDesertConfig(SceneConfig):
     dune_period: int = 8  # distance between dune ridges
-    ridge_width: int = 2  # ridge thickness in cells
+    ridge_width: int = 1  # ridge thickness in cells
     angle: float = np.pi / 4  # radians; 0 == vertical stripes, pi/4 diagonal, etc.
     noise_prob: float = 0.1  # pepper dunes with small gaps
     dither_edges: bool = True  # Add organic edge noise

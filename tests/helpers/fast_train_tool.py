@@ -9,16 +9,14 @@ from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.policies.fast import FastConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
-from metta.rl.checkpoint_manager import CheckpointManager
+from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_bundle
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
 from mettagrid.builder.envs import make_arena
 from mettagrid.config.mettagrid_config import MettaGridConfig
-from mettagrid.policy.mpt_artifact import save_mpt
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.util.uri_resolvers.schemes import checkpoint_filename
 
 
 class DummyPolicyArchitecture(PolicyArchitecture):
@@ -72,14 +70,18 @@ class FastCheckpointTrainTool(TrainTool):
             {
                 "agent_step": agent_step,
                 "epoch": epoch,
-                "optimizer_state": {},
+                "optimizer": {},
             },
             trainer_state_path,
         )
 
-        policy_path = checkpoint_manager.checkpoint_dir / checkpoint_filename(run_name, epoch)
         policy = DummyPolicy(epoch)
-        save_mpt(policy_path, architecture=DummyPolicyArchitecture(), state_dict=policy.state_dict())
+        architecture = DummyPolicyArchitecture()
+        write_checkpoint_bundle(
+            (checkpoint_manager.checkpoint_dir / f"{run_name}:v{epoch}").expanduser().resolve(),
+            architecture_spec=architecture.to_spec(),
+            state_dict=policy.state_dict(),
+        )
 
         return 0
 
@@ -138,6 +140,7 @@ def create_minimal_training_setup(
         vectorization="serial",
         data_dir=data_dir,
         seed=42,
+        local_only=True,
     )
 
     return trainer_cfg, training_env_cfg, policy_cfg, system_cfg

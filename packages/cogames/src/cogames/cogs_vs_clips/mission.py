@@ -26,12 +26,16 @@ from mettagrid.config.mettagrid_config import (
     ClipperConfig,
     GameConfig,
     GlobalObsConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
     ProtocolConfig,
     ResourceLimitsConfig,
+    TransferActionConfig,
+    VibeTransfer,
 )
+from mettagrid.config.vibes import Vibe
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 
@@ -133,8 +137,8 @@ class Mission(Config):
     heart_capacity: int = Field(default=1)
     # Control vibe swapping in variants
     enable_vibe_change: bool = Field(default=True)
-    vibe_count: int | None = Field(default=None)
-    compass_enabled: bool = Field(default=False)
+    vibes: list[Vibe] | None = Field(default=None)
+    compass_enabled: bool = Field(default=True)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -172,32 +176,36 @@ class Mission(Config):
                 move=MoveActionConfig(consumed_resources={"energy": self.move_energy_cost}),
                 noop=NoopActionConfig(),
                 change_vibe=ChangeVibeActionConfig(
-                    number_of_vibes=(
-                        0
+                    vibes=(
+                        []
                         if not self.enable_vibe_change
-                        else (self.vibe_count if self.vibe_count is not None else len(vibes.VIBES))
+                        else (self.vibes if self.vibes is not None else list(vibes.VIBES))
                     )
+                ),
+                transfer=TransferActionConfig(
+                    enabled=True,
+                    vibe_transfers=[VibeTransfer(vibe="charger", target={"energy": 20}, actor={"energy": -20})],
                 ),
             ),
             agent=AgentConfig(
-                resource_limits={
-                    "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
-                    "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
-                    "cargo": ResourceLimitsConfig(
-                        limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
-                    ),
-                    "gear": ResourceLimitsConfig(
-                        limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
-                    ),
-                },
-                rewards=AgentRewards(
-                    stats={"chest.heart.amount": 1 / num_cogs},
+                inventory=InventoryConfig(
+                    limits={
+                        "heart": ResourceLimitsConfig(limit=self.heart_capacity, resources=["heart"]),
+                        "energy": ResourceLimitsConfig(limit=self.energy_capacity, resources=["energy"]),
+                        "cargo": ResourceLimitsConfig(
+                            limit=self.cargo_capacity, resources=["carbon", "oxygen", "germanium", "silicon"]
+                        ),
+                        "gear": ResourceLimitsConfig(
+                            limit=self.gear_capacity, resources=["scrambler", "modulator", "decoder", "resonator"]
+                        ),
+                    },
+                    initial={"energy": self.energy_capacity},
+                    regen_amounts={"default": {"energy": self.energy_regen_amount}},
                 ),
-                initial_inventory={
-                    "energy": self.energy_capacity,
-                },
-                vibe_transfers={"charger": {"energy": 20}},
-                inventory_regen_amounts={"energy": self.energy_regen_amount},
+                rewards=AgentRewards(
+                    # Reward only the agent that deposits a heart.
+                    stats={"chest.heart.deposited_by_agent": 1.0},
+                ),
                 diversity_tracked_resources=["energy", "carbon", "oxygen", "germanium", "silicon", "heart"],
             ),
             inventory_regen_interval=self.inventory_regen_interval,

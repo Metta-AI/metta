@@ -1,12 +1,13 @@
 import os
+from typing import Optional
 
 from torch.utils.cpp_extension import load
 
 _mod_path = os.path.dirname(__file__)
-_ext = None
+_ext: Optional[object] = None
 
 
-def _load_ext():
+def _load_ext() -> object:
     global _ext
     if _ext is not None:
         return _ext
@@ -26,9 +27,9 @@ def _load_ext():
     return _ext
 
 
-def forward_full(*args, **kwargs):
+def forward_full(*args: object, **kwargs: object) -> object:
     return _load_ext().forward_full(*args, **kwargs)
 
 
-def backward_full(*args, **kwargs):
+def backward_full(*args: object, **kwargs: object) -> object:
     return _load_ext().backward_full(*args, **kwargs)

@@ -49,7 +49,11 @@ const ObjectIcon: FC<{
     canvas.height = scaledSize;
 
     ctx.scale(scaledSize, scaledSize);
-    drawer.drawObject(ctx, MettaObject.fromObjectName(0, 0, name)!);
+    if (name === "empty") {
+      drawer.drawTile({ ctx, tile: "wall.49", c: 0, r: 0, scale: 1 });
+    } else {
+      drawer.drawObject(ctx, MettaObject.fromObjectName(0, 0, name)!);
+    }
   }, [name, drawer]);
 
   return (

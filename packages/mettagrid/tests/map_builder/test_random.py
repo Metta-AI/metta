@@ -1,7 +1,7 @@
 import numpy as np
 
 from mettagrid.map_builder.map_builder import GameMap
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 class TestRandomMapBuilderConfig:

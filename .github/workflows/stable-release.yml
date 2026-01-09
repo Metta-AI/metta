@@ -99,6 +99,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE }}
           aws-region: us-east-1
+          role-duration-seconds: 36000
 
       - name: Configure SkyPilot API server
         run: |
@@ -111,29 +112,16 @@ jobs:
 
           if [ -n "$(git status --porcelain)" ]; then
             echo ""
-            echo "⚠️  Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
+            echo "Found uncommitted changes. Stashing them to ensure clean state for remote jobs..."
             git stash push -m "GitHub Actions: Auto-stash before stable release"
-            echo "✅ Changes stashed successfully"
+            echo "Changes stashed successfully"
           else
-            echo "✅ Working tree is clean"
+            echo "Working tree is clean"
           fi
 
       - name: Run stable release process
         id: release
-        run: |
-          # Build command with optional arguments
-          CMD="./devops/stable/stable.py --no-interactive release"
-
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            CMD="$CMD --version=${{ github.event.inputs.version }}"
-          fi
-
-          if [ "${{ github.event.inputs.skip_commit_match }}" == "true" ]; then
-            CMD="$CMD --skip-commit-match"
-          fi
-
-          echo "Running: $CMD"
-          $CMD
+        run: ./devops/stable/cli.py
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           OBSERVATORY_TOKEN: ${{ secrets.OBSERVATORY_TOKEN }}
@@ -142,37 +130,17 @@ jobs:
           ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}
           ASANA_PROJECT_ID: ${{ secrets.ASANA_BUGS_PROJECT_ID }}
 
-      - name: Send Discord notification on success
-        if: success()
+      - name: Send Discord notification
+        if: always()
         uses: ./.github/actions/discord-webhook
         with:
-          webhook-url: ${{ secrets.DISCORD_STABLE_HOOK }}
-          content: |
-            ✅ **Stable Release Completed**
+          webhook-url: ${{ github.ref == 'refs/heads/main' && secrets.DISCORD_STABLE_HOOK || secrets.DISCORD_INFRA_ALERTS_TESTING_HOOK }}
+          content-file: devops/stable/state/discord_summary.txt
 
-            Daily stable release process completed successfully.
-
-            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Send Discord notification on failure
-        if: failure()
-        uses: ./.github/actions/discord-webhook
-        with:
-          webhook-url: ${{ secrets.DISCORD_STABLE_HOOK }}
-          content: |
-            ❌ **Stable Release Failed**
-
-            Daily stable release process failed. Check workflow logs for details.
-
-            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Upload release artifacts
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: release-logs
-          path: |
-            devops/stable/state/*.log
-            devops/stable/state/*.json
-            devops/stable/release-notes/*.md
+          name: runner-logs
+          path: devops/stable/state/logs/
           retention-days: 30

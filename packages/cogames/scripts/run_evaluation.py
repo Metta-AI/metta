@@ -3,20 +3,15 @@
 Evaluation Script for Policies
 
 Supports:
-- Built-in shorthands: baseline, ladybug (`--agent all` runs both)
-- Any policy via full class path
-- Local or S3 checkpoints when CheckpointManager is available
+- Built-in scripted agents: baseline, ladybug, thinky, racecar, starter (`--agent all` runs all)
+- Checkpoint directory URIs (s3:// or file://) with policy_spec.json bundles
 
 Usage snippets:
   uv run python packages/cogames/scripts/run_evaluation.py --agent all
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent baseline --experiments oxygen_bottleneck --cogs 1
+      --agent ladybug --experiments oxygen_bottleneck --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy --cogs 1
-  uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent cogames.policy.lstm.LSTMPolicy --checkpoint s3://bucket/path/model.mpt --cogs 1
-  uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/model.mpt --cogs 1
+      --agent s3://bucket/path/checkpoints/run:v5 --cogs 1
 """
 
 import argparse
@@ -38,6 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from safetensors.torch import load_file as load_safetensors_file
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
@@ -66,8 +62,11 @@ def _ensure_vibe_supports_gear(env_cfg) -> None:
                 break
     if uses_gear:
         change_vibe = env_cfg.game.actions.change_vibe
-        if getattr(change_vibe, "number_of_vibes", 0) < 8:
-            change_vibe.number_of_vibes = 8
+        has_gear = any(v.name == "gear" for v in change_vibe.vibes)
+        if not has_gear:
+            from mettagrid.config.vibes import VIBE_BY_NAME
+
+            change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
 
 
 # Cache for policy action space sizes to avoid reloading checkpoints
@@ -79,25 +78,24 @@ def _get_policy_action_space(policy_path: str) -> Optional[int]:
 
     Returns the number of actions the policy was trained with, or None if detection fails.
     """
+    if not policy_path:
+        return None
     if policy_path in _policy_action_space_cache:
         return _policy_action_space_cache[policy_path]
-
-    if not is_s3_uri(policy_path):
-        return None
+    if "://" not in policy_path:
+        if not Path(policy_path).expanduser().exists():
+            return None
 
     try:
-        from mettagrid.policy.mpt_artifact import load_mpt
-
-        artifact = load_mpt(policy_path)
-
-        # Look for actor head weight to determine action space
-        for key, tensor in artifact.state_dict.items():
+        spec = policy_spec_from_uri(policy_path)
+        if not spec.data_path:
+            return None
+        for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
             if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                action_space = tensor.shape[0]
-                _policy_action_space_cache[policy_path] = action_space
-                logger.info(f"Detected policy action space: {action_space} actions")
-                return action_space
-
+                detected = int(tensor.shape[0])
+                _policy_action_space_cache[policy_path] = detected
+                logger.info(f"Detected policy action space: {detected} actions")
+                return detected
         return None
     except Exception as e:
         logger.warning(f"Failed to detect policy action space: {e}")
@@ -139,7 +137,7 @@ def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
     if env_cfg.game.actions:
         # Configure vibe action count
         if env_cfg.game.actions.change_vibe:
-            env_cfg.game.actions.change_vibe.number_of_vibes = len(vibe_names)
+            env_cfg.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
             # Filter initial vibe if out of range
             if env_cfg.game.agent.initial_vibe >= len(vibe_names):
                 env_cfg.game.agent.initial_vibe = 0
@@ -199,16 +197,22 @@ def load_policy(
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        policy_spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec)
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(checkpoint_path, device=str(device)),
+            device_override=str(device),
+        )
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        policy_spec = policy_spec_from_uri(policy_path, device=str(device))
-        return initialize_or_load_policy(policy_env_info, policy_spec)
+        return initialize_or_load_policy(
+            policy_env_info,
+            policy_spec_from_uri(policy_path, device=str(device)),
+            device_override=str(device),
+        )
 
     policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
-    return initialize_or_load_policy(policy_env_info, policy_spec)
+    return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
@@ -275,10 +279,9 @@ def _run_case(
         _ensure_vibe_supports_gear(env_config)
 
         # Auto-detect policy action space and configure environment to match
-        if is_s3_uri(agent_config.policy_path):
-            policy_action_space = _get_policy_action_space(agent_config.policy_path)
-            if policy_action_space is not None:
-                _configure_env_for_action_space(env_config, policy_action_space)
+        policy_action_space = _get_policy_action_space(agent_config.policy_path)
+        if policy_action_space is not None:
+            _configure_env_for_action_space(env_config, policy_action_space)
 
         if variant is None or getattr(variant, "max_steps_override", None) is None:
             env_config.game.max_steps = max_steps
@@ -546,7 +549,7 @@ def _bar_plot(
     output_path: Path,
     width: float = 0.35,
     rotation: int = 45,
-    figsize: tuple[int, int] = (12, 7),
+    figsize: tuple[float, float] = (12, 7),
     annotate: bool = True,
 ):
     # Filter out labels that have no data for any series
@@ -1070,13 +1073,6 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
         # Sanitize agent name for filename
         safe_agent_name = agent.replace("/", "_").replace(" ", "_").replace(":", "_")
 
-        # Create closure to capture agent variable properly
-        def make_lookup_fn(agent_name: str, field: str):
-            def lookup_wrapper(_s: str, exp_name: str):
-                return lookup(agent_name, exp_name, None, None, field)
-
-            return lookup_wrapper
-
         # Plot 1: Average reward per agent by environment
         _bar_plot(
             filename=f"{safe_agent_name}_reward_by_environment.png",
@@ -1085,7 +1081,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Average Reward Per Agent",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_reward_per_agent"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_reward_per_agent"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1099,7 +1097,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Total Reward",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_total_reward"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_total_reward"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1113,7 +1113,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Average Heart Gained Per Agent",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_heart_gained_per_agent"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_heart_gained_per_agent"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),
@@ -1127,7 +1129,9 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
             ylabel="Total Heart Gained",
             x_labels=agent_experiments,  # All environments this policy was evaluated on
             series_labels=["value"],
-            value_fn=make_lookup_fn(agent, "avg_heart_gained"),
+            value_fn=lambda _s, exp_name, agent_name=agent: lookup(
+                agent_name, exp_name, None, None, "avg_heart_gained"
+            ),
             output_path=per_policy_dir,
             rotation=90,
             figsize=(max(16, len(agent_experiments) * 0.4), 7),

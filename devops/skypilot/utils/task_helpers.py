@@ -226,4 +226,12 @@ def launch_task(task: sky.Task) -> str:
     dashboard_url = get_server_url() + "/dashboard/jobs"
     print(f"- Or, visit: {yellow(dashboard_url)}")
 
+    from devops.skypilot.utils.job_helpers import get_job_id_from_request_id
+
+    job_id = get_job_id_from_request_id(request_id, wait_seconds=5.0)
+    if job_id:
+        print(f"Job ID: {job_id}")
+    else:
+        print("Job ID: pending")
+
     return request_id

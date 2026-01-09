@@ -1,14 +1,22 @@
 """Unit tests for the new loss infrastructure."""
 
 from types import SimpleNamespace
+from typing import Optional
 
+import numpy as np
 import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
+from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.loss import Loss
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+
+try:
+    from gymnasium import spaces as gym_spaces
+except ImportError:  # pragma: no cover - fallback for legacy gym installs
+    from gym import spaces as gym_spaces  # type: ignore[no-redef]
 
 
 class DummyPolicy(Policy):
@@ -58,6 +66,9 @@ class DummyLoss(Loss):
         loss_cfg = SimpleNamespace()
         super().__init__(policy, trainer_cfg, env, torch.device("cpu"), "dummy", loss_cfg)
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"values"}
+
 
 def test_loss_stats_average_values() -> None:
     loss = DummyLoss()
@@ -77,3 +88,23 @@ def test_zero_loss_tracker_clears_values() -> None:
     loss.zero_loss_tracker()
 
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
+
+
+def test_cmpo_config_initializes_world_model() -> None:
+    cfg = CMPOConfig()
+    env = SimpleNamespace(
+        single_action_space=gym_spaces.Discrete(6),
+        single_observation_space=gym_spaces.Box(low=0, high=255, shape=(4, 4, 3), dtype=np.uint8),
+    )
+    trainer_cfg = SimpleNamespace(
+        total_timesteps=1024,
+        batch_size=64,
+        advantage=SimpleNamespace(gamma=0.99, gae_lambda=0.95, vtrace_rho_clip=1.0, vtrace_c_clip=1.0),
+    )
+
+    cmpo_loss = cfg.create(DummyPolicy(), trainer_cfg, env, torch.device("cpu"), "cmpo")
+
+    assert cmpo_loss.obs_dim == 4 * 4 * 3
+    assert cmpo_loss.action_dim == 6
+    assert len(cmpo_loss.world_model.members) == cfg.world_model.ensemble_size
+    assert cmpo_loss.prior_model is None

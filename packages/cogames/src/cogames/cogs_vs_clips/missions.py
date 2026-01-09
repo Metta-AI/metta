@@ -1,5 +1,5 @@
-from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
-from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+from functools import lru_cache
+
 from cogames.cogs_vs_clips.mission import Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
 from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
@@ -14,6 +14,7 @@ from cogames.cogs_vs_clips.variants import (
     InventoryHeartTuneVariant,
     LonelyHeartVariant,
     PackRatVariant,
+    SharedRewardsVariant,
     VibeCheckMin2Variant,
 )
 from mettagrid.config.mettagrid_config import MettaGridConfig
@@ -108,6 +109,13 @@ Machina1BalancedCornersMission = Mission(
     variants=[EmptyBaseVariant(), BalancedCornersVariant()],
 )
 
+Machina1OpenWorldSharedRewardsMission = Mission(
+    name="open_world_shared_rewards",
+    description="Collect resources and assemble HEARTs. Rewards for deposited hearts are shared among all agents.",
+    site=MACHINA_1,
+    variants=[EmptyBaseVariant(), SharedRewardsVariant()],
+)
+
 
 HelloWorldUnclipMission = Mission(
     name="hello_world_unclip",
@@ -118,7 +126,7 @@ HelloWorldUnclipMission = Mission(
 )
 
 
-MISSIONS: list[Mission] = [
+_CORE_MISSIONS: list[Mission] = [
     HarvestMission,
     VibeCheckMission,
     RepairMission,
@@ -129,9 +137,35 @@ MISSIONS: list[Mission] = [
     Machina1OpenWorldMission,
     Machina1OpenWorldWithChestsMission,
     Machina1BalancedCornersMission,
-    *INTEGRATED_EVAL_MISSIONS,
-    *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
+    Machina1OpenWorldSharedRewardsMission,
 ]
+
+
+def get_core_missions() -> list[Mission]:
+    return list(_CORE_MISSIONS)
+
+
+def _build_eval_missions() -> list[Mission]:
+    from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
+    from cogames.cogs_vs_clips.evals.integrated_evals import EVAL_MISSIONS as INTEGRATED_EVAL_MISSIONS
+
+    return [
+        *INTEGRATED_EVAL_MISSIONS,
+        *[mission_cls() for mission_cls in DIAGNOSTIC_EVALS],  # type: ignore[call-arg]
+    ]
+
+
+@lru_cache(maxsize=1)
+def get_missions() -> list[Mission]:
+    return [*_CORE_MISSIONS, *_build_eval_missions()]
+
+
+def __getattr__(name: str) -> list[Mission]:
+    if name == "MISSIONS":
+        missions = get_missions()
+        globals()["MISSIONS"] = missions
+        return missions
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def make_game(num_cogs: int = 2, map_name: str = "training_facility_open_1.map") -> MettaGridConfig:

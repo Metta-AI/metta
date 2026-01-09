@@ -1,0 +1,115 @@
+# Import dependency rules for the metta codebase.
+# To add or reorder folders, edit this file then run:
+#   metta codebase generate-folder-diagram
+
+[importlinter]
+# root_packages tells grimp which packages to scan for building the import graph.
+# - Must list each metta.* sub-namespace explicitly (not just "metta") because they
+#   come from different workspace packages (common/, agent/, app_backend/, etc.)
+# - Packages not listed here won't be scanned, so contracts can't check their imports
+# - The "metta" parent namespace is NOT listed to avoid "shared descendants" errors
+root_packages =
+    metta.tools
+    metta.gridworks
+    metta.setup
+    metta.sim
+    metta.rl
+    metta.sweep
+    metta.cogworks
+    metta.adaptive
+    metta.map
+    metta.common
+    metta.app_backend
+    cogames
+    mettagrid
+    cortex
+include_external_packages = True
+
+# Layers contract: modules higher can import from lower, NOT vice versa.
+# metta.common is at the bottom, so it cannot import from ANY metta.* above it.
+# Violations in ignore_imports are tech debt to fix over time.
+[importlinter:contract:metta-folders]
+name = Metta folder hierarchy
+type = layers
+layers =
+    metta.tools
+    metta.gridworks
+    metta.setup
+    metta.sim
+    metta.rl
+    metta.sweep
+    metta.cogworks
+    metta.adaptive
+    metta.map
+    metta.common
+# Known violations to fix over time (remove as they get fixed)
+ignore_imports =
+    metta.setup.** -> metta.tools.**
+    metta.sweep.** -> metta.tools.**
+    metta.gridworks.** -> metta.tools.**
+    metta.rl.** -> metta.tools.**
+    metta.rl.** -> metta.sim.**
+    metta.common.** -> metta.rl.**
+
+[importlinter:contract:cogames-independence]
+name = cogames cannot import from metta
+type = forbidden
+source_modules =
+    cogames
+forbidden_modules =
+    metta
+    cortex
+    gitta
+    codebot
+    tribal_village
+
+
+[importlinter:contract:mettagrid-independence]
+name = mettagrid cannot import from metta or cogames
+type = forbidden
+source_modules =
+    mettagrid
+forbidden_modules =
+    metta
+    cogames
+    cortex
+    gitta
+    codebot
+    tribal_village
+
+
+[importlinter:contract:app-backend-independence]
+name = app_backend can only import metta.common
+type = forbidden
+source_modules =
+    metta.app_backend
+forbidden_modules =
+    metta
+ignore_imports =
+    metta.app_backend.** -> metta.common.**
+
+
+[importlinter:contract:common-independence]
+name = metta.common cannot import from any metta.* other than itself
+type = forbidden
+source_modules =
+    metta.common
+forbidden_modules =
+    metta
+ignore_imports =
+    metta.common.** -> metta.common.**
+    # Tech debt - remove as violations are fixed:
+    metta.common.** -> metta.rl.**
+
+
+[importlinter:contract:cortex-independence]
+name = cortex cannot import from metta
+type = forbidden
+source_modules =
+    cortex
+forbidden_modules =
+    metta
+    cogames
+    gitta
+    codebot
+    tribal_village

@@ -38,6 +38,8 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
       - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install build tooling
         run: python -m pip install --upgrade pip build twine
       - name: Build distributions
@@ -49,9 +51,105 @@ jobs:
           name: cogames-dist
           path: dist/*
 
+  wait-for-mettagrid:
+    name: Wait for mettagrid on PyPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Extract mettagrid version requirement
+        id: version
+        run: |
+          # Parse packages/cogames/pyproject.toml to find mettagrid==X.Y.Z or mettagrid>=X.Y.Z
+          if grep -qE 'mettagrid[><=~!]' packages/cogames/pyproject.toml; then
+            VERSION=$(grep -E 'mettagrid' packages/cogames/pyproject.toml | grep -oP '\d+\.\d+\.\d+(\.\d+)?' | head -1)
+            echo "mettagrid_version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Found mettagrid version requirement: $VERSION"
+          else
+            echo "No mettagrid version found - skipping wait"
+            echo "mettagrid_version=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Wait for mettagrid on PyPI
+        if: steps.version.outputs.mettagrid_version != ''
+        env:
+          VERSION: ${{ steps.version.outputs.mettagrid_version }}
+          PYPI_URL: "https://pypi.org"
+        run: |
+          # Timing rationale:
+          # - mettagrid's build job takes ~5 minutes
+          # - PyPI propagation might add a few minutes
+          # - Add some buffer just in case
+          # Total: 10 minutes should be sufficient
+          MAX_WAIT=600  # 10 minutes total
+          CHECK_INTERVAL=60  # Check every minute
+          ELAPSED=0
+
+          echo "Waiting for mettagrid==$VERSION to be available on $PYPI_URL..."
+          echo "This ensures cogames can be installed with its pinned mettagrid dependency."
+          echo ""
+
+          while [ $ELAPSED -le $MAX_WAIT ]; do
+            if curl -sf "$PYPI_URL/pypi/mettagrid/$VERSION/json" > /dev/null 2>&1; then
+              echo "✓ mettagrid $VERSION is available on $PYPI_URL!"
+              exit 0
+            fi
+            echo "⏳ Waiting... ($ELAPSED/$MAX_WAIT seconds elapsed)"
+            sleep $CHECK_INTERVAL
+            ELAPSED=$((ELAPSED + CHECK_INTERVAL))
+          done
+
+          echo "❌ ERROR: mettagrid $VERSION not found on $PYPI_URL after $MAX_WAIT seconds"
+          echo "The mettagrid release workflow may have failed or is taking longer than expected."
+          exit 1
+
+  test:
+    name: Smoke test cogames
+    needs:
+      # Instead of building the mettagrid wheel locally, which might differ from the version
+      #  specified in cogames' pyproject.toml, we let mettagrid get automatically installed
+      #  from PyPI. Hence we need to wait for it to be available on PyPI.
+      - wait-for-mettagrid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Metta-AI/cogames
+          # For tag pushes: use the tag name (e.g., cogames-v1.2.3)
+          # For manual dispatch: use main branch (since arbitrary branches aren't in child repo)
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+      - name: Verify checked out ref
+        run: |
+          echo "github.ref: ${{ github.ref }}"
+          echo "github.ref_name: ${{ github.ref_name }}"
+          echo "Checked out: $(git describe --tags --always)"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Without this, we get "ERROR: Could not install packages due to an OSError:
+      #  [Errno 28] No space left on device" when trying to install cogames' dependencies.
+      #  See https://github.com/Metta-AI/metta/actions/runs/20327783664/job/58396495857
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+      - name: Install cogames from source
+        run: |
+          pip install .
+      - name: Install pytest
+        run: |
+          pip install pytest pytest-xdist
+      - name: Run tests
+        run: |
+          pytest tests/ -v
+
   publish:
     name: Publish to PyPI
-    needs: build
+    needs:
+      - build
+      - test
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish == 'yes' }}
     runs-on: ubuntu-latest
     environment:

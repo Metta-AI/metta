@@ -1,4 +1,5 @@
 # Maximilian Beck
+import os
 from typing import Optional
 
 import torch
@@ -27,7 +28,8 @@ from .triton_utils import is_power_of_2, next_multiple_of, torch2triton_dtype
 
 # we assume for simplicity: NGR == NGI
 
-ENABLE_AUTOTUNING = True
+_autotune_env = os.getenv("CORTEX_TRITON_AUTOTUNE", "0")
+ENABLE_AUTOTUNING = str(_autotune_env).lower() in {"1", "true", "yes"}
 
 if ENABLE_AUTOTUNING:
     configs = []
@@ -45,7 +47,19 @@ if ENABLE_AUTOTUNING:
                             )
                         )
 else:
-    configs = [triton.Config({"siz_B": 16, "TN": 32, "TK": 32}, num_stages=1, num_warps=4)]
+    configs = [triton.Config({"siz_B": 16, "TN": 16, "TK": 16}, num_stages=1, num_warps=4)]
+
+_autotune_decorator = (
+    triton.autotune(
+        configs,
+        key=["T", "B", "NH", "DH"],
+        warmup=1,
+        rep=1,
+        cache_results=True,
+    )
+    if ENABLE_AUTOTUNING
+    else (lambda fn: fn)
+)
 
 
 @triton.jit
@@ -69,7 +83,7 @@ def triton_tanh(x):
     return (s * t).to(x.dtype)
 
 
-@triton.autotune(configs, key=["siz_B", "T", "B", "NH", "DH"])
+@_autotune_decorator
 @triton.jit
 def _forward_sequence_kernel(
     states_initial,  # (NH, NS, B, DH) (order: h c n m)
@@ -87,11 +101,11 @@ def _forward_sequence_kernel(
     DH: tl.constexpr,  # head dimension
     NGI: tl.constexpr,  # number of gates that depend on input
     NGR: tl.constexpr,  # number of gates that depend on recurrent state
-    siz_B: tl.constexpr,  # the number of batches per threadblock
-    TK: tl.constexpr,  # tile size along K dimension
-    TN: tl.constexpr,  # output-column tile size (must be const)
-    OUTPUT_GATES: tl.constexpr,
-    HAS_RESETS: tl.constexpr,
+    siz_B: tl.constexpr = 16,  # the number of batches per threadblock
+    TK: tl.constexpr = 16,  # tile size along K dimension
+    TN: tl.constexpr = 16,  # output-column tile size (must be const)
+    OUTPUT_GATES: tl.constexpr = False,
+    HAS_RESETS: tl.constexpr = False,
     DTYPE: tl.constexpr = tl.float32,
 ):
     idx_b_NH, idx_b_B = tl.program_id(0), tl.program_id(1)
@@ -603,7 +617,7 @@ def forward_sequence(
     # call the kernel
 
     def grid(args):
-        siz_B = args["siz_B"]
+        siz_B = args.get("siz_B", 16)
         TN = args.get("TN", 32)
         TK = args.get("TK", 32)
         assert siz_B >= MIN_BATCH_SIZE, "siz_B must be at least 16"
@@ -632,6 +646,9 @@ def forward_sequence(
         DH=DH,
         NGI=NGI,
         NGR=NGR,
+        siz_B=16,
+        TK=16,
+        TN=16,
         resets=resets_kshaped,
         OUTPUT_GATES=output_gates_and_states_initial,
         HAS_RESETS=has_resets,

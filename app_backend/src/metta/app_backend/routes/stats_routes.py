@@ -7,7 +7,7 @@ import duckdb
 from fastapi import APIRouter, Body, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import OptionalUserOrToken, UserOrToken
 from metta.app_backend.metta_repo import (
     EpisodeWithTags,
     MettaRepo,
@@ -23,6 +23,12 @@ OBSERVATORY_S3_BUCKET = "observatory-private"
 # Request/Response Models
 class UUIDResponse(BaseModel):
     id: uuid.UUID
+
+
+class PolicyVersionResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    version: int
 
 
 class PolicyCreate(BaseModel):
@@ -112,7 +118,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
-    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> UUIDResponse:
+    async def _create_policy_version_from_s3_key(name: str, user_id: str, s3_key: str) -> PolicyVersionResponse:
         s3_path = f"s3://{OBSERVATORY_S3_BUCKET}/{s3_key}"
         policy_id = await stats_repo.upsert_policy(name=name, user_id=user_id, attributes={})
         policy_version_id = await stats_repo.create_policy_version(
@@ -122,7 +128,10 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
             policy_spec={},
             attributes={},
         )
-        return UUIDResponse(id=policy_version_id)
+        pv = await stats_repo.get_policy_version_with_name(policy_version_id)
+        if pv is None:
+            raise HTTPException(status_code=500, detail="Failed to retrieve created policy version")
+        return PolicyVersionResponse(id=policy_version_id, name=pv.name, version=pv.version)
 
     @router.post("/policies")
     @timed_http_handler
@@ -192,7 +201,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit")
     @timed_http_handler
-    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> UUIDResponse:
+    async def submit_policy(file: UploadFile, user: UserOrToken, name: str = Form(...)) -> PolicyVersionResponse:
         if not file.filename or not file.filename.endswith(".zip"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -242,7 +251,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("/policies/submit/complete")
     @timed_http_handler
-    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> UUIDResponse:
+    async def complete_policy_submit(request: CompletePolicySubmitRequest, user: UserOrToken) -> PolicyVersionResponse:
         s3_key = f"cogames/submissions/{user}/{request.upload_id}.zip"
 
         try:
@@ -386,19 +395,24 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     @router.get("/policy-versions")
     @timed_http_handler
     async def get_policy_versions(
+        user: OptionalUserOrToken,
         name_exact: Optional[str] = None,
         name_fuzzy: Optional[str] = None,
         version: Optional[int] = None,
         policy_version_ids: Optional[list[str]] = Query(default=None),
+        mine: bool = Query(default=False, description="Filter to only policies owned by the authenticated user"),
         limit: int = 50,
         offset: int = 0,
     ) -> PolicyVersionsResponse:
+        if mine and not user:
+            raise HTTPException(status_code=401, detail="Authentication required for mine=true")
         pv_uuids = [uuid.UUID(pv_id) for pv_id in policy_version_ids] if policy_version_ids else None
         entries, total_count = await stats_repo.get_policy_versions(
             name_exact=name_exact,
             name_fuzzy=name_fuzzy,
             version=version,
             policy_version_ids=pv_uuids,
+            user_id=user if mine else None,
             limit=limit,
             offset=offset,
         )

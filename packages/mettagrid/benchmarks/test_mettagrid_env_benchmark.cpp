@@ -13,6 +13,7 @@
 #include "bindings/mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/agent_config.hpp"
+#include "objects/collective_config.hpp"
 #include "objects/wall.hpp"
 
 namespace py = pybind11;
@@ -41,6 +42,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
 
   std::shared_ptr<AttackActionConfig> attack_cfg =
       std::make_shared<AttackActionConfig>(std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
+                                           std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>(),
                                            std::unordered_map<InventoryItem, InventoryQuantity>());
 
@@ -88,6 +91,7 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                     actions_cfg,
                     objects_cfg,
                     tag_id_map,
+                    std::unordered_map<std::string, std::shared_ptr<CollectiveConfig>>(),
                     false,
                     std::unordered_map<std::string, float>(),
                     0,

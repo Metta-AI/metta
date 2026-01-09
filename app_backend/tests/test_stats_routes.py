@@ -3,7 +3,6 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.leaderboard_constants import LEADERBOARD_SIM_NAME_EPISODE_KEY
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -31,7 +30,7 @@ async def test_query_episodes_by_id_includes_avg_rewards_and_replay(
         attributes={"note": "avg reward should be computed"},
         eval_task_id=None,
         thumbnail_url=None,
-        tags=[(LEADERBOARD_SIM_NAME_EPISODE_KEY, "arena-basic")],
+        tags=[("sim_name", "arena-basic")],
         policy_versions=[(pv_id, 2)],
         policy_metrics=[(pv_id, "reward", 10.0)],
     )

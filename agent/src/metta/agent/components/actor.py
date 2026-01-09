@@ -4,6 +4,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 from gymnasium.spaces import Discrete
+from pydantic import ConfigDict
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModule as TDM
 
@@ -103,6 +104,8 @@ class ActorKey(nn.Module):
 
 
 class ActionProbsConfig(ComponentConfig):
+    model_config = ConfigDict(extra="ignore")
+
     in_key: str
     name: str = "action_probs"
 
@@ -136,30 +139,24 @@ class ActionProbs(nn.Module):
 
         self.num_actions = int(action_space.n)
 
-    def _pad_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
-        """Optionally pad logits to match environment action count."""
-        self._ensure_initialized()
-
-        current_actions = logits.size(-1)
-        if current_actions == self.num_actions:
-            return logits
-
-        pad = self.num_actions - current_actions
-        pad_shape = list(logits.shape[:-1]) + [pad]
-        pad_tensor = torch.full(pad_shape, float("-inf"), dtype=logits.dtype, device=logits.device)
-        return torch.cat([logits, pad_tensor], dim=-1)
+    def _mask_logits_if_needed(self, logits: torch.Tensor) -> torch.Tensor:
+        """Sanitize logits and mask past the first 21 actions (keep full action_dim for checkpoint compatibility)."""
+        mask_value = -1e9
+        logits = torch.nan_to_num(logits, nan=mask_value, posinf=mask_value, neginf=mask_value)
+        if logits.size(-1) > 21:
+            logits = logits.clone()
+            logits[..., 21:] = mask_value
+        return logits
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
-        if action is None:
-            return self.forward_inference(td)
-        else:
-            return self.forward_training(td, action)
+        return self.forward_inference(td) if action is None else self.forward_training(td, action)
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Forward pass for inference mode with action sampling."""
         logits = td[self.config.in_key]
 
-        logits = self._pad_logits_if_needed(logits)
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         action_logit_index, selected_log_probs, _, full_log_probs = sample_actions(logits)
 
         td["actions"] = action_logit_index.to(dtype=torch.int32)
@@ -187,7 +184,8 @@ class ActionProbs(nn.Module):
             raise ValueError(f"Expected flattened action indices, got shape {tuple(action.shape)}")
 
         action_logit_index = action.to(dtype=torch.long)
-        logits = self._pad_logits_if_needed(logits)
+        self._ensure_initialized()
+        logits = self._mask_logits_if_needed(logits)
         selected_log_probs, entropy, action_log_probs = evaluate_actions(logits, action_logit_index)
 
         # Store in flattened TD (will be reshaped by caller if needed)
@@ -197,11 +195,6 @@ class ActionProbs(nn.Module):
 
         # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
         # The reshaping happens in ComponentPolicy.forward() after forward_training()
-        if "batch" in td.keys() and "bptt" in td.keys():
-            batch_size = td["batch"][0].item()
-            bptt_size = td["bptt"][0].item()
-            td = td.reshape(batch_size, bptt_size)
-
         return td
 
 
@@ -212,9 +205,7 @@ class ActorHeadConfig(ComponentConfig):
     layer_init_std: float = 1.0
     name: str = "actor_head"
 
-    def make_component(self, env: PolicyEnvInterface | None = None):
-        if env is None:
-            raise ValueError("ActorHeadConfig requires PolicyEnvInterface to determine action dimensions")
+    def make_component(self, env: PolicyEnvInterface):
         return ActorHead(config=self, env=env)
 
 
