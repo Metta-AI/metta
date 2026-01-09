@@ -1,7 +1,7 @@
 import
   genny, openGL, jsony, vmath, windy, silky,
   ../src/mettascope,
-  ../src/mettascope/[replays, common, worldmap, timeline, envconfig, vibes, panels]
+  ../src/mettascope/[replays, common, worldmap, timeline]
 
 type
   ActionRequest* = object
