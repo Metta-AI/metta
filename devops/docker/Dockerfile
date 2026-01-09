@@ -43,7 +43,8 @@ RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
 COPY . .
 
 RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
-  uv sync --locked
+  uv sync --locked && \
+  rm -rf /root/.cache/uv/*
 
 # == RUNTIME ==
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS runtime
