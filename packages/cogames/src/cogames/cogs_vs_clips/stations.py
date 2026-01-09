@@ -1,14 +1,30 @@
+from typing import Optional
+
 from pydantic import Field
 
 from mettagrid.base_config import Config
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
+    ActivationHandler,
+    ActorCollectiveHas,
+    ActorHas,
+    Align,
+    AOEEffectConfig,
     AssemblerConfig,
     ChestConfig,
+    ClearInventoryMutation,
+    CollectiveDeposit,
+    CollectiveWithdraw,
     GridObjectConfig,
     InventoryConfig,
     ProtocolConfig,
+    RemoveAlignment,
+    TargetCollectiveUpdate,
+    UpdateActor,
     WallConfig,
+    isAligned,
+    isEnemy,
+    isNeutral,
 )
 
 resources = [
@@ -23,6 +39,32 @@ resources = [
     "resonator",
     "scrambler",
 ]
+
+# CogsGuard constants
+COGSGUARD_GEAR = ["aligner", "scrambler", "miner", "scout"]
+COGSGUARD_ELEMENTS = ["oxygen", "carbon", "germanium", "silicon"]
+
+COGSGUARD_HEART_COST = {e: 1 for e in COGSGUARD_ELEMENTS}
+COGSGUARD_ALIGN_COST = {"heart": 1}
+COGSGUARD_SCRAMBLE_COST = {"heart": 1}
+
+COGSGUARD_GEAR_COSTS = {
+    "aligner": {"carbon": 3, "oxygen": 1, "germanium": 1, "silicon": 1},
+    "scrambler": {"carbon": 1, "oxygen": 3, "germanium": 1, "silicon": 1},
+    "miner": {"carbon": 1, "oxygen": 1, "germanium": 3, "silicon": 1},
+    "scout": {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 3},
+}
+
+COGSGUARD_GEAR_SYMBOLS = {
+    "aligner": "🔗",
+    "scrambler": "🌀",
+    "miner": "⛏️",
+    "scout": "🔭",
+}
+
+
+def _neg(recipe: dict[str, int]) -> dict[str, int]:
+    return {k: -v for k, v in recipe.items()}
 
 
 class CvCStationConfig(Config):
@@ -237,4 +279,171 @@ class CvCAssemblerConfig(CvCStationConfig):
             ],
             # Note: Generic ['gear'] protocol is added dynamically by clipping variants
             # C++ only allows ONE protocol per unique vibe list, so we can't pre-add all 4 here
+        )
+
+
+# ==============================================================================
+# CogsGuard Station Configs
+# ==============================================================================
+
+
+class SimpleExtractorConfig(CvCStationConfig):
+    """Simple resource extractor with inventory that transfers resources to actors.
+
+    Uses vibe_transfers to control extraction amounts:
+    - "default" vibe: extract small_amount
+    - "miner" vibe: extract large_amount
+    """
+
+    resource: str = Field(description="The resource to extract")
+    initial_amount: int = Field(default=100, description="Initial amount of resource in extractor")
+    small_amount: int = Field(default=1, description="Amount extracted with default vibe")
+    large_amount: int = Field(default=10, description="Amount extracted with miner vibe")
+
+    def station_cfg(self) -> ChestConfig:
+        return ChestConfig(
+            name=f"{self.resource}_chest",
+            map_name=f"{self.resource}_extractor",
+            render_symbol="📦",
+            vibe_transfers={
+                "default": {self.resource: self.small_amount},
+                "miner": {self.resource: self.large_amount},
+            },
+            inventory=InventoryConfig(initial={self.resource: self.initial_amount}),
+        )
+
+
+class JunctionConfig(CvCStationConfig):
+    """Supply depot that receives element resources via default vibe into collective."""
+
+    map_name: str = Field(description="Map name for this junction")
+    team: Optional[str] = Field(default=None, description="Team/collective this junction belongs to")
+    aoe_range: int = Field(default=10, description="Range for AOE effects")
+    influence_deltas: Optional[dict[str, int]] = Field(
+        default_factory=lambda: {"influence": 10, "energy": 100, "hp": 100}
+    )
+    attack_deltas: Optional[dict[str, int]] = Field(default_factory=lambda: {"hp": -1, "influence": -100})
+    elements: list[str] = Field(default_factory=lambda: COGSGUARD_ELEMENTS)
+    align_cost: dict[str, int] = Field(default_factory=lambda: COGSGUARD_ALIGN_COST)
+    scramble_cost: dict[str, int] = Field(default_factory=lambda: COGSGUARD_SCRAMBLE_COST)
+
+    def _get_aoes(self) -> list[AOEEffectConfig]:
+        aoes = []
+        if self.influence_deltas:
+            aoes.append(
+                AOEEffectConfig(range=self.aoe_range, resource_deltas=self.influence_deltas, filters=[isAligned()])
+            )
+        if self.attack_deltas:
+            aoes.append(AOEEffectConfig(range=self.aoe_range, resource_deltas=self.attack_deltas, filters=[isEnemy()]))
+        return aoes
+
+    def station_cfg(self) -> GridObjectConfig:
+        return GridObjectConfig(
+            name="supply_depot",
+            map_name=self.map_name,
+            render_symbol="📦",
+            collective=self.team,
+            aoes=self._get_aoes(),
+            handlers=[
+                ActivationHandler(
+                    name="deposit",
+                    filters=[isAligned()],
+                    mutations=[CollectiveDeposit({resource: 100 for resource in self.elements})],
+                ),
+                ActivationHandler(
+                    name="align",
+                    filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, **self.align_cost})],
+                    mutations=[UpdateActor(_neg(self.align_cost)), Align()],
+                ),
+                ActivationHandler(
+                    name="scramble",
+                    filters=[isEnemy(), ActorHas({"scrambler": 1, **self.scramble_cost})],
+                    mutations=[RemoveAlignment(), UpdateActor(_neg(self.scramble_cost))],
+                ),
+            ],
+        )
+
+
+class HubConfig(JunctionConfig):
+    """Main nexus with influence AOE effect. A junction without align/scramble handlers."""
+
+    team: Optional[str] = Field(default="cogs", description="Team/collective this hub belongs to")
+
+    def station_cfg(self) -> GridObjectConfig:
+        return GridObjectConfig(
+            name="main_nexus",
+            map_name=self.map_name,
+            render_symbol="🏛️",
+            collective=self.team,
+            aoes=self._get_aoes(),
+            handlers=[
+                ActivationHandler(
+                    name="deposit",
+                    filters=[isAligned()],
+                    mutations=[CollectiveDeposit({resource: 100 for resource in self.elements})],
+                ),
+            ],
+        )
+
+
+class CogsGuardChestConfig(CvCStationConfig):
+    """Chest for heart management in CogsGuard."""
+
+    collective: str = Field(default="cogs", description="Collective this chest belongs to")
+    heart_cost: dict[str, int] = Field(default_factory=lambda: COGSGUARD_HEART_COST)
+
+    def station_cfg(self) -> GridObjectConfig:
+        return GridObjectConfig(
+            name="chest",
+            map_name="chest",
+            render_symbol="📦",
+            collective=self.collective,
+            handlers=[
+                ActivationHandler(
+                    name="get_heart",
+                    filters=[isAligned()],
+                    mutations=[CollectiveWithdraw({"heart": 1})],
+                ),
+                ActivationHandler(
+                    name="make_heart",
+                    filters=[isAligned(), ActorCollectiveHas(self.heart_cost)],
+                    mutations=[
+                        TargetCollectiveUpdate(_neg(self.heart_cost)),
+                        UpdateActor({"heart": 1}),
+                    ],
+                ),
+            ],
+        )
+
+
+class GearStationConfig(CvCStationConfig):
+    """Gear station that clears all gear and adds the specified gear type."""
+
+    gear_type: str = Field(description="Type of gear this station provides")
+    collective: str = Field(default="cogs", description="Collective this station belongs to")
+    gear_costs: dict[str, dict[str, int]] = Field(default_factory=lambda: COGSGUARD_GEAR_COSTS)
+
+    def station_cfg(self) -> GridObjectConfig:
+        cost = self.gear_costs.get(self.gear_type, {})
+        return GridObjectConfig(
+            name=f"{self.gear_type}_station",
+            map_name=f"{self.gear_type}_station",
+            render_symbol=COGSGUARD_GEAR_SYMBOLS.get(self.gear_type, "⚙️"),
+            collective=self.collective,
+            handlers=[
+                ActivationHandler(
+                    name="keep_gear",
+                    filters=[isAligned(), ActorHas({self.gear_type: 1})],
+                    mutations=[],
+                ),
+                ActivationHandler(
+                    name="change_gear",
+                    filters=[isAligned(), ActorCollectiveHas(cost)],
+                    mutations=[
+                        ClearInventoryMutation(target="actor", limit_name="gear"),
+                        TargetCollectiveUpdate(_neg(cost)),
+                        UpdateActor({self.gear_type: 1}),
+                    ],
+                ),
+            ],
         )
