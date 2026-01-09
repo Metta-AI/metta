@@ -68,8 +68,15 @@ class UpdateEpochAutoTuner(TrainerComponent):
         if not stats:
             return
 
-        approx_kl = float(stats.get(self._cfg.approx_kl_key, 0.0))
-        clipfrac = float(stats.get(self._cfg.clipfrac_key, 0.0))
+        approx_kl_value = stats.get(self._cfg.approx_kl_key)
+        clipfrac_value = stats.get(self._cfg.clipfrac_key)
+        if approx_kl_value is None and "/" in self._cfg.approx_kl_key:
+            approx_kl_value = stats.get(self._cfg.approx_kl_key.split("/", 1)[-1])
+        if clipfrac_value is None and "/" in self._cfg.clipfrac_key:
+            clipfrac_value = stats.get(self._cfg.clipfrac_key.split("/", 1)[-1])
+
+        approx_kl = float(approx_kl_value or 0.0)
+        clipfrac = float(clipfrac_value or 0.0)
         if approx_kl <= 0.0 and clipfrac <= 0.0:
             return
 

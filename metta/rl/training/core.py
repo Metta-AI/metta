@@ -345,6 +345,12 @@ def _build_train_nodes(
             fn=_train_used_keys_fn(core),
             enabled=_phase_enabled("train"),
         ),
+        Node(
+            name="train.zero_grad",
+            deps=("train.sample_mb",),
+            fn=_train_zero_grad_fn(core),
+            enabled=lambda _ctx, workspace: workspace["mb_idx"] % core.accumulate_minibatches == 0,
+        ),
     ]
 
     train_node_names: list[str] = []
@@ -384,7 +390,7 @@ def _build_train_nodes(
             ),
             Node(
                 name="train.backward",
-                deps=("train.dummy_loss",),
+                deps=("train.dummy_loss", "train.zero_grad"),
                 fn=_train_backward_fn(),
                 enabled=_train_continue_enabled,
             ),
@@ -703,6 +709,14 @@ def _train_used_keys_fn(core: CoreTrainingLoop):
                 continue
             used_keys.update(node.policy_output_keys(policy_td))
         workspace["used_keys"] = used_keys
+        return {}
+
+    return _fn
+
+
+def _train_zero_grad_fn(core: CoreTrainingLoop):
+    def _fn(context: ComponentContext, workspace: dict[str, Any]) -> dict[str, Any]:
+        core.optimizer.zero_grad(set_to_none=True)
         return {}
 
     return _fn
