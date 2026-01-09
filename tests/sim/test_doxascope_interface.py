@@ -85,7 +85,7 @@ class Test02SimulationContextPoliciesInjection:
         mock_policies = [mock_policy1, mock_policy2]
 
         # Create a Rollout
-        rollout = Rollout(env_cfg, mock_policies)
+        rollout = Rollout(env_cfg, mock_policies)  # type: ignore[arg-type]
 
         # Assert: Check that policies were injected into simulation context
         assert "policies" in rollout._sim._context, "policies key missing from simulation context"
