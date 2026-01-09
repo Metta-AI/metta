@@ -183,7 +183,6 @@ private:
   std::vector<ActionType> _executed_actions;
   std::vector<uint32_t> _goal_generation;
   uint32_t _goal_gen_counter = 1;
-  uint8_t _compass_location = EmptyTokenByte;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_BINDINGS_METTAGRID_C_HPP_

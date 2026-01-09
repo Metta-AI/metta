@@ -95,7 +95,6 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   _goal_generation.assign(resource_names.size(), 0);
   _wall_token_cache.clear();
   _is_wall.clear();
-  _compass_location = EmptyTokenByte;
 
   _stats = std::make_unique<StatsTracker>(&resource_names);
 
