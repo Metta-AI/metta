@@ -28,6 +28,7 @@ RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
 COPY metta/setup/components/system_packages/bootstrap.py /tmp/bootstrap.py
 # Required so bootstrap.py can find the correct versions
 COPY .bazelversion .bazeliskversion /
+
 RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
   cd /tmp && uv run --no-sync python bootstrap.py --non-interactive
 
@@ -41,6 +42,29 @@ RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
 
 COPY . .
 
+RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
+  uv sync --locked
+
+# == RUNTIME ==
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TORCH_CUDA_ARCH_LIST=7.5;8.0;8.6;8.9;9.0
+ENV READTHEDOCS=True
+ENV UV_LINK_MODE=copy
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/metta
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /uvx /bin/
+COPY --from=builder /workspace/metta /workspace/metta/
+
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
@@ -49,8 +73,5 @@ RUN git config --global checkout.defaultRemote origin \
 
 RUN echo 'cd /workspace/metta' >> /root/.bashrc && \
     echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
-
-RUN --mount=type=cache,id=metta-uv-cache,target=/root/.cache/uv \
-  uv sync --locked
 
 ENTRYPOINT ["/bin/bash", "-c"]
