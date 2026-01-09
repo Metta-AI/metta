@@ -11,10 +11,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Optional, Sequence, Union
 
-import torch
-
 import pufferlib.models  # type: ignore[import-untyped]
 import pufferlib.pytorch  # type: ignore[import-untyped]
+import torch
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy, StatefulAgentPolicy, StatefulPolicyImpl
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation, Simulation
@@ -85,9 +84,11 @@ class _PufferlibCogsStatefulImpl(StatefulPolicyImpl[dict[str, torch.Tensor | Non
 
         if state_dict is None:
             return action, {}
+        next_h = state_dict.get("lstm_h")
+        next_c = state_dict.get("lstm_c")
         return action, {
-            "lstm_h": state_dict.get("lstm_h").detach() if state_dict.get("lstm_h") is not None else None,
-            "lstm_c": state_dict.get("lstm_c").detach() if state_dict.get("lstm_c") is not None else None,
+            "lstm_h": next_h.detach() if next_h is not None else None,
+            "lstm_c": next_c.detach() if next_c is not None else None,
         }
 
 
@@ -187,7 +188,7 @@ class PufferlibCogsPolicy(MultiAgentPolicy, AgentPolicy):
             obs_tensor = obs_tensor.unsqueeze(0)
         with torch.no_grad():
             self._net.eval()
-            logits, _ = self._net.forward_eval(obs_tensor)
+            logits, _ = self._net.forward_eval(obs_tensor, None)
             sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
         action_idx = max(0, min(int(sampled.item()), len(self._action_names) - 1))
         return Action(name=self._action_names[action_idx])
