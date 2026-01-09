@@ -1,8 +1,15 @@
 from fastapi.testclient import TestClient
 
+from metta.protobuf.sim.policy_v1 import policy_pb2
 from metta.sim.serve_policy import PolicyService, create_app
 from mettagrid.policy.policy import AgentPolicy, MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator import Action, AgentObservation
+
+
+def null_env_adapter(_: policy_pb2.PreparePolicyRequest) -> PolicyEnvInterface:
+    """Adapter that returns None - tests use policies that ignore env_interface."""
+    return None  # type: ignore[return-value]
 
 
 class ConstantActionAgentPolicy(AgentPolicy):
@@ -29,7 +36,7 @@ class ConstantActionPolicy(MultiAgentPolicy):
 
 
 def test_prepare_policy():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     response = client.post(
@@ -50,7 +57,7 @@ def test_prepare_policy():
 
 
 def test_prepare_policy_wrong_path():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     response = client.post("/wrong/path", json={})
@@ -59,7 +66,7 @@ def test_prepare_policy_wrong_path():
 
 
 def test_prepare_policy_wrong_method():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     response = client.get("/metta.protobuf.sim.policy_v1.Policy/PreparePolicy")
@@ -68,7 +75,7 @@ def test_prepare_policy_wrong_method():
 
 
 def test_prepare_policy_invalid_json_shape():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     response = client.post(
@@ -79,14 +86,33 @@ def test_prepare_policy_invalid_json_shape():
     assert response.status_code == 400
 
 
+def test_prepare_policy_unsupported_observation_format():
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
+    client = TestClient(app)
+
+    # AGENT_OBSERVATIONS_FORMAT_UNKNOWN (0) is not supported
+    response = client.post(
+        "/metta.protobuf.sim.policy_v1.Policy/PreparePolicy",
+        json={"episode_id": "ep-123", "agent_ids": [0], "observations_format": "AGENT_OBSERVATIONS_FORMAT_UNKNOWN"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "unsupported observation format"}
+
+
 def test_batch_step():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     # Must call PreparePolicy first to register the episode
     response = client.post(
         "/metta.protobuf.sim.policy_v1.Policy/PreparePolicy",
-        json={"episode_id": "ep-123", "agent_ids": [0]},
+        json={
+            "episode_id": "ep-123",
+            "agent_ids": [0],
+            "observations_format": "TRIPLET_V1",
+            "game_rules": {"actions": [{"id": 42, "name": "42"}]},
+        },
     )
     assert response.status_code == 200
 
@@ -110,7 +136,7 @@ def test_batch_step():
 
 
 def test_batch_step_unknown_episode():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     response = client.post(
@@ -126,13 +152,13 @@ def test_batch_step_unknown_episode():
 
 
 def test_batch_step_unknown_agent():
-    app = create_app(PolicyService(ConstantActionPolicy(42)))
+    app = create_app(PolicyService(lambda _: ConstantActionPolicy(42), null_env_adapter))
     client = TestClient(app)
 
     # Register episode with agent 0
     response = client.post(
         "/metta.protobuf.sim.policy_v1.Policy/PreparePolicy",
-        json={"episode_id": "ep-123", "agent_ids": [0]},
+        json={"episode_id": "ep-123", "agent_ids": [0], "observations_format": "TRIPLET_V1"},
     )
     assert response.status_code == 200
 
