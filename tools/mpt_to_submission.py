@@ -112,7 +112,7 @@ def _build_submission_zip(mpt_path: Path, output_zip: Path, *, copy_extras: bool
                 if entry.is_dir():
                     continue
                 _validate_entry_name(entry.filename)
-                if entry.filename in {"weights.safetensors", "modelarchitecture.txt"}:
+                if entry.filename in {"weights.safetensors", "modelarchitecture.txt", "policy_spec.json"}:
                     continue
                 extra_names.append(entry.filename)
 
