@@ -2,6 +2,10 @@
 """
 Sync a child repository from monorepo with preserved git history.
 
+This script filters the git history to only include the package directory,
+then pushes both the main branch and package-specific tags (matching pattern
+<package>-*) to the child repository.
+
 Usage:
     uv run devops/git/push_child_repo.py <repo>
     uv run devops/git/push_child_repo.py <repo> --dry-run
@@ -19,7 +23,7 @@ from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
 
 
 def get_remote_url(package_name: str) -> str:
-    return f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
+    return f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{package_name}.git"
 
 
 def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool = False):
@@ -60,7 +64,23 @@ def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool 
     except Exception:
         pass  # No origin is fine
 
-    # Step 4: Push (with confirmations)
+    # Step 4: Find package-specific tags
+    tag_pattern = f"{package_name}-*"
+    try:
+        matching_tags = git.run_git_in_dir(filtered_path, "tag", "--list", tag_pattern).strip().splitlines()
+        matching_tags = [tag.strip() for tag in matching_tags if tag.strip()]
+    except Exception as e:
+        print(f"Warning: Failed to list tags: {e}")
+        matching_tags = []
+
+    if matching_tags:
+        print(f"\nFound {len(matching_tags)} matching tags: {', '.join(matching_tags[:5])}")
+        if len(matching_tags) > 5:
+            print(f"  ... and {len(matching_tags) - 5} more")
+    else:
+        print(f"\nNo tags matching pattern '{tag_pattern}' found")
+
+    # Step 5: Push (with confirmations)
     print(f"\n{'DRY RUN: ' if dry_run else ''}Push to {remote_url}")
 
     if not dry_run and not skip_confirmation:
@@ -74,17 +94,30 @@ def sync_repo(package_name: str, dry_run: bool = False, skip_confirmation: bool 
             print("Aborted")
             sys.exit(1)
 
-    # Do the push
+    # Step 6: Do the push
     try:
         git.add_remote("production", remote_url, filtered_path)
 
+        # Push main branch
         push_cmd = ["push", "--force", "production", "HEAD:main"]
         if dry_run:
             push_cmd.insert(2, "--dry-run")
 
+        print("\nPushing main branch...")
         output = git.run_git_in_dir(filtered_path, *push_cmd)
         if output:
             print(output)
+
+        # Push package-specific tags
+        if matching_tags:
+            tag_push_cmd = ["push", "--force", "production"] + matching_tags
+            if dry_run:
+                tag_push_cmd.insert(2, "--dry-run")
+
+            print(f"\nPushing {len(matching_tags)} package-specific tags...")
+            output = git.run_git_in_dir(filtered_path, *tag_push_cmd)
+            if output:
+                print(output)
 
         print(f"\n{'Dry run' if dry_run else 'Push'} completed!")
         print(f"Filtered repo at: {filtered_path}")

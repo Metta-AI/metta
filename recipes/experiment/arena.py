@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
@@ -45,8 +45,8 @@ def make_curriculum(
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-    arena_tasks.add_bucket("game.agent.initial_inventory.ore_red", [0, 1, 3])
-    arena_tasks.add_bucket("game.agent.initial_inventory.battery_red", [0, 3])
+    arena_tasks.add_bucket("game.agent.inventory.initial.ore_red", [0, 1, 3])
+    arena_tasks.add_bucket("game.agent.inventory.initial.battery_red", [0, 3])
 
     if algorithm_config is None:
         algorithm_config = LearningProgressConfig(
@@ -83,7 +83,7 @@ def train(
     return TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
-            simulations=simulations(), evaluate_remote=True, evaluate_local=True, skip_git_check=True
+            simulations=simulations(),
         ),
     )
 
@@ -120,7 +120,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
 
 def evaluate(
-    policy_uris: str | Sequence[str] | None = None,
+    policy_uris: list[str] | str,
 ) -> EvaluateTool:
     return EvaluateTool(
         simulations=simulations(),

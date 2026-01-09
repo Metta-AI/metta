@@ -9,7 +9,7 @@ from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
 from metta.app_backend.auth import UserOrToken
-from metta.app_backend.config import anthropic_api_key
+from metta.app_backend.config import settings
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
@@ -161,7 +161,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     await con.execute("SET statement_timeout = '20s'")
 
                     # Execute the query
-                    result = await con.execute(request.query)
+                    result = await con.execute(request.query)  # type: ignore[arg-type]
 
                     # Get column names
                     columns = []
@@ -206,7 +206,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
     async def generate_ai_query(request: AIQueryRequest, user: UserOrToken) -> AIQueryResponse:
         """Generate a SQL query from natural language description using Claude."""
         # Get API key from environment variable
-        if not anthropic_api_key:
+        if not settings.ANTHROPIC_API_KEY:
             raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
 
         # Fetch all table schemas in parallel
@@ -243,7 +243,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     "https://api.anthropic.com/v1/messages",
                     headers={
                         "Content-Type": "application/json",
-                        "x-api-key": anthropic_api_key,
+                        "x-api-key": settings.ANTHROPIC_API_KEY,
                         "anthropic-version": "2023-06-01",
                     },
                     json={

@@ -17,13 +17,14 @@ def _run_single_simulation(
     policy_data: Sequence[Any],
     replay_dir: str | None,
     seed: int,
+    device_override: str | None = None,
 ) -> "SimulationRunResult":
     sim_cfg = SimulationRunConfig.model_validate(simulation)
     policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
 
     env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
     multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, spec) for spec in policy_specs
+        initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
     ]
 
     if replay_dir:
@@ -68,6 +69,7 @@ def run_simulations(
     seed: int,
     max_workers: int | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
+    device_override: str | None = None,
 ) -> list[SimulationRunResult]:
     if not policy_specs:
         raise ValueError("At least one policy spec is required")
@@ -77,7 +79,9 @@ def run_simulations(
         sequential_rollouts: list[SimulationRunResult] = []
         for i, simulation in enumerate(simulations):
             on_progress(f"Beginning rollout for simulation {i + 1} of {len(simulations)}")
-            sequential_rollouts.append(_run_single_simulation(simulation, policy_specs, replay_dir, seed))
+            sequential_rollouts.append(
+                _run_single_simulation(simulation, policy_specs, replay_dir, seed, device_override)
+            )
             on_progress(f"Finished rollout for simulation {i + 1} of {len(simulations)}")
 
         return sequential_rollouts
@@ -102,6 +106,7 @@ def run_simulations(
                 policy_payloads,
                 os.path.join(replay_dir, f"sim_{idx}") if replay_dir else None,
                 seed,
+                device_override,
             ): idx
             for idx, payload in enumerate(simulation_payloads)
         }

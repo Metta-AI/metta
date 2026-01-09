@@ -147,6 +147,6 @@ terraform.tfstate
 .cache/torch_ext/
 
 # Python import analysis
-tools/dev/python_imports/cycles_report.json
-tools/dev/python_imports/architecture_report.json
-tools/dev/python_imports/analysis_summary.md
+tools/dev/python_imports/*.json
+tools/dev/python_imports/*.txt
+.import_linter_cache/

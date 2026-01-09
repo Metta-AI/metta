@@ -19,7 +19,7 @@ from setuptools.command.install import install
 NIM_AGENTS_DIR = Path(__file__).parent / "src" / "cogames" / "policy" / "nim_agents"
 NIMBY_LOCK = NIM_AGENTS_DIR / "nimby.lock"
 REQUIRED_NIM_VERSION = os.environ.get("COGAMES_NIM_VERSION", "2.2.6")
-NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.11")
+NIMBY_VERSION = os.environ.get("COGAMES_NIMBY_VERSION", "0.1.13")
 
 
 def _build_nim() -> None:
@@ -62,7 +62,7 @@ def _build_nim() -> None:
 class _EnsureNimMixin:
     def run(self, *args, **kwargs):  # type: ignore[override]
         _build_nim()
-        super().run(*args, **kwargs)
+        super().run(*args, **kwargs)  # type: ignore[misc]
 
 
 class BuildPyCommand(_EnsureNimMixin, build_py): ...

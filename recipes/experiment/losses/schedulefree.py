@@ -188,8 +188,8 @@ def sweep(sweep_name: str) -> SweepTool:
         recipe="recipes.experiment.losses.schedulefree",
         train_entrypoint="train",
         eval_entrypoint="evaluate_in_sweep",
-        objective="evaluator/eval_sweep/score",
-        parameters=parameters,
+        metric_key="evaluator/eval_sweep/score",
+        search_space=parameters,
         max_trials=80,
         num_parallel_trials=4,
     )

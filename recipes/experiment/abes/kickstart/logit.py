@@ -17,7 +17,8 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import HyperUpdateRule, LossRunGate, SchedulerConfig
+from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
@@ -101,40 +102,44 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
+    teacher: TeacherConfig | None = None,
 ) -> TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
     losses_config = LossesConfig()
-    losses_config.logit_kickstarter.enabled = True
-    losses_config.logit_kickstarter.teacher_uri = (
-        "s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900.mpt"
-    )
-    # losses_config.ppo_critic.sample_enabled = False
-    # losses_config.ppo_critic.train_forward_enabled = False
     trainer_cfg = TrainerConfig(losses=losses_config)
+    teacher = teacher or TeacherConfig(
+        policy_uri="s3://softmax-public/policies/av.sliced.mb.11.22.110.ctrl/av.sliced.mb.11.22.110.ctrl:v9900",
+        mode="logit_kickstarter",
+        steps=1_000_000_000,
+        teacher_led_proportion=1.0,
+    )
 
     if policy_architecture is None:
         policy_architecture = ViTDefaultConfig()
 
-    scheduler = SchedulerConfig(
-        run_gates=[
-            LossRunGate(loss_instance_name="ppo_critic", phase="rollout", begin_at_step=1_000_000_000),
-            LossRunGate(
-                loss_instance_name="logit_kickstarter",
-                phase="rollout",
-                end_at_step=1_000_000_000,
-            ),
-            LossRunGate(
-                loss_instance_name="logit_kickstarter",
-                phase="train",
-                end_at_step=1_000_000_000,
-            ),
-        ],
-        rules=[
-            HyperUpdateRule(
-                loss_instance_name="logit_kickstarter",
-                attr_path="action_loss_coef",
+    tt = TrainTool(
+        trainer=trainer_cfg,
+        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
+        evaluator=EvaluatorConfig(simulations=eval_simulations),
+        policy_architecture=policy_architecture,
+        torch_profiler=TorchProfilerConfig(),
+    )
+    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_rules: list[ScheduleRule] = []
+    apply_teacher_phase(
+        trainer_cfg=tt.trainer,
+        training_env_cfg=tt.training_env,
+        scheduler_rules=scheduler_rules,
+        scheduler_run_gates=scheduler_run_gates,
+        teacher_cfg=teacher,
+        default_steps=teacher.steps if teacher.steps is not None else 1_000_000_000,
+    )
+    scheduler_rules.extend(
+        [
+            ScheduleRule(
+                target_path="losses.logit_kickstarter.action_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=0.6,
@@ -142,9 +147,8 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-            HyperUpdateRule(
-                loss_instance_name="logit_kickstarter",
-                attr_path="value_loss_coef",
+            ScheduleRule(
+                target_path="losses.logit_kickstarter.value_loss_coef",
                 mode="progress",
                 style="linear",
                 start_value=1.0,
@@ -152,17 +156,10 @@ def train(
                 start_agent_step=500_000_000,
                 end_agent_step=1_000_000_000,
             ),
-        ],
+        ]
     )
-
-    return TrainTool(
-        trainer=trainer_cfg,
-        training_env=TrainingEnvironmentConfig(curriculum=curriculum),
-        evaluator=EvaluatorConfig(simulations=eval_simulations),
-        policy_architecture=policy_architecture,
-        torch_profiler=TorchProfilerConfig(),
-        scheduler=scheduler,
-    )
+    tt.scheduler = SchedulerConfig(run_gates=scheduler_run_gates, rules=scheduler_rules)
+    return tt
 
 
 def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
@@ -172,11 +169,11 @@ def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
+    checkpoints = [p for p in dir_path.iterdir() if p.is_dir() and (p / "policy_spec.json").exists()]
+    checkpoints = sorted(checkpoints, key=lambda x: x.stat().st_mtime)
+    if not checkpoints:
         raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
+    policy_uri = checkpoints[-1].as_posix()
     sim = mettagrid(num_agents=6)
     return EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
@@ -288,15 +285,15 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.kickstart.logit",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="experience/rewards",
-        parameters=parameters,
+        metric_key="experience/rewards",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

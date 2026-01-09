@@ -21,7 +21,7 @@ from typing import override
 from pydantic import Field
 
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant
-from mettagrid.config.mettagrid_config import MettaGridConfig
+from mettagrid.config.mettagrid_config import AssemblerConfig, MettaGridConfig
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,6 @@ logger = logging.getLogger(__name__)
 
 RESOURCE_KEYS = ("carbon", "oxygen", "germanium", "silicon")
 
-# Solvability floors (non-breaking; keep extreme playable)
-EFFICIENCY_FLOOR = 10
-CHARGER_EFFICIENCY_FLOOR = 50
 # Allow zero to persist for difficulties that force no passive regen
 ENERGY_REGEN_FLOOR = 0
 
@@ -104,8 +101,12 @@ class DifficultyLevel(MissionVariant):
             difficulty: DifficultyLevel to apply
         """
         # Apply max_uses (override if set, else multiply), then enforce floor of 1 if baseline > 0
+        # Note: GermaniumExtractorConfig doesn't have max_uses field (it's hardcoded to 1 in station_cfg)
         for res in RESOURCE_KEYS:
             extractor = getattr(mission, f"{res}_extractor")
+            # Skip if extractor doesn't have max_uses attribute (e.g., GermaniumExtractorConfig)
+            if not hasattr(extractor, "max_uses"):
+                continue
             override_val = getattr(self, f"{res}_max_uses_override")
             mult_val = getattr(self, f"{res}_max_uses_mult")
             if override_val is not None:
@@ -190,42 +191,27 @@ class DifficultyLevel(MissionVariant):
         if not self.allow_agent_scaling:
             return
 
-        # Post-build agent-aware scaling and solvability floors
-        # - Scale extractor max_uses roughly with num_agents
-        # - Mildly scale efficiency with num_agents
-        # - Enforce minimal floors to keep extreme solvable
+        # Post-build agent-aware scaling: scale extractor max_uses roughly with num_agents
         num_agents = env.game.num_agents
-
-        # Efficiency scale: +20% per extra agent, capped at 2.0x
-        eff_scale = 1.0 + 0.2 * max(0, num_agents - 1)
-        if eff_scale > 2.0:
-            eff_scale = 2.0
 
         # Scale extractor resources for multi-agent scenarios
         for res in RESOURCE_KEYS:
             key = f"{res}_extractor"
             obj = env.game.objects.get(key)
-            if obj is None:
+            if not isinstance(obj, AssemblerConfig):
                 continue
 
             # Scale max_uses by agent count (leave unlimited=0 as-is)
-            if hasattr(obj, "max_uses") and obj.max_uses > 0 and num_agents > 1:
+            if obj.max_uses > 0 and num_agents > 1:
                 obj.max_uses = obj.max_uses * num_agents
-            # Single agent or unlimited: no scaling needed
-
-            # Scale efficiency with diminishing returns, enforce floor
-            if hasattr(obj, "efficiency"):
-                obj.efficiency = max(EFFICIENCY_FLOOR, int(obj.efficiency * eff_scale))
-
-        # Charger efficiency floor to avoid energy starvation
-        charger = env.game.objects.get("charger")
-        if charger is not None and hasattr(charger, "efficiency"):
-            charger.efficiency = max(CHARGER_EFFICIENCY_FLOOR, charger.efficiency)
 
         # Energy regen floor: if nonzero, keep at least 1
-        current_regen = env.game.agent.inventory_regen_amounts.get("energy", 1)
+        default_regen = env.game.agent.inventory.regen_amounts.get("default", {})
+        current_regen = default_regen.get("energy", 1)
         if current_regen > 0:
-            env.game.agent.inventory_regen_amounts["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
+            if "default" not in env.game.agent.inventory.regen_amounts:
+                env.game.agent.inventory.regen_amounts["default"] = {}
+            env.game.agent.inventory.regen_amounts["default"]["energy"] = max(ENERGY_REGEN_FLOOR, current_regen)
 
     def _apply_clipping(self, cfg: MettaGridConfig) -> None:
         target = self.clip_target
@@ -284,23 +270,19 @@ class DifficultyLevel(MissionVariant):
             """Make the extractor for the gear resource immune to clipping."""
             immune_extractor_name = self.clip_immune_extractor or f"{resource_for_gear}_extractor"
             obj = cfg.game.objects.get(immune_extractor_name)
-            if obj is None:
+            if not isinstance(obj, AssemblerConfig):
                 return
-            if hasattr(obj, "clip_immune"):
-                obj.clip_immune = True
-            if hasattr(obj, "start_clipped"):
-                obj.start_clipped = False
+            obj.clip_immune = True
+            obj.start_clipped = False
 
         def _ensure_critical_stations_immune() -> None:
             """Make charger, assembler, and chest immune to clipping."""
             for station_name in ["charger", "assembler", "chest"]:
                 obj = cfg.game.objects.get(station_name)
-                if obj is None:
+                if not isinstance(obj, AssemblerConfig):
                     continue
-                if hasattr(obj, "clip_immune"):
-                    obj.clip_immune = True
-                if hasattr(obj, "start_clipped"):
-                    obj.start_clipped = False
+                obj.clip_immune = True
+                obj.start_clipped = False
 
         # Apply clipping modifiers
         _filter_unclip()

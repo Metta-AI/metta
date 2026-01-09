@@ -1,5 +1,31 @@
 # Changelog
 
+## Jan 2026
+
+**Tournament CLI Updates**
+
+- `cogames upload` - Upload a policy without submitting to a tournament
+- `cogames submit` - Submit an uploaded policy to a tournament season
+- `cogames submissions` - View your uploaded policies and tournament submissions
+- `cogames leaderboard --season <name>` - View the leaderboard for a season
+- `cogames seasons` - List available tournament seasons
+
+## Dec 16, 2025
+
+**CLI Command Restructuring**
+
+- `cogames eval` has been renamed to `cogames run`
+
+- Commands intended for demonstration purposes to get you up and running are housed under `cogames tutorial`:
+  - `cogames train` -> `cogames tutorial train`. This command offers a thin wrapper around
+    [pufferlib](https://github.com/PufferAI/PufferLib/tree/3.0) train
+  - `cogames make-policy` -> `cogames tutorial make-policy`. This command creates an example python implementation of a
+    scripted policy for you to modify
+  - Introduced `--scripted` and `--trainable` modes for `cogames make-policy`. Each creates an example policy
+    implementation from a template in different style: scripted or neural-net based.
+  - `cogames tutorial` -> `cogames tutorial play`. This is an interactive tutorial that walks you through the basic
+    mechanics of the game.
+
 ## Dec 3, 2025
 
 **What's new**

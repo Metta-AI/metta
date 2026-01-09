@@ -24,7 +24,7 @@ def _run_cell(
     resets: Optional[torch.Tensor],
     which: str,
     *,
-    backend_sink: Optional[list] = None,
+    backend_sink: list[str],
 ) -> torch.Tensor:
     """Run AxonCell with a forced backend choice.
 
@@ -50,7 +50,7 @@ def _run_cell(
             printed = {"v": False}
 
             def _inner(*args, **kwargs):  # type: ignore[misc]
-                if backend_sink is not None and not printed["v"]:
+                if not printed["v"]:
                     backend_sink[:] = [name]
                     printed["v"] = True
                 return fn(*args, **kwargs)

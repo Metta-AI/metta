@@ -1,14 +1,14 @@
 import
   std/[tables],
-  windy, fidget2, vmath,
+  windy, vmath,
   common, replays, pathfinding
 
 type
   Orientation* = enum
-    N = 0
-    S = 1
-    W = 2
-    E = 3
+    N = 'n'
+    S = 's'
+    W = 'w'
+    E = 'e'
 
 proc sendAction*(agentId: int, actionName: cstring) =
   ## Send an action to the Python from the user.

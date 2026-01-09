@@ -1,13 +1,18 @@
 import
   std/[math, os, strutils, tables, strformat, random, times],
-  boxy, vmath, windy, fidget2/[hybridrender, common, measure],
-  common, panels, actions, utils, replays, objectinfo,
-  pathfinding, tilemap, pixelator, shaderquad
+  vmath, windy, boxy,
+  common, actions, utils, replays,
+  pathfinding, tilemap, pixelator, shaderquad,
+  panels, objectinfo
 
-const TS = 1.0 / 64.0 # Tile scale.
-const TILE_SIZE = 64
+proc foo() =
+  echo window.size.x, "x", window.size.y
 
-proc centerAt*(panel: Panel, entity: Entity)
+const
+  TILE_SIZE = 128
+  TS = 1.0 / TILE_SIZE.float32 # Tile scale.
+
+proc centerAt*(zoomInfo: ZoomInfo, entity: Entity)
 
 var
   terrainMap*: TileMap
@@ -18,6 +23,7 @@ var
   px*: Pixelator
   sq*: ShaderQuad
   previousPanelSize*: Vec2 = vec2(0, 0)
+  needsInitialFit*: bool = true
 
 proc weightedRandomInt*(weights: seq[int]): int =
   ## Return a random integer between 0 and 7, with a weighted distribution.
@@ -45,33 +51,35 @@ const patternToTile = @[
   1, 34, 34, 0, 0, 34, 34, 0, 0
 ]
 
-proc generateTerrainMap(): TileMap {.measure.} =
+proc generateTerrainMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
 
-  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
-
   var terrainMap = newTileMap(
     width = width,
     height = height,
-    tileSize = 64,
-    atlasPath = dataDir & "/blob7x8.png"
+    tileSize = 128,
+    atlasPath = dataDir & "/terrain/blob7x8.png"
   )
 
   var asteroidMap: seq[bool] = newSeq[bool](width * height)
   # Fill the asteroid map with ground (true).
-  for y in 0 ..< replay.mapSize[1]:
-    for x in 0 ..< replay.mapSize[0]:
-      asteroidMap[y * width + x] = true
+  for y in 0 ..< height:
+    for x in 0 ..< width:
+      if x >= replay.mapSize[0] or y >= replay.mapSize[1]:
+        # Clear the margins.
+        asteroidMap[y * width + x] = true
+      else:
+        asteroidMap[y * width + x] = false
 
   # Walk the walls and generate a map of which tiles are present.
   for obj in replay.objects:
     if obj.typeName == "wall":
       let pos = obj.location.at(0)
-      asteroidMap[pos.y * width + pos.x] = false
+      asteroidMap[pos.y * width + pos.x] = true
+
 
   # Generate the tile edges.
   for i in 0 ..< terrainMap.indexData.len:
@@ -80,14 +88,14 @@ proc generateTerrainMap(): TileMap {.measure.} =
 
     proc get(map: seq[bool], x: int, y: int): int =
       if x < 0 or y < 0 or x >= width or y >= height:
-        return 0
+        return 1
       if map[y * width + x]:
         return 1
       return 0
 
     var tile: uint8 = 0
     if asteroidMap[y * width + x]:
-      tile = (49 + weightedRandomInt(@[100, 50, 25, 10, 5, 2, 1])).uint8
+      tile = 49
     else:
       let
         pattern = (
@@ -103,10 +111,15 @@ proc generateTerrainMap(): TileMap {.measure.} =
       tile = patternToTile[pattern].uint8
     terrainMap.indexData[i] = tile
 
+    # Randomize the solid tiles:
+    for i in 0 ..< terrainMap.indexData.len:
+      if terrainMap.indexData[i] == 29 or terrainMap.indexData[i] == 18:
+        terrainMap.indexData[i] = (50 + weightedRandomInt(@[100, 50, 25, 10, 5, 2])).uint8
+
   terrainMap.setupGPU()
   return terrainMap
 
-proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
+proc rebuildVisibilityMap*(visibilityMap: TileMap) =
   ## Rebuild the visibility map.
   let
     width = visibilityMap.width
@@ -164,14 +177,11 @@ proc rebuildVisibilityMap*(visibilityMap: TileMap) {.measure.} =
       tile = patternToTile[pattern].uint8
     visibilityMap.indexData[i] = tile
 
-proc generateVisibilityMap(): TileMap {.measure.} =
+proc generateVisibilityMap(): TileMap =
   ## Generate a 1024x1024 texture where each pixel is a byte index into the 16x16 tile map.
   let
     width = ceil(replay.mapSize[0].float32 / 32.0f).int * 32
     height = ceil(replay.mapSize[1].float32 / 32.0f).int * 32
-
-  echo "Real map size: ", replay.mapSize[0], "x", replay.mapSize[1]
-  echo "Tile map size: ", width, "x", height, " (multiples of 32)"
 
   var visibilityMap = newTileMap(
     width = width,
@@ -183,40 +193,12 @@ proc generateVisibilityMap(): TileMap {.measure.} =
   visibilityMap.setupGPU()
   return visibilityMap
 
-proc updateVisibilityMap*(visibilityMap: TileMap) {.measure.} =
+proc updateVisibilityMap*(visibilityMap: TileMap) =
   ## Update the visibility map.
   visibilityMap.rebuildVisibilityMap()
   visibilityMap.updateGPU()
 
-proc buildAtlas*() {.measure.} =
-  ## Build the atlas.
-  bxy.addImage("minimapPip", readImage(dataDir & "/minimapPip.png"))
-  bxy.addImage("selection", readImage(dataDir & "/selection.png"))
-  bxy.addImage("agents/path", readImage(dataDir & "/agents/path.png"))
-  bxy.addImage("agents/footprints", readImage(dataDir & "/agents/footprints.png"))
-  bxy.addImage("actions/thoughts_lightning", readImage(dataDir & "/actions/thoughts_lightning.png"))
-  bxy.addImage("actions/icons/unknown", readImage(dataDir & "/actions/icons/unknown.png"))
-  bxy.addImage("actions/arrow", readImage(dataDir & "/actions/arrow.png"))
-  bxy.addImage("actions/thoughts", readImage(dataDir & "/actions/thoughts.png"))
-
-  bxy.addImage("minimap/agent", readImage(dataDir & "/minimap/agent.png"))
-  bxy.addImage("minimap/assembler", readImage(dataDir & "/minimap/assembler.png"))
-  bxy.addImage("minimap/carbon_extractor", readImage(dataDir & "/minimap/carbon_extractor.png"))
-  bxy.addImage("minimap/charger", readImage(dataDir & "/minimap/charger.png"))
-  bxy.addImage("minimap/germanium_extractor", readImage(dataDir & "/minimap/germanium_extractor.png"))
-  bxy.addImage("minimap/silicon_extractor", readImage(dataDir & "/minimap/silicon_extractor.png"))
-  bxy.addImage("minimap/oxygen_extractor", readImage(dataDir & "/minimap/oxygen_extractor.png"))
-  bxy.addImage("minimap/chest", readImage(dataDir & "/minimap/chest.png"))
-
-  proc addDir(rootDir: string, dir: string) =
-    for path in walkDirRec(rootDir / dir):
-      if path.endsWith(".png") and "fidget" notin path:
-        let name = path.replace(rootDir & "/", "").replace(".png", "")
-        bxy.addImage(name, readImage(path))
-
-  addDir(dataDir, "resources")
-
-proc getProjectionView*(): Mat4 {.measure.} =
+proc getProjectionView*(): Mat4 =
   ## Get the projection and view matrix.
   let m = bxy.getTransform()
   let view = mat4(
@@ -228,7 +210,7 @@ proc getProjectionView*(): Mat4 {.measure.} =
   let projection = ortho(0.0f, window.size.x.float32, window.size.y.float32, 0.0f, -1.0f, 1.0f)
   projection * view
 
-proc useSelections*(panel: Panel) {.measure.} =
+proc useSelections*(zoomInfo: ZoomInfo) =
   ## Reads the mouse position and selects the thing under it.
   let modifierDown = when defined(macosx):
     window.buttonDown[KeyLeftSuper] or window.buttonDown[KeyRightSuper]
@@ -246,7 +228,7 @@ proc useSelections*(panel: Panel) {.measure.} =
   if window.buttonPressed[DoubleClick] and not modifierDown:
     settings.lockFocus = not settings.lockFocus
     if settings.lockFocus and selection != nil:
-      centerAt(panel, selection)
+      centerAt(zoomInfo, selection)
 
   # Only select on mouse up, and only if we didn't drag much.
   if window.buttonReleased[MouseLeft] and not modifierDown:
@@ -260,6 +242,7 @@ proc useSelections*(panel: Panel) {.measure.} =
       if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
         gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         let obj = getObjectAtLocation(gridPos)
+
         if obj != nil:
           selectObject(obj)
 
@@ -323,7 +306,24 @@ proc useSelections*(panel: Panel) {.measure.} =
           agentObjectives[selection.agentId] = @[objective]
           recomputePath(selection.agentId, startPos)
 
-proc drawObjects*() {.measure.} =
+proc getAgentOrientation*(agent: Entity, step: int): Orientation =
+  ## Get the orientation of the agent.
+  for i in countdown(step, 0):
+    let actionId = agent.actionId.at(i)
+    if actionId >= 0 and actionId < replay.actionNames.len:
+      let actionName = replay.actionNames[actionId]
+      if actionName == "move_north":
+        return N
+      elif actionName == "move_south":
+        return S
+      elif actionName == "move_west":
+        return W
+      elif actionName == "move_east":
+        return E
+      break
+  return S
+
+proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
     let typeName = thing.typeName
@@ -331,17 +331,21 @@ proc drawObjects*() {.measure.} =
     case typeName
     of "wall":
       discard
-      # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = TS)
     of "agent":
       let agent = thing
-      var agentImage = case agent.orientation.at:
-        of 0: "agents/agent.n"
-        of 1: "agents/agent.s"
-        of 2: "agents/agent.w"
-        of 3: "agents/agent.e"
-        else:
-          echo "Unknown orientation: ", agent.orientation.at
-          "agents/agent.n"
+      # Agents don't do orientation anymore.
+      # var agentImage = case agent.orientation.at:
+      #   of 0: "agents/agent.n"
+      #   of 1: "agents/agent.s"
+      #   of 2: "agents/agent.w"
+      #   of 3: "agents/agent.e"
+      #   else:
+      #     echo "Unknown orientation: ", agent.orientation.at
+      #     "agents/agent.n"
+
+      # Find last orientation action.
+      var agentImage = "agents/agent." & getAgentOrientation(agent, step).char
+
       px.drawSprite(
         agentImage,
         pos * TILE_SIZE
@@ -363,7 +367,7 @@ proc drawObjects*() {.measure.} =
           pos * TILE_SIZE,
         )
 
-proc drawVisualRanges*(alpha = 0.5) {.measure.} =
+proc drawVisualRanges*(alpha = 0.5) =
   ## Draw the visual ranges of the selected agent.
 
   bxy.enterRawOpenGLMode()
@@ -395,13 +399,14 @@ proc drawVisualRanges*(alpha = 0.5) {.measure.} =
   bxy.exitRawOpenGLMode()
 
 
-proc drawFogOfWar*() {.measure.} =
+proc drawFogOfWar*() =
   ## Draw the fog of war.
   drawVisualRanges(alpha = 1.0)
 
-proc drawTrajectory*() {.measure.} =
+proc drawTrajectory*() =
   ## Draw the trajectory of the selected object, with footprints or a future arrow.
   if selection != nil and selection.location.len > 1:
+    var prevDirection = S
     for i in 1 ..< replay.maxSteps:
       let
         loc0 = selection.location.at(i - 1)
@@ -412,6 +417,15 @@ proc drawTrajectory*() {.measure.} =
         cy1 = loc1.y.int
 
       if cx0 != cx1 or cy0 != cy1:
+        var thisDirection: Orientation =
+          if cx1 > cx0:
+            E
+          elif cx1 < cx0:
+            W
+          elif cy1 > cy0:
+            S
+          else:
+            N
         let a = 1.0f - abs(i - step).float32 / 200.0f
         if a > 0:
           var
@@ -419,104 +433,29 @@ proc drawTrajectory*() {.measure.} =
             image = ""
 
           let isAgent = selection.typeName == "agent"
-          if step >= i:
-            # Past trajectory is black.
-            tint = color(0, 0, 0, a)
-            if isAgent:
-              image = "agents/footprints"
-            else:
-              image = "agents/past_arrow"
+          if i <= step:
+            image = "agents/tracks." & prevDirection.char & thisDirection.char
           else:
-            # Future trajectory is white.
-            tint = color(1, 1, 1, a)
-            if isAgent:
-              image = "agents/path"
-            else:
-              image = "agents/future_arrow"
-
-          let
-            dx = cx1 - cx0
-            dy = cy1 - cy0
-          var
-            rotation: float32 = 0
-            diagScale: float32 = 1
-
-          if dx > 0 and dy == 0:
-            rotation = 0
-          elif dx < 0 and dy == 0:
-            rotation = Pi
-          elif dx == 0 and dy > 0:
-            rotation = -Pi / 2
-          elif dx == 0 and dy < 0:
-            rotation = Pi / 2
-          elif dx > 0 and dy > 0:
-            rotation = -Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx > 0 and dy < 0:
-            rotation = Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx < 0 and dy > 0:
-            rotation = -3 * Pi / 4
-            diagScale = sqrt(2.0f)
-          elif dx < 0 and dy < 0:
-            rotation = 3 * Pi / 4
-            diagScale = sqrt(2.0f)
+            #image = "agents/path"
+            break
 
           # Draw centered at the tile with rotation. Use a slightly larger scale on diagonals.
-          bxy.drawImage(
+          px.drawSprite(
             image,
-            vec2(cx0.float32, cy0.float32),
-            angle = rotation,
-            scale = (1.0f / 200.0f) * diagScale,
-            tint = tint
+            ivec2(cx0.int32, cy0.int32) * TILE_SIZE,
           )
+        prevDirection = thisDirection
 
-proc drawActions*() {.measure.} =
-  ## Draw the actions of the selected agent.
-  for obj in replay.objects:
-    # Do agent actions.
-    if obj.isAgent:
-      let actionId = obj.actionId.at
-      if (replay.drawnAgentActionMask and (1'u64 shl actionId)) != 0 and
-          obj.actionSuccess.at and
-          actionId >= 0 and actionId < replay.actionImages.len:
-        bxy.drawImage(
-          if actionId != replay.attackActionId:
-            replay.actionImages[actionId]
-          else:
-            let attackParam = obj.actionParameter.at
-            if attackParam >= 1 and attackParam <= 9:
-              replay.actionAttackImages[attackParam - 1]
-            else:
-              continue,
-          obj.location.at.xy.vec2,
-          angle = case obj.orientation.at:
-          of 0: PI / 2 # North
-          of 1: -PI / 2 # South
-          of 2: PI # West
-          of 3: 0 # East
-          else: 0, # East
-        scale = 1/200)
-    elif obj.productionProgress.at > 0:
-      bxy.drawImage(
-        "actions/converting",
-        obj.location.at.xy.vec2,
-        angle = 0,
-        scale = 1/200
-      )
-
-proc drawAgentDecorations*() {.measure.} =
+proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
   for agent in replay.agents:
     if agent.isFrozen.at:
-      bxy.drawImage(
+      px.drawSprite(
         "agents/frozen",
-        agent.location.at.xy.vec2,
-        angle = 0,
-        scale = TS
+        agent.location.at.xy.ivec2 * TILE_SIZE,
       )
 
-proc drawGrid*() {.measure.} =
+proc drawGrid*() =
   # Draw the grid using a single quad and shader-based lines.
   bxy.enterRawOpenGLMode()
   if sq == nil:
@@ -529,7 +468,7 @@ proc drawGrid*() {.measure.} =
   sq.draw(mvp, mapSize, tileSize, gridColor, 1.0f)
   bxy.exitRawOpenGLMode()
 
-proc drawPlannedPath*() {.measure.} =
+proc drawPlannedPath*() =
   ## Draw the planned paths for all agents.
   ## Only show paths when in realtime mode and viewing the latest step.
   if playMode != Realtime or step != replay.maxSteps - 1:
@@ -563,12 +502,9 @@ proc drawPlannedPath*() {.measure.} =
         rotation = Pi / 2
 
       let alpha = 0.6
-      bxy.drawImage(
+      px.drawSprite(
         "agents/path",
-        pos0.vec2,
-        angle = rotation,
-        scale = 1/200,
-        tint = color(1, 1, 1, alpha)
+        pos0.ivec2 * TILE_SIZE
       )
       currentPos = action.pos
 
@@ -578,12 +514,9 @@ proc drawPlannedPath*() {.measure.} =
       if objectives.len > 0:
         let objective = objectives[^1]
         if objective.kind in {Move, Bump}:
-          bxy.drawImage(
-            "selection",
-            objective.pos.vec2,
-            angle = 0,
-            scale = 1.0 / 200.0,
-            tint = color(1, 1, 1, 0.5)
+          px.drawSprite(
+            "objects/selection",
+            objective.pos.ivec2 * TILE_SIZE
           )
 
       # Draw approach arrows for bump objectives.
@@ -600,22 +533,17 @@ proc drawPlannedPath*() {.measure.} =
             rotation = 0
           elif objective.approachDir.y < 0:
             rotation = Pi
-          bxy.drawImage(
-            "actions/arrow",
-            approachPos.vec2 + offset,
-            angle = rotation,
-            scale = 1/200,
-            tint = color(1, 1, 1, 0.7)
+          px.drawSprite(
+            "agents/arrow",
+            approachPos.ivec2 * TILE_SIZE + offset.ivec2
           )
 
-proc drawSelection*() {.measure.} =
+proc drawSelection*() =
   # Draw selection.
   if selection != nil:
-    bxy.drawImage(
-      "selection",
-      selection.location.at.xy.vec2,
-      angle = 0,
-      scale = 1/200
+    px.drawSprite(
+      "objects/selection",
+      selection.location.at.xy.ivec2 * TILE_SIZE,
     )
 
 proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
@@ -631,101 +559,7 @@ proc applyOrientationOffset*(x: int, y: int, orientation: int): (int, int) =
   else:
     return (x, y)
 
-proc drawThoughtBubbles*() {.measure.} =
-  # Draw the thought bubbles of the selected agent.
-  # The idea behind thought bubbles is to show what an agent is thinking.
-  # We don't have this directly from the policy yet, so the next best thing
-  # is to show a future "key action."
-  # It should be a good proxy for what the agent is thinking about.
-  if selection == nil or not selection.isAgent:
-    return
-
-  var keyAction = -1
-  var keyParam = -1
-  var keyStep = -1
-  var actionHasTarget = false
-  let actionStepEnd = min(step + 20, replay.maxSteps)
-  for actionStep in step ..< actionStepEnd:
-    # We need to find a key action in the future.
-    # A key action is a successful action that is not a no-op, rotate, or move.
-    # It must not be more than 20 steps in the future.
-    let actionId = selection.actionId.at(actionStep)
-    if actionId == -1:
-      continue
-    let actionParam = selection.actionParameter.at(actionStep)
-    if actionParam == -1:
-      continue
-    let actionSuccess = selection.actionSuccess.at(actionStep)
-    if not actionSuccess:
-      continue
-    let actionName = replay.actionNames[actionId]
-    if actionName == "noop" or
-    actionName == "rotate" or
-    actionName == "move" or
-    actionName == "move_cardinal" or
-    actionName == "move_8way":
-      continue
-    keyAction = actionId
-    keyParam = actionParam
-    keyStep = actionStep
-    actionHasTarget = not (actionName == "attack" or actionName == "attack_nearest")
-    break
-
-  if keyAction != -1 and keyParam != -1:
-    let loc = selection.location.at(step).xy.vec2
-    if actionHasTarget and keyStep != step:
-      # Draw an arrow on a circle around the target, pointing at it.
-      let targetLoc = selection.location.at(keyStep).xy
-      let (targetX, targetY) = applyOrientationOffset(targetLoc.x, targetLoc.y,
-          selection.orientation.at(keyStep))
-      let angle = arctan2(targetX.float32 - loc.x, targetY.float32 - loc.y)
-      let r = 1.0f / 3.0f
-      let tX = targetX.float32 - sin(angle) * r
-      let tY = targetY.float32 - cos(angle) * r
-      bxy.drawImage(
-        "actions/arrow",
-        vec2(tX, tY),
-        angle = angle + PI,
-        scale = 1/200
-      )
-    let pos = loc.vec2 + vec2(0.5, -0.5)
-    # We have a key action, so draw the thought bubble.
-    # Draw the key action icon with gained or lost resources.
-    bxy.drawImage(
-      if step == keyStep: "actions/thoughts_lightning" else: "actions/thoughts",
-      pos,
-      angle = 0,
-      scale = 1/200
-    )
-    # Draw the action icon.
-    bxy.drawImage(
-      if keyAction < replay.actionIconImages.len:
-        replay.actionIconImages[keyAction] else: "actions/icons/unknown",
-      pos,
-      angle = 0,
-      scale = 1/200/4
-    )
-
-    # Draw the resources lost on the left and gained on the right.
-    var gainX = pos.x + 32/200
-    var lossX = pos.x - 32/200
-    let gainMap = selection.gainMap.at(keyStep)
-    for item in gainMap:
-      var drawX = 0.0f
-      if item.count > 0:
-        drawX = gainX
-        gainX += 8/200
-      else:
-        drawX = lossX
-        lossX -= 8/200
-      bxy.drawImage(
-        replay.itemImages[item.itemId],
-        vec2(drawX, pos.y),
-        angle = 0,
-        scale = 1/200/8
-      )
-
-proc drawTerrain*() {.measure.} =
+proc drawTerrain*() =
   ## Draw the terrain, space and asteroid tiles using the terrainMap tilemap.
   bxy.enterRawOpenGLMode()
 
@@ -740,7 +574,23 @@ proc drawTerrain*() {.measure.} =
 
   bxy.exitRawOpenGLMode()
 
-proc drawWorldMini*() {.measure.} =
+proc drawObjectPips*() =
+  ## Draw the pips for the objects on the minimap.
+  for obj in replay.objects:
+    if obj.typeName == "wall":
+      continue
+    let pipName = "minimap/" & obj.typeName
+    if pipName in px:
+      let loc = obj.location.at(step).xy
+      px.drawSprite(
+        pipName,
+        loc.ivec2 * TILE_SIZE
+      )
+    else:
+      echo "pipName not found: ", pipName
+
+proc drawWorldMini*() =
+
   const wallTypeName = "wall"
   const agentTypeName = "agent"
 
@@ -752,60 +602,35 @@ proc drawWorldMini*() {.measure.} =
   elif settings.showFogOfWar:
     drawFogOfWar()
 
-  # Agents
-  let scale = 3.0
-  bxy.saveTransform()
-  bxy.scale(vec2(scale, scale))
+  drawObjectPips()
 
-  for obj in replay.objects:
-    let pipName = "minimap/" & obj.typeName
-    if pipName in bxy:
-      let loc = obj.location.at(step).xy
-      let rect = rect(
-        (loc.x.float32) / scale - 0.5,
-        (loc.y.float32) / scale - 0.5,
-        1,
-        1
-      )
-      bxy.drawImage(
-        pipName,
-        rect,
-        color(1, 1, 1, 1)
-      )
+  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
 
-  bxy.restoreTransform()
-
-
-
-proc centerAt*(panel: Panel, entity: Entity) {.measure.} =
+proc centerAt*(zoomInfo: ZoomInfo, entity: Entity) =
   ## Center the map on the given entity.
   if entity.isNil:
     return
   let location = entity.location.at(step).xy
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+  let rectW = zoomInfo.rect.w.float32
+  let rectH = zoomInfo.rect.h.float32
   if rectW <= 0 or rectH <= 0:
     return
-  let z = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - location.x.float32 * z
-  panel.pos.y = rectH / 2.0f - location.y.float32 * z
+  let z = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - location.x.float32 * z
+  zoomInfo.pos.y = rectH / 2.0f - location.y.float32 * z
 
-proc drawWorldMain*() {.measure.} =
+proc drawWorldMain*() =
   ## Draw the world map.
   drawTerrain()
   drawTrajectory()
+
   drawObjects()
-
-  measurePush("px.flush")
-  bxy.enterRawOpenGLMode()
-  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
-  bxy.exitRawOpenGLMode()
-  measurePop()
-
-  #drawActions()
-  drawAgentDecorations()
   drawSelection()
+
+  drawAgentDecorations()
   drawPlannedPath()
+
+  px.flush(getProjectionView() * scale(vec3(TS, TS, 1.0f)))
 
   if settings.showVisualRange:
     drawVisualRanges()
@@ -814,14 +639,13 @@ proc drawWorldMain*() {.measure.} =
   if settings.showGrid:
     drawGrid()
 
-  drawThoughtBubbles()
 
-proc fitFullMap*(panel: Panel) {.measure.} =
+proc fitFullMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the full map fits in the panel.
   if replay.isNil:
     return
-  let rectW = panel.rect.w.float32
-  let rectH = panel.rect.h.float32
+  let rectW = zoomInfo.rect.w.float32
+  let rectH = zoomInfo.rect.h.float32
   if rectW <= 0 or rectH <= 0:
     return
   let
@@ -832,24 +656,24 @@ proc fitFullMap*(panel: Panel) {.measure.} =
     mapW = max(0.001f, mapMaxX - mapMinX)
     mapH = max(0.001f, mapMaxY - mapMinY)
   let zoomScale = min(rectW / mapW, rectH / mapH)
-  panel.zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+  zoomInfo.zoom = clamp(sqrt(zoomScale), zoomInfo.minZoom, zoomInfo.maxZoom)
   let
     cx = (mapMinX + mapMaxX) / 2.0f
     cy = (mapMinY + mapMaxY) / 2.0f
-    z = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - cx * z
-  panel.pos.y = rectH / 2.0f - cy * z
+    z = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - cx * z
+  zoomInfo.pos.y = rectH / 2.0f - cy * z
 
-proc fitVisibleMap*(panel: Panel) {.measure.} =
+proc fitVisibleMap*(zoomInfo: ZoomInfo) =
   ## Set zoom and pan so the visible area (union of all agent vision ranges) fits in the panel.
   if replay.isNil:
     return
-  
+
   if replay.agents.len == 0:
-    fitFullMap(panel)
+    fitFullMap(zoomInfo)
     return
 
-  let rectSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+  let rectSize = vec2(zoomInfo.rect.w.float32, zoomInfo.rect.h.float32)
 
   # Calculate the union of all agent vision areas.
   var
@@ -871,21 +695,21 @@ proc fitVisibleMap*(panel: Panel) {.measure.} =
   # Ensure we have valid bounds with reasonable size, otherwise fall back to full map
   let size = maxPos - minPos
   if size.x < 1.0f or size.y < 1.0f:
-    fitFullMap(panel)
+    fitFullMap(zoomInfo)
     return
 
   let
     visibleSize = maxPos - minPos
     zoomScale = min(rectSize.x / visibleSize.x, rectSize.y / visibleSize.y)
     center = (minPos + maxPos) / 2.0f
-    zoom = clamp(sqrt(zoomScale), panel.minZoom, panel.maxZoom)
+    zoom = clamp(sqrt(zoomScale), zoomInfo.minZoom, zoomInfo.maxZoom)
 
-  panel.zoom = zoom
-  panel.pos = rectSize / 2.0f - center * (zoom * zoom)
+  zoomInfo.zoom = zoom
+  zoomInfo.pos = rectSize / 2.0f - center * (zoom * zoom)
 
-proc adjustPanelForResize*(panel: Panel) {.measure.} =
+proc adjustPanelForResize*(zoomInfo: ZoomInfo) =
   ## Adjust pan and zoom when panel resizes to show the same portion of the map.
-  let currentSize = vec2(panel.rect.w.float32, panel.rect.h.float32)
+  let currentSize = vec2(zoomInfo.rect.w.float32, zoomInfo.rect.h.float32)
 
   # Skip if this is the first time or no change
   if previousPanelSize.x <= 0 or previousPanelSize.y <= 0 or currentSize == previousPanelSize:
@@ -896,11 +720,11 @@ proc adjustPanelForResize*(panel: Panel) {.measure.} =
   let
     oldRectW = previousPanelSize.x
     oldRectH = previousPanelSize.y
-    rectW = panel.rect.w.float32
-    rectH = panel.rect.h.float32
-    z = panel.zoom * panel.zoom
-    centerX = (oldRectW / 2.0f - panel.pos.x) / z
-    centerY = (oldRectH / 2.0f - panel.pos.y) / z
+    rectW = zoomInfo.rect.w.float32
+    rectH = zoomInfo.rect.h.float32
+    z = zoomInfo.zoom * zoomInfo.zoom
+    centerX = (oldRectW / 2.0f - zoomInfo.pos.x) / z
+    centerY = (oldRectH / 2.0f - zoomInfo.pos.y) / z
 
   # Adjust zoom with square root of proportional scaling - moderate the zoom increase
   # when panel gets bigger to keep map elements reasonably sized
@@ -909,37 +733,48 @@ proc adjustPanelForResize*(panel: Panel) {.measure.} =
     newDiagonal = sqrt(rectW * rectW + rectH * rectH)
     zoomFactor = sqrt(newDiagonal / oldDiagonal)
 
-  panel.zoom = clamp(panel.zoom * zoomFactor, panel.minZoom, panel.maxZoom)
+  zoomInfo.zoom = clamp(zoomInfo.zoom * zoomFactor, zoomInfo.minZoom, zoomInfo.maxZoom)
 
   # Recalculate pan to keep the same center point
-  let newZ = panel.zoom * panel.zoom
-  panel.pos.x = rectW / 2.0f - centerX * newZ
-  panel.pos.y = rectH / 2.0f - centerY * newZ
+  let newZ = zoomInfo.zoom * zoomInfo.zoom
+  zoomInfo.pos.x = rectW / 2.0f - centerX * newZ
+  zoomInfo.pos.y = rectH / 2.0f - centerY * newZ
 
   # Update previous size
   previousPanelSize = currentSize
 
-proc drawWorldMap*(panel: Panel) {.measure.} =
+proc drawWorldMap*(zoomInfo: ZoomInfo) =
   ## Draw the world map.
 
   if replay == nil or replay.mapSize[0] == 0 or replay.mapSize[1] == 0:
     # Replay has not been loaded yet.
     return
 
+  if needsInitialFit:
+    fitFullMap(zoomInfo)
+    var baseEntity: Entity = nil
+    for obj in replay.objects:
+      if obj.typeName == "assembler":
+        baseEntity = obj
+        break
+    if baseEntity != nil:
+      centerAt(zoomInfo, baseEntity)
+    needsInitialFit = false
+
   ## Draw the world map.
   if settings.lockFocus:
-    centerAt(panel, selection)
+    centerAt(zoomInfo, selection)
 
-  panel.beginPanAndZoom()
+  zoomInfo.beginPanAndZoom()
 
-  if panel.hasMouse:
-    useSelections(panel)
+  if zoomInfo.hasMouse:
+    useSelections(zoomInfo)
 
   agentControls()
 
-  if panel.zoom < 3:
+  if zoomInfo.zoom < 7:
     drawWorldMini()
   else:
     drawWorldMain()
 
-  panel.endPanAndZoom()
+  zoomInfo.endPanAndZoom()

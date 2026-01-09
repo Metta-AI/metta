@@ -30,12 +30,19 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 import cogames.policy.scripted_agent.starter_agent as starter_agent
+import cogames.policy.trainable_policy_template as trainable_policy_template
 from cogames import evaluate as evaluate_module
 from cogames import game, verbose
 from cogames import play as play_module
 from cogames import train as train_module
 from cogames.cli.base import console
-from cogames.cli.leaderboard import leaderboard_cmd, submissions_cmd
+from cogames.cli.client import TournamentServerClient
+from cogames.cli.leaderboard import (
+    leaderboard_cmd,
+    parse_policy_identifier,
+    seasons_cmd,
+    submissions_cmd,
+)
 from cogames.cli.login import DEFAULT_COGAMES_SERVER, perform_login
 from cogames.cli.mission import (
     describe_mission,
@@ -51,7 +58,7 @@ from cogames.cli.policy import (
     policy_arg_example,
     policy_arg_w_proportion_example,
 )
-from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, submit_command, validate_policy_spec
+from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
 from cogames.device import resolve_training_device
 from mettagrid.mapgen.mapgen import MapGen
@@ -64,7 +71,7 @@ from mettagrid.simulator import Simulator
 sys.path.insert(0, ".")
 
 try:  # Optional plugin
-    from tribal_village_env.cogames import register_cli as register_tribal_cli
+    from tribal_village_env.cogames import register_cli as register_tribal_cli  # type: ignore[import-not-found]
 except ImportError:  # pragma: no cover - plugin optional
     register_tribal_cli = None
 
@@ -102,11 +109,18 @@ app = typer.Typer(
     callback=lambda: discover_and_register_policies("cogames.policy"),
 )
 
+tutorial_app = typer.Typer(
+    help="Tutorial commands to help you get started with CoGames",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
 if register_tribal_cli is not None:
     register_tribal_cli(app)
 
 
-@app.command(name="tutorial", help="Print instructions on how to play CvC and runs cogames play --mission tutorial")
+@tutorial_app.command(name="play", help="Interactive tutorial - learn to play Cogs vs Clips")
 def tutorial_cmd(
     ctx: typer.Context,
 ) -> None:
@@ -231,6 +245,9 @@ def tutorial_cmd(
         game_name="tutorial",
         render_mode="gui",
     )
+
+
+app.add_typer(tutorial_app, name="tutorial")
 
 
 @app.command("missions", help="List all available missions, or describe a specific mission")
@@ -476,35 +493,62 @@ def make_mission(
         raise typer.Exit(1) from exc
 
 
-@app.command("make-policy", help="Create a new starter policy")
+@tutorial_app.command("make-policy", help="Create a new policy from a template")
 def make_policy(
     output: Path = typer.Option("my_policy.py", "--output", "-o", help="Output file path"),  # noqa: B008
+    trainable: bool = typer.Option(False, "--trainable", "-t", help="Create a trainable (neural network) policy"),
+    scripted: bool = typer.Option(False, "--scripted", "-s", help="Create a scripted (rule-based) policy"),
 ) -> None:
-    """Create a new starter policy in the current directory."""
+    """Create a new policy from a template. Requires either --trainable or --scripted."""
+    if trainable == scripted:
+        console.print("[red]Error: Specify exactly one of --trainable or --scripted[/red]")
+        console.print("[dim]Examples:[/dim]")
+        console.print("[dim]  cogames make-policy --trainable -o my_nn_policy.py[/dim]")
+        console.print("[dim]  cogames make-policy --scripted -o my_scripted_policy.py[/dim]")
+        raise typer.Exit(1)
+
     try:
-        # Get the path to the starter_policy.py file
-        starter_policy_path = Path(starter_agent.__file__)
-        if not starter_policy_path.exists():
-            console.print("[red]Error: Starter policy file not found[/red]")
+        if trainable:
+            template_path = Path(trainable_policy_template.__file__)
+            policy_class = "MyTrainablePolicy"
+            policy_type = "Trainable"
+        else:
+            template_path = Path(starter_agent.__file__)
+            policy_class = "StarterPolicy"
+            policy_type = "Scripted"
+
+        if not template_path.exists():
+            console.print(f"[red]Error: {policy_type} policy template not found[/red]")
             raise typer.Exit(1)
 
-        # Copy to current working directory
         dest_path = Path.cwd() / output
 
-        # Check if destination already exists
         if dest_path.exists():
             console.print(f"[yellow]Warning: {dest_path} already exists. Overwriting...[/yellow]")
 
-        shutil.copy2(starter_policy_path, dest_path)
-        console.print(f"[green]Starter policy copied to: {dest_path}[/green]")
-        console.print(f"[dim]You can now modify {dest_path} to create your own policy.[/dim]")
+        shutil.copy2(template_path, dest_path)
+        console.print(f"[green]{policy_type} policy template copied to: {dest_path}[/green]")
+
+        if trainable:
+            console.print(
+                "[dim]Train with: cogames tutorial train -m training_facility.harvest -p class="
+                f"{dest_path.stem}.{policy_class}[/dim]"
+            )
+        else:
+            console.print(
+                "[dim]Play with: cogames play -m training_facility.harvest -p class="
+                f"{dest_path.stem}.{policy_class}[/dim]"
+            )
 
     except Exception as exc:  # pragma: no cover - user input
         console.print(f"[red]Error: {exc}[/red]")
         raise typer.Exit(1) from exc
 
 
-@app.command(name="train", help="Train a policy on a mission")
+app.command(name="make-policy", hidden=True)(make_policy)
+
+
+@tutorial_app.command(name="train", help="Train a policy on a mission")
 def train_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(None, "--mission", "-m", help="Missions to train on"),  # noqa: B008
@@ -621,12 +665,16 @@ def train_cmd(
     console.print(f"[green]Training complete. Checkpoints saved to: {checkpoints_path}[/green]")
 
 
+app.command(name="train", hidden=True)(train_cmd)
+
+
 @app.command(
-    name="evaluate",
+    name="run",
     help="Evaluate one or more policies on one or more missions",
 )
 @app.command("eval", hidden=True)
-def evaluate_cmd(
+@app.command("evaluate", hidden=True)
+def run_cmd(
     ctx: typer.Context,
     missions: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -730,7 +778,7 @@ def evaluate_cmd(
         episodes=episodes,
         seed=seed,
         output_format=format_,
-        save_replay=save_replay_dir,
+        save_replay=str(save_replay_dir) if save_replay_dir else None,
     )
 
 
@@ -808,11 +856,13 @@ def login_cmd(
         raise typer.Exit(1)
 
 
-app.command(name="submissions", help="List your submissions on the leaderboard")(submissions_cmd)
+app.command(name="submissions", help="Show your uploaded policies and tournament submissions")(submissions_cmd)
+
+app.command(name="seasons", help="List available tournament seasons")(seasons_cmd)
 
 app.command(
     name="leaderboard",
-    help="Show leaderboard entries (public or your submissions) with per-sim scores",
+    help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
 
 
@@ -823,7 +873,34 @@ def validate_policy_cmd(
         ...,
         help=f"Policy specification: {policy_arg_example}",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
+    if setup_script:
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        script_path = Path(setup_script)
+        if not script_path.exists():
+            console.print(f"[red]Setup script not found: {setup_script}[/red]")
+            raise typer.Exit(1)
+        console.print(f"[yellow]Running setup script: {setup_script}[/yellow]")
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Setup script failed:[/red]\n{result.stderr}")
+            raise typer.Exit(1)
+        console.print("[green]Setup script completed[/green]")
+
     policy_spec = get_policy_spec(ctx, policy)
     validate_policy_spec(policy_spec)
     console.print("[green]Policy validated successfully[/green]")
@@ -838,8 +915,8 @@ def _parse_init_kwarg(value: str) -> tuple[str, str]:
     return key.replace("-", "_"), val
 
 
-@app.command(name="submit", help="Submit a policy to CoGames competitions")
-def submit_cmd(
+@app.command(name="upload", help="Upload a policy to CoGames")
+def upload_cmd(
     ctx: typer.Context,
     policy: str = typer.Option(
         ...,
@@ -851,7 +928,7 @@ def submit_cmd(
         ...,
         "--name",
         "-n",
-        help="Policy name for the submission",
+        help="Policy name for the upload",
     ),
     init_kwarg: Optional[list[str]] = typer.Option(  # noqa: B008
         None,
@@ -863,7 +940,7 @@ def submit_cmd(
         None,
         "--include-files",
         "-f",
-        help="Files or directories to include in submission (can be specified multiple times)",
+        help="Files or directories to include (can be specified multiple times)",
     ),
     login_server: str = typer.Option(
         DEFAULT_COGAMES_SERVER,
@@ -874,26 +951,29 @@ def submit_cmd(
         DEFAULT_SUBMIT_SERVER,
         "--server",
         "-s",
-        help="Submission server URL",
+        help="Server URL",
     ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
-        help="Run validation only without submitting",
+        help="Run validation only without uploading",
     ),
     skip_validation: bool = typer.Option(
         False,
         "--skip-validation",
         help="Skip policy validation in isolated environment",
     ),
+    setup_script: Optional[str] = typer.Option(
+        None,
+        "--setup-script",
+        help="Path to a Python setup script to run before loading the policy",
+    ),
 ) -> None:
-    """Submit a policy to CoGames competitions.
+    """Upload a policy to CoGames.
 
-    This command validates your policy, creates a submission package,
-    and uploads it to the CoGames server.
-
-    The policy will be tested in an isolated environment before submission
-    (unless --skip-validation is used).
+    This command validates your policy, creates an upload package,
+    and uploads it to the CoGames server. You can then submit it
+    to tournaments using 'cogames submit'.
     """
     init_kwargs: dict[str, str] = {}
     if init_kwarg:
@@ -901,7 +981,7 @@ def submit_cmd(
             key, val = _parse_init_kwarg(kv)
             init_kwargs[key] = val
 
-    submit_command(
+    result = upload_policy(
         ctx=ctx,
         policy=policy,
         name=name,
@@ -911,7 +991,87 @@ def submit_cmd(
         dry_run=dry_run,
         skip_validation=skip_validation,
         init_kwargs=init_kwargs if init_kwargs else None,
+        setup_script=setup_script,
     )
+
+    if result:
+        console.print(f"[green]Upload complete: {result.name}:v{result.version}[/green]")
+        console.print(f"\nTo submit to a tournament: cogames submit {result.name}:v{result.version} --season <name>")
+
+
+@app.command(name="submit", help="Submit an uploaded policy to a tournament season")
+def submit_cmd(
+    policy_name: str = typer.Argument(
+        ...,
+        help="Policy name (e.g., 'my-policy' or 'my-policy:v3' for specific version)",
+    ),
+    season: str = typer.Option(
+        ...,
+        "--season",
+        help="Tournament season name (required)",
+    ),
+    login_server: str = typer.Option(
+        DEFAULT_COGAMES_SERVER,
+        "--login-server",
+        help="Login/authentication server URL",
+    ),
+    server: str = typer.Option(
+        DEFAULT_SUBMIT_SERVER,
+        "--server",
+        "-s",
+        help="Server URL",
+    ),
+) -> None:
+    """Submit an uploaded policy to a tournament season.
+
+    First upload your policy with 'cogames upload', then submit it to
+    a tournament season with this command.
+
+    Examples:
+      cogames submit my-policy --season beta
+      cogames submit my-policy:v3 --season beta
+    """
+    import httpx
+
+    client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
+    if not client:
+        raise typer.Exit(1)
+
+    try:
+        name, version = parse_policy_identifier(policy_name)
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from None
+
+    version_str = f"[dim]:v{version}[/dim]" if version is not None else "[dim] (latest)[/dim]"
+    console.print(f"[bold]Submitting {name}[/bold]{version_str} to season '{season}'\n")
+
+    with client:
+        pv = client.lookup_policy_version(name=name, version=version)
+        if pv is None:
+            version_hint = f" v{version}" if version is not None else ""
+            console.print(f"[red]Policy '{name}'{version_hint} not found.[/red]")
+            console.print("\nDid you upload it first? Use: [cyan]cogames upload[/cyan]")
+            raise typer.Exit(1)
+
+        try:
+            result = client.submit_to_season(season, pv.id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                console.print(f"[red]Season '{season}' not found[/red]")
+            elif exc.response.status_code == 409:
+                console.print(f"[red]Policy already submitted to season '{season}'[/red]")
+            else:
+                console.print(f"[red]Submit failed with status {exc.response.status_code}[/red]")
+                console.print(f"[dim]{exc.response.text}[/dim]")
+            raise typer.Exit(1) from exc
+        except httpx.HTTPError as exc:
+            console.print(f"[red]Submit failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    console.print(f"\n[bold green]Submitted to season '{season}'[/bold green]")
+    if result.pools:
+        console.print(f"[dim]Pools: {', '.join(result.pools)}[/dim]")
 
 
 @app.command(name="docs", help="Print documentation")

@@ -103,14 +103,10 @@ class SystemMonitor:
         self._metric_collectors = {
             # CPU metrics
             "cpu_percent": lambda: psutil.cpu_percent(interval=0),
-            "cpu_count": lambda: psutil.cpu_count(),
-            "cpu_count_logical": lambda: psutil.cpu_count(logical=True),
-            "cpu_count_physical": lambda: psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True),
             # Memory metrics
             "memory_percent": lambda: psutil.virtual_memory().percent,
             "memory_available_mb": lambda: psutil.virtual_memory().available / (1024 * 1024),
             "memory_used_mb": lambda: psutil.virtual_memory().used / (1024 * 1024),
-            "memory_total_mb": lambda: psutil.virtual_memory().total / (1024 * 1024),
             # Process-specific metrics
             "process_memory_mb": lambda: psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024),
             "process_cpu_percent": lambda: self._process.cpu_percent(),
@@ -154,7 +150,6 @@ class SystemMonitor:
             # Add aggregate metrics (rename to make it clear they're aggregates)
             self._metric_collectors.update(
                 {
-                    "gpu_count": lambda: gpu_count,
                     "gpu_utilization_avg": self._get_gpu_utilization_cuda,
                     "gpu_memory_percent_avg": self._get_gpu_memory_percent_cuda,
                     "gpu_memory_used_mb_total": self._get_gpu_memory_used_mb_cuda,

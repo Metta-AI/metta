@@ -17,9 +17,10 @@ struct AssemblerConfig : public GridObjectConfig {
   AssemblerConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : GridObjectConfig(type_id, type_name, initial_vibe),
         allow_partial_usage(false),
-        max_uses(0),             // 0 means unlimited uses
-        clip_immune(false),      // Not immune by default
-        start_clipped(false) {}  // Not clipped at start by default
+        max_uses(0),                 // 0 means unlimited uses
+        clip_immune(false),          // Not immune by default
+        start_clipped(false),        // Not clipped at start by default
+        chest_search_distance(0) {}  // 0 means chests are not searched
 
   // List of protocols - GroupVibe keys will be calculated from each protocol's vibes vector
   std::vector<std::shared_ptr<Protocol>> protocols;
@@ -34,6 +35,11 @@ struct AssemblerConfig : public GridObjectConfig {
 
   // Start clipped - if true, this assembler starts in a clipped state
   bool start_clipped;
+
+  // Chest search distance - if > 0, assembler can use inventories from chests within this distance
+  // Distance is measured as Chebyshev distance (max of row and column differences)
+  // 0 means chests are not searched
+  unsigned int chest_search_distance;
 };
 
 namespace py = pybind11;
@@ -52,6 +58,7 @@ inline void bind_assembler_config(py::module& m) {
       .def_readwrite("max_uses", &AssemblerConfig::max_uses)
       .def_readwrite("clip_immune", &AssemblerConfig::clip_immune)
       .def_readwrite("start_clipped", &AssemblerConfig::start_clipped)
+      .def_readwrite("chest_search_distance", &AssemblerConfig::chest_search_distance)
       .def_readwrite("initial_vibe", &AssemblerConfig::initial_vibe);
 }
 

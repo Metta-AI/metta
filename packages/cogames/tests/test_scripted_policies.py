@@ -17,14 +17,12 @@ from rich.console import Console
 
 from cogames.cli.mission import get_mission
 from cogames.play import play as play_episode
-from metta.common.util.log_config import init_mettagrid_system_environment
 from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
 from mettagrid.policy.loader import discover_and_register_policies
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator import Simulator
 
 discover_and_register_policies("cogames.policy")
-init_mettagrid_system_environment()
 
 
 @dataclass(frozen=True)
@@ -49,7 +47,6 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
     PolicyUnderTest("race_car", requires_nim=True, supports_supervisor=True),
     PolicyUnderTest("scripted_baseline"),
     PolicyUnderTest("ladybug"),
-    PolicyUnderTest("scripted_starter"),
     PolicyUnderTest(
         "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy",
         requires_nim=True,
@@ -62,7 +59,7 @@ POLICIES_UNDER_TEST: tuple[PolicyUnderTest, ...] = (
 SUPERVISOR_POLICIES: tuple[PolicyUnderTest, ...] = tuple(p for p in POLICIES_UNDER_TEST if p.supports_supervisor)
 
 
-def _policy_param(policy: PolicyUnderTest) -> pytest.ParameterSet:
+def _policy_param(policy: PolicyUnderTest):  # -> pytest.ParameterSet
     marks = ()
     if policy.requires_nim and not _nim_bindings_available():
         marks = pytest.mark.skip("Nim bindings missing. Run `nim c nim_agents.nim` to build them.")
@@ -98,6 +95,7 @@ def test_scripted_policies_work_as_supervisors(policy: PolicyUnderTest, simulato
         teacher_actions = env.teacher_actions
         assert teacher_actions.shape == (env_config.game.num_agents,)
 
+        assert env._sim is not None
         noop_idx = env._sim.action_names.index("noop")
         noop_actions = np.full(env_config.game.num_agents, noop_idx, dtype=np.int32)
 

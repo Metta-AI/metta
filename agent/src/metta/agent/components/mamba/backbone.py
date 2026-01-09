@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -19,10 +19,6 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .wrapper import MambaConfig as _WrapperConfigType
-    from .wrapper import MambaWrapperModel as _WrapperModelType
-else:
-    _WrapperConfigType = Any
-    _WrapperModelType = Any
 
 _WRAPPER_TYPES: Optional[Tuple[type, type]] = None
 

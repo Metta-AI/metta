@@ -1,0 +1,55 @@
+version: "0.5"
+
+processes:
+  orbstack:
+    command: orbctl start && echo "OrbStack is running" && tail -f /dev/null
+    readiness_probe:
+      exec:
+        command: orbctl status
+      initial_delay_seconds: 0
+      period_seconds: 2
+
+  postgres:
+    command: metta observatory postgres up
+    depends_on:
+      orbstack:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: python -c "import socket; socket.create_connection(('${POSTGRES_HOST}', ${POSTGRES_PORT}), timeout=1)"
+      initial_delay_seconds: 1
+      period_seconds: 2
+
+  server:
+    command: metta observatory server
+    depends_on:
+      postgres:
+        condition: process_healthy
+    readiness_probe:
+      http_get:
+        host: ${SERVER_HOST}
+        port: ${SERVER_PORT}
+        path: /whoami
+      initial_delay_seconds: 2
+      period_seconds: 2
+
+  frontend:
+    command: metta observatory frontend
+
+  watcher:
+    command: metta observatory watcher
+    depends_on:
+      server:
+        condition: process_healthy
+
+  tournament:
+    command: metta observatory tournament
+    depends_on:
+      server:
+        condition: process_healthy
+
+  jobs:
+    command: bash -c "while true; do kubectl --context orbstack logs -n jobs -l app=episode-runner -f --all-containers 2>/dev/null; sleep 2; done"
+    depends_on:
+      orbstack:
+        condition: process_healthy

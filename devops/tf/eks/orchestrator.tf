@@ -8,7 +8,7 @@ module "orchestrator_irsa" {
   oidc_providers = {
     main = {
       provider_arn               = module.eks.oidc_provider_arn
-      namespace_service_accounts = ["orchestrator:orchestrator-orchestrator"]
+      namespace_service_accounts = ["orchestrator:orchestrator-orchestrator", "jobs:episode-runner"]
     }
   }
 

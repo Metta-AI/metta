@@ -132,11 +132,11 @@ def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
 
 def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
-    checkpoints = dir_path.glob("*.mpt")
-    policy_uri = [checkpoint.as_posix() for checkpoint in sorted(checkpoints, key=lambda x: x.stat().st_mtime)]
-    if not policy_uri:
+    checkpoints = [p for p in dir_path.iterdir() if p.is_dir() and (p / "policy_spec.json").exists()]
+    checkpoints = sorted(checkpoints, key=lambda x: x.stat().st_mtime)
+    if not checkpoints:
         raise ValueError(f"No policies found in {dir_path}")
-    policy_uri = policy_uri[-1]
+    policy_uri = checkpoints[-1].as_posix()
     sim = mettagrid(num_agents=6)
     return EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
@@ -248,15 +248,15 @@ def sweep(sweep_name: str) -> SweepTool:
 
     return make_sweep(
         name=sweep_name,
-        recipe="recipes.prod.arena_basic_easy_shaped",
+        recipe="recipes.experiment.abes.quantile",
         train_entrypoint="train",
         # NB: You MUST use a specific sweep eval suite, different than those in training.
         # Besides this being a recommended practice, using the same eval suite in both
         # training and scoring will lead to key conflicts that will lock the sweep.
         eval_entrypoint="evaluate_stub",
         # Typically, "evaluator/eval_{suite}/score"
-        objective="experience/rewards",
-        parameters=parameters,
+        metric_key="experience/rewards",
+        search_space=parameters,
         max_trials=80,
         # Default value is 1. We don't recommend going higher than 4.
         # The faster each individual trial, the lower you should set this number.

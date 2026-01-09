@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from pathlib import Path
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
-from metta.tools.utils.auto_config import auto_stats_server_uri
-from mettagrid.util.uri_resolvers.base import SchemeResolver, _extract_run_and_epoch
+from metta.common.util.constants import PROD_STATS_SERVER_URI
+from metta.rl.system_config import guess_data_dir
+from mettagrid.util.uri_resolvers.base import MettaParsedScheme, SchemeResolver
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,7 @@ def _is_uuid(s: str) -> bool:
         raise ValueError(f"Invalid policy version ID: {s}") from e
 
 
-def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+def _parse_policy_identifier(path: str) -> tuple[str, int | None]:
     """Parse a policy identifier into (name, version).
 
     Supports:
@@ -39,12 +41,13 @@ def _parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
     - policy-name:latest -> (policy-name, None) meaning latest
     - policy-name:vX -> (policy-name, X) meaning specific version
     """
-    if identifier.endswith(":latest"):
-        return identifier[:-7], None
-    info = _extract_run_and_epoch(Path(identifier))
-    if info:
-        return info
-    return identifier, None
+    if path.endswith(":latest"):
+        return path[:-7], None
+    if ":v" in path:
+        run_name, suffix = path.rsplit(":v", 1)
+        if run_name and suffix.isdigit():
+            return (run_name, int(suffix))
+    return path, None
 
 
 class MettaSchemeResolver(SchemeResolver):
@@ -57,27 +60,22 @@ class MettaSchemeResolver(SchemeResolver):
       - metta://policy/<name>:v<N>         (specific version N of named policy)
     """
 
+    def __init__(self, stats_server_uri: str | None = None):
+        self._stats_server_uri = stats_server_uri or os.environ.get("STATS_SERVER_URI") or PROD_STATS_SERVER_URI
+
     @property
     def scheme(self) -> str:
         return "metta"
 
-    def _get_stats_client(self) -> StatsClient:
-        stats_server_uri = auto_stats_server_uri()
-        if not stats_server_uri:
-            raise ValueError("Cannot resolve metta:// URI: stats server not configured")
-        return StatsClient.create(stats_server_uri)
+    def parse(self, uri: str) -> MettaParsedScheme:
+        if not uri.startswith("metta://"):
+            raise ValueError(f"Expected metta:// URI, got: {uri}")
+        path = uri[len("metta://") :]
+        if not path:
+            raise ValueError("metta:// URIs must include a path")
+        return MettaParsedScheme(canonical=uri, path=path)
 
-    def _resolve_policy_version_by_name(
-        self, stats_client: StatsClient, name: str, version: int | None
-    ) -> PolicyVersionWithName:
-        response = stats_client.get_policies(name_exact=name, version=version, limit=1)
-        if not response.entries:
-            version_str = f":v{version}" if version is not None else ""
-            raise ValueError(f"No policy found with name '{name}{version_str}'")
-        entry = response.entries[0]
-        return stats_client.get_policy_version(entry.id)
-
-    def _get_policy_version(self, uri: str) -> PolicyVersionWithName:
+    def get_policy_version(self, uri: str) -> PolicyVersionWithName:
         parsed = self.parse(uri)
         path = parsed.path
         if not path:
@@ -90,30 +88,47 @@ class MettaSchemeResolver(SchemeResolver):
                 f"Expected metta://policy/<policy_version_id> or metta://policy/<policy_name>"
             )
 
-        policy_identifier = path_parts[1]
-        stats_client = self._get_stats_client()
+        if not self._stats_server_uri:
+            raise ValueError("Cannot resolve metta:// URI: stats server not configured")
+        stats_client = StatsClient.create(self._stats_server_uri)
 
-        if _is_uuid(policy_identifier):
-            policy_version = stats_client.get_policy_version(uuid.UUID(policy_identifier))
+        if _is_uuid(path_parts[1]):
+            policy_version = stats_client.get_policy_version(uuid.UUID(path_parts[1]))
         else:
-            name, version = _parse_policy_identifier(policy_identifier)
-            policy_version = self._resolve_policy_version_by_name(stats_client, name, version)
+            name, version = _parse_policy_identifier(path_parts[1])
+            response = stats_client.get_policy_versions(name_exact=name, version=version, limit=1)
+            if not response.entries:
+                version_str = f":v{version}" if version is not None else ""
+                raise ValueError(f"No policy found with name '{name}{version_str}'")
+            entry = response.entries[0]
+            policy_version = stats_client.get_policy_version(entry.id)
 
         return policy_version
 
-    def get_path_to_policy_spec_or_mpt(self, uri: str) -> str:
-        policy_version = self._get_policy_version(uri)
-        # By default we send you to the s3 path that contains the policy spec
-        if policy_version.s3_path:
-            logger.info(f"Metta scheme resolver: {uri} resolved to s3 policy spec: {policy_version.s3_path}")
-            return policy_version.s3_path
+    def get_path_to_policy_spec(self, uri: str) -> str:
+        parsed = self.parse(uri)
+        path_parts = parsed.path.split("/")
+        if len(path_parts) < 2 or path_parts[0] != "policy":
+            raise ValueError(
+                f"Unsupported metta:// URI format: {uri}. "
+                f"Expected metta://policy/<policy_version_id> or metta://policy/<policy_name>"
+            )
+        if not _is_uuid(path_parts[1]):
+            name, version = _parse_policy_identifier(path_parts[1])
+            checkpoint_root = Path(guess_data_dir()).expanduser().resolve() / name / "checkpoints"
+            if checkpoint_root.exists():
+                candidate = checkpoint_root if version is None else checkpoint_root / f"{name}:v{version}"
+                if candidate.exists():
+                    logger.info("Metta scheme resolver: %s resolved to local checkpoint %s", uri, candidate.as_uri())
+                    return candidate.as_uri()
 
-        # If that is missing (probably legacy policy), we send you to the mpt file, and will later assume
-        # that the class to hydrate from is MptPolicy
-        mpt_file_path = (policy_version.policy_spec or {}).get("init_kwargs", {}).get("checkpoint_uri")
-        if not mpt_file_path:
-            raise ValueError(f"Data not found for policy version {policy_version.id}")
-        if not mpt_file_path.endswith(".mpt"):
-            raise ValueError(f"Invalid mpt file path: {mpt_file_path}")
-        logger.info(f"Metta scheme resolver: {uri} resolved to mpt checkpoint: {mpt_file_path}")
-        return resolve_uri(mpt_file_path)
+        policy_version = self.get_policy_version(uri)
+        if policy_version.s3_path:
+            resolved = resolve_uri(policy_version.s3_path).canonical
+            logger.info("Metta scheme resolver: %s resolved to s3 policy spec: %s", uri, resolved)
+            return resolved
+
+        raise ValueError(
+            f"Policy version {policy_version.id} has no s3_path; "
+            "expected a policy spec submission in S3. Legacy .mpt files are not supported."
+        )

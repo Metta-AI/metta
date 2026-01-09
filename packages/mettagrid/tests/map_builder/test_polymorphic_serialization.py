@@ -12,7 +12,7 @@ from mettagrid.base_config import Config
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig, MapBuilderConfig
 from mettagrid.map_builder.maze import MazePrimMapBuilder
-from mettagrid.map_builder.random import RandomMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 
 
 def test_random_config_serialization():
@@ -29,7 +29,7 @@ def test_random_config_serialization():
 
     # Test serialization
     serialized = config.model_dump()
-    assert serialized["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
+    assert serialized["type"] == "mettagrid.map_builder.random_map.RandomMapBuilder.Config"
     assert serialized["width"] == 20
     assert serialized["height"] == 30
     assert serialized["seed"] == 42
@@ -82,7 +82,7 @@ def wrapped_any_config():
 
 def test_any_config_serialization(wrapped_any_config: OuterConfig):
     serialized = wrapped_any_config.model_dump()
-    assert serialized["map_builder"]["type"] == "mettagrid.map_builder.random.RandomMapBuilder.Config"
+    assert serialized["map_builder"]["type"] == "mettagrid.map_builder.random_map.RandomMapBuilder.Config"
     assert serialized["map_builder"]["agents"] == 2
 
 
@@ -131,7 +131,7 @@ char_to_map_name:
 def random_config_yaml():
     return textwrap.dedent(
         """
-        type: mettagrid.map_builder.random.RandomMapBuilder.Config
+        type: mettagrid.map_builder.random_map.RandomMapBuilder.Config
         width: 4
         height: 3
         seed: 99
@@ -208,7 +208,7 @@ def test_json_round_trip():
 
         # Reconstruct the config
         config_type = data["type"]
-        if config_type == "mettagrid.map_builder.random.RandomMapBuilder.Config":
+        if config_type == "mettagrid.map_builder.random_map.RandomMapBuilder.Config":
             reconstructed = RandomMapBuilder.Config.model_validate(data)
         elif config_type == "mettagrid.map_builder.maze.MazePrimMapBuilder.Config":
             reconstructed = MazePrimMapBuilder.Config.model_validate(data)

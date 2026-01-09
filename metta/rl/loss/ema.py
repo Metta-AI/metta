@@ -1,5 +1,5 @@
 import copy
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from pydantic import Field
@@ -55,6 +55,9 @@ class EMA(Loss):
             ):
                 target_param.data = self.cfg.decay * target_param.data + (1 - self.cfg.decay) * online_param.data
 
+    def policy_output_keys(self, policy_td: Optional[TensorDict] = None) -> set[str]:
+        return {"EMA_pred_output_2"}
+
     def run_train(
         self,
         shared_loss_data: TensorDict,
@@ -75,9 +78,6 @@ class EMA(Loss):
         with torch.no_grad():
             self.target_model(target_td)
             target_pred_flat: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
-
-        shared_loss_data["EMA"]["pred"] = pred_flat.reshape(B, TT, -1)
-        shared_loss_data["EMA"]["target_pred"] = target_pred_flat.reshape(B, TT, -1)
 
         loss = F.mse_loss(pred_flat, target_pred_flat) * self.cfg.loss_coef
         self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))

@@ -6,6 +6,7 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     GameConfig,
     GlobalObsConfig,
+    InventoryConfig,
     MettaGridConfig,
     MoveActionConfig,
     NoopActionConfig,
@@ -36,7 +37,7 @@ class TestGlobalObservations:
             max_steps=100,
             resource_names=["ore"],
             global_obs=GlobalObsConfig(last_action=True),
-            agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
+            agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=0, rewards=AgentRewards()),
             actions=ActionsConfig(
                 noop=NoopActionConfig(enabled=True),
                 move=MoveActionConfig(enabled=True, required_resources={"ore": 1}),
@@ -89,7 +90,7 @@ class TestGlobalObservations:
             max_steps=100,
             resource_names=["ore"],
             global_obs=GlobalObsConfig(last_action=True),
-            agent=AgentConfig(default_resource_limit=10, freeze_duration=0, rewards=AgentRewards()),
+            agent=AgentConfig(inventory=InventoryConfig(default_limit=10), freeze_duration=0, rewards=AgentRewards()),
             actions=ActionsConfig(
                 noop=NoopActionConfig(enabled=True),
                 move=MoveActionConfig(enabled=True),

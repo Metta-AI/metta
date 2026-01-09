@@ -84,7 +84,7 @@ class TestEvalTaskOrchestratorIntegration:
         mock_worker_manager.discover_alive_workers = AsyncMock(return_value=[])
         worker_counter = [0]
 
-        def mock_start_worker():
+        def mock_start_worker(num_cpus_request: int = 3, memory_request: int = 12):
             worker_counter[0] += 1
             return f"worker-{worker_counter[0]}"
 
@@ -135,7 +135,7 @@ class TestEvalTaskOrchestratorIntegration:
 
         # Also mock get_available_tasks to return only our task
         original_get_available = eval_task_client.get_available_tasks
-        test_task = Mock(id=999)
+        test_task = Mock(id=999, attributes={"parallelism": 1})
         eval_task_client.get_available_tasks = Mock(return_value=Mock(tasks=[test_task]))
 
         orchestrator = EvalTaskOrchestrator(
@@ -231,6 +231,7 @@ class TestEvalTaskOrchestratorIntegration:
         assert len(attempts.attempts) >= 1
         failed_attempt = attempts.attempts[0]
         assert failed_attempt.status == "system_error"
+        assert failed_attempt.status_details is not None
         assert failed_attempt.status_details.get("unassign_reason") == "worker_dead"
 
         # Task should be back to unprocessed (ready for retry)

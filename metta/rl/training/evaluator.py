@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import io
 import logging
+import os
 import uuid
-import zipfile
 from typing import Any, Optional
 
 import torch
@@ -19,6 +18,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.context import WandbRun
 from metta.rl.training import TrainerComponent
 from metta.rl.training.optimizer import is_schedulefree_optimizer
+from metta.rl.utils import should_run
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.remote import evaluate_remotely
 from metta.sim.simulate_and_record import ObservatoryWriter, WandbWriter, simulate_and_record
@@ -26,8 +26,7 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir
 from mettagrid.base_config import Config
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.file import write_data
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +35,14 @@ class EvaluatorConfig(Config):
     """Configuration for evaluation."""
 
     epoch_interval: int = 100  # 0 to disable
-    evaluate_local: bool = True
-    evaluate_remote: bool = False
+    evaluate_local: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is None,
+        description="Run evals locally. Defaults to True locally, False on SkyPilot.",
+    )
+    evaluate_remote: bool = Field(
+        default_factory=lambda: os.getenv("SKYPILOT_TASK_ID") is not None,
+        description="Run evals remotely via Observatory. Defaults to False locally, True on SkyPilot.",
+    )
     num_training_tasks: int = 2
     parallel_evals: int = Field(
         default=9,
@@ -94,6 +99,7 @@ class Evaluator(TrainerComponent):
         self._run_name = run_name
         self._stats_client = stats_client
         self._wandb_run = wandb_run
+        self._prev_epoch_for_evaluation: Optional[int] = None
 
         self._replay_dir = config.replay_dir or auto_replay_dir()
         self._evaluate_remote = config.evaluate_remote and stats_client is not None
@@ -129,54 +135,33 @@ class Evaluator(TrainerComponent):
         interval = self._config.epoch_interval
         if interval <= 0:
             return False
-        return epoch % interval == 0
-
-    def _create_submission_zip(self, policy_spec: PolicySpec) -> bytes:
-        """Create a submission zip containing policy-spec.json."""
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr("policy_spec.json", policy_spec.model_dump_json())
-        return buffer.getvalue()
-
-    def _upload_submission_zip(self, policy_spec: PolicySpec) -> str | None:
-        """Upload a submission zip to S3 and return the s3_path."""
-        checkpoint_uri = policy_spec.init_kwargs.get("checkpoint_uri")
-        if not checkpoint_uri or not checkpoint_uri.startswith("s3://"):
-            return None
-
-        submission_path = checkpoint_uri.replace(".mpt", "-submission.zip")
-        zip_data = self._create_submission_zip(policy_spec)
-        write_data(submission_path, zip_data, content_type="application/zip")
-        logger.info("Uploaded submission zip to %s", submission_path)
-        return submission_path
+        should_evaluate = should_run(epoch, interval, previous=self._prev_epoch_for_evaluation)
+        self._prev_epoch_for_evaluation = epoch
+        return should_evaluate
 
     def _create_policy_version(
         self,
         *,
         stats_client: StatsClient,
         policy_spec: PolicySpec,
+        policy_uri: str,
         epoch: int,
         agent_step: int,
     ) -> uuid.UUID:
-        """Create a policy version in Observatory with a submission zip."""
-
-        # Create or get policy
-        policy_id = stats_client.create_policy(
-            name=self._run_name,
-            attributes={},
-            is_system_policy=False,
-        )
-
-        # Upload submission zip to S3
-        s3_path = self._upload_submission_zip(policy_spec)
+        """Create a policy version in Observatory."""
 
         # Create policy version
+        parsed = resolve_uri(policy_uri)
         policy_version_id = stats_client.create_policy_version(
-            policy_id=policy_id.id,
+            policy_id=stats_client.create_policy(
+                name=self._run_name,
+                attributes={},
+                is_system_policy=False,
+            ).id,
             git_hash=self._git_hash,
             policy_spec=policy_spec.model_dump(mode="json"),
             attributes={"epoch": epoch, "agent_step": agent_step},
-            s3_path=s3_path,
+            s3_path=parsed.canonical if parsed.scheme == "s3" else None,
         )
 
         return policy_version_id.id
@@ -201,6 +186,7 @@ class Evaluator(TrainerComponent):
             policy_version_id = self._create_policy_version(
                 stats_client=self._stats_client,
                 policy_spec=policy_spec,
+                policy_uri=policy_uri,
                 epoch=epoch,
                 agent_step=agent_step,
             )
@@ -208,10 +194,11 @@ class Evaluator(TrainerComponent):
         # Remote evaluation
         if self._evaluate_remote and self._stats_client and policy_version_id:
             response = evaluate_remotely(
-                policy_version_id,
-                sim_run_configs,
-                self._stats_client,
-                self._git_hash,
+                policy_version_id=policy_version_id,
+                simulations=sim_run_configs,
+                stats_client=self._stats_client,
+                git_hash=self._git_hash,
+                push_metrics_to_wandb=(self._wandb_run is not None),
             )
             logger.info(f"Created remote evaluation task {response}")
 
@@ -251,13 +238,10 @@ class Evaluator(TrainerComponent):
                 on_progress=on_progress,
             )
             render_eval_summary(
-                rollout_results, policy_names=[self._spec_display_name(policy_spec)], verbose=self._config.verbose
+                rollout_results,
+                policy_names=[(policy_spec.init_kwargs or {}).get("display_name") or policy_spec.name],
+                verbose=self._config.verbose,
             )
-
-    @staticmethod
-    def _spec_display_name(policy_spec: PolicySpec) -> str:
-        init_kwargs = policy_spec.init_kwargs or {}
-        return init_kwargs.get("display_name") or policy_spec.name
 
     def _build_simulations(self, curriculum: Curriculum) -> list[SimulationConfig]:
         sims = []

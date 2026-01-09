@@ -3,16 +3,17 @@ from typing import Annotated
 import httpx
 from fastapi import Depends, HTTPException, Request, status
 
-from metta.app_backend import config
+from metta.app_backend.config import settings
 
 
 def get_user_from_header(request: Request) -> str | None:
-    if config.debug_user_email:
-        return config.debug_user_email
+    if settings.DEBUG_USER_EMAIL:
+        return settings.DEBUG_USER_EMAIL
 
     user_id = request.headers.get("X-User-Id")
     auth_secret = request.headers.get("X-Auth-Secret")
-    if user_id and auth_secret and auth_secret == config.auth_secret:
+
+    if user_id and auth_secret and auth_secret == settings.OBSERVATORY_AUTH_SECRET:
         return user_id
     return None
 
@@ -44,6 +45,7 @@ async def user_from_header_or_token_or_raise(request: Request) -> str:
 
 # Dependency types for use in route decorators
 UserOrToken = Annotated[str, Depends(user_from_header_or_token_or_raise)]
+OptionalUserOrToken = Annotated[str | None, Depends(user_from_header_or_token)]
 
 
 async def validate_token_via_login_service(token: str) -> str | None:
@@ -51,7 +53,7 @@ async def validate_token_via_login_service(token: str) -> str | None:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{config.login_service_url}/api/validate",
+                f"{settings.LOGIN_SERVICE_URL}/api/validate",
                 headers={"X-Auth-Token": token},
                 timeout=5.0,
             )

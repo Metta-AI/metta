@@ -86,7 +86,7 @@ class AGaLiTeCellConfig(CellConfig):
 
     cell_type: str = "agalite"
     hidden_size: int | None = Field(default=None)
-    n_heads: int = Field(default=4, ge=1)
+    n_heads: int = Field(default=8, ge=1)
     head_dim: int | None = Field(default=None, ge=1)
     eta: int = Field(default=6, ge=1)
     r: int = Field(default=2, ge=1)

@@ -20,8 +20,36 @@ async def fetch_policies_from_backend(
     """
     client = ScorecardClient(base_url=base_url)
     try:
-        response = await client.get_policies()
-        return response.policies
+        response = await client.get_policy_versions()
+        policies = (
+            getattr(response, "entries", None)
+            or getattr(response, "policies", [])
+            or []
+        )
+
+        def _get_attr(policy, key: str):
+            if isinstance(policy, dict):
+                return policy.get(key)
+            return getattr(policy, key, None)
+
+        normalized = []
+        for policy in policies:
+            tags = _get_attr(policy, "tags") or {}
+            normalized.append(
+                {
+                    "id": _get_attr(policy, "id"),
+                    "type": _get_attr(policy, "type")
+                    or tags.get("type")
+                    or tags.get("policy_type")
+                    or "training_run",
+                    "name": _get_attr(policy, "name"),
+                    "user_id": _get_attr(policy, "user_id"),
+                    "created_at": _get_attr(policy, "created_at"),
+                    "tags": tags,
+                }
+            )
+
+        return normalized
     except Exception as e:
         print(f"Error fetching policies: {e}")
         return []

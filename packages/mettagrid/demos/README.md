@@ -174,6 +174,29 @@ flag.
 **SB3 shape complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3
 expectations.
 
+### Gymnasium vector envs (AsyncVectorEnv)
+
+Use the Gymnasium wrapper so the vector worker can read `metadata`:
+
+```python
+from gymnasium.vector import AsyncVectorEnv
+from pufferlib.emulation import GymnasiumPufferEnv
+from mettagrid.envs.mettagrid_puffer_env import MettaGridPufferEnv
+from mettagrid.simulator import Simulator
+from mettagrid.config.mettagrid_config import MettaGridConfig
+
+def make_env():
+    return GymnasiumPufferEnv(
+        env_creator=MettaGridPufferEnv,
+        env_kwargs={"simulator": Simulator(), "cfg": MettaGridConfig(...)},
+    )
+
+vec_env = AsyncVectorEnv([make_env] * 4)
+```
+
+Note: Gymnasium’s vector API is single-agent; the wrapper flattens joint obs/actions into one Gym space, so your policy
+must already handle that shape.
+
 ### Debug Commands
 
 ```bash

@@ -4,10 +4,10 @@
 #include <cassert>
 
 // Static method for shared update
-InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_havers,
+InventoryDelta HasInventory::shared_update(std::vector<Inventory*> inventories,
                                            InventoryItem item,
                                            InventoryDelta delta) {
-  if (inventory_havers.empty()) {
+  if (inventories.empty()) {
     return 0;
   }
   // We expect the main usage to be 3 passes:
@@ -20,51 +20,51 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
   // One thing we specifically aim for is that the earlier inventories get more of the update, if it can't be
   // evenly split.
   InventoryDelta delta_remaining = delta;
-  std::vector<HasInventory*> inventory_havers_to_consider;
-  std::vector<HasInventory*> next_inventory_havers_to_consider = inventory_havers;
+  std::vector<Inventory*> inventories_to_consider;
+  std::vector<Inventory*> next_inventories_to_consider = inventories;
   // We want this to be a signed type, since otherwise we'll have a signed division issue.
-  int num_inventory_havers_remaining = next_inventory_havers_to_consider.size();
+  int num_inventories_remaining = next_inventories_to_consider.size();
   // Intentionally rounded towards zero.
-  InventoryDelta delta_per_inventory_haver = delta_remaining / num_inventory_havers_remaining;
+  InventoryDelta delta_per_inventory = delta_remaining / num_inventories_remaining;
   do {
-    inventory_havers_to_consider = next_inventory_havers_to_consider;
-    next_inventory_havers_to_consider.clear();
-    for (HasInventory* inventory_haver : inventory_havers_to_consider) {
+    inventories_to_consider = next_inventories_to_consider;
+    next_inventories_to_consider.clear();
+    for (Inventory* inventory : inventories_to_consider) {
       // Check to see if we have enough information to update this inventory now. I.e., do we know that this update
       // is going to fill / empty the inventory, so we can just do that?
       bool update_immediately;
       if (delta_remaining > 0) {
-        update_immediately = inventory_haver->inventory.free_space(item) <= delta_per_inventory_haver;
+        update_immediately = inventory->free_space(item) <= delta_per_inventory;
       } else {
         // For negative delta, update immediately if inventory has less than or equal to what we want to take
-        update_immediately = inventory_haver->inventory.amount(item) <= -delta_per_inventory_haver;
+        update_immediately = inventory->amount(item) <= -delta_per_inventory;
       }
       if (update_immediately) {
         // Update the inventory by as much as we can, and adjust how much we have left.
-        delta_remaining -= inventory_haver->inventory.update(item, delta_per_inventory_haver);
-        num_inventory_havers_remaining--;
-        if (num_inventory_havers_remaining > 0) {
-          delta_per_inventory_haver = delta_remaining / num_inventory_havers_remaining;
+        delta_remaining -= inventory->update(item, delta_per_inventory);
+        num_inventories_remaining--;
+        if (num_inventories_remaining > 0) {
+          delta_per_inventory = delta_remaining / num_inventories_remaining;
         }
       } else {
-        next_inventory_havers_to_consider.push_back(inventory_haver);
+        next_inventories_to_consider.push_back(inventory);
       }
     }
     // Do this until we don't kick any inventories off the list. Once we're here, all remaining inventories can
     // "fully participate".
-  } while (inventory_havers_to_consider.size() != next_inventory_havers_to_consider.size());
+  } while (inventories_to_consider.size() != next_inventories_to_consider.size());
 
-  if (num_inventory_havers_remaining == 0) {
+  if (num_inventories_remaining == 0) {
     return delta - delta_remaining;
   }
 
   // Update in reverse order. Because of the direction of rounding, this means that the earlier inventories will get
   // more of the delta (if it's not evenly split).
-  for (int i = inventory_havers_to_consider.size() - 1; i >= 0; i--) {
-    HasInventory* inventory_haver = inventory_havers_to_consider[i];
+  for (int i = inventories_to_consider.size() - 1; i >= 0; i--) {
+    Inventory* inventory = inventories_to_consider[i];
     InventoryDelta inventory_delta = delta_remaining / (i + 1);
-    InventoryDelta actual_delta = inventory_haver->inventory.update(item, inventory_delta);
-    assert(actual_delta == inventory_delta && "Expected inventory_haver to absorb all of the delta");
+    InventoryDelta actual_delta = inventory->update(item, inventory_delta);
+    assert(actual_delta == inventory_delta && "Expected inventory to absorb all of the delta");
     delta_remaining -= actual_delta;
   }
   assert(delta_remaining == 0 && "Expected all of the delta to be consumed");
@@ -73,8 +73,8 @@ InventoryDelta HasInventory::shared_update(std::vector<HasInventory*> inventory_
 }
 
 // Static method for transferring resources between inventories
-InventoryDelta HasInventory::transfer_resources(HasInventory& source,
-                                                HasInventory& target,
+InventoryDelta HasInventory::transfer_resources(Inventory& source,
+                                                Inventory& target,
                                                 InventoryItem item,
                                                 InventoryDelta delta,
                                                 bool destroy_untransferred_resources) {
@@ -84,11 +84,11 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
   }
 
   // Figure out how many resources the source can give
-  InventoryQuantity source_available = source.inventory.amount(item);
+  InventoryQuantity source_available = source.amount(item);
   InventoryDelta max_source_can_give = std::min(static_cast<InventoryDelta>(source_available), delta);
 
   // Figure out how many resources the target can receive
-  InventoryQuantity target_free_space = target.inventory.free_space(item);
+  InventoryQuantity target_free_space = target.free_space(item);
   InventoryDelta max_target_can_receive = static_cast<InventoryDelta>(target_free_space);
 
   // Calculate the actual transfer amount
@@ -96,11 +96,11 @@ InventoryDelta HasInventory::transfer_resources(HasInventory& source,
   InventoryDelta source_loss = destroy_untransferred_resources ? max_source_can_give : transfer_amount;
 
   // Remove resources from source
-  [[maybe_unused]] InventoryDelta actually_removed = source.inventory.update(item, -source_loss);
+  [[maybe_unused]] InventoryDelta actually_removed = source.update(item, -source_loss);
   assert(actually_removed == -source_loss && "Expected source to lose the amount of resources it claimed to lose");
 
   // Add resources to target
-  [[maybe_unused]] InventoryDelta actually_added = target.inventory.update(item, transfer_amount);
+  [[maybe_unused]] InventoryDelta actually_added = target.update(item, transfer_amount);
   assert(actually_added == transfer_amount &&
          "Expected target to receive the amount of resources it claimed to receive");
 

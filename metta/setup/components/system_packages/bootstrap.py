@@ -6,6 +6,7 @@ Handles installation of critical bootstrap dependencies needed before core.py ca
 - git, g++ (via system package manager)
 """
 
+import argparse
 import os
 import platform
 import re
@@ -21,7 +22,7 @@ REQUIRED_NIM_VERSION = "2.2.6"
 REQUIRED_NIMBY_VERSION = "0.1.13"
 MIN_BAZEL_VERSION = "7.0.0"
 DEFAULT_BAZEL_VERSION = "latest"
-BAZELISK_VERSION = "v1.19.0"
+BAZELISKVERSION_FILE = Path(__file__).parent.parent.parent.parent.parent / ".bazeliskversion"
 
 
 TARGET_INSTALL_DIRS = [
@@ -245,7 +246,8 @@ def get_bazelisk_url() -> str:
     system = platform.system().lower()
     machine = platform.machine().lower()
 
-    base = f"https://github.com/bazelbuild/bazelisk/releases/download/{BAZELISK_VERSION}/"
+    version = BAZELISKVERSION_FILE.read_text().strip()
+    base = f"https://github.com/bazelbuild/bazelisk/releases/download/v{version}/"
 
     if system == "linux":
         if machine in ("aarch64", "arm64"):
@@ -464,8 +466,6 @@ def main() -> None:
     """CLI entrypoint for bootstrap installation."""
     # Use argparse here instead of typer so that this script runs before any project
     # dependencies (typer/rich/etc.) are installed. argparse is in the stdlib.
-    import argparse
-    import sys
 
     parser = argparse.ArgumentParser(description="Install bootstrap dependencies (bazel, nimby, nim, git, g++)")
     parser.add_argument(

@@ -54,6 +54,8 @@
           libevdev
           zlib
           zstd
+
+          python3Packages.jupyterlab
         ];
 
         shellHook = ''
@@ -105,6 +107,11 @@
           echo "# ./tools/run.py train arena run=my_experiment evaluator.evaluate_remote=false"
           echo "# ./tools/run.py play arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
           echo "# ./tools/run.py replay arena policy_uri=file://./train-dir/my_experiment/checkpoints/YOUR-CHECKPOINT-HERE"
+          echo "# -------------------------------------------"
+          echo "# Jupyter commands:"
+          echo "#   jupyter lab                                    # Start JupyterLab"
+          echo "#   jupyter lab notebooks/colab/Cogames_Training.ipynb  # Open specific notebook"
+          echo "#   jupyter notebook                               # Start classic Jupyter"
           echo "# -------------------------------------------"
         '';
       };

@@ -4,14 +4,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-cogames_root = Path(__file__).parent.parent
-
 
 def test_missions_list_command():
     """Test that 'cogames missions' lists only top-level missions."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions"],
-        cwd=cogames_root,
+        ["cogames", "missions"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -32,8 +29,7 @@ def test_missions_list_command():
 def test_missions_describe_command():
     """Test that 'cogames missions <mission_name>' describes a specific mission."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "-m", "training_facility"],
-        cwd=cogames_root,
+        ["cogames", "missions", "-m", "training_facility"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -52,8 +48,7 @@ def test_missions_describe_command():
 def test_missions_list_for_specific_site():
     """Test that a positional site argument lists only that site's missions."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "training_facility"],
-        cwd=cogames_root,
+        ["cogames", "missions", "training_facility"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -68,8 +63,7 @@ def test_missions_list_for_specific_site():
 def test_missions_nonexistent_mission():
     """Test that describing a nonexistent game returns an error."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "missions", "-m", "nonexistent_mission"],
-        cwd=cogames_root,
+        ["cogames", "missions", "-m", "nonexistent_mission"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -85,8 +79,7 @@ def test_missions_nonexistent_mission():
 def test_missions_help_command():
     """Test that 'cogames --help' shows help text."""
     result = subprocess.run(
-        ["uv", "run", "cogames", "--help"],
-        cwd=cogames_root,
+        ["cogames", "--help"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -98,7 +91,7 @@ def test_missions_help_command():
     output = result.stdout
     assert "missions" in output
     assert "play" in output
-    assert "train" in output
+    assert "tutorial" in output
 
 
 def test_make_mission_command():
@@ -112,8 +105,6 @@ def test_make_mission_command():
         # with fixed dimensions and spawn points
         result = subprocess.run(
             [
-                "uv",
-                "run",
                 "cogames",
                 "make-mission",
                 "-m",
@@ -121,7 +112,6 @@ def test_make_mission_command():
                 "--output",
                 str(tmp_path),
             ],
-            cwd=cogames_root,
             capture_output=True,
             text=True,
             timeout=30,
@@ -130,8 +120,7 @@ def test_make_mission_command():
 
         # Run games command with the generated file
         result = subprocess.run(
-            ["uv", "run", "cogames", "missions", "-m", str(tmp_path)],
-            cwd=cogames_root,
+            ["cogames", "missions", "-m", str(tmp_path)],
             capture_output=True,
             text=True,
             timeout=30,

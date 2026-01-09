@@ -57,14 +57,13 @@ class TribalVillagePufferPolicy(MultiAgentPolicy, AgentPolicy):
         policy_env_info: TribalPolicyEnvInfo,
         *,
         hidden_size: int = 256,
-        device: Optional[Union[str, torch.device]] = None,
+        device: str = "cpu",
     ) -> None:
-        MultiAgentPolicy.__init__(self, policy_env_info)
+        MultiAgentPolicy.__init__(self, policy_env_info, device=device)
         AgentPolicy.__init__(self, policy_env_info)
 
         self._net = pufferlib.models.Default(policy_env_info.as_shim_env(), hidden_size=hidden_size)  # type: ignore[arg-type]
-        if device is not None:
-            self._net = self._net.to(torch.device(device))
+        self._net = self._net.to(torch.device(device))
 
         self._action_names = policy_env_info.action_names
         self._num_actions = len(self._action_names)

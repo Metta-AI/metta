@@ -3,9 +3,10 @@ from mettagrid.test_support.mapgen import render_scene
 
 
 def test_objects():
+    # Use 5x5 grid to ensure objects reliably fit
     scene = render_scene(
         Random.Config(objects={"assembler": 3, "temple": 2}),
-        (3, 3),
+        (5, 5),
     )
 
     assert (scene.grid == "assembler").sum() == 3

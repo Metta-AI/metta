@@ -6,7 +6,8 @@ from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import AgentPolicy
 from mettagrid.renderer.renderer import Renderer, RenderMode, create_renderer
-from mettagrid.simulator import Simulator, SimulatorEventHandler
+from mettagrid.simulator.interface import SimulatorEventHandler
+from mettagrid.simulator.simulator import Simulator
 from mettagrid.util.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,6 @@ class Rollout:
             policy.reset()
 
         self._step_count = 0
-        logging.info(f"Set up rollout with {len(self._policies)} policies")
 
     def step(self) -> None:
         """Execute one step of the rollout."""

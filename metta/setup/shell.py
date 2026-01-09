@@ -21,9 +21,8 @@ def help_configs() -> None:
     success("# Load configs with overrides:")
     info('cfg = load_cfg("train_job.yaml", ["training_env.curriculum=/env/mettagrid/arena/advanced"])')
     success("# Load checkpoints:")
-    info('artifact = load_mpt("file://./train_dir/my_run/checkpoints/my_run:v12.mpt")')
-    info('artifact = load_mpt("s3://bucket/path/my_run/checkpoints/my_run:v12.mpt")')
-    info('policy = artifact.instantiate(policy_env_info, torch.device("cpu"))')
+    info('spec = policy_spec_from_uri("file://./train_dir/my_run/checkpoints/my_run:v12")')
+    info("policy = initialize_or_load_policy(policy_env_info, spec)")
     success("# Create checkpoint manager:")
     info('cm = CheckpointManager(run="my_run", run_dir="./train_dir")')
 

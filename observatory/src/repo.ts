@@ -1,4 +1,11 @@
-import { getToken, initiateLogin } from './auth'
+import { getToken, initiateLogin, isRedirecting } from './auth'
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
 
 export type TokenInfo = {
   id: string
@@ -89,10 +96,6 @@ export type TaskAttempt = {
   output_log_path: string | null
 } & TaskStatusMixin
 
-export type EvalTasksResponse = {
-  tasks: EvalTask[]
-}
-
 export type PaginatedEvalTasksResponse = {
   tasks: EvalTask[]
   total_count: number
@@ -136,19 +139,6 @@ export type RunFreePolicyInfo = {
   created_at: string
 }
 
-export type UnifiedPolicyInfo = {
-  id: string
-  type: 'training_run' | 'policy'
-  name: string
-  user_id: string | null
-  created_at: string
-  tags: string[]
-}
-
-export type PoliciesResponse = {
-  policies: UnifiedPolicyInfo[]
-}
-
 export type EvalNamesRequest = {
   training_run_ids: string[]
   run_free_policy_ids: string[]
@@ -184,11 +174,6 @@ export type PublicPolicyVersionRow = {
   version_count?: number
 }
 
-export type EpisodeReplay = {
-  episode_id: string
-  replay_url: string
-}
-
 export type EpisodeWithTags = {
   id: string
   primary_pv_id: string | null
@@ -199,18 +184,6 @@ export type EpisodeWithTags = {
   created_at: string
   tags: Record<string, string>
   avg_rewards: Record<string, number>
-}
-
-export type LeaderboardPolicyEntry = {
-  policy_version: PublicPolicyVersionRow
-  scores: Record<string, number>
-  avg_score: number | null
-  replays: Record<string, EpisodeReplay[]>
-  score_episode_ids: Record<string, string | null>
-}
-
-export type LeaderboardPoliciesResponse = {
-  entries: LeaderboardPolicyEntry[]
 }
 
 export type PolicyVersionWithName = {
@@ -268,6 +241,106 @@ export type AIQueryResponse = {
   query: string
 }
 
+export type JobStatus = 'pending' | 'dispatched' | 'running' | 'completed' | 'failed'
+
+export type MatchStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed'
+
+export type PoolInfo = {
+  name: string
+  description: string
+}
+
+export type SeasonDetail = {
+  name: string
+  summary: string
+  pools: PoolInfo[]
+}
+
+export type PolicyVersionSummary = {
+  id: string
+  name: string | null
+  version: number | null
+}
+
+export type LeaderboardEntry = {
+  rank: number
+  policy: PolicyVersionSummary
+  score: number
+  matches: number
+}
+
+export type SubmissionResponse = {
+  pools: string[]
+}
+
+export type PoolMembership = {
+  pool_name: string
+  active: boolean
+  completed: number
+  failed: number
+  pending: number
+}
+
+export type PolicySummary = {
+  policy: PolicyVersionSummary
+  pools: PoolMembership[]
+  entered_at: string
+}
+
+export type SeasonMatchPlayerSummary = {
+  policy: PolicyVersionSummary
+  policy_index: number
+  score: number | null
+}
+
+export type SeasonMatchSummary = {
+  id: string
+  pool_name: string
+  status: MatchStatus
+  assignments: number[]
+  players: SeasonMatchPlayerSummary[]
+  job_id: string | null
+  episode_id: string | null
+  created_at: string
+}
+
+export type MembershipHistoryEntry = {
+  season_name: string
+  pool_name: string
+  action: string
+  notes: string | null
+  created_at: string
+}
+
+export type JobRequest = {
+  id: string
+  job_type: string
+  job: Record<string, any>
+  status: JobStatus
+  user_id: string
+  worker: string | null
+  result: Record<string, any> | null
+  error: string | null
+  created_at: string
+  dispatched_at: string | null
+  running_at: string | null
+  completed_at: string | null
+}
+
+export type PolicyRow = {
+  id: string
+  name: string
+  created_at: string
+  user_id: string
+  attributes: Record<string, any>
+  version_count: number
+}
+
+export type PoliciesResponse = {
+  entries: PolicyRow[]
+  total_count: number
+}
+
 export type PolicyVersionsResponse = {
   entries: PublicPolicyVersionRow[]
   total_count: number
@@ -291,34 +364,41 @@ export class Repo {
     return headers
   }
 
-  private async apiCall<T>(endpoint: string): Promise<T> {
+  private async handleErrorResponse(response: Response, suppressAuthRedirect = false): Promise<never> {
+    if (response.status === 401) {
+      if (!suppressAuthRedirect && !isRedirecting()) {
+        initiateLogin()
+      }
+      throw new AuthError('Unauthorized')
+    }
+    let detail: string | undefined
+    try {
+      const body = await response.json()
+      detail = body.detail
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(detail || `API call failed: ${response.status} ${response.statusText}`)
+  }
+
+  private async apiCall<T>(endpoint: string, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
 
-  private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
+  private async apiCallWithBody<T>(endpoint: string, body: any, suppressAuthRedirect = false): Promise<T> {
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders('application/json'),
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response, suppressAuthRedirect)
     }
     return response.json()
   }
@@ -330,12 +410,7 @@ export class Repo {
       body: JSON.stringify(body),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
     return response.json()
   }
@@ -346,12 +421,7 @@ export class Repo {
       headers: this.getHeaders(),
     })
     if (!response.ok) {
-      if (response.status === 401) {
-        // Unauthorized - redirect to login
-        initiateLogin()
-        throw new Error('Unauthorized - redirecting to login')
-      }
-      throw new Error(`API call failed: ${response.status} ${response.statusText}`)
+      await this.handleErrorResponse(response)
     }
   }
 
@@ -419,11 +489,6 @@ export class Repo {
     return this.apiCallWithBody<EvalTask>('/tasks', request)
   }
 
-  async getEvalTasks(): Promise<EvalTask[]> {
-    const response = await this.apiCall<EvalTasksResponse>('/tasks/all?limit=500')
-    return response.tasks
-  }
-
   async getEvalTasksPaginated(
     page: number,
     pageSize: number,
@@ -465,21 +530,24 @@ export class Repo {
     return response.policy_ids
   }
 
-  // Leaderboard / policy version queries
-  async getPublicLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2')
-  }
-
-  async getPersonalLeaderboard(): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>('/leaderboard/v2/users/me')
-  }
-
-  async getLeaderboardPolicy(policyVersionId: string): Promise<LeaderboardPoliciesResponse> {
-    return this.apiCall<LeaderboardPoliciesResponse>(`/leaderboard/v2/policy/${policyVersionId}`)
-  }
-
   async getPolicyVersion(policyVersionId: string): Promise<PolicyVersionWithName> {
     return this.apiCall<PolicyVersionWithName>(`/stats/policies/versions/${policyVersionId}`)
+  }
+
+  async getPolicyVersionsBatch(policyVersionIds: string[]): Promise<PublicPolicyVersionRow[]> {
+    const chunkSize = 10
+    const results: PublicPolicyVersionRow[] = []
+
+    for (let i = 0; i < policyVersionIds.length; i += chunkSize) {
+      const chunk = policyVersionIds.slice(i, i + chunkSize)
+      const params = chunk.map((id) => `policy_version_ids=${id}`).join('&')
+      const response = await this.apiCall<PolicyVersionsResponse>(
+        `/stats/policy-versions?${params}&limit=${chunk.length}`
+      )
+      results.push(...response.entries)
+    }
+
+    return results
   }
 
   async queryEpisodes(request: EpisodeQueryRequest): Promise<EpisodeQueryResponse> {
@@ -491,6 +559,21 @@ export class Repo {
     name_fuzzy?: string
     limit?: number
     offset?: number
+  }): Promise<PoliciesResponse> {
+    const searchParams = new URLSearchParams()
+    if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
+    if (params?.name_fuzzy) searchParams.append('name_fuzzy', params.name_fuzzy)
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<PoliciesResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+  }
+
+  async getPolicyVersions(params?: {
+    name_exact?: string
+    name_fuzzy?: string
+    limit?: number
+    offset?: number
   }): Promise<PolicyVersionsResponse> {
     const searchParams = new URLSearchParams()
     if (params?.name_exact) searchParams.append('name_exact', params.name_exact)
@@ -498,7 +581,7 @@ export class Repo {
     if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
-    return this.apiCall<PolicyVersionsResponse>(`/stats/policies${query ? `?${query}` : ''}`)
+    return this.apiCall<PolicyVersionsResponse>(`/stats/policy-versions${query ? `?${query}` : ''}`)
   }
 
   async getVersionsForPolicy(
@@ -510,5 +593,88 @@ export class Repo {
     if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
     const query = searchParams.toString()
     return this.apiCall<PolicyVersionsResponse>(`/stats/policies/${policyId}/versions${query ? `?${query}` : ''}`)
+  }
+
+  async getJobs(params?: {
+    job_type?: string
+    statuses?: JobStatus[]
+    job_id?: string
+    limit?: number
+    offset?: number
+  }): Promise<JobRequest[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.job_type) searchParams.append('job_type', params.job_type)
+    if (params?.job_id) searchParams.append('job_id', params.job_id)
+    if (params?.statuses) {
+      for (const status of params.statuses) {
+        searchParams.append('statuses', status)
+      }
+    }
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    const query = searchParams.toString()
+    return this.apiCall<JobRequest[]>(`/jobs${query ? `?${query}` : ''}`)
+  }
+
+  // Tournament methods
+  async getSeasons(): Promise<SeasonDetail[]> {
+    return this.apiCall<SeasonDetail[]>('/tournament/seasons')
+  }
+
+  async getSeasonLeaderboard(seasonName: string, suppressAuthRedirect = false): Promise<LeaderboardEntry[]> {
+    return this.apiCall<LeaderboardEntry[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/leaderboard`,
+      suppressAuthRedirect
+    )
+  }
+
+  async getSeasonPolicies(seasonName: string, suppressAuthRedirect = false): Promise<PolicySummary[]> {
+    return this.apiCall<PolicySummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/policies`,
+      suppressAuthRedirect
+    )
+  }
+
+  async getSeasonMatches(
+    seasonName: string,
+    params?: {
+      limit?: number
+      offset?: number
+      pool_names?: string[]
+      policy_version_ids?: string[]
+      suppressAuthRedirect?: boolean
+    }
+  ): Promise<SeasonMatchSummary[]> {
+    const searchParams = new URLSearchParams()
+    if (params?.limit !== undefined) searchParams.append('limit', params.limit.toString())
+    if (params?.offset !== undefined) searchParams.append('offset', params.offset.toString())
+    if (params?.pool_names) {
+      for (const name of params.pool_names) {
+        searchParams.append('pool_names', name)
+      }
+    }
+    if (params?.policy_version_ids) {
+      for (const id of params.policy_version_ids) {
+        searchParams.append('policy_version_ids', id)
+      }
+    }
+    const query = searchParams.toString()
+    return this.apiCall<SeasonMatchSummary[]>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/matches${query ? `?${query}` : ''}`,
+      params?.suppressAuthRedirect
+    )
+  }
+
+  async submitToSeason(seasonName: string, policyVersionId: string): Promise<SubmissionResponse> {
+    return this.apiCallWithBody<SubmissionResponse>(
+      `/tournament/seasons/${encodeURIComponent(seasonName)}/submissions`,
+      { policy_version_id: policyVersionId }
+    )
+  }
+
+  async getPolicyMemberships(policyVersionId: string): Promise<MembershipHistoryEntry[]> {
+    return this.apiCall<MembershipHistoryEntry[]>(
+      `/tournament/policies/${encodeURIComponent(policyVersionId)}/memberships`
+    )
   }
 }

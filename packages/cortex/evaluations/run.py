@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 import torch
 import torch.nn as nn
 from cortex.stacks import CortexStack
+from cortex.torch_init import enable_determinism, seed_everything
 from model import SequenceClassifier  # type: ignore[import-not-found]
 from stacks import STACKS, StackSpec  # type: ignore[import-not-found]
 from synthetic_datasets import (  # type: ignore[import-not-found]
@@ -333,21 +334,6 @@ def make_task(task: str, *, num_samples: int, seed: int) -> TaskSpec:
         return TaskSpec(name=task, make_splits=_splits, vocab_size=vocab_size, n_classes=n_classes)
 
     raise ValueError(f"Unknown task: {task}")
-
-
-def set_seed(seed: int) -> None:
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-
-
-def _enable_determinism() -> None:
-    """Force deterministic behavior where possible (CUDA/cuBLAS/torch)."""
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-    torch.use_deterministic_algorithms(True)
-    torch.backends.cuda.matmul.allow_tf32 = False  # type: ignore[attr-defined]
-    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
-    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
 
 
 def train_one(
@@ -726,9 +712,9 @@ def main() -> None:
     else:
         logging.getLogger().setLevel(level)
 
-    set_seed(args.seed)
+    seed_everything(args.seed)
     if args.deterministic:
-        _enable_determinism()
+        enable_determinism()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("device=%s seed=%d", device, args.seed)
 

@@ -129,7 +129,7 @@ rewards, and environment state.
 #### Example: Running a Simulation
 
 ```python
-from mettagrid.simulator.interface import Action
+from mettagrid.simulator.types import Action
 
 # Create simulation
 sim = simulator.new_simulation(config, seed=42)
@@ -197,7 +197,7 @@ print(f"Food: {inventory.get('food', 0)}")
 agent.set_inventory({"food": 10, "wood": 5})
 
 # Set action
-from mettagrid.simulator.interface import Action
+from mettagrid.simulator.types import Action
 agent.set_action(Action(name="harvest"))
 
 # Check if last action succeeded
@@ -265,9 +265,11 @@ obs = agent.observation
 for token in obs.tokens:
     if token.feature.name == "object_type":
         print(f"Object at ({token.col()}, {token.row()}): {token.value}")
-    elif token.feature.name.startswith("inv:"):
-        resource = token.feature.name[4:]  # Remove "inv:" prefix
-        print(f"Inventory {resource}: {token.value}")
+
+# For inventory, use the agent.inventory property which handles the encoding
+inventory = agent.inventory
+for resource, amount in inventory.items():
+    print(f"Inventory {resource}: {amount}")
 ```
 
 ## Event Handling
@@ -371,7 +373,7 @@ for obj_id, obj_data in all_objects.items():
 
 ```python
 from mettagrid.simulator.simulator import Simulator
-from mettagrid.simulator.interface import Action
+from mettagrid.simulator.types import Action
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
 # Setup

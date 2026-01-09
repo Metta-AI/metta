@@ -20,6 +20,24 @@ spec:
           envFrom:
           - secretRef:
               name: {{ .Values.secret_name }}
+          env:
+          - name: EPISODE_RUNNER_IMAGE
+            value: "{{ .Values.episodeRunnerImage.registry }}/{{ .Values.episodeRunnerImage.name }}:{{ .Values.episodeRunnerImage.tag }}"
+          - name: STATS_SERVER_URI
+            value: "https://{{ .Values.host }}"
+          {{- if .Values.env }}
+          {{- range $key, $value := .Values.env }}
+          - name: {{ $key }}
+            value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.secrets.machineToken }}
+          - name: MACHINE_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.secrets.machineToken }}
+                key: token
+          {{- end }}
           resources:
             requests:
               memory: "1Gi"

@@ -42,14 +42,25 @@ runs:
         # Get year and week number for weekly cache invalidation
         echo "yearweek=$(date +%Y-%U)" >> "$GITHUB_OUTPUT"
 
+    - name: Cache nimby
+      id: cache-nimby
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimby
+        key: nimby-2.2.6-${{ runner.os }}-${{ steps.get-week.outputs.yearweek }}
+        restore-keys: |
+          nimby-2.2.6-${{ runner.os }}-
+
     - name: Set up nim
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        curl -L -o nimby https://github.com/treeform/nimby/releases/download/0.1.6/nimby-Linux-X64
+        gh release download --repo treeform/nimby --pattern 'nimby-Linux-X64' --output nimby --clobber
         chmod +x nimby
         ./nimby use 2.2.6
         echo "$HOME/.nimby/nim/bin" >> "$GITHUB_PATH"
-        mv nimby "$HOME/.nimby/nim/bin/nimby"
+        install -m 0755 nimby "$HOME/.nimby/nim/bin/nimby"
 
     - name: Cache Bazel binary
       if: inputs.install-mode != 'minimal'
@@ -65,28 +76,23 @@ runs:
       if: inputs.install-mode != 'minimal' && steps.cache-bazel.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        # Download bazel with retry logic
-        MAX_RETRIES=5
-        RETRY_DELAY=10
+        BAZELISK_VERSION=$(cat .bazeliskversion)
+        BAZEL_URL="https://github.com/bazelbuild/bazelisk/releases/download/v${BAZELISK_VERSION}/bazelisk-linux-amd64"
 
-        for i in $(seq 1 $MAX_RETRIES); do
-          echo "Attempt $i of $MAX_RETRIES to download bazel..."
-
-          if curl -L --connect-timeout 30 --max-time 120 \
-               https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 \
-               -o bazel; then
-            echo "Successfully downloaded bazel"
+        for i in 1 2 3 4 5; do
+          echo "Attempt $i to download bazelisk..."
+          curl -fL "$BAZEL_URL" -o bazel || { sleep 10; continue; }
+          # Validate it's actually an ELF binary, not an HTML error page
+          if file bazel | grep -q "ELF"; then
             break
-          else
-            if [ $i -eq $MAX_RETRIES ]; then
-              echo "Failed to download bazel after $MAX_RETRIES attempts"
-              exit 1
-            fi
-            echo "Download failed, retrying in $RETRY_DELAY seconds..."
-            sleep $RETRY_DELAY
           fi
+          echo "Downloaded file is not a valid binary:"
+          file bazel
+          rm -f bazel
+          sleep 10
         done
 
+        file bazel | grep -q "ELF" || { echo "Failed to download valid bazel binary"; exit 1; }
         chmod +x bazel
         if command -v sudo &> /dev/null; then
           sudo mv bazel /usr/local/bin/bazel
@@ -116,33 +122,15 @@ runs:
 
         case "${{ inputs.install-mode }}" in
 
-          "minimal")
-            # don't install any packages
-            ;;
-
           "testing")
             # Install main dependencies + testing group, excluding interactive and dev
-            uv sync --no-group interactive --no-group dev --group testing --all-packages
+            uv sync --no-group interactive --no-group dev --group testing --group lint --all-packages
             ;;
 
           # used in the mettascope tests where we run code to generate outputs but do not run tests
           "runtime")
             # Install only main dependencies, excluding all groups
             uv sync --no-group interactive --no-group dev
-            ;;
-
-          "metta-cli")
-            # Install lint group + minimal metta package dependencies for CLI
-            # This enables using `metta lint` and other metta commands while keeping install fast
-            uv sync --only-group lint
-            # Install metta package with only the minimal dependencies needed for CLI
-            # (typer, rich, pydantic, pyyaml, colorama, omegaconf, etc.)
-            uv pip install -e . --no-deps
-            uv pip install typer rich pydantic pyyaml colorama omegaconf skypilot sqlmodel
-            # Install workspace packages that metta CLI imports (with their dependencies)
-            uv pip install -e common
-            uv pip install -e packages/gitta
-            uv pip install -e softmax
             ;;
 
         esac

@@ -55,6 +55,7 @@ class ViTGRPOConfig(PolicyArchitecture):
                 num_layers=1,
                 pattern="L",
                 post_norm=False,
+                compile_blocks=False,
             ),
         ),
         MLPConfig(

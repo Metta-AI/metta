@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from metta.sweep.core import CategoricalParameterConfig, ParameterConfig
 from metta.sweep.optimizer.protein import ProteinOptimizer
+from metta.sweep.parameter_config import CategoricalParameterConfig, ParameterConfig
 from metta.sweep.protein_config import ProteinConfig, ProteinSettings
 
 
@@ -20,9 +20,9 @@ class DummyProtein:
     def suggest(self, n_suggestions: int = 1):
         # Return numeric indices for the categorical param to test decoding
         if n_suggestions == 1:
-            return ({"model": {"color": 2}}, {})  # -> maps to choices[2]
+            return ({"model.color": 2}, {})  # -> maps to choices[2]
         else:
-            return [({"model": {"color": 0}}, {}), ({"model": {"color": 1}}, {})]
+            return [({"model.color": 0}, {}), ({"model.color": 1}, {})]
 
 
 def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatch):
@@ -31,17 +31,10 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
         metric="evaluator/eval_sweep/score",
         goal="maximize",
         parameters={
-            "model": {
-                "color": CategoricalParameterConfig(choices=["red", "blue", "butt"]),
-            },
-            # include at least one numeric parameter to ensure path still works
-            "trainer": {
-                "optimizer": {
-                    "learning_rate": ParameterConfig(
-                        min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
-                    ),
-                }
-            },
+            "model.color": CategoricalParameterConfig(choices=["red", "blue", "butt"]),
+            "trainer.optimizer.learning_rate": ParameterConfig(
+                min=1e-5, max=1e-3, distribution="log_normal", mean=1e-4, scale="auto"
+            ),
         },
         settings=ProteinSettings(num_random_samples=0),
     )
@@ -56,7 +49,7 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
     # Provide an observation with a categorical value and ensure it is encoded to int
     observations = [
         {
-            "suggestion": {"model": {"color": "blue"}},  # should encode to index 1
+            "suggestion": {"model.color": "blue"},  # should encode to index 1
             "score": 0.5,
             "cost": 10.0,
         }
@@ -68,7 +61,7 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
     # suggestions are decoded back to categorical values
     assert isinstance(suggestions, list) and len(suggestions) == 1
     s0 = suggestions[0]
-    assert s0["model"]["color"] == "butt"  # index 2 decoded to the third choice
+    assert s0["model.color"] == "butt"  # index 2 decoded to the third choice
 
     # Verify observations were encoded when passed into DummyProtein
     # Access the DummyProtein instance via the monkeypatched call site
@@ -77,7 +70,7 @@ def test_protein_adapter_encodes_observations_and_decodes_suggestions(monkeypatc
 
     # Ask for multiple suggestions; ensure decoding works for list return
     multi = optimizer.suggest(observations=observations, n_suggestions=2)
-    assert [m["model"]["color"] for m in multi] == ["red", "blue"]
+    assert [m["model.color"] for m in multi] == ["red", "blue"]
 
 
 def test_empty_categorical_choices_raises(monkeypatch):
@@ -85,9 +78,7 @@ def test_empty_categorical_choices_raises(monkeypatch):
         metric="evaluator/eval_sweep/score",
         goal="maximize",
         parameters={
-            "model": {
-                "color": CategoricalParameterConfig(choices=[]),
-            },
+            "model.color": CategoricalParameterConfig(choices=[]),
         },
     )
 

@@ -121,15 +121,15 @@ def main(
             "--hb",
             help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
         ),
-    ] = 300,
+    ] = 1800,
     max_runtime_hours: Annotated[
-        Optional[float],
+        float,
         typer.Option(
             "-t",
             "--max-runtime-hours",
             help="Maximum job runtime in hours before automatic termination (supports decimals, e.g. 1.5 = 90 minutes)",
         ),
-    ] = None,
+    ] = 72.0,
     skip_git_check: Annotated[
         bool, typer.Option("--skip-git-check", help="Skip git state validation and GitHub API calls")
     ] = False,
@@ -238,12 +238,13 @@ def main(
             METTA_GIT_REF=commit_hash,
             TEST_JOB_RESTART="true" if run_ci_tests else "false",
             TEST_NCCL="true" if run_ci_tests else "false",
+            DD_LOGS_ENABLED="true",
+            METTA_DD_LOG_FILE="/tmp/datadog-training.log",
         )
     )
     if heartbeat_timeout_seconds:
         task.update_envs({"HEARTBEAT_TIMEOUT": str(heartbeat_timeout_seconds)})
-    if max_runtime_hours:
-        task.update_envs({"MAX_RUNTIME_HOURS": str(max_runtime_hours)})
+    task.update_envs({"MAX_RUNTIME_HOURS": str(max_runtime_hours)})
 
     task.name = run_id
     task.validate_name()
@@ -300,6 +301,10 @@ def main(
     return
 
 
-if __name__ == "__main__":
+def cli_entry():
     init_logging()
     app()
+
+
+if __name__ == "__main__":
+    cli_entry()

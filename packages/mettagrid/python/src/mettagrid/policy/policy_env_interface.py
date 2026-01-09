@@ -1,10 +1,11 @@
 """Policy environment interface for providing environment information to policies."""
 
 import json
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import gymnasium as gym
-from pydantic import BaseModel, ConfigDict
+import numpy as np
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
@@ -20,6 +21,47 @@ class PolicyEnvInterface(BaseModel):
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_serializer("observation_space")
+    def serialize_observation_space(self, v: gym.spaces.Box) -> dict[str, Any]:
+        # gym.spaces.Box doesn't have a json serializer, so this attempts to implement it
+        return {
+            "low": v.low.tolist(),
+            "high": v.high.tolist(),
+            "shape": list(v.shape),
+            "dtype": str(v.dtype),
+        }
+
+    @field_validator("observation_space", mode="before")
+    @classmethod
+    def validate_observation_space(cls, v: Any) -> gym.spaces.Box:
+        if isinstance(v, gym.spaces.Box):
+            return v
+        if isinstance(v, dict):
+            # gym.spaces.Box doesn't have a json deserializer, so this attempts to implement it
+            dtype = np.dtype(v["dtype"]) if isinstance(v["dtype"], str) else v["dtype"]
+            return gym.spaces.Box(
+                low=np.array(v["low"]),
+                high=np.array(v["high"]),
+                shape=tuple(v["shape"]),
+                dtype=dtype,  # type: ignore[arg-type]
+            )
+        raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Box")
+
+    @field_serializer("action_space")
+    def serialize_action_space(self, v: gym.spaces.Discrete) -> dict[str, Any]:
+        # gym.spaces.Discrete doesn't have a json serializer, so this attempts to implement it
+        return {"n": int(v.n), "start": int(v.start)}
+
+    @field_validator("action_space", mode="before")
+    @classmethod
+    def validate_action_space(cls, v: Any) -> gym.spaces.Discrete:
+        if isinstance(v, gym.spaces.Discrete):
+            return v
+        if isinstance(v, dict):
+            # gym.spaces.Discrete doesn't have a json deserializer, so this attempts to implement it
+            return gym.spaces.Discrete(n=v["n"], start=v.get("start", 0))
+        raise ValueError(f"Cannot convert {type(v)} to gym.spaces.Discrete")
 
     obs_features: list[ObservationFeatureSpec]
     tags: list[str]
@@ -76,6 +118,7 @@ class PolicyEnvInterface(BaseModel):
 
     def to_json(self) -> str:
         """Convert PolicyEnvInterface to JSON."""
+        # TODO: Andre: replace this with `.model_dump(mode="json")`, now that it supports all fields
         payload = self.model_dump(mode="json", include={"num_agents", "obs_width", "obs_height", "tags"})
         payload["actions"] = self.action_names
         payload["obs_features"] = [feature.model_dump(mode="json") for feature in self.obs_features]

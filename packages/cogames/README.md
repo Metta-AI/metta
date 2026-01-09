@@ -34,15 +34,11 @@ Once your policy is successfully assembling hearts, submit it to our Alignment L
 policy plays with other policies in the pool through running multi-policy, multi-agent games. Our focal metric is VORP
 (Value Over Replacement Policy), an estimate of how much your agent improves team performance in scoring hearts.
 
-## Quick Start
+# Get Started
 
-Let's install cogames and walk through playing an easy mission in Cogs vs. Clips. Then, we'll train a simple starter
-policy. `easy_hearts` uses three variants to simplify training:
+## Step 1: Set up and install
 
-- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
-  energy)
-- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
-- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+Install [cogames](https://pypi.org/project/cogames/) as a Python package.
 
 ```bash
 # We recommend using a virtual env
@@ -52,21 +48,39 @@ source .venv/bin/activate
 
 # Install cogames
 uv pip install cogames
-
-# Play an episode yourself
-cogames tutorial
-
-# Play an episode of the easy_hearts mission with a scripted policy
-cogames play -m easy_hearts -p class=baseline
-
-# Try the scripted policy on a set of eval missions
-cogames eval -set integrated_evals -p class=baseline
-
-# Train with an LSTM policy on easy_hearts
-cogames train -m easy_hearts -p class=lstm
 ```
 
-Other useful commands:
+## Step 2: Game tutorial
+
+Play an easy mission in Cogs vs. Clips using `cogames tutorial play`. Follow the instructions given in the terminal,
+while you use the GUI to accomplish your first training mission.
+
+## Step 3: Train a simple policy
+
+We'll train a simple starter policy on `training_facility.harvest`. Optional variants to simplify training:
+
+- `lonely_heart` - Simplifies heart crafting to require only 1 of each resource (carbon, oxygen, germanium, silicon,
+  energy)
+- `heart_chorus` - Provides reward shaping that gives bonuses for gaining hearts and maintaining diverse inventories
+- `pack_rat` - Raises all capacity limits (heart, cargo, energy, gear) to 255 so agents never run out of storage space
+
+```bash
+# Play an episode of the training_facility.harvest mission with a scripted policy
+cogames play -m training_facility.harvest -p class=baseline
+
+# Try the scripted policy on a set of eval missions
+cogames run -S integrated_evals -p class=baseline
+
+# Train with an LSTM policy on training_facility.harvest
+cogames tutorial train -m training_facility.harvest -p class=lstm
+```
+
+## Step 4: Learn about missions
+
+Get familiar with different missions in Cogs vs. Clips so you can develop a policy that's able to handle different
+scenarios.
+
+Useful commands to explore:
 
 ```bash
 # List available missions
@@ -84,27 +98,32 @@ cogames evals
 # Shows all policies available and their shorthands
 cogames policies
 
-# Authenticate before submitting or checking leaderboard
+# Authenticate before uploading or checking leaderboard
 cogames login
 
-# Inspect your leaderboard submissions
+# List available tournament seasons
+cogames seasons
+
+# View leaderboard for a season
+cogames leaderboard --season SEASON
+
+# View your tournament submissions
 cogames submissions
-
-# Show current leaderboard
-cogames leaderboard
-
-# Show version info for the installed tooling stack
-cogames version
 ```
 
-## Tutorial
+# Develop a Policy
 
-### `cogames tutorial`
+A **policy** contains the decision-making logic that controls your agents. Given an observation of the game state, a
+policy outputs an action.
 
-Play through our tutorial to get familiar with the game! Follow the instructions given in the terminal, while you use
-the GUI to accomplish your first training mission.
+CoGames asks that policies implement the `MultiAgentPolicy` interface. Any implementation will work, and we provide two
+templates to get you up and running:
 
-## Play, Train, and Eval
+- `cogames tutorial make-policy --scripted` gives a starter template for a simple, rule-based script
+- `cogames tutorial make-policy --trainable` gives a basic neural-net based implementation that can be trained via
+  `cogames tutorial train`
+
+## Play, Train, and Run
 
 Most commands are of the form `cogames <command> -m [MISSION] -p [POLICY] [OPTIONS]`
 
@@ -112,13 +131,21 @@ To specify a `MISSION`, you can:
 
 - Use a mission name from the registry given by `cogames missions`, e.g. `training_facility_1`.
 - Use a path to a mission configuration file, e.g. `path/to/mission.yaml`.
-- Alternatively, specify a set of missions with `-set` or `-S`.
+- Alternatively, specify a set of missions with `-S` or `--mission-set`.
 
-To specify a `POLICY`, use comma-separated key/value pairs:
+To specify a `POLICY`, use one of two formats:
+
+**URI format** (for checkpoint bundles):
+
+- Point directly at a checkpoint bundle (directory or `.zip` containing `policy_spec.json`)
+- Examples: `./train_dir/my_run:v5`, `./train_dir/my_run:v5.zip`, `s3://bucket/path/run:v5.zip`
+- Use `:latest` suffix to auto-resolve the highest epoch: `./train_dir/checkpoints:latest`
+
+**Key-value format** (for explicit class + weights):
 
 - `class=`: Policy shorthand or full class path from `cogames policies`, e.g. `class=lstm` or
   `class=cogames.policy.random.RandomPolicy`.
-- `data=`: Optional path to a weights file or directory. When omitted, defaults to the policy's built-in weights.
+- `data=`: Optional path to a weights file (e.g., `weights.safetensors`). Must be a file, not a directory.
 - `proportion=`: Optional positive float specifying the relative share of agents that use this policy (default: 1.0).
 - `kw.<arg>=`: Optional policy `__init__` keyword arguments (all values parsed as strings).
 
@@ -133,14 +160,14 @@ other agents moving around! Just provide a different policy, like `random`.
 
 **Options:**
 
-- `--steps N`: Number of steps (default: 1000)
+- `--steps N`: Number of steps (default: 10000)
 - `--render MODE`: 'gui' or 'text' (default: gui)
 - `--non-interactive`: Non-interactive mode (default: false)
 
 `cogames play` supports a gui-based and text-based game renderer, both of which support many features to inspect agents
 and manually play alongside them.
 
-### `cogames train -m [MISSION] -p [POLICY]`
+### `cogames tutorial train -m [MISSION] -p [POLICY]`
 
 Train a policy on a mission.
 
@@ -150,24 +177,30 @@ policy architecture we support out of the box (like `lstm`), or can define your 
 Any policy provided must implement the `MultiAgentPolicy` interface with a trainable `network()` method, which you can
 find in `mettagrid/policy/policy.py`.
 
-You can continue training an already-initialized policy by also supplying a path to its weights checkpoint file:
+You can continue training from a checkpoint bundle (use URI format):
 
 ```
-cogames train -m [MISSION] -p class=path.to.policy.MyPolicy,data=train_dir/my_checkpoint.pt
+cogames tutorial train -m [MISSION] -p ./train_dir/my_run:v5
+```
+
+Or load weights into an explicit class:
+
+```
+cogames tutorial train -m [MISSION] -p class=path.to.MyPolicy,data=train_dir/run:v5/weights.safetensors
 ```
 
 Note that you can supply repeated `-m` missions. This yields a training curriculum that rotates through those
 environments:
 
 ```
-cogames train -m training_facility_1 -m training_facility_2 -p class=stateless
+cogames tutorial train -m training_facility_1 -m training_facility_2 -p class=stateless
 ```
 
 You can also specify multiple missions with `*` wildcards:
 
-- `cogames train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
-- `cogames train -m '*:shaped'` will specify all "shaped" missions across all maps
-- `cogames train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
+- `cogames tutorial train -m 'machina_2_bigger:*'` will specify all missions on the machina_2_bigger map
+- `cogames tutorial train -m '*:shaped'` will specify all "shaped" missions across all maps
+- `cogames tutorial train -m 'machina*:shaped'` will specify all "shaped" missions on all machina maps
 
 **Options:**
 
@@ -178,34 +211,27 @@ You can also specify multiple missions with `*` wildcards:
 
 ### Custom Policy Architectures
 
-To get started, `cogames` supports some torch-nn-based policy architectures out of the box (such as StatelessPolicy). To
-supply your own, extend the canonical `cogames.policy.MultiAgentPolicy` base class.
+CoGames supports torch-based policy architectures out of the box (such as `stateless` and `lstm`). To create your own
+trainable policy, run:
 
-```python
-from cogames.policy import MultiAgentPolicy
-
-class MyPolicy(MultiAgentPolicy):
-    def __init__(self, observation_space, action_space):
-        self.network = MyNetwork(observation_space, action_space)
-
-    def get_action(self, observation, agent_id=None):
-        return self.network(observation)
-
-    def reset(self):
-        pass
-
-    def save(self, path):
-        torch.save(self.network.state_dict(), path)
-
-    @classmethod
-    def load(cls, path, env=None):
-        policy = cls(env.observation_space, env.action_space)
-        policy.network.load_state_dict(torch.load(path))
-        return policy
+```bash
+cogames tutorial make-policy --trainable -o my_policy.py
 ```
 
-To train with using your class, supply a path to it in your POLICY argument, e.g.
-`cogames train -m training_facility_1 -p class=path.to.MyPolicy`.
+This generates a complete working template. See the
+[trainable policy template](src/cogames/policy/trainable_policy_template.py) for the full implementation. The key
+components are:
+
+- **`MultiAgentPolicy`**: The main policy class that the training system interacts with
+- **`AgentPolicy`**: Per-agent decision-making (returned by `agent_policy()`)
+- **`network()`**: Returns the `nn.Module` for training (must implement `forward_eval(obs, state) -> (logits, values)`)
+- **`load_policy_data()` / `save_policy_data()`**: Checkpoint serialization
+
+To train using your policy:
+
+```bash
+cogames tutorial train -m training_facility.harvest -p class=my_policy.MyTrainablePolicy
+```
 
 #### Environment API
 
@@ -217,7 +243,7 @@ from mettagrid import PufferMettaGridEnv
 from mettagrid.simulator import Simulator
 
 # Load a mission configuration
-_, config = get_mission("assembler_2_complex")
+_, config = get_mission("machina_1.open_world")
 
 # Create environment
 simulator = Simulator()
@@ -227,7 +253,7 @@ env = PufferMettaGridEnv(simulator, config)
 obs, info = env.reset()
 
 # Game loop
-for step in range(1000):
+for step in range(10000):
     # Your policy computes actions for all agents
     actions = policy.get_actions(obs)  # Dict[agent_id, action]
 
@@ -238,11 +264,11 @@ for step in range(1000):
         obs, info = env.reset()
 ```
 
-### `cogames eval -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
+### `cogames run -m [MISSION] [-m MISSION...] -p POLICY [-p POLICY...]`
 
 Evaluate one or more policies on one or more missions.
 
-We provide a set of eval missions which you can use instead of missions `-m`. Specify `-set` or `-S` among:
+We provide a set of eval missions which you can use instead of missions `-m`. Specify `-S` or `--mission-set` among:
 `eval_missions`, `integrated_evals`, `spanning_evals`, `diagnostic_evals`, `all`.
 
 You can provide multiple `-p POLICY` arguments if you want to run evaluations on mixed-policy populations.
@@ -250,14 +276,14 @@ You can provide multiple `-p POLICY` arguments if you want to run evaluations on
 **Examples:**
 
 ```bash
-# Evaluate a single trained policy checkpoint
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt
+# Evaluate a checkpoint bundle
+cogames run -m machina_1 -p ./train_dir/my_run:v5
 
-# Evaluate a single trained policy across a mission set with multiple agents
-cogames eval -set integrated_evals -p class=stateless,data=train_dir/model.pt
+# Evaluate across a mission set
+cogames run -S integrated_evals -p ./train_dir/my_run:v5
 
-# Mix two policies: 3 parts your policy, 5 parts random policy
-cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=3 -p class=random,proportion=5
+# Mix two policies: 3 parts your policy, 5 parts random
+cogames run -m machina_1 -p ./train_dir/my_run:v5,proportion=3 -p class=random,proportion=5
 ```
 
 **Options:**
@@ -267,7 +293,7 @@ cogames eval -m machina_1 -p class=stateless,data=train_dir/model.pt,proportion=
 - `--steps N`: Max steps per episode
 - `--format [json/yaml]`: Output results as structured json or yaml (default: None for human-readable tables)
 
-When multiple policies are provided, `cogames eval` fixes the number of agents each policy will control, but randomizes
+When multiple policies are provided, `cogames run` fixes the number of agents each policy will control, but randomizes
 their assignments each episode.
 
 ### `cogames make-mission -m [BASE_MISSION]`
@@ -290,23 +316,61 @@ You will be able to provide your specified `--output` path as the `MISSION` argu
 
 ### `cogames login`
 
-Make sure you have authenticated before submitting a policy.
+Authenticate before uploading policies or viewing leaderboards.
 
-### `cogames submit -p [POLICY] -n [NAME]`
+### `cogames upload -p [POLICY] -n [NAME]`
 
-Example:
+Upload a policy to the server.
 
 ```
-cogames submit -p class=stateless,data=train_dir/model.pt -n my_policy
+cogames submit -p ./train_dir/my_run:v5 -n my_policy
 ```
 
 **Options:**
 
-- `--include-files`: Can be specified multiple times, such as --include-files file1.py --include-files dir1/
-- `--dry-run`: Validates the policy works for submission without uploading it
+- `--include-files`: Additional files to include (can be specified multiple times)
+- `--dry-run`: Validate the policy without uploading
 
-When a new policy is submitted, it is queued up for evals with other policies, both randomly selected and designated
-policies for the Alignment League Benchmark.
+### `cogames seasons`
+
+List available tournament seasons you can submit to.
+
+### `cogames submit [POLICY] --season [SEASON]`
+
+Submit an uploaded policy to a tournament season.
+
+```bash
+# Submit latest version of a policy
+cogames submit my_policy --season alb-season-1
+
+# Submit a specific version
+cogames submit my_policy:v3 --season alb-season-1
+```
+
+### `cogames submissions`
+
+View your tournament submissions.
+
+```bash
+# View all submissions
+cogames submissions
+
+# Filter by season
+cogames submissions --season alb-season-1
+
+# Filter by policy (positional argument)
+cogames submissions my_policy
+```
+
+### `cogames leaderboard --season [SEASON]`
+
+View the leaderboard for a tournament season.
+
+```bash
+cogames leaderboard --season alb-season-1
+```
+
+When a policy is submitted to a season, it is queued for matches against other policies in that season's pools.
 
 ## Citation
 
