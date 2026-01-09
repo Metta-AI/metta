@@ -133,7 +133,7 @@ class SharedMapCache:
             GameMap from cache or newly created.
         """
         cache_key = self._make_key(map_builder, num_agents)
-        seed_is_set = hasattr(map_builder, "seed") and getattr(map_builder, "seed") is not None
+        seed_is_set = hasattr(map_builder, "seed") and map_builder.seed is not None
         maps_per_key = 1 if seed_is_set else _maps_per_key
         lock_file = _get_lock_file()
 
