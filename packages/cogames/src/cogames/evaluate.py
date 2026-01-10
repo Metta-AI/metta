@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections import defaultdict
-from typing import Literal, Optional, TypeAlias
+from typing import Literal, Optional, TypeAlias, cast
 
 import numpy as np
 import typer
@@ -19,6 +19,7 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
+from mettagrid.simulator.replay_log_writer import EpisodeReplay
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
 
@@ -107,6 +108,7 @@ def evaluate(
                 results, replay = run_pure_single_episode_from_specs(job, device="cpu")
 
                 if replay_path is not None:
+                    replay = cast(EpisodeReplay, replay)
                     if replay_path.endswith(".gz"):
                         replay.set_compression("gzip")
                     elif replay_path.endswith(".z"):

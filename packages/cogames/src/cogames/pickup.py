@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 import typer
@@ -16,6 +16,7 @@ from mettagrid import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
+from mettagrid.simulator.replay_log_writer import EpisodeReplay
 
 
 def make_machina1_open_world_env(
@@ -134,6 +135,7 @@ def pickup(
                 episode_result, replay = run_pure_single_episode_from_specs(job, device="cpu")
 
                 if replay_path is not None:
+                    replay = cast(EpisodeReplay, replay)
                     if replay_path.endswith(".gz"):
                         replay.set_compression("gzip")
                     elif replay_path.endswith(".z"):

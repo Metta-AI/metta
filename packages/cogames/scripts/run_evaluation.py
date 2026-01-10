@@ -152,8 +152,9 @@ def _run_case(
     env_config = mission.make_env()
 
     assembler = env_config.game.objects.get("assembler")
-    if assembler is not None and hasattr(assembler, "protocols"):
-        for proto in assembler.protocols:
+    protocols = getattr(assembler, "protocols", None) if assembler is not None else None
+    if protocols:
+        for proto in protocols:
             if any(v == "gear" for v in getattr(proto, "vibes", [])):
                 change_vibe = env_config.game.actions.change_vibe
                 if not any(v.name == "gear" for v in change_vibe.vibes):

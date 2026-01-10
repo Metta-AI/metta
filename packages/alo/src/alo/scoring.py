@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Mapping, Protocol, Sequence
+from typing import Protocol, Sequence
 from uuid import UUID
 
 
 class ScoredMatchLike(Protocol):
-    assignments: Sequence[int]
-    policy_version_ids: Sequence[UUID]
-    policy_scores: Mapping[UUID, float]
+    assignments: list[int]
+    policy_version_ids: list[UUID]
+    policy_scores: dict[UUID, float]
 
 
 def compute_weighted_scores(
