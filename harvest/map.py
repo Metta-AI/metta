@@ -109,12 +109,19 @@ class MapManager:
     def _update_cell(self, row: int, col: int, tag_name: str):
         """Update a single map cell based on tag name.
 
+        CRITICAL: Don't overwrite cells learned as WALL from failed moves.
+        Game state (failed moves) is ground truth - observations can be wrong.
+
         Args:
             row: Cell row
             col: Cell column
             tag_name: Name of the tag at this position
         """
         pos = (row, col)
+
+        # Don't overwrite walls learned from failed moves - game state is truth
+        if self.grid[row][col] == MapCellType.WALL:
+            return
 
         # Charger
         if "charger" in tag_name:
@@ -195,6 +202,32 @@ class MapManager:
             self.grid[row][col] = MapCellType.DEAD_END
             self.dead_ends.add((row, col))
 
+    def mark_wall(self, row: int, col: int):
+        """Mark a position as a wall (impassable obstacle).
+
+        Called when agent tries to move to a cell but the move fails,
+        indicating the cell is actually blocked even if not observed as a wall.
+
+        CRITICAL: Game state is the source of truth. If a move fails, the cell
+        IS blocked, regardless of what observations claimed. We mark extractors
+        as WALL if moves fail, since observations can be wrong. We DON'T mark
+        chargers/assemblers/chests since those are correctly non-traversable.
+
+        Args:
+            row: Cell row
+            col: Cell column
+        """
+        if self._is_valid_position(row, col):
+            current_type = self.grid[row][col]
+            # Mark as wall if: UNKNOWN, FREE, or EXTRACTOR (extractors should be traversable)
+            # Don't overwrite chargers/assemblers/chests (correctly non-traversable)
+            if current_type in (MapCellType.UNKNOWN, MapCellType.FREE,
+                              MapCellType.CARBON_EXTRACTOR, MapCellType.OXYGEN_EXTRACTOR,
+                              MapCellType.GERMANIUM_EXTRACTOR, MapCellType.SILICON_EXTRACTOR):
+                old_type = current_type.name
+                self.grid[row][col] = MapCellType.WALL
+                self._logger.debug(f"  MAP: Marked ({row}, {col}) as WALL due to failed move (was {old_type})")
+
     def is_traversable(self, row: int, col: int) -> bool:
         """Check if a cell is traversable for pathfinding.
 
@@ -214,13 +247,16 @@ class MapManager:
         cell_type = self.grid[row][col]
 
         # UNKNOWN cells are NOT traversable - we can't path through unexplored territory
-        # WALL and DEAD_END are NOT traversable (truly impassable)
-        # All game objects (extractors, chargers, assemblers, chests) ARE traversable
-        # - you move ONTO them to use them
+        # WALL and DEAD_END are NOT traversable
+        # CHARGER, ASSEMBLER, CHEST are NOT traversable - you stand ADJACENT to use them
+        # Only FREE and EXTRACTORS are traversable (you stand ON extractors to use them)
         return cell_type not in (
             MapCellType.UNKNOWN,
             MapCellType.WALL,
-            MapCellType.DEAD_END
+            MapCellType.DEAD_END,
+            MapCellType.CHARGER,
+            MapCellType.ASSEMBLER,
+            MapCellType.CHEST
         )
 
     def get_nearest_object(
