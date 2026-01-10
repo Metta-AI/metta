@@ -218,13 +218,18 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 
 ### Seeds and Reproducibility
 
-- `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**: set it for deterministic terrain/building
-  placement for a mission/site.
-- `cogames evaluate` and `cogames play` use `--seed` for the simulator/policy RNG and `--map-seed` (or `--seed` if
-  omitted) for `MapGenConfig.seed`, so runs can be made fully reproducible from the CLI.
-- `cogames train` treats `--map-seed` as an **opt-in** override: when set, all procedural training missions use that
-  fixed `MapGenConfig.seed`; when left `None`, the vectorized env factory derives per-env map seeds from the runner’s
-  RNG so a fixed `--seed` yields a reproducible but diverse map sequence.
+- `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**.
+- If the mission sets a MapGen seed, all commands use it unless you pass `--map-seed`.
+- `--map-seed` overrides the MapGen seed for procedural maps.
+- `--seed` controls simulator/policy RNG (and is used for training map derivation when `--map-seed` is unset).
+- `train`: with `--map-seed`, map seed = `--map-seed + env_seed`; without `--map-seed` (and no mission seed), map seed =
+  `--seed + env_seed` (reproducible variety).
+- `play`/`eval`: with `--map-seed`, the map layout is fixed; without `--map-seed` (and no mission seed), the map layout
+  is random.
+- For fully reproducible play/eval runs, set **both** `--seed` and `--map-seed`.
+- Recipe `maps_cache_size` controls how many distinct procedural maps are cached when the MapGen seed is unset (no
+  `--map-seed` and mission seed is `None`); set it to `None` to disable caching (more diversity, slower) or `1` for a
+  single cached map.
 
 Example programmatic override using the shared `MapSeedVariant` helper:
 
