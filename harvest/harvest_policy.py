@@ -1027,57 +1027,127 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             return state.mission_profile.recharge_high
         return self._recharge_high
 
+    def _calculate_safe_exploration_budget(self, state: HarvestState) -> int:
+        """Calculate maximum safe distance from nearest charger.
+
+        IMPROVEMENT #2 (OPT): Predictive energy management.
+        Prevents agent from exploring beyond safe return distance.
+
+        Returns:
+            Maximum safe exploration distance in Manhattan distance.
+        """
+        if not state.discovered_chargers:
+            return 999  # No chargers known yet - explore freely
+
+        # Find distance to nearest reachable charger
+        nearest_charger_dist = min(
+            abs(pos[0] - state.row) + abs(pos[1] - state.col)
+            for pos in state.discovered_chargers
+        )
+
+        # Calculate energy budget
+        current_energy = state.energy
+        recharge_threshold = self._get_recharge_low(state)
+
+        # Energy available for exploration = current - threshold - safety buffer
+        safety_buffer = 10  # Reserve 10 energy for unexpected obstacles
+        available_energy = current_energy - recharge_threshold - safety_buffer
+
+        # Max exploration distance = (available_energy - return_cost) / 2
+        # Divide by 2 because we need energy to go out AND come back
+        return_cost = nearest_charger_dist  # Cost to return to nearest charger
+        max_exploration_distance = (available_energy - return_cost) // 2
+
+        # Ensure non-negative
+        return max(0, max_exploration_distance)
+
     def _select_best_charger(self, state: HarvestState) -> tuple[int, int]:
-        """Select best charger based on reliability and distance.
+        """Select best charger based on reliability, distance, AND reachability.
+
+        IMPROVEMENT #4: Multi-charger pathfinding with reachability checks.
+        Avoids getting stuck trying to reach blocked chargers.
 
         Strategy:
-        1. If stuck badly (10+ failures), use FARTHEST charger (escape stuck pattern)
-        2. If stuck moderately (5-9 failures), try different charger
-        3. Otherwise, prefer RELIABLE + NEAREST charger
+        1. Filter out unreachable chargers (no path exists)
+        2. If stuck badly (10+ failures), use FARTHEST reachable charger
+        3. If stuck moderately (5-9 failures), try different reachable charger
+        4. Otherwise, prefer RELIABLE + NEAREST + REACHABLE charger
         """
         if not state.discovered_chargers:
             # Fallback: use nearest charger (shouldn't happen, but be safe)
             return self._find_nearest_charger(state)
 
+        # IMPROVEMENT #4: Filter chargers by reachability
+        reachable_chargers = []
+        for charger_pos in state.discovered_chargers:
+            # Check if a path exists using BFS pathfinding
+            if self.map_manager:
+                from .pathfinding import shortest_path
+                from .types import CellType
+                path = shortest_path(
+                    state,
+                    (state.row, state.col),
+                    [charger_pos],
+                    allow_goal_block=False,
+                    cell_type=CellType,
+                    is_traversable_fn=self.map_manager.is_traversable
+                )
+                if path and len(path) > 0:
+                    reachable_chargers.append(charger_pos)
+                else:
+                    self._logger.debug(f"  CHARGER: {charger_pos} UNREACHABLE, skipping")
+            else:
+                # No map manager - assume all reachable
+                reachable_chargers.append(charger_pos)
+
+        if not reachable_chargers:
+            # All chargers unreachable - fall back to exploration to find new chargers
+            self._logger.warning(f"  CHARGER: All {len(state.discovered_chargers)} chargers UNREACHABLE!")
+            # Return the nearest one anyway (will trigger exploration fallback later)
+            return min(
+                state.discovered_chargers,
+                key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
+            )
+
         stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 5
 
-        # Strategy 1: Badly stuck - use FARTHEST charger to escape stuck pattern
-        if state.consecutive_failed_moves >= stuck_threshold * 2 and len(state.discovered_chargers) > 1:
+        # Strategy 1: Badly stuck - use FARTHEST reachable charger to escape stuck pattern
+        if state.consecutive_failed_moves >= stuck_threshold * 2 and len(reachable_chargers) > 1:
             chargers_by_distance = sorted(
-                state.discovered_chargers,
+                reachable_chargers,
                 key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col),
                 reverse=True  # Farthest first
             )
             target = chargers_by_distance[0]
-            self._logger.info(f"  CHARGER: BADLY STUCK ({state.consecutive_failed_moves} steps), using FARTHEST charger at {target}")
+            self._logger.info(f"  CHARGER: BADLY STUCK ({state.consecutive_failed_moves} steps), using FARTHEST reachable charger at {target}")
             return target
 
-        # Strategy 2: Moderately stuck - try reliable chargers that aren't the current target
-        if state.consecutive_failed_moves >= stuck_threshold and len(state.discovered_chargers) > 1:
-            # Find reliable chargers (excluding current stuck target if we have one)
+        # Strategy 2: Moderately stuck - try reliable reachable chargers that aren't the current target
+        if state.consecutive_failed_moves >= stuck_threshold and len(reachable_chargers) > 1:
+            # Find reliable reachable chargers (excluding current stuck target if we have one)
             reliable_chargers = [
-                pos for pos in state.discovered_chargers
+                pos for pos in reachable_chargers
                 if pos in state.charger_info and state.charger_info[pos].is_reliable
                 and pos != state.current_recharge_target
             ]
 
             if reliable_chargers:
-                # Pick nearest reliable charger (that's not our stuck target)
+                # Pick nearest reliable reachable charger (that's not our stuck target)
                 target = min(
                     reliable_chargers,
                     key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col)
                 )
-                self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate RELIABLE charger at {target}")
+                self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate RELIABLE reachable charger at {target}")
                 return target
             else:
-                # No reliable alternatives, try any different charger
-                alt_chargers = [pos for pos in state.discovered_chargers if pos != state.current_recharge_target]
+                # No reliable alternatives, try any different reachable charger
+                alt_chargers = [pos for pos in reachable_chargers if pos != state.current_recharge_target]
                 if alt_chargers:
                     target = min(alt_chargers, key=lambda pos: abs(pos[0] - state.row) + abs(pos[1] - state.col))
-                    self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate charger at {target}")
+                    self._logger.info(f"  CHARGER: Stuck {state.consecutive_failed_moves} steps, trying alternate reachable charger at {target}")
                     return target
 
-        # Strategy 3: Not stuck - prefer RELIABLE + NEAREST charger
+        # Strategy 3: Not stuck - prefer RELIABLE + NEAREST + REACHABLE charger
         # Score chargers by: reliability (higher is better) and distance (lower is better)
         def score_charger(pos: tuple[int, int]) -> tuple[float, int]:
             """Return (reliability, distance) for sorting (higher reliability, lower distance is better)."""
@@ -1086,10 +1156,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             distance = abs(pos[0] - state.row) + abs(pos[1] - state.col)
             return (-reliability, distance)  # Negative reliability so higher values sort first
 
-        target = min(state.discovered_chargers, key=score_charger)
+        target = min(reachable_chargers, key=score_charger)
         info = state.charger_info.get(target)
         reliability_str = f"{info.success_rate:.2f}" if info else "unknown"
-        self._logger.debug(f"  CHARGER: Selected nearest reliable charger at {target} (reliability={reliability_str})")
+        self._logger.debug(f"  CHARGER: Selected nearest reliable REACHABLE charger at {target} (reliability={reliability_str})")
         return target
 
     def _can_assemble(self, state: HarvestState) -> bool:
@@ -2755,10 +2825,19 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if frontier_candidates:
                 self._logger.debug(f"Step {state.step_count}: EXPLORE: Found {len(frontier_candidates)} frontier candidates")
 
+                # IMPROVEMENT #2 (OPT): Calculate safe exploration budget
+                safe_exploration_budget = self._calculate_safe_exploration_budget(state)
+
                 # Try pathfinding to each frontier candidate until one succeeds
                 for i, frontier in enumerate(frontier_candidates):
                     dist = abs(frontier[0] - state.row) + abs(frontier[1] - state.col)
-                    self._logger.debug(f"Step {state.step_count}: EXPLORE: Trying frontier {i+1}/{len(frontier_candidates)} at {frontier} (dist={dist})")
+
+                    # IMPROVEMENT #2 (OPT): Skip frontiers beyond safe energy budget
+                    if safe_exploration_budget < 999 and dist > safe_exploration_budget:
+                        self._logger.debug(f"Step {state.step_count}: EXPLORE: Skipping frontier {frontier} (dist={dist} > budget={safe_exploration_budget})")
+                        continue
+
+                    self._logger.debug(f"Step {state.step_count}: EXPLORE: Trying frontier {i+1}/{len(frontier_candidates)} at {frontier} (dist={dist}, budget={safe_exploration_budget})")
 
                     # Try pathfinding to frontier using MapManager
                     direction = self._navigate_to_with_mapmanager(state, frontier, reach_adjacent=False)
@@ -2914,10 +2993,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block ONLY on true obstacles: walls and agents
-                # FIX: Check if "agent" is IN tag_name to catch Agent0, Agent1, etc.
-                if "wall" in tag_name or "agent" in tag_name:
-                    self._logger.info(f"  OBS_CHECK: Blocking {direction} - found tag '{tag_name}' at {target_obs_pos}")
+                # Block on impassable objects: walls, agents, assemblers, chests, chargers
+                # Extractors ARE traversable (you stand on them to use)
+                # Assemblers, chests, and chargers are NOT traversable (you stand adjacent to use)
+                if "wall" in tag_name or "agent" in tag_name or "assembler" in tag_name or "chest" in tag_name or "charger" in tag_name:
+                    if state.step_count < 100:
+                        self._logger.info(f"  OBS_CHECK: Blocking {direction} - found impassable '{tag_name}' at {target_obs_pos}")
                     return False
 
         # No blocking object found - path is clear

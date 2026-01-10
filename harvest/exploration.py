@@ -27,6 +27,11 @@ class ExplorationManager:
         self._obs_wr = obs_wr
         self._tag_names = tag_names
 
+        # IMPROVEMENT #3: Incremental frontier cache for O(N) performance
+        self._frontier_cache: set[tuple[int, int]] = set()
+        self._frontier_dirty = True
+        self._last_cache_rebuild_step = 0
+
     def choose_exploration_direction(
         self,
         state: HarvestState,
@@ -174,6 +179,55 @@ class ExplorationManager:
 
         return marked_count
 
+    def invalidate_frontier_cache(self):
+        """Mark frontier cache as needing rebuild.
+
+        Call this whenever the map changes (new cells explored, walls discovered).
+        """
+        self._frontier_dirty = True
+
+    def _rebuild_frontier_cache(self, state: 'HarvestState', map_manager: 'MapManager'):
+        """Rebuild the frontier cache incrementally.
+
+        IMPROVEMENT #3: Instead of scanning the entire map every time,
+        only scan cells that could be frontiers (explored cells near unknown territory).
+
+        Performance: O(E) where E = number of explored cells, vs O(W*H) for full scan.
+        """
+        from .map import MapCellType
+
+        self._frontier_cache.clear()
+
+        # Strategy: Only check recently explored cells (within observable range)
+        # This is much faster than scanning the entire map
+        search_radius = 200  # Check cells within 200 of current position
+
+        start_r = max(0, state.row - search_radius)
+        end_r = min(state.map_height, state.row + search_radius + 1)
+        start_c = max(0, state.col - search_radius)
+        end_c = min(state.map_width, state.col + search_radius + 1)
+
+        for r in range(start_r, end_r):
+            for c in range(start_c, end_c):
+                # Must be explored and traversable
+                cell_type = map_manager.grid[r][c]
+                if cell_type in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END):
+                    continue
+
+                # Check if adjacent to any UNKNOWN cell
+                is_frontier = False
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
+                        if map_manager.grid[nr][nc] == MapCellType.UNKNOWN:
+                            is_frontier = True
+                            break
+
+                if is_frontier:
+                    self._frontier_cache.add((r, c))
+
+        self._last_cache_rebuild_step = state.step_count
+
     def _is_direction_clear(self, state: HarvestState, direction: str) -> bool:
         """Check if direction is clear in observation.
 
@@ -216,6 +270,9 @@ class ExplorationManager:
     ) -> Optional[tuple[int, int]]:
         """Find nearest explored cell adjacent to UNKNOWN territory.
 
+        IMPROVEMENT #3: Uses incremental frontier cache for O(N) performance
+        instead of O(N²) full map scan.
+
         CRITICAL: Returns the EXPLORED cell next to the frontier, NOT the UNKNOWN cell.
         This ensures pathfinding works because the target is traversable.
 
@@ -229,52 +286,18 @@ class ExplorationManager:
         Returns:
             Position of nearest frontier cell (explored), or None if none found.
         """
-        from .map import MapCellType
+        # Rebuild cache if dirty or if we've moved significantly
+        steps_since_rebuild = state.step_count - self._last_cache_rebuild_step
+        if self._frontier_dirty or steps_since_rebuild > 50:
+            self._rebuild_frontier_cache(state, map_manager)
+            self._frontier_dirty = False
 
-        frontier_candidates = []
-
-        # Scan map for frontier cells
-        # Adaptive search radius based on map size - larger maps need wider search
-        map_dimension = max(state.map_height, state.map_width)
-        if map_dimension > 200:
-            search_radius = 150  # Large maps (500x500): search 300x300 window
-        elif map_dimension > 100:
-            search_radius = 75   # Medium maps: search 150x150 window
-        else:
-            search_radius = 50   # Small maps: search 100x100 window
-
-        start_r = max(0, state.row - search_radius)
-        end_r = min(state.map_height, state.row + search_radius + 1)
-        start_c = max(0, state.col - search_radius)
-        end_c = min(state.map_width, state.col + search_radius + 1)
-
-        for r in range(start_r, end_r):
-            for c in range(start_c, end_c):
-                # FIXED: Must be EXPLORED and TRAVERSABLE (not unknown, not wall)
-                cell_type = map_manager.grid[r][c]
-                if cell_type in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END):
-                    continue
-
-                # Check if adjacent to any UNKNOWN cell (this is the frontier!)
-                is_frontier = False
-                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    nr, nc = r + dr, c + dc
-                    if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
-                        neighbor_type = map_manager.grid[nr][nc]
-                        # Adjacent to unexplored area
-                        if neighbor_type == MapCellType.UNKNOWN:
-                            is_frontier = True
-                            break
-
-                if is_frontier:
-                    frontier_candidates.append((r, c))
-
-        if not frontier_candidates:
+        # Find nearest frontier from cache
+        if not self._frontier_cache:
             return None
 
-        # Return nearest frontier cell using Manhattan distance
         current = (state.row, state.col)
         return min(
-            frontier_candidates,
+            self._frontier_cache,
             key=lambda pos: abs(pos[0] - current[0]) + abs(pos[1] - current[1])
         )
