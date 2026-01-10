@@ -435,15 +435,33 @@ def play_cmd(
     )
 
 
-@app.command(name="replay", help="Replay a saved game using MettaScope")
+# Replay supports only gui and unicode render modes
+ReplayRenderMode = Literal["gui", "unicode"]
+
+
+@app.command(name="replay", help="Replay a saved game using MettaScope or unicode renderer")
 def replay_cmd(
     replay_path: Path = typer.Argument(..., help="Path to the replay file"),  # noqa: B008
+    render: ReplayRenderMode = typer.Option("gui", "--render", "-r", help="Render mode (gui, unicode)"),  # noqa: B008
 ) -> None:
-    """Replay a saved game using MettaScope visualization tool."""
+    """Replay a saved game using MettaScope (gui) or unicode renderer."""
     if not replay_path.exists():
         console.print(f"[red]Error: Replay file not found: {replay_path}[/red]")
         raise typer.Exit(1)
 
+    if render == "unicode":
+        # Use the miniscope replay renderer
+        from mettagrid.renderer.miniscope.miniscope_replay import replay_unicode
+
+        console.print(f"[cyan]Launching unicode replay: {replay_path}[/cyan]")
+        try:
+            replay_unicode(replay_path)
+        except Exception as exc:
+            console.print(f"[red]Error during replay: {exc}[/red]")
+            raise typer.Exit(1) from exc
+        return
+
+    # Default: use MettaScope GUI
     try:
         mettascope_path = _resolve_mettascope_script()
     except FileNotFoundError as exc:
