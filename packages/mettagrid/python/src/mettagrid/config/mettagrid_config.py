@@ -1,35 +1,130 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import Annotated, Any, Literal, Optional, Union, get_args
+from typing import Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
-    Discriminator,
     Field,
     PrivateAttr,
-    SerializeAsAny,
-    Tag,
     model_validator,
 )
 
 from mettagrid.base_config import Config
+from mettagrid.config.action_config import (
+    ActionConfig,
+    ActionsConfig,
+    AlignActionConfig,
+    AttackActionConfig,
+    AttackOutcome,
+    CardinalDirection,
+    CardinalDirections,
+    ChangeVibeActionConfig,
+    Direction,
+    Directions,
+    MoveActionConfig,
+    NoopActionConfig,
+    TransferActionConfig,
+    VibeTransfer,
+)
+from mettagrid.config.handler_config import (
+    ActorCollectiveHas,
+    ActorCollectiveUpdate,
+    ActorHas,
+    Align,
+    AlignmentCondition,
+    AlignmentFilter,
+    AlignmentMutation,
+    AlignmentTarget,
+    AlignTo,
+    AnyFilter,
+    AnyMutation,
+    AttackMutation,
+    ClearInventoryMutation,
+    CollectiveDeposit,
+    CollectiveWithdraw,
+    Deposit,
+    FreezeMutation,
+    Handler,
+    HandlerTarget,
+    RemoveAlignment,
+    ResourceDeltaMutation,
+    ResourceFilter,
+    ResourceTransferMutation,
+    TargetCollectiveHas,
+    TargetCollectiveUpdate,
+    TargetHas,
+    UpdateActor,
+    UpdateTarget,
+    VibeFilter,
+    Withdraw,
+    hasCollective,
+    isAligned,
+    isEnemy,
+    isNeutral,
+    isNotAligned,
+)
 from mettagrid.config.id_map import IdMap
 from mettagrid.config.obs_config import ObsConfig
-from mettagrid.config.vibes import VIBES, Vibe
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random_map import RandomMapBuilder
-from mettagrid.simulator import Action
+
+# Re-export types
+__all__ = [
+    # Action types
+    "ActionConfig",
+    "ActionsConfig",
+    "AlignActionConfig",
+    "AttackActionConfig",
+    "AttackOutcome",
+    "CardinalDirection",
+    "CardinalDirections",
+    "ChangeVibeActionConfig",
+    "Direction",
+    "Directions",
+    "MoveActionConfig",
+    "NoopActionConfig",
+    "TransferActionConfig",
+    "VibeTransfer",
+    # Handler types
+    "Handler",
+    "HandlerTarget",
+    "AlignmentTarget",
+    "AlignmentCondition",
+    "AlignTo",
+    "ActorCollectiveHas",
+    "ActorCollectiveUpdate",
+    "ActorHas",
+    "Align",
+    "AlignmentFilter",
+    "AlignmentMutation",
+    "AnyFilter",
+    "AnyMutation",
+    "AttackMutation",
+    "ClearInventoryMutation",
+    "CollectiveDeposit",
+    "CollectiveWithdraw",
+    "Deposit",
+    "FreezeMutation",
+    "hasCollective",
+    "isAligned",
+    "isEnemy",
+    "isNeutral",
+    "isNotAligned",
+    "RemoveAlignment",
+    "ResourceDeltaMutation",
+    "ResourceFilter",
+    "ResourceTransferMutation",
+    "TargetCollectiveHas",
+    "TargetCollectiveUpdate",
+    "TargetHas",
+    "UpdateActor",
+    "UpdateTarget",
+    "VibeFilter",
+    "Withdraw",
+]
 
 # ===== Python Configuration Models =====
-
-Direction = Literal["north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"]
-Directions = list(get_args(Direction))
-
-# Order must match C++ expectations: north, south, west, east
-CardinalDirection = Literal["north", "south", "west", "east"]
-CardinalDirections = list(get_args(CardinalDirection))
 
 
 class AgentRewards(Config):
@@ -39,6 +134,12 @@ class AgentRewards(Config):
     # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, float] = Field(default_factory=dict)
+    # collective_inventory rewards agents based on the inventory of the collective they belong to
+    collective_inventory: dict[str, float] = Field(default_factory=dict)
+    collective_inventory_max: dict[str, float] = Field(default_factory=dict)
+    # collective_stats rewards agents based on stats of the collective they belong to (e.g., aligned.charger.held)
+    collective_stats: dict[str, float] = Field(default_factory=dict)
+    collective_stats_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
@@ -94,35 +195,24 @@ class InventoryConfig(Config):
 class DamageConfig(Config):
     """Damage configuration for agents.
 
-    When an agent's inventory items reach or exceed all threshold values, one random
-    resource from the resources map is destroyed (weighted by quantity above minimum)
-    and the threshold amounts are subtracted from inventory.
+    When the threshold resources reach their specified amounts, damage is triggered.
+    Damage removes one unit from a randomly selected resource (weighted by quantity above minimum).
+
+    Example:
+        DamageConfig(
+            threshold={"damage": 10},  # Trigger when "damage" reaches 10
+            resources={"battery": 0, "weapon": 0, "shield": 0},  # Minimum values for each resource
+        )
     """
 
     threshold: dict[str, int] = Field(
         default_factory=dict,
-        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+        description="Resource thresholds that trigger damage. Maps resource name to threshold value.",
     )
     resources: dict[str, int] = Field(
         default_factory=dict,
-        description="Map of resources that can be destroyed, with minimum values. "
-        "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
+        description="Resources that can be removed by damage. Maps resource name to minimum value.",
     )
-
-    @model_validator(mode="after")
-    def _validate_distinct_keys(self) -> "DamageConfig":
-        """Ensure that threshold and resources keys don't overlap."""
-        threshold_keys = set(self.threshold.keys())
-        resources_keys = set(self.resources.keys())
-        overlapping_keys = threshold_keys.intersection(resources_keys)
-
-        if overlapping_keys:
-            raise ValueError(
-                f"Resources cannot appear in both threshold and resources maps. "
-                f"Overlapping keys: {sorted(overlapping_keys)}"
-            )
-
-        return self
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -134,6 +224,10 @@ class AgentConfig(Config):
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
+    collective: Optional[str] = Field(
+        default=None,
+        description="Name of collective this agent belongs to. Adds 'collective:{name}' tag automatically.",
+    )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
@@ -143,188 +237,6 @@ class AgentConfig(Config):
         default=None,
         description="Damage config: when all threshold stats are reached, remove one random resource from inventory",
     )
-
-
-class ActionConfig(Config):
-    """Python action configuration."""
-
-    action_handler: str
-    enabled: bool = Field(default=True)
-    # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
-    required_resources: dict[str, int] = Field(default_factory=dict)
-    consumed_resources: dict[str, int] = Field(default_factory=dict)
-
-    def actions(self) -> list[Action]:
-        if self.enabled:
-            return self._actions()
-        return []
-
-    @abstractmethod
-    def _actions(self) -> list[Action]: ...
-
-
-class NoopActionConfig(ActionConfig):
-    """Noop action configuration."""
-
-    action_handler: str = Field(default="noop")
-
-    def _actions(self) -> list[Action]:
-        return [self.Noop()]
-
-    def Noop(self) -> Action:
-        return Action(name="noop")
-
-
-class MoveActionConfig(ActionConfig):
-    """Move action configuration."""
-
-    action_handler: str = Field(default="move")
-    allowed_directions: list[Direction] = Field(default_factory=lambda: CardinalDirections)
-
-    def _actions(self) -> list[Action]:
-        return [self.Move(direction) for direction in self.allowed_directions]
-
-    def Move(self, direction: Direction) -> Action:
-        return Action(name=f"move_{direction}")
-
-
-class ChangeVibeActionConfig(ActionConfig):
-    """Change vibe action configuration."""
-
-    action_handler: str = Field(default="change_vibe")
-    vibes: list[Vibe] = Field(default_factory=lambda: list(VIBES))
-
-    def _actions(self) -> list[Action]:
-        return [self.ChangeVibe(vibe) for vibe in self.vibes]
-
-    def ChangeVibe(self, vibe: Vibe) -> Action:
-        return Action(name=f"change_vibe_{vibe.name}")
-
-
-class AttackOutcome(Config):
-    """Outcome configuration for successful attack."""
-
-    actor_inv_delta: dict[str, int] = Field(
-        default_factory=dict,
-        description="Inventory changes for attacker. Maps resource name to delta.",
-    )
-    target_inv_delta: dict[str, int] = Field(
-        default_factory=dict,
-        description="Inventory changes for target. Maps resource name to delta.",
-    )
-    loot: list[str] = Field(
-        default_factory=list,
-        description="Resources to steal from target.",
-    )
-    freeze: int = Field(
-        default=0,
-        description="Freeze duration (0 = no freeze).",
-    )
-
-
-class AttackActionConfig(ActionConfig):
-    """Python attack action configuration.
-
-    Attack is triggered by moving onto another agent (when vibes match).
-    No standalone attack actions are created.
-
-    Enhanced attack system with armor/weapon modifiers:
-    - defense_resources: Base resources needed to block an attack
-    - armor_resources: Target's resources that reduce incoming damage (weighted)
-    - weapon_resources: Attacker's resources that increase damage (weighted)
-    - success: Outcome when attack succeeds (actor/target inventory changes, freeze)
-    - vibe_bonus: Per-vibe armor bonus when vibing a matching resource
-
-    Defense calculation:
-    - weapon_power = sum(attacker_inventory[item] * weapon_weight)
-    - armor_power = sum(target_inventory[item] * armor_weight) + vibe_bonus[target_vibe] if vibing
-    - damage_bonus = max(weapon_power - armor_power, 0)
-    - cost_to_defend = defense_resources + damage_bonus
-    """
-
-    action_handler: str = Field(default="attack")
-    defense_resources: dict[str, int] = Field(default_factory=dict)
-    armor_resources: dict[str, int] = Field(
-        default_factory=dict,
-        description="Resources on target that reduce damage. Maps resource name to weight.",
-    )
-    weapon_resources: dict[str, int] = Field(
-        default_factory=dict,
-        description="Resources on attacker that increase damage. Maps resource name to weight.",
-    )
-    success: AttackOutcome = Field(
-        default_factory=AttackOutcome,
-        description="Outcome when attack succeeds.",
-    )
-    vibes: list[str] = Field(
-        default_factory=list,
-        description="Vibe names that trigger attack on move (e.g., ['weapon'])",
-    )
-    vibe_bonus: dict[str, int] = Field(
-        default_factory=dict,
-        description="Per-vibe armor bonus. Maps vibe name to bonus amount.",
-    )
-
-    def _actions(self) -> list[Action]:
-        # Attack only triggers via move, no standalone actions
-        return []
-
-
-class VibeTransfer(Config):
-    """Configuration for resource transfers triggered by a specific vibe.
-
-    When an agent with this vibe moves into another agent,
-    the specified resource deltas are applied to both the actor and target.
-
-    Example:
-        VibeTransfer(
-            vibe="battery",
-            target={"energy": 50},      # target gains 50 energy
-            actor={"energy": -50}       # actor loses 50 energy
-        )
-    """
-
-    vibe: str
-    target: dict[str, int] = Field(default_factory=dict)
-    actor: dict[str, int] = Field(default_factory=dict)
-
-
-class TransferActionConfig(ActionConfig):
-    """Python transfer action configuration.
-
-    Transfer is triggered by move when the agent's vibe matches a vibe in vibe_transfers.
-    The vibe_transfers list specifies what resource effects happen for each vibe.
-    """
-
-    action_handler: str = Field(default="transfer")
-    vibe_transfers: list[VibeTransfer] = Field(
-        default_factory=list,
-        description="List of vibe transfer configs specifying actor/target resource effects",
-    )
-
-    def _actions(self) -> list[Action]:
-        # Transfer doesn't create standalone actions - it's triggered by move
-        return []
-
-
-class ActionsConfig(Config):
-    """
-    Actions configuration.
-
-    Omitted actions are disabled by default.
-    """
-
-    noop: NoopActionConfig = Field(default_factory=lambda: NoopActionConfig())
-    move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
-    attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
-    transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
-    change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-
-    def actions(self) -> list[Action]:
-        return sum(
-            [action.actions() for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe]],
-            [],
-        )
 
 
 class GlobalObsConfig(Config):
@@ -350,6 +262,11 @@ class GridObjectConfig(Config):
     Python uses only names. Numeric type_ids are an internal C++ detail and are
     computed during Python→C++ conversion; they are never part of Python config
     or observations.
+
+    Handlers:
+      - on_use_handlers: Triggered when agent uses/activates this object
+      - on_update_handlers: Triggered after mutations are applied to this object
+      - aoe_handlers: Triggered per-tick for objects within radius
     """
 
     name: str = Field(description="Canonical type_name (human-readable)")
@@ -361,6 +278,20 @@ class GridObjectConfig(Config):
     collective: Optional[str] = Field(
         default=None,
         description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+    )
+
+    # Three types of handlers on GridObject (name -> handler)
+    on_use_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered when agent uses/activates this object (context: actor=agent, target=this)",
+    )
+    on_update_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered after mutations are applied (context: actor=null, target=this)",
+    )
+    aoe_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered per-tick for objects within radius (context: actor=this, target=affected)",
     )
 
     @model_validator(mode="after")
@@ -455,6 +386,13 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
+class CollectiveChestConfig(GridObjectConfig):
+    """Chest that interacts with collectives."""
+
+    pydantic_type: Literal["collective_chest"] = "collective_chest"
+    name: str = Field(default="collective_chest")
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -489,21 +427,22 @@ class CollectiveConfig(Config):
     Objects are associated with a collective via tags of the form "collective:{name}".
     Grid objects can specify collective="name" in their config to automatically add
     this tag.
+
+    Note: Collective name is typically provided as the dict key when defining collectives.
     """
 
-    name: str = Field(description="Unique name for this collective")
+    name: str = Field(default="", description="Unique name for this collective (typically set from dict key)")
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
-AnyGridObjectConfig = SerializeAsAny[
-    Annotated[
-        Union[
-            Annotated[WallConfig, Tag("wall")],
-            Annotated[AssemblerConfig, Tag("assembler")],
-            Annotated[ChestConfig, Tag("chest")],
-        ],
-        Discriminator("pydantic_type"),
-    ]
+# Note: GridObjectConfig is included to allow direct use of the base class for simple objects
+# that only need handlers/aoes without specialized features like protocols or inventory.
+AnyGridObjectConfig = Union[
+    WallConfig,
+    AssemblerConfig,
+    ChestConfig,
+    CollectiveChestConfig,
+    GridObjectConfig,
 ]
 
 
@@ -559,9 +498,9 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Collectives - shared inventories that grid objects can belong to
-    collectives: list[CollectiveConfig] = Field(
-        default_factory=list,
-        description="List of collectives (shared inventories) that grid objects can belong to",
+    collectives: dict[str, CollectiveConfig] = Field(
+        default_factory=dict,
+        description="Collectives (shared inventories) that grid objects can belong to (name -> config)",
     )
 
     # Map builder configuration - accepts any MapBuilder config

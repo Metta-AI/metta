@@ -1,8 +1,10 @@
-#include "actions/activation_handler.hpp"
+#include "handler/handler.hpp"
+
+#include "core/grid_object.hpp"
 
 namespace mettagrid {
 
-ActivationHandler::ActivationHandler(const ActivationHandlerConfig& config) : _name(config.name) {
+Handler::Handler(const HandlerConfig& config) : _name(config.name), _radius(config.radius) {
   // Create filters from config
   for (const auto& filter_config : config.filters) {
     auto filter = create_filter(filter_config);
@@ -20,22 +22,32 @@ ActivationHandler::ActivationHandler(const ActivationHandlerConfig& config) : _n
   }
 }
 
-bool ActivationHandler::try_apply(HasInventory* actor, HasInventory* target) {
-  if (!check_filters(actor, target)) {
+bool Handler::try_apply(HandlerContext& ctx) {
+  if (!check_filters(ctx)) {
     return false;
   }
 
-  ActivationContext ctx(actor, target);
   for (auto& mutation : _mutations) {
     mutation->apply(ctx);
+  }
+
+  // Fire on_update handlers on target after mutations (unless we're already in an on_update chain)
+  if (!ctx.skip_on_update_trigger && ctx.target != nullptr) {
+    GridObject* target_obj = dynamic_cast<GridObject*>(ctx.target);
+    if (target_obj != nullptr && target_obj->has_on_update_handlers()) {
+      target_obj->fire_on_update_handlers();
+    }
   }
 
   return true;
 }
 
-bool ActivationHandler::check_filters(HasInventory* actor, HasInventory* target) const {
-  ActivationContext ctx(actor, target);
+bool Handler::try_apply(HasInventory* actor, HasInventory* target) {
+  HandlerContext ctx(actor, target);
+  return try_apply(ctx);
+}
 
+bool Handler::check_filters(const HandlerContext& ctx) const {
   for (const auto& filter : _filters) {
     if (!filter->passes(ctx)) {
       return false;
@@ -45,8 +57,13 @@ bool ActivationHandler::check_filters(HasInventory* actor, HasInventory* target)
   return true;
 }
 
+bool Handler::check_filters(HasInventory* actor, HasInventory* target) const {
+  HandlerContext ctx(actor, target);
+  return check_filters(ctx);
+}
+
 // By using a visitor pattern here, we can keep the configs and the creation of the filters/mutations separate.
-std::unique_ptr<Filter> ActivationHandler::create_filter(const FilterConfig& config) {
+std::unique_ptr<Filter> Handler::create_filter(const FilterConfig& config) {
   return std::visit(
       [](auto&& cfg) -> std::unique_ptr<Filter> {
         using T = std::decay_t<decltype(cfg)>;
@@ -65,7 +82,7 @@ std::unique_ptr<Filter> ActivationHandler::create_filter(const FilterConfig& con
       config);
 }
 
-std::unique_ptr<Mutation> ActivationHandler::create_mutation(const MutationConfig& config) {
+std::unique_ptr<Mutation> Handler::create_mutation(const MutationConfig& config) {
   return std::visit(
       [](auto&& cfg) -> std::unique_ptr<Mutation> {
         using T = std::decay_t<decltype(cfg)>;

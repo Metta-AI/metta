@@ -1,14 +1,14 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "actions/activation_handler_config.hpp"
+#include "handler/handler_config.hpp"
 
 namespace py = pybind11;
 
-inline void bind_activation_handler_config(py::module& m) {
+inline void bind_handler_config(py::module& m) {
   using namespace mettagrid;
 
   // EntityRef enum
@@ -27,6 +27,12 @@ inline void bind_activation_handler_config(py::module& m) {
 
   // AlignTo enum
   py::enum_<AlignTo>(m, "AlignTo").value("actor_collective", AlignTo::actor_collective).value("none", AlignTo::none);
+
+  // HandlerType enum
+  py::enum_<HandlerType>(m, "HandlerType")
+      .value("on_use", HandlerType::on_use)
+      .value("on_update", HandlerType::on_update)
+      .value("aoe", HandlerType::aoe);
 
   // Filter configs
   py::class_<VibeFilterConfig>(m, "VibeFilterConfig")
@@ -83,55 +89,54 @@ inline void bind_activation_handler_config(py::module& m) {
       .def_readwrite("health_resource", &AttackMutationConfig::health_resource)
       .def_readwrite("damage_multiplier", &AttackMutationConfig::damage_multiplier);
 
-  // ActivationHandlerConfig with methods to add filters and mutations
-  py::class_<ActivationHandlerConfig, std::shared_ptr<ActivationHandlerConfig>>(m, "ActivationHandlerConfig")
+  // HandlerConfig with methods to add filters and mutations
+  py::class_<HandlerConfig, std::shared_ptr<HandlerConfig>>(m, "HandlerConfig")
       .def(py::init<>())
       .def(py::init<const std::string&>(), py::arg("name"))
-      .def_readwrite("name", &ActivationHandlerConfig::name)
+      .def_readwrite("name", &HandlerConfig::name)
+      .def_readwrite("radius", &HandlerConfig::radius)
       // Add filter methods - each type wraps into the variant
       .def(
           "add_vibe_filter",
-          [](ActivationHandlerConfig& self, const VibeFilterConfig& cfg) { self.filters.push_back(cfg); },
+          [](HandlerConfig& self, const VibeFilterConfig& cfg) { self.filters.push_back(cfg); },
           py::arg("filter"))
       .def(
           "add_resource_filter",
-          [](ActivationHandlerConfig& self, const ResourceFilterConfig& cfg) { self.filters.push_back(cfg); },
+          [](HandlerConfig& self, const ResourceFilterConfig& cfg) { self.filters.push_back(cfg); },
           py::arg("filter"))
       .def(
           "add_alignment_filter",
-          [](ActivationHandlerConfig& self, const AlignmentFilterConfig& cfg) { self.filters.push_back(cfg); },
+          [](HandlerConfig& self, const AlignmentFilterConfig& cfg) { self.filters.push_back(cfg); },
           py::arg("filter"))
       .def(
           "add_tag_filter",
-          [](ActivationHandlerConfig& self, const TagFilterConfig& cfg) { self.filters.push_back(cfg); },
+          [](HandlerConfig& self, const TagFilterConfig& cfg) { self.filters.push_back(cfg); },
           py::arg("filter"))
       // Add mutation methods - each type wraps into the variant
       .def(
           "add_resource_delta_mutation",
-          [](ActivationHandlerConfig& self, const ResourceDeltaMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          [](HandlerConfig& self, const ResourceDeltaMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"))
       .def(
           "add_resource_transfer_mutation",
-          [](ActivationHandlerConfig& self, const ResourceTransferMutationConfig& cfg) {
-            self.mutations.push_back(cfg);
-          },
+          [](HandlerConfig& self, const ResourceTransferMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"))
       .def(
           "add_alignment_mutation",
-          [](ActivationHandlerConfig& self, const AlignmentMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          [](HandlerConfig& self, const AlignmentMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"))
       .def(
           "add_freeze_mutation",
-          [](ActivationHandlerConfig& self, const FreezeMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          [](HandlerConfig& self, const FreezeMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"))
       .def(
           "add_clear_inventory_mutation",
-          [](ActivationHandlerConfig& self, const ClearInventoryMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          [](HandlerConfig& self, const ClearInventoryMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"))
       .def(
           "add_attack_mutation",
-          [](ActivationHandlerConfig& self, const AttackMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          [](HandlerConfig& self, const AttackMutationConfig& cfg) { self.mutations.push_back(cfg); },
           py::arg("mutation"));
 }
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_

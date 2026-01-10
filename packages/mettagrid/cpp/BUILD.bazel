@@ -6,6 +6,7 @@ load("@pybind11_bazel//:build_defs.bzl", "pybind_extension", "pybind_library")
 exports_files([
     "bindings/mettagrid_c.cpp",
     "bindings/mettagrid_c.hpp",
+    "bindings/mettagrid_py.cpp",
 ])
 
 # Compiler flags
@@ -42,6 +43,7 @@ pybind_extension(
     srcs = [
         "bindings/mettagrid_c.cpp",
         "bindings/mettagrid_c.hpp",
+        "bindings/mettagrid_py.cpp",
     ] + glob([
         "src/mettagrid/**/*.cpp",
         "include/mettagrid/**/*.hpp",

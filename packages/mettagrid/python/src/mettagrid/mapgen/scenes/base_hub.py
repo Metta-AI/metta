@@ -34,6 +34,9 @@ class BaseHubConfig(SceneConfig):
     layout: Literal["default", "tight"] = "default"
     charger_object: str = "charger"
     heart_chest_object: str = "chest"
+    # Gear stations: list of station names to place (e.g., ["aligner_station", "scrambler_station"])
+    # These are placed in a row below the chest, similar to how the chest is placed
+    stations: list[str] = []
 
 
 class BaseHub(Scene[BaseHubConfig]):
@@ -119,6 +122,38 @@ class BaseHub(Scene[BaseHubConfig]):
             if 1 <= x < w - 1 and 1 <= y < h - 1 and grid[y, x] == "empty":
                 grid[y, x] = self.config.spawn_symbol
 
+    def _place_stations(self, cx: int, base_y: int, grid) -> None:
+        """Place stations in a row centered at cx, starting at base_y.
+
+        Stations are placed like chests, in a horizontal row centered around cx.
+        """
+        stations = self.config.stations
+        if not stations:
+            return
+
+        h, w = self.height, self.width
+        num_stations = len(stations)
+
+        # Calculate starting x position to center the row
+        # Stations are placed with 2 tiles spacing between them
+        spacing = 2
+        total_width = num_stations + (num_stations - 1) * (spacing - 1) if num_stations > 1 else 1
+        start_x = cx - total_width // 2
+
+        for i, station_name in enumerate(stations):
+            x = start_x + i * spacing
+
+            # Find a valid y position (try base_y, then search nearby)
+            placed = False
+            for dy in range(0, max(h, w)):
+                for try_y in [base_y + dy, base_y - dy]:
+                    if 1 <= x < w - 1 and 1 <= try_y < h - 1 and grid[try_y, x] == "empty":
+                        grid[try_y, x] = station_name
+                        placed = True
+                        break
+                if placed:
+                    break
+
     def _resolve_corner_names(self) -> list[str]:
         cfg = self.config
         names: list[str] = []
@@ -195,6 +230,9 @@ class BaseHub(Scene[BaseHubConfig]):
             chest_y = cy + 3
             if 1 <= chest_y < h - 1:
                 grid[chest_y, cx] = cfg.heart_chest_object
+
+            # Place stations in a row below the chest
+            self._place_stations(cx, chest_y + 2, grid)
 
         # Spawn pads: ensure at least spawn_count if provided, otherwise place 4
         desired = max(0, int(cfg.spawn_count)) if cfg.spawn_count is not None else 4
