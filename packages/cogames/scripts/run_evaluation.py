@@ -27,7 +27,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import matplotlib
 
@@ -211,7 +211,7 @@ def _run_case(
             if chest:
                 vibe_transfers = getattr(chest, "vibe_transfers", None)
                 if isinstance(vibe_transfers, dict):
-                    chest.vibe_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+                    cast(Any, chest).vibe_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
 
     if variant is None or getattr(variant, "max_steps_override", None) is None:
         env_config.game.max_steps = max_steps
