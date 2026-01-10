@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from typing import Optional
 
 import numpy as np
+import pytest
 import torch
 from tensordict import TensorDict
 from torchrl.data import Composite, UnboundedDiscrete
@@ -11,6 +12,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.policy import Policy
 from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.loss import Loss
+from metta.rl.loss.stable_latent import StableLatentStateConfig
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 try:
@@ -88,6 +90,63 @@ def test_zero_loss_tracker_clears_values() -> None:
     loss.zero_loss_tracker()
 
     assert all(len(values) == 0 for values in loss.loss_tracker.values())
+
+
+@pytest.fixture
+def stable_latent_loss() -> Loss:
+    cfg = StableLatentStateConfig(target_key="core", loss_coef=1.0)
+    return cfg.create(DummyPolicy(), SimpleNamespace(), SimpleNamespace(), torch.device("cpu"), "stable")
+
+
+def _build_shared_td(latent: torch.Tensor, dones: torch.Tensor | None = None) -> TensorDict:
+    """Helper to construct shared loss data structures."""
+    segments, horizon, _ = latent.shape
+    policy_td = TensorDict({"core": latent}, batch_size=[segments, horizon])
+    mb_content: dict[str, torch.Tensor] = {}
+    if dones is None:
+        dones = torch.zeros(segments, horizon, 1, dtype=torch.bool)
+    if dones.dim() == 2:
+        dones = dones.unsqueeze(-1)
+    mb_content["dones"] = dones
+    minibatch = TensorDict(mb_content, batch_size=[segments, horizon])
+    return TensorDict({"policy_td": policy_td, "sampled_mb": minibatch}, batch_size=[])
+
+
+def test_stable_latent_state_loss_basic_penalty(stable_latent_loss: Loss) -> None:
+    time_axis = torch.arange(4, dtype=torch.float32).view(1, 4, 1)
+    latent = time_axis.repeat(2, 1, 3)
+    shared = _build_shared_td(latent)
+
+    value, *_ = stable_latent_loss.run_train(shared, SimpleNamespace(epoch=0), 0)
+
+    assert value.item() == pytest.approx(1.0, rel=1e-5)
+    assert stable_latent_loss.loss_tracker["stable_latent_loss"][-1] == pytest.approx(1.0, rel=1e-5)
+    expected_delta = torch.sqrt(torch.tensor(3.0)).item()
+    assert stable_latent_loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
+
+
+def test_stable_latent_masks_episode_boundaries(stable_latent_loss: Loss) -> None:
+    latent = torch.tensor(
+        [
+            [
+                [0.0, 0.0],
+                [1.0, 1.0],
+                [10.0, 10.0],
+                [11.0, 11.0],
+            ]
+        ],
+        dtype=torch.float32,
+    )
+    dones = torch.tensor([[0, 1, 0, 0]], dtype=torch.bool)
+
+    shared = _build_shared_td(latent, dones=dones)
+
+    value, *_ = stable_latent_loss.run_train(shared, SimpleNamespace(epoch=0), 0)
+
+    assert value.item() == pytest.approx(1.0, rel=1e-5)
+    # Delta magnitude should ignore the large jump over the done boundary (sqrt(2) average).
+    expected_delta = torch.sqrt(torch.tensor(2.0)).item()
+    assert stable_latent_loss.loss_tracker["stable_latent_delta_l2"][-1] == pytest.approx(expected_delta, rel=1e-5)
 
 
 def test_cmpo_config_initializes_world_model() -> None:
