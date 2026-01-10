@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/align.hpp"
 #include "actions/attack.hpp"
 #include "actions/move_config.hpp"
 #include "actions/orientation.hpp"
@@ -49,23 +50,21 @@ public:
   void set_action_handlers(const std::unordered_map<std::string, ActionHandler*>& handlers) {
     _handlers = handlers;
 
-    // Build vibe->handler map from handlers' vibes fields
-    _vibe_handlers.clear();
+    // Store typed handler pointers for direct access
+    _attack_handler = nullptr;
+    _transfer_handler = nullptr;
+    _align_handler = nullptr;
+    _scramble_handler = nullptr;
+
     for (const auto& [name, handler] : handlers) {
       if (name == "attack") {
-        Attack* attack = dynamic_cast<Attack*>(handler);
-        if (attack) {
-          for (ObservationType vibe : attack->get_vibes()) {
-            _vibe_handlers[vibe] = handler;
-          }
-        }
+        _attack_handler = dynamic_cast<Attack*>(handler);
       } else if (name == "transfer") {
-        Transfer* transfer = dynamic_cast<Transfer*>(handler);
-        if (transfer) {
-          for (ObservationType vibe : transfer->get_vibes()) {
-            _vibe_handlers[vibe] = handler;
-          }
-        }
+        _transfer_handler = dynamic_cast<Transfer*>(handler);
+      } else if (name == "align") {
+        _align_handler = dynamic_cast<Align*>(handler);
+      } else if (name == "scramble") {
+        _scramble_handler = dynamic_cast<Align*>(handler);
       }
     }
   }
@@ -99,17 +98,29 @@ protected:
     // Get target object (may be nullptr if empty)
     GridObject* target_object = _grid->object_at(target_location);
 
-    // Check if vibe-specific action override applies (from handler's vibes)
-    auto vibe_handler_it = _vibe_handlers.find(actor.vibe);
-    if (vibe_handler_it != _vibe_handlers.end()) {
-      ActionHandler* handler = vibe_handler_it->second;
-      // Let the handler decide if target is valid
-      Attack* attack_handler = dynamic_cast<Attack*>(handler);
-      if (attack_handler && attack_handler->try_attack(actor, target_object)) {
+    // Try vibe-specific action handlers
+    // Attack has highest priority (blocks other actions if successful)
+    if (_attack_handler && _attack_handler->has_vibe(actor.vibe)) {
+      if (_attack_handler->try_attack(actor, target_object)) {
         return true;
       }
-      Transfer* transfer_handler = dynamic_cast<Transfer*>(handler);
-      if (transfer_handler && transfer_handler->try_transfer(actor, target_object)) {
+    }
+
+    // Only one vibe-triggered action can be delegated per tick
+    if (_transfer_handler && _transfer_handler->has_transfer_for_vibe(actor.vibe)) {
+      if (_transfer_handler->try_transfer(actor, target_object)) {
+        return true;
+      }
+    }
+
+    if (_align_handler && _align_handler->get_vibe() == actor.vibe) {
+      if (_align_handler->try_align(actor, target_object)) {
+        return true;
+      }
+    }
+
+    if (_scramble_handler && _scramble_handler->get_vibe() == actor.vibe) {
+      if (_scramble_handler->try_align(actor, target_object)) {
         return true;
       }
     }
@@ -149,7 +160,12 @@ private:
   std::vector<std::string> _allowed_directions;
   std::unordered_map<std::string, Orientation> _direction_map;
   std::unordered_map<std::string, ActionHandler*> _handlers;
-  std::unordered_map<ObservationType, ActionHandler*> _vibe_handlers;  // vibe -> handler map
+
+  // Typed handler pointers for vibe-triggered actions
+  Attack* _attack_handler = nullptr;
+  Transfer* _transfer_handler = nullptr;
+  Align* _align_handler = nullptr;
+  Align* _scramble_handler = nullptr;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MOVE_HPP_
