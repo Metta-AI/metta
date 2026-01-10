@@ -38,6 +38,7 @@ from mettagrid.config.handler_config import (
     AlignTo,
     AnyFilter,
     AnyMutation,
+    AOEEffectConfig,
     AttackMutation,
     ClearInventoryMutation,
     CollectiveDeposit,
@@ -292,6 +293,10 @@ class GridObjectConfig(Config):
     aoe_handlers: dict[str, Handler] = Field(
         default_factory=dict,
         description="Handlers triggered per-tick for objects within radius (context: actor=this, target=affected)",
+    )
+    aoes: list[AOEEffectConfig] = Field(
+        default_factory=list,
+        description="Simplified AOE effects (converted to aoe_handlers internally)",
     )
 
     @model_validator(mode="after")

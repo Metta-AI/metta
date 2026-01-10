@@ -108,6 +108,24 @@ AnyFilter = Annotated[
 ]
 
 
+class AOEEffectConfig(Config):
+    """Simplified AOE effect configuration.
+
+    This provides a simpler interface for common AOE patterns compared to full handlers.
+    AOEs apply resource deltas to entities within range, optionally filtered by alignment.
+    """
+
+    range: int = Field(ge=0, description="Radius of the AOE effect")
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resource changes to apply to affected entities",
+    )
+    filters: list[AnyFilter] = Field(
+        default_factory=list,
+        description="Filters to determine which entities are affected",
+    )
+
+
 class Mutation(Config):
     """Base class for handler mutations."""
 
