@@ -18,13 +18,12 @@
 #include "objects/constants.hpp"
 #include "objects/inventory.hpp"
 #include "objects/protocol.hpp"
-#include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
 
 class Clipper;
 
-class Assembler : public GridObject, public Usable {
+class Assembler : public GridObject {
 private:
   // Surrounding positions in deterministic order: NW, N, NE, W, E, SW, S, SE
   std::vector<std::pair<GridCoord, GridCoord>> get_surrounding_positions() const {

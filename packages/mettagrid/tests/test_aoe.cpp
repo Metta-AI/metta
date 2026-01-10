@@ -7,10 +7,8 @@
 #include "core/aoe_config.hpp"
 #include "core/aoe_helper.hpp"
 #include "core/grid_object.hpp"
-#include "objects/alignable.hpp"
 #include "objects/collective.hpp"
 #include "objects/collective_config.hpp"
-#include "objects/has_inventory.hpp"
 #include "objects/inventory_config.hpp"
 
 using namespace mettagrid;
@@ -18,11 +16,11 @@ using namespace mettagrid;
 // Resource names for testing
 static std::vector<std::string> test_resource_names = {"health", "energy", "gold"};
 
-// Simple GridObject subclass that has an inventory and is alignable
-class TestAOEObject : public GridObject, public HasInventory, public Alignable {
+// Simple GridObject subclass - GridObject now has inventory and is alignable
+class TestAOEObject : public GridObject {
 public:
   explicit TestAOEObject(const std::string& type = "test_object", GridCoord row = 0, GridCoord col = 0)
-      : HasInventory(create_inventory_config()) {
+      : GridObject(create_inventory_config()) {
     type_name = type;
     location.r = row;
     location.c = col;

@@ -13,11 +13,10 @@
 #include "objects/agent.hpp"
 #include "objects/chest_config.hpp"
 #include "objects/constants.hpp"
-#include "objects/has_inventory.hpp"
-#include "objects/usable.hpp"
 #include "systems/observation_encoder.hpp"
 #include "systems/stats_tracker.hpp"
-class Chest : public GridObject, public Usable, public HasInventory {
+
+class Chest : public GridObject {
 private:
   // a reference to the game stats tracker
   StatsTracker* stats_tracker;
@@ -73,8 +72,7 @@ public:
   const ObservationEncoder* obs_encoder = nullptr;
 
   Chest(GridCoord r, GridCoord c, const ChestConfig& cfg, StatsTracker* stats_tracker)
-      : GridObject(),
-        HasInventory(cfg.inventory_config),
+      : GridObject(cfg.inventory_config),
         vibe_transfers(cfg.vibe_transfers),
         stats_tracker(stats_tracker),
         grid(nullptr) {
@@ -100,7 +98,7 @@ public:
   }
 
   // Implement pure virtual method from Usable
-  virtual bool onUse(Agent& actor, ActionArg /*arg*/) override {
+  virtual bool onUse(Agent& actor, ActionArg arg) override {
     if (!grid) {
       return false;
     }
@@ -115,10 +113,11 @@ public:
       if (vibe_it != vibe_transfers.end()) {
         return transfer_resources(actor, vibe_it->second);
       }
-      return false;  // No action configured for this vibe
+      // No vibe_transfer for this vibe, fall through to handler system
     }
 
-    return false;
+    // Fall back to parent class handler system (for handlers like Withdraw)
+    return GridObject::onUse(actor, arg);
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const override {

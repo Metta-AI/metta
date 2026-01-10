@@ -10,15 +10,12 @@
 
 #include "core/types.hpp"
 #include "objects/agent_config.hpp"
-#include "objects/alignable.hpp"
 #include "objects/constants.hpp"
-#include "objects/has_inventory.hpp"
-#include "objects/usable.hpp"
 #include "systems/stats_tracker.hpp"
 
 class ObservationEncoder;
 
-class Agent : public GridObject, public HasInventory, public Usable, public Alignable {
+class Agent : public GridObject {
 public:
   ObservationType group;
   short frozen;

@@ -11,8 +11,7 @@
 #include <random>
 
 Agent::Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names)
-    : GridObject(),
-      HasInventory(config.inventory_config),
+    : GridObject(config.inventory_config),
       group(config.group_id),
       frozen(0),
       freeze_duration(config.freeze_duration),

@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "core/grid_object.hpp"
-#include "objects/alignable.hpp"
 #include "objects/collective.hpp"
 #include "objects/collective_config.hpp"
 #include "objects/inventory_config.hpp"
@@ -22,9 +21,9 @@ CollectiveConfig create_test_collective_config(const std::string& name, Inventor
   return config;
 }
 
-// Simple GridObject subclass for testing that is also Alignable
-// The type_name is set on the GridObject, which is accessed via dynamic_cast in alignable.cpp
-class TestGridObject : public GridObject, public Alignable {
+// Simple GridObject subclass for testing
+// GridObject is now directly Alignable
+class TestGridObject : public GridObject {
 public:
   explicit TestGridObject(const std::string& type = "test_object") {
     type_name = type;  // Set on GridObject base class
@@ -124,7 +123,7 @@ void test_alignable_set_collective() {
   assert(obj.getCollective() == nullptr);
   assert(obj.collective_inventory() == nullptr);
 
-  // Set collective - type_name comes from GridObject via dynamic_cast
+  // Set collective
   obj.setCollective(&collective);
   assert(obj.getCollective() == &collective);
   assert(obj.collective_inventory() == &collective.inventory);
@@ -226,7 +225,7 @@ void test_multiple_objects_share_collective() {
   obj1.collective_inventory()->update(0, 50);
   assert(obj2.collective_inventory()->amount(0) == 150);
 
-  // Check aligned counts for different types (via dynamic_cast from GridObject)
+  // Check aligned counts for different types
   assert(collective.get_aligned_count("agent") == 1);
   assert(collective.get_aligned_count("assembler") == 1);
 
