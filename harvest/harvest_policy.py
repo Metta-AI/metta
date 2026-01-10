@@ -59,11 +59,15 @@ class HarvestPhase(Enum):
 
 @dataclass
 class ChargerInfo:
-    """Track quality/reliability of a charger."""
+    """Track quality/reliability of a charger.
+
+    FIX ISSUE #2: Track navigation failures to chargers.
+    """
     position: tuple[int, int]
     times_approached: int = 0
     times_successfully_used: int = 0
     last_attempt_step: int = 0
+    navigation_failures: int = 0  # FIX ISSUE #2: Track failed navigation attempts
 
     @property
     def success_rate(self) -> float:
@@ -74,8 +78,14 @@ class ChargerInfo:
 
     @property
     def is_reliable(self) -> bool:
-        """True if this charger has proven reliable."""
+        """True if this charger has proven reliable.
+
+        FIX ISSUE #2: Also consider navigation failures.
+        """
         # Require at least 50% success rate, or give benefit of doubt if < 3 attempts
+        # Also reject chargers with 5+ navigation failures (persistently unreachable)
+        if self.navigation_failures >= 5:
+            return False
         return self.success_rate > 0.5 or self.times_approached < 3
 
 
@@ -577,6 +587,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state.last_successful_move_step = state.step_count
             # Exit stuck recovery mode
             state.stuck_recovery_active = False
+
+            # FIX ISSUE #4: Detect oscillation even with successful moves
+            if self._detect_oscillation(state):
+                self._logger.warning(f"  OSCILLATION DETECTED: Agent alternating between {len(set(state.position_history[-20:]))} "
+                                   f"positions for {len(state.position_history)} steps")
+                # Treat oscillation as being stuck (even though moves succeed)
+                state.consecutive_failed_moves = 10  # High enough to trigger stuck recovery
+                state.stuck_recovery_active = True
         else:
             # Track failed moves for drift detection
             state.consecutive_failed_moves += 1
@@ -601,6 +619,45 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Store new landmark and energy for next step's verification
         self._store_landmarks(state, obs)
         state.prev_energy = state.energy
+
+    def _detect_oscillation(self, state: HarvestState) -> bool:
+        """Detect if agent is oscillating between 2-3 positions.
+
+        FIX ISSUE #4: Detect oscillation patterns that aren't caught by failed move counting.
+
+        Returns:
+            True if agent is oscillating (stuck), False otherwise.
+        """
+        if len(state.position_history) < 20:
+            return False  # Not enough history
+
+        recent_positions = state.position_history[-20:]
+        unique_positions = set(recent_positions)
+
+        # Oscillation: visiting only 2-3 unique positions in last 20 steps
+        if len(unique_positions) > 3:
+            return False  # Moving through too many positions, not oscillating
+
+        # Check if we're making progress toward any target
+        # If we have a target and are getting closer, not stuck
+        if hasattr(state, 'current_recharge_target') and state.current_recharge_target:
+            target = state.current_recharge_target
+            initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
+            final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
+
+            if final_dist < initial_dist - 2:  # Making progress (moved 2+ cells closer)
+                return False
+
+        if hasattr(state, 'committed_frontier_target') and state.committed_frontier_target:
+            target = state.committed_frontier_target
+            initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
+            final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
+
+            if final_dist < initial_dist - 2:  # Making progress
+                return False
+
+        # No progress toward any target and visiting only 2-3 positions → Oscillating!
+        return True
 
     def _verify_move_success(self, state: HarvestState, obs: AgentObservation, dr: int, dc: int) -> bool:
         """Verify if the last move succeeded using multiple methods.
@@ -1033,6 +1090,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         IMPROVEMENT #2 (OPT): Predictive energy management.
         Prevents agent from exploring beyond safe return distance.
 
+        FIX ISSUE #1: Emergency mode when budget would be 0 to prevent deadlock.
+
         Returns:
             Maximum safe exploration distance in Manhattan distance.
         """
@@ -1057,6 +1116,25 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Divide by 2 because we need energy to go out AND come back
         return_cost = nearest_charger_dist  # Cost to return to nearest charger
         max_exploration_distance = (available_energy - return_cost) // 2
+
+        # FIX ISSUE #1: Emergency mode to prevent deadlock
+        # When budget would be 0 or negative and energy is critically low,
+        # allow aggressive exploration to discover nearby chargers
+        if max_exploration_distance <= 0 and current_energy < recharge_threshold:
+            # RECHARGE LOOP FIX: More aggressive emergency exploration
+            # When desperately stuck (energy <= 5), we MUST take risks to escape
+            if current_energy <= 5:
+                # DESPERATE mode: Allow exploration up to 30 cells
+                # Accept risk of energy depletion - better than permanent stuck loop
+                emergency_radius = 30
+                self._logger.error(f"  ENERGY BUDGET: DESPERATE mode - budget={max_exploration_distance} → {emergency_radius} "
+                                 f"(energy={current_energy}, threshold={recharge_threshold})")
+            else:
+                # Conservative emergency: Scale with remaining energy + buffer
+                emergency_radius = min(current_energy + 10, 20)
+                self._logger.warning(f"  ENERGY BUDGET: Emergency mode - budget={max_exploration_distance} → {emergency_radius} "
+                                   f"(energy={current_energy}, threshold={recharge_threshold})")
+            return emergency_radius
 
         # Ensure non-negative
         return max(0, max_exploration_distance)
@@ -1088,7 +1166,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     state,
                     (state.row, state.col),
                     [charger_pos],
-                    allow_goal_block=False,
+                    allow_goal_block=False,  # Chargers are traversable - path directly to them
                     cell_type=CellType,
                     is_traversable_fn=self.map_manager.is_traversable
                 )
@@ -1599,9 +1677,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             result = self._find_ready_extractor_in_obs(state, resource_type)
             if result is not None:
                 obs_direction, _cooldown = result
-                self._logger.info(f"  GATHER: Found READY {resource_type} extractor adjacent in direction {obs_direction}, using it!")
+                # FIX ISSUE #6: Use noop to interact with adjacent extractor, don't move onto it
+                # Extractors are non-traversable and moving onto them fails
+                self._logger.info(f"  GATHER: Found READY {resource_type} extractor adjacent in direction {obs_direction}, using it (noop)!")
                 state.using_object_this_step = True
-                return self._actions.move.Move(obs_direction)
+                return self._actions.noop.Noop()
 
         # Priority 2: Navigate towards any visible extractor we need
         germanium_adjacent_on_cooldown = False
@@ -1849,16 +1929,32 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         """Navigate to a station using hybrid observation + map-based navigation.
 
         Strategy:
-        0. If stuck, skip pathfinding (but still check observation)
-        1. If station is adjacent in observation - use it
+        0. Check if already standing ON the station - use it (noop)
+        1. If station is adjacent in observation - move onto it
         2. If station is visible in observation - navigate to it
         3. If station position is known in memory - use pathfinding
         4. Otherwise explore to find the station
+
+        FIX ISSUE #3: Added check for standing ON station (was missing!).
         """
-        # Priority 1: Check if station is adjacent in observation - use it
+        # Priority 0: FIX ISSUE #3 - Check if we're STANDING ON the station
+        # This is the critical bug that prevented assembly!
+        if state.current_obs and state.current_obs.tokens:
+            center_pos = (self._obs_hr, self._obs_wr)
+            for tok in state.current_obs.tokens:
+                if tok.location == center_pos and tok.feature.name == "tag":
+                    tag_name = self._tag_names.get(tok.value, "").lower()
+                    if station_type in tag_name:
+                        self._logger.info(f"  {station_type.upper()}: Standing ON {station_type}, using it (noop)")
+                        state.using_object_this_step = True
+                        state.stuck_recovery_active = False
+                        return self._actions.noop.Noop()
+
+        # Priority 1: Check if station is adjacent in observation - move onto it
         # (Always check this, even when stuck - we might have found it!)
         adj_dir = self._find_station_adjacent_in_obs(state, station_type)
         if adj_dir is not None:
+            self._logger.info(f"  {station_type.upper()}: Adjacent in direction {adj_dir}, moving onto it")
             state.using_object_this_step = True
             # Exit stuck recovery since we found what we need
             state.stuck_recovery_active = False
@@ -2026,6 +2122,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.warning(f"  RECHARGE: STUCK ({state.consecutive_failed_moves} fails, {steps_in_recharge} steps in phase) - attempting recovery")
                 state.recharge_failed_attempts += 1
 
+                # FIX ISSUE #2: Track navigation failure for current charger target
+                if target_charger in state.charger_info:
+                    state.charger_info[target_charger].navigation_failures += 1
+                    self._logger.warning(f"  CHARGER: Navigation failure #{state.charger_info[target_charger].navigation_failures} "
+                                       f"for charger at {target_charger}")
+
                 # CRITICAL FIX: Multiple escape conditions to prevent infinite trapped state
                 # 1. Extended consecutive failures (20+)
                 # 2. Long time in recharge phase (100+ steps) with failures
@@ -2089,6 +2191,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 return self._explore(state)
 
             # Use MapManager pathfinding for intelligent navigation to charger
+            # Chargers are traversable - path directly to them
             direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=False)
 
             if direction:
@@ -2177,15 +2280,34 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         )
 
     def _calculate_deficits(self, state: HarvestState) -> dict[str, int]:
-        """Calculate how many more resources we need."""
+        """Calculate how many more resources we need.
+
+        FIX ISSUE #5: Add over-collection prevention with maximum caps.
+        """
         if state.heart_recipe is None:
             return {"carbon": 1, "oxygen": 1, "germanium": 1, "silicon": 1}
 
+        # FIX ISSUE #5: Cap collection at 110% of recipe to avoid excessive over-collection
+        # This prevents wasting time collecting 50 carbon when only 10 is needed
+        max_collection_multiplier = 1.1
+
         return {
-            "carbon": max(0, state.heart_recipe.get("carbon", 0) - state.carbon),
-            "oxygen": max(0, state.heart_recipe.get("oxygen", 0) - state.oxygen),
-            "germanium": max(0, state.heart_recipe.get("germanium", 0) - state.germanium),
-            "silicon": max(0, state.heart_recipe.get("silicon", 0) - state.silicon),
+            "carbon": max(0, min(
+                state.heart_recipe.get("carbon", 0) - state.carbon,
+                int(state.heart_recipe.get("carbon", 0) * max_collection_multiplier) - state.carbon
+            )),
+            "oxygen": max(0, min(
+                state.heart_recipe.get("oxygen", 0) - state.oxygen,
+                int(state.heart_recipe.get("oxygen", 0) * max_collection_multiplier) - state.oxygen
+            )),
+            "germanium": max(0, min(
+                state.heart_recipe.get("germanium", 0) - state.germanium,
+                int(state.heart_recipe.get("germanium", 0) * max_collection_multiplier) - state.germanium
+            )),
+            "silicon": max(0, min(
+                state.heart_recipe.get("silicon", 0) - state.silicon,
+                int(state.heart_recipe.get("silicon", 0) * max_collection_multiplier) - state.silicon
+            )),
         }
 
     def _find_needed_extractor(self, state: HarvestState, deficits: dict[str, int]) -> Optional[ExtractorInfo]:
@@ -2303,7 +2425,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state=state,
             start=(state.row, state.col),
             goals=goals,
-            allow_goal_block=False,
+            allow_goal_block=False,  # All game objects are traversable
             cell_type=CellType,
             is_traversable_fn=lambda r, c: self.map_manager.is_traversable(r, c)
         )
@@ -2993,10 +3115,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block on impassable objects: walls, agents, assemblers, chests, chargers
-                # Extractors ARE traversable (you stand on them to use)
-                # Assemblers, chests, and chargers are NOT traversable (you stand adjacent to use)
-                if "wall" in tag_name or "agent" in tag_name or "assembler" in tag_name or "chest" in tag_name or "charger" in tag_name:
+                # Block on truly impassable objects: walls and agents
+                # All game objects (extractors, chargers, assemblers, chests) are traversable
+                # - you move ONTO them to use them
+                if "wall" in tag_name or "agent" in tag_name:
                     if state.step_count < 100:
                         self._logger.info(f"  OBS_CHECK: Blocking {direction} - found impassable '{tag_name}' at {target_obs_pos}")
                     return False

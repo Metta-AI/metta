@@ -214,9 +214,14 @@ class MapManager:
         cell_type = self.grid[row][col]
 
         # UNKNOWN cells are NOT traversable - we can't path through unexplored territory
-        # WALL and DEAD_END are NOT traversable
-        # Everything else (FREE, stations, extractors) IS traversable
-        return cell_type not in (MapCellType.UNKNOWN, MapCellType.WALL, MapCellType.DEAD_END)
+        # WALL and DEAD_END are NOT traversable (truly impassable)
+        # All game objects (extractors, chargers, assemblers, chests) ARE traversable
+        # - you move ONTO them to use them
+        return cell_type not in (
+            MapCellType.UNKNOWN,
+            MapCellType.WALL,
+            MapCellType.DEAD_END
+        )
 
     def get_nearest_object(
         self,
