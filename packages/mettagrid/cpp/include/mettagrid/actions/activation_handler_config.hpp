@@ -85,8 +85,8 @@ struct FreezeMutationConfig {
 
 struct ClearInventoryMutationConfig {
   EntityRef entity = EntityRef::target;
-  // If resource_id is set, only clear that resource; otherwise clear all
-  InventoryItem resource_id = 255;  // 255 = clear all
+  // List of resource IDs to clear. If empty, clears all resources.
+  std::vector<InventoryItem> resource_ids;
 };
 
 struct AttackMutationConfig {

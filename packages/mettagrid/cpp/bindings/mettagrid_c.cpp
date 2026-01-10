@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/activation_handler.hpp"
 #include "actions/activation_handler_bindings.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
@@ -22,10 +23,10 @@
 #include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
 #include "core/aoe_bindings.hpp"
+#include "core/aoe_helper.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
-#include "objects/alignable.hpp"
 #include "objects/assembler.hpp"
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
@@ -73,6 +74,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
+  _aoe_grid = std::make_unique<mettagrid::AOEEffectGrid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(
       game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
@@ -99,17 +101,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     _collectives.push_back(std::move(collective));
   }
 
-  // Associate alignable objects with their collective based on tags
+  // Associate objects with their collective based on tags
   // Tags of the form "collective:name" indicate membership
-  // Only objects that implement Alignable can belong to a collective
+  // All GridObjects are now Alignable
   const std::string collective_tag_prefix = "collective:";
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
-
-    // Try to cast to Alignable - only alignable objects can have a collective
-    Alignable* alignable = dynamic_cast<Alignable*>(obj);
-    if (!alignable) continue;
 
     // Check for collective tags
     for (int tag_id : obj->tag_ids) {
@@ -121,7 +119,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
           std::string collective_name = tag_name.substr(collective_tag_prefix.length());
           auto collective_it = _collectives_by_name.find(collective_name);
           if (collective_it != _collectives_by_name.end()) {
-            alignable->setCollective(collective_it->second);
+            obj->setCollective(collective_it->second);
           }
         }
       }
@@ -196,16 +194,18 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       // TODO: replace the dynamic casts with virtual dispatch
 
+      GridObject* created_object = nullptr;
+
       const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
       if (wall_config) {
         Wall* wall = new Wall(r, c, *wall_config);
         _grid->add_object(wall);
         _stats->incr("objects." + cell);
-        continue;
+        created_object = wall;
       }
 
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
-      if (agent_config) {
+      if (!created_object && agent_config) {
         Agent* agent = new Agent(r, c, *agent_config, &resource_names);
         _grid->add_object(agent);
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
@@ -214,32 +214,57 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
-        continue;
+        created_object = agent;
       }
 
       const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
-      if (assembler_config) {
+      if (!created_object && assembler_config) {
         Assembler* assembler = new Assembler(r, c, *assembler_config, _stats.get());
         _grid->add_object(assembler);
         _stats->incr("objects." + cell);
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
-        continue;
+        created_object = assembler;
       }
 
       const ChestConfig* chest_config = dynamic_cast<const ChestConfig*>(object_cfg);
-      if (chest_config) {
+      if (!created_object && chest_config) {
         Chest* chest = new Chest(r, c, *chest_config, _stats.get());
         _grid->add_object(chest);
         _stats->incr("objects." + cell);
         chest->set_grid(_grid.get());
         chest->set_obs_encoder(_obs_encoder.get());
-        continue;
+        created_object = chest;
       }
 
-      throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
-                               std::to_string(c) + ")");
+      // Handle base GridObjectConfig as a static object (similar to wall but can have AOEs)
+      if (!created_object) {
+        Wall* static_obj = new Wall(r, c, WallConfig(object_cfg->type_id, object_cfg->type_name, object_cfg->initial_vibe));
+        static_obj->tag_ids = object_cfg->tag_ids;
+        _grid->add_object(static_obj);
+        _stats->incr("objects." + cell);
+        created_object = static_obj;
+      }
+
+      // Register AOE sources for this object
+      if (created_object && !object_cfg->aoes.empty()) {
+        for (const auto& aoe_config : object_cfg->aoes) {
+          if (aoe_config) {
+            _aoe_grid->register_source(*created_object, *aoe_config);
+          }
+        }
+      }
+
+      // Set up activation handlers for this object
+      if (created_object && !object_cfg->handlers.empty()) {
+        std::vector<std::shared_ptr<mettagrid::ActivationHandler>> handlers;
+        handlers.reserve(object_cfg->handlers.size());
+        for (const auto& handler_config : object_cfg->handlers) {
+          handlers.push_back(std::make_shared<mettagrid::ActivationHandler>(handler_config));
+        }
+        created_object->set_handlers(std::move(handlers));
+      }
     }
   }
 }
@@ -644,6 +669,11 @@ void MettaGrid::_step() {
     agent->check_and_apply_damage(_rng);
   }
 
+  // Apply AOE effects to all agents at their current locations
+  for (auto* agent : _agents) {
+    _aoe_grid->apply_effects_at(agent->location, *agent);
+  }
+
   // Apply global systems
   if (_clipper) {
     _clipper->maybe_clip_new_assembler();
@@ -956,6 +986,23 @@ py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
+py::dict MettaGrid::get_collective_inventories() {
+  // Returns a dictionary mapping collective names to their inventories
+  // { "collective_name": { "resource_name": quantity, ... }, ... }
+  py::dict result;
+  for (const auto& collective : _collectives) {
+    py::dict inventory_dict;
+    for (const auto& [resource_id, quantity] : collective->inventory.get()) {
+      // Use resource name instead of ID for mettascope compatibility
+      if (resource_id < resource_names.size()) {
+        inventory_dict[py::str(resource_names[resource_id])] = quantity;
+      }
+    }
+    result[py::str(collective->name)] = inventory_dict;
+  }
+  return result;
+}
+
 py::none MettaGrid::set_inventory(GridObjectId agent_id,
                                   const std::unordered_map<InventoryItem, InventoryQuantity>& inventory) {
   if (agent_id < _agents.size()) {
@@ -1038,10 +1085,22 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("current_step", &MettaGrid::current_step)
       .def_readonly("object_type_names", &MettaGrid::object_type_names)
       .def_readonly("resource_names", &MettaGrid::resource_names)
-      .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
+      .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"))
+      .def("get_collective_inventories", &MettaGrid::get_collective_inventories);
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
+      .def_readwrite("type_id", &GridObjectConfig::type_id)
+      .def_readwrite("type_name", &GridObjectConfig::type_name)
+      .def_readwrite("name", &GridObjectConfig::name)
+      .def_readwrite("tag_ids", &GridObjectConfig::tag_ids)
+      .def_readwrite("initial_vibe", &GridObjectConfig::initial_vibe)
+      .def_readwrite("aoes", &GridObjectConfig::aoes)
+      .def_readwrite("handlers", &GridObjectConfig::handlers);
 
   bind_wall_config(m);
 

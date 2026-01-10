@@ -2,7 +2,7 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_CONTEXT_HPP_
 
 #include "actions/activation_handler_config.hpp"
-#include "objects/alignable.hpp"
+#include "core/grid_object.hpp"
 #include "objects/collective.hpp"
 #include "objects/has_inventory.hpp"
 
@@ -36,13 +36,17 @@ public:
     }
   }
 
-  // Get the collective for an entity (if alignable)
+  // Get the collective for an entity (if it's a GridObject)
   Collective* get_collective(HasInventory* entity) const {
-    Alignable* alignable = dynamic_cast<Alignable*>(entity);
-    if (alignable == nullptr) {
+    if (entity == nullptr) {
       return nullptr;
     }
-    return alignable->getCollective();
+    // All GridObjects are Alignable, so try to cast to GridObject
+    GridObject* grid_obj = dynamic_cast<GridObject*>(entity);
+    if (grid_obj == nullptr) {
+      return nullptr;
+    }
+    return grid_obj->getCollective();
   }
 
   // Get actor's collective

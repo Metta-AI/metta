@@ -10,10 +10,8 @@
 #include "actions/filters/filter.hpp"
 #include "actions/mutations/mutation.hpp"
 #include "core/grid_object.hpp"
-#include "objects/alignable.hpp"
 #include "objects/collective.hpp"
 #include "objects/collective_config.hpp"
-#include "objects/has_inventory.hpp"
 #include "objects/inventory_config.hpp"
 
 using namespace mettagrid;
@@ -21,8 +19,7 @@ using namespace mettagrid;
 // Resource names for testing
 static std::vector<std::string> test_resource_names = {"health", "energy", "gold"};
 
-// Simple GridObject subclass for testing
-// Note: GridObject already inherits from HasInventory and Alignable, so we only need to inherit from GridObject
+// Simple GridObject subclass - GridObject now has inventory and is alignable
 class TestActivationObject : public GridObject {
 public:
   explicit TestActivationObject(const std::string& type = "test_object", ObservationType initial_vibe = 0)
@@ -435,7 +432,7 @@ void test_clear_inventory_mutation_specific() {
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
-  config.resource_id = 1;  // Clear only energy
+  config.resource_ids = {1};  // Clear only energy
 
   ClearInventoryMutation mutation(config);
   mutation.apply(ctx);
@@ -460,7 +457,7 @@ void test_clear_inventory_mutation_all() {
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
-  config.resource_id = 255;  // Clear all
+  config.resource_ids = {};  // Empty = clear all
 
   ClearInventoryMutation mutation(config);
   mutation.apply(ctx);
