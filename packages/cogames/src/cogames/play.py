@@ -38,7 +38,6 @@ def play(
         save_replay: Optional directory path to save replay. Directory will be created if it doesn't exist.
             Replay will be saved with a unique UUID-based filename.
     """
-
     logger.debug("Starting play session", extra={"game_name": game_name})
 
     policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
