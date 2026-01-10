@@ -22,8 +22,7 @@ default_checkpoint_dir = Path("train_dir")
 
 policy_arg_example = "name[:vN] or URI (bundle dir or .zip) or class=NAME[,data=FILE][,kw.x=val]"
 policy_arg_w_proportion_example = (
-    "name[:vN][,proportion=N] or URI[,proportion=N] or "
-    "class=NAME[,data=FILE][,proportion=N]"
+    "name[:vN][,proportion=N] or URI[,proportion=N] or class=NAME[,data=FILE][,proportion=N]"
 )
 
 

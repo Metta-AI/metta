@@ -37,18 +37,17 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from safetensors.torch import load_file as load_safetensors_file
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from mettagrid.policy.policy import PolicySpec
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
@@ -193,6 +192,7 @@ def _policy_source_is_s3(agent_config: AgentConfig) -> bool:
         is_s3_uri(path) for path in (agent_config.source, agent_config.policy_path, agent_config.data_path) if path
     )
 
+
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
         key="baseline",
@@ -279,20 +279,24 @@ def _run_case(
             init_kwargs=agent_config.init_kwargs or {},
         )
 
-        rollout_payload = multi_episode_rollout(
-            env_cfg=env_config,
-            policy_specs=[policy_spec],
-            episodes=runs_per_case,
-            seed=seed,
-        )
-
         out: List[EvalResult] = []
-        for run_idx, episode in enumerate(rollout_payload.episodes, start=1):
-            total_reward = float(episode.rewards.sum())
+        assignments = [0] * num_cogs
+        for run_idx in range(runs_per_case):
+            run_seed = seed + run_idx
+            job = PureSingleEpisodeSpecJob(
+                policy_specs=[policy_spec],
+                assignments=assignments,
+                env=env_config,
+                seed=run_seed,
+                max_action_time_ms=10000,
+            )
+            results, _replay = run_pure_single_episode_from_specs(job, device="cpu")
+
+            total_reward = float(sum(results.rewards))
             avg_reward_per_agent = total_reward / max(1, num_cogs)
 
             heart_gained = 0.0
-            episode_stats = episode.stats
+            episode_stats = results.stats
             if "agent" in episode_stats:
                 agent_stats_list = episode_stats["agent"]
                 for agent_stats in agent_stats_list:
@@ -311,11 +315,11 @@ def _run_case(
                     hearts_assembled=int(total_reward),
                     heart_gained=heart_gained,
                     avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                    steps_taken=episode.steps + 1,
+                    steps_taken=results.steps + 1,
                     max_steps=actual_max_steps,
                     success=total_reward > 0,
-                    seed_used=seed + (run_idx - 1),
-                    run_index=run_idx,
+                    seed_used=run_seed,
+                    run_index=run_idx + 1,
                 )
             )
         return out

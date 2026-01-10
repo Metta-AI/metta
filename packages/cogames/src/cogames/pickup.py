@@ -113,9 +113,7 @@ def pickup(
 
     with typer.progressbar(scenarios, label="Simulating") as progress:
         for scenario in progress:
-            assignments = np.repeat(
-                np.arange(len(policy_specs)), [scenario.candidate_count, *scenario.pool_counts]
-            )
+            assignments = np.repeat(np.arange(len(policy_specs)), [scenario.candidate_count, *scenario.pool_counts])
             rng = np.random.default_rng(seed)
 
             episode_results = []

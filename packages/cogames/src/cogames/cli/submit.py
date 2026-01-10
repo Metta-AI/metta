@@ -193,6 +193,7 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     Runs a single episode (up to 10 steps) using the same alo rollout flow as `cogames eval`.
     """
     from cogames.cli.mission import get_mission
+
     _, env_cfg, _ = get_mission("machina_1")
     from alo.multi_episode_runner import multi_episode_rollout
 
