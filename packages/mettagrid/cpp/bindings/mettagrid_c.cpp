@@ -13,13 +13,13 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
-#include "handler/handler_bindings.hpp"
+#include "actions/action_handler_factory.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
-#include "actions/move.hpp"
 #include "actions/move_config.hpp"
-#include "actions/noop.hpp"
 #include "actions/transfer.hpp"
+#include "core/grid_object_factory.hpp"
+#include "handler/handler_bindings.hpp"
 #include "config/observation_features.hpp"
 #include "core/aoe_bindings.hpp"
 #include "core/grid.hpp"
@@ -194,52 +194,22 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
 
       const GridObjectConfig* object_cfg = game_config.objects.at(cell).get();
 
-      // TODO: replace the dynamic casts with virtual dispatch
+      // Create object from config using the factory
+      GridObject* created_object = mettagrid::create_object_from_config(
+          r, c, object_cfg, _stats.get(), &resource_names, _grid.get(), _obs_encoder.get(), &current_step);
 
-      const WallConfig* wall_config = dynamic_cast<const WallConfig*>(object_cfg);
-      if (wall_config) {
-        Wall* wall = new Wall(r, c, *wall_config);
-        _grid->add_object(wall);
-        _stats->incr("objects." + cell);
-        continue;
-      }
+      // Add to grid and track stats
+      _grid->add_object(created_object);
+      _stats->incr("objects." + cell);
 
-      const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
-      if (agent_config) {
-        Agent* agent = new Agent(r, c, *agent_config, &resource_names);
-        _grid->add_object(agent);
+      // Handle agent-specific setup (agent_id and registration)
+      if (Agent* agent = dynamic_cast<Agent*>(created_object)) {
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
-        agent->set_obs_encoder(_obs_encoder.get());
         add_agent(agent);
-        continue;
       }
-
-      const AssemblerConfig* assembler_config = dynamic_cast<const AssemblerConfig*>(object_cfg);
-      if (assembler_config) {
-        Assembler* assembler = new Assembler(r, c, *assembler_config, _stats.get());
-        _grid->add_object(assembler);
-        _stats->incr("objects." + cell);
-        assembler->set_grid(_grid.get());
-        assembler->set_current_timestep_ptr(&current_step);
-        assembler->set_obs_encoder(_obs_encoder.get());
-        continue;
-      }
-
-      const ChestConfig* chest_config = dynamic_cast<const ChestConfig*>(object_cfg);
-      if (chest_config) {
-        Chest* chest = new Chest(r, c, *chest_config, _stats.get());
-        _grid->add_object(chest);
-        _stats->incr("objects." + cell);
-        chest->set_grid(_grid.get());
-        chest->set_obs_encoder(_obs_encoder.get());
-        continue;
-      }
-
-      throw std::runtime_error("Unable to create object of type " + cell + " at (" + std::to_string(r) + ", " +
-                               std::to_string(c) + ")");
     }
   }
 }
@@ -289,66 +259,10 @@ void MettaGrid::_init_buffers(unsigned int num_agents) {
 }
 
 void MettaGrid::init_action_handlers() {
-  _max_action_priority = 0;
-
-  // Noop
-  auto noop = std::make_unique<Noop>(*_game_config.actions.at("noop"));
-  noop->init(_grid.get(), &_rng);
-  if (noop->priority > _max_action_priority) _max_action_priority = noop->priority;
-  for (const auto& action : noop->actions()) {
-    _action_handlers.push_back(action);
-  }
-  _action_handler_impl.push_back(std::move(noop));
-
-  // Move
-  auto move_config = std::static_pointer_cast<const MoveActionConfig>(_game_config.actions.at("move"));
-  auto move = std::make_unique<Move>(*move_config, &_game_config);
-  move->init(_grid.get(), &_rng);
-  if (move->priority > _max_action_priority) _max_action_priority = move->priority;
-  for (const auto& action : move->actions()) {
-    _action_handlers.push_back(action);
-  }
-  // Capture the raw pointer to pass to other handlers
-  Move* move_ptr = move.get();
-  _action_handler_impl.push_back(std::move(move));
-
-  // Attack
-  auto attack_config = std::static_pointer_cast<const AttackActionConfig>(_game_config.actions.at("attack"));
-  auto attack = std::make_unique<Attack>(*attack_config, &_game_config);
-  attack->init(_grid.get(), &_rng);
-  if (attack->priority > _max_action_priority) _max_action_priority = attack->priority;
-  for (const auto& action : attack->actions()) {
-    _action_handlers.push_back(action);
-  }
-
-  // Transfer
-  auto transfer_config = std::static_pointer_cast<const TransferActionConfig>(_game_config.actions.at("transfer"));
-  auto transfer = std::make_unique<Transfer>(*transfer_config, &_game_config);
-  transfer->init(_grid.get(), &_rng);
-  if (transfer->priority > _max_action_priority) _max_action_priority = transfer->priority;
-  for (const auto& action : transfer->actions()) {
-    _action_handlers.push_back(action);
-  }
-
-  // Register vibe-triggered action handlers with Move
-  std::unordered_map<std::string, ActionHandler*> handlers;
-  handlers["attack"] = attack.get();
-  handlers["transfer"] = transfer.get();
-  move_ptr->set_action_handlers(handlers);
-
-  _action_handler_impl.push_back(std::move(attack));
-  _action_handler_impl.push_back(std::move(transfer));
-
-  // ChangeVibe
-  auto change_vibe_config =
-      std::static_pointer_cast<const ChangeVibeActionConfig>(_game_config.actions.at("change_vibe"));
-  auto change_vibe = std::make_unique<ChangeVibe>(*change_vibe_config, &_game_config);
-  change_vibe->init(_grid.get(), &_rng);
-  if (change_vibe->priority > _max_action_priority) _max_action_priority = change_vibe->priority;
-  for (const auto& action : change_vibe->actions()) {
-    _action_handlers.push_back(action);
-  }
-  _action_handler_impl.push_back(std::move(change_vibe));
+  auto result = create_action_handlers(_game_config, _grid.get(), &_rng);
+  _max_action_priority = result.max_priority;
+  _action_handlers = std::move(result.actions);
+  _action_handler_impl = std::move(result.handlers);
 }
 
 void MettaGrid::add_agent(Agent* agent) {
