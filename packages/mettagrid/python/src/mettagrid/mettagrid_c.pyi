@@ -70,12 +70,6 @@ class InventoryConfig:
     def __init__(self) -> None: ...
     limit_defs: list[LimitDef]
 
-class DamageConfig:
-    def __init__(self) -> None: ...
-    threshold: dict[int, int]
-    resources: dict[int, int]
-    def enabled(self) -> bool: ...
-
 class WallConfig(GridObjectConfig):
     def __init__(self, type_id: int, type_name: str, initial_vibe: int = 0): ...
     type_id: int
@@ -98,8 +92,6 @@ class AgentConfig(GridObjectConfig):
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
-        initial_vibe: int = 0,
-        damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
     type_name: str
@@ -114,8 +106,6 @@ class AgentConfig(GridObjectConfig):
     initial_inventory: dict[int, int]
     inventory_regen_amounts: dict[int, dict[int, int]]
     diversity_tracked_resources: list[int]
-    initial_vibe: int
-    damage_config: DamageConfig
 
 class ActionConfig:
     def __init__(

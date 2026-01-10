@@ -37,8 +37,6 @@ public:
   // Vibe-dependent inventory regeneration: vibe_id -> resource_id -> amount (can be negative for decay)
   // Vibe ID 0 ("default") is used as fallback when agent's current vibe is not found
   std::unordered_map<ObservationType, std::unordered_map<InventoryItem, InventoryDelta>> inventory_regen_amounts;
-  // Damage configuration
-  DamageConfig damage_config;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config, const std::vector<std::string>* resource_names);
 
@@ -51,10 +49,6 @@ public:
   void on_inventory_change(InventoryItem item, InventoryDelta delta) override;
 
   void compute_stat_rewards(StatsTracker* game_stats_tracker = nullptr);
-
-  // Check and apply damage if all threshold stats are reached
-  // Returns true if damage was applied
-  bool check_and_apply_damage(std::mt19937& rng);
 
   // Implementation of Usable interface
   bool onUse(Agent& actor, ActionArg arg) override;

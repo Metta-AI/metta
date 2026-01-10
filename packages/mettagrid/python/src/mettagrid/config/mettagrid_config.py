@@ -193,29 +193,6 @@ class InventoryConfig(Config):
         return self.default_limit
 
 
-class DamageConfig(Config):
-    """Damage configuration for agents.
-
-    When the threshold resources reach their specified amounts, damage is triggered.
-    Damage removes one unit from a randomly selected resource (weighted by quantity above minimum).
-
-    Example:
-        DamageConfig(
-            threshold={"damage": 10},  # Trigger when "damage" reaches 10
-            resources={"battery": 0, "weapon": 0, "shield": 0},  # Minimum values for each resource
-        )
-    """
-
-    threshold: dict[str, int] = Field(
-        default_factory=dict,
-        description="Resource thresholds that trigger damage. Maps resource name to threshold value.",
-    )
-    resources: dict[str, int] = Field(
-        default_factory=dict,
-        description="Resources that can be removed by damage. Maps resource name to minimum value.",
-    )
-
-
 # TODO: this should probably subclass GridObjectConfig
 class AgentConfig(Config):
     """Python agent configuration."""
@@ -237,10 +214,6 @@ class AgentConfig(Config):
     handlers: list[Handler] = Field(
         default_factory=list,
         description="Handlers triggered when another agent moves onto this agent",
-    )
-    damage: Optional[DamageConfig] = Field(
-        default=None,
-        description="Damage configuration: when threshold is reached, removes resources randomly",
     )
 
     @model_validator(mode="after")
