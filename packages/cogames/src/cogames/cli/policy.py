@@ -145,29 +145,21 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     fraction = 1.0
     first = entries[0]
-    if parse_uri(first, allow_none=True, default_scheme=None):
-        policy = policy_spec_from_uri(first)
-        for entry in entries[1:]:
-            key, value = parse_key_value(entry)
-            if key != "proportion":
-                raise ValueError("Only proportion is supported after a checkpoint URI.")
-            fraction = parse_proportion(value)
-
-        return PolicySpecWithProportion(
-            class_path=policy.class_path,
-            data_path=policy.data_path,
-            proportion=fraction,
-            init_kwargs=policy.init_kwargs,
-        )
-    if "=" not in first:
-        name, version = parse_policy_identifier(first)
-        version_suffix = f":v{version}" if version is not None else ""
-        policy_uri = f"metta://policy/{name}{version_suffix}"
+    parsed_uri = parse_uri(first, allow_none=True, default_scheme=None)
+    if parsed_uri or "=" not in first:
+        if parsed_uri:
+            policy_uri = first
+            label = "checkpoint URI"
+        else:
+            name, version = parse_policy_identifier(first)
+            version_suffix = f":v{version}" if version is not None else ""
+            policy_uri = f"metta://policy/{name}{version_suffix}"
+            label = "policy name"
         policy = policy_spec_from_uri(policy_uri)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)
             if key != "proportion":
-                raise ValueError("Only proportion is supported after a policy name.")
+                raise ValueError(f"Only proportion is supported after a {label}.")
             fraction = parse_proportion(value)
 
         return PolicySpecWithProportion(
@@ -220,7 +212,7 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     )
 
 
-def parse_policy_identifier(identifier: str) -> tuple[str, int | None]:
+def parse_policy_identifier(identifier: str) -> tuple[str, Optional[int]]:
     """Parse 'name' or 'name:v3' into (name, version)."""
     if ":" in identifier:
         name, version_str = identifier.rsplit(":", 1)

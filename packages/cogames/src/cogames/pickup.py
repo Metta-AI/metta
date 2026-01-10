@@ -27,12 +27,7 @@ def make_machina1_open_world_env(
     if steps is not None:
         env_cfg.game.max_steps = steps
 
-    effective_map_seed: Optional[int]
-    if map_seed is not None:
-        effective_map_seed = map_seed
-    else:
-        effective_map_seed = seed
-
+    effective_map_seed = map_seed if map_seed is not None else seed
     if effective_map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
         if isinstance(map_builder, MapGen.Config):
@@ -128,8 +123,10 @@ def pickup(
                 save_replay=str(save_replay_dir) if save_replay_dir else None,
             )
 
-            candidate_means: list[float] = []
-            replacement_means: list[float] = []
+            candidate_sum = 0.0
+            candidate_count = 0
+            replacement_sum = 0.0
+            replacement_count = 0
             replay_paths: list[str] = []
 
             for episode in rollout.episodes:
@@ -138,14 +135,16 @@ def pickup(
                 if episode.rewards.size == 0:
                     continue
                 if scenario.candidate_count == 0:
-                    replacement_means.append(float(episode.rewards.mean()))
+                    replacement_sum += float(episode.rewards.mean())
+                    replacement_count += 1
                 else:
                     mask = episode.assignments == 0
                     if np.any(mask):
-                        candidate_means.append(float(episode.rewards[mask].mean()))
+                        candidate_sum += float(episode.rewards[mask].mean())
+                        candidate_count += 1
 
-            candidate_mean = sum(candidate_means) / len(candidate_means) if candidate_means else None
-            scenario_replacement_mean = sum(replacement_means) / len(replacement_means) if replacement_means else None
+            candidate_mean = candidate_sum / candidate_count if candidate_count else None
+            scenario_replacement_mean = replacement_sum / replacement_count if replacement_count else None
             results.append(
                 PickupScenarioResult(
                     scenario=scenario,
