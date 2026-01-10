@@ -59,6 +59,23 @@ links:
       - name: Actions
         url: https://github.com/Metta-AI/metta/actions
         short_urls: [ga]
+  - name: Blacksmith
+    url: https://app.blacksmith.sh/Metta-AI
+    short_urls: [bs, blacksmith]
+    icon: https://app.blacksmith.sh/blacksmith-favicon.svg
+    sub_links:
+      - name: Jobs
+        url: https://app.blacksmith.sh/Metta-AI/runs/jobs
+        short_urls: [bsj]
+      - name: Logs
+        url: https://app.blacksmith.sh/Metta-AI/logs
+        short_urls: [bsl]
+      - name: Docker Analytics
+        url: https://app.blacksmith.sh/Metta-AI/docker-analytics
+        short_urls: [bsda]
+      - name: Usage
+        url: https://app.blacksmith.sh/Metta-AI/usage
+        short_urls: [bsu]
   - name: Spacelift
     url: https://metta-ai.app.spacelift.io/launchpad
     short_urls: [sl, spacelift]
