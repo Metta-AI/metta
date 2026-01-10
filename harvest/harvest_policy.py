@@ -373,7 +373,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # MISSION DETECTION: Detect mission profile early to adapt strategy
         # Do detection after a few steps to get map extent, but not too late
-        if state.mission_profile is None and state.step_count >= 5:
+        # BUG FIX #14: Detect mission profile earlier (step 3 instead of 5) for better initial thresholds
+        if state.mission_profile is None and state.step_count >= 3:
             # Wait a few steps to get better map size estimate
             state.mission_profile = self._detect_mission_profile(state)
             self._logger.info(f"  ★ DETECTED MISSION: map_size={state.mission_profile.map_size}, "
@@ -414,11 +415,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Only rotate if we're not making exploration progress AND time limit exceeded
         # This ensures we don't abandon a productive quadrant prematurely
         steps_in_quadrant = state.step_count - state.quadrant_start_step
-        no_recent_progress = state.step_count - state.last_exploration_progress_step > state.steps_per_quadrant // 2
+        # BUG FIX #7: Calculate max_steps first, then use it for progress threshold
+        max_steps_per_quadrant = min(state.steps_per_quadrant, 200)  # Cap at 200 steps/quadrant
+        no_recent_progress = state.step_count - state.last_exploration_progress_step > max_steps_per_quadrant // 2
 
         # CRITICAL FIX for quadrant_buildings: Force quadrant rotation to ensure coverage
-        # Reduce time per quadrant for better coverage on quadrant-specific missions
-        max_steps_per_quadrant = min(state.steps_per_quadrant, 200)  # Cap at 200 steps/quadrant
+        # Only rotate if we've been in quadrant long enough AND haven't made progress recently
         if steps_in_quadrant > max_steps_per_quadrant and no_recent_progress:
             state.exploration_quadrant = (state.exploration_quadrant + 1) % 4
             state.quadrant_start_step = state.step_count
@@ -621,8 +623,27 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Energy decreased by exactly 1 → move succeeded
                 return True
             elif state.energy > state.prev_energy:
-                # Energy INCREASED (from charger) → move probably succeeded
-                # Can't verify with energy, rely on landmark verification
+                # BUG FIX #12: Energy can increase from sources other than chargers
+                # (protocol rewards, environmental effects, shared energy variants)
+                # Verify we're actually on a charger before assuming move succeeded
+                if state.current_obs and state.current_obs.tokens:
+                    center_pos = (self._obs_hr, self._obs_wr)
+                    on_charger = False
+                    for tok in state.current_obs.tokens:
+                        if tok.location == center_pos and tok.feature.name == "tag":
+                            tag_name = self._tag_names.get(tok.value, "").lower()
+                            if "charger" in tag_name:
+                                on_charger = True
+                                break
+
+                    if on_charger:
+                        # On charger - energy increase is expected, move likely succeeded
+                        pass  # Continue to landmark verification
+                    else:
+                        # Not on charger but energy increased - unusual
+                        # Could be protocol reward or other effect
+                        self._logger.debug(f"  VERIFY: Energy increased without charger (prev={state.prev_energy}, now={state.energy})")
+                        # Continue to landmark verification to be safe
                 pass
             # Note: If energy decreased but not by exactly 1, something else happened
             # (e.g., energy drain). Continue to landmark verification.
@@ -1104,6 +1125,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             else:
                 # Otherwise, set vibe to target resource for extraction
                 target_resource = self._get_target_resource(state)
+                # BUG FIX #13: If target_resource is None, cycle through needed resources instead of using "default"
+                if target_resource is None:
+                    # Cycle through all resource types
+                    deficits = self._calculate_deficits(state)
+                    needed_resources = [r for r in ["carbon", "oxygen", "germanium", "silicon"] if deficits.get(r, 0) > 0]
+                    if needed_resources:
+                        # Cycle based on step count
+                        target_resource = needed_resources[state.step_count % len(needed_resources)]
+                    else:
+                        # No deficits - default to carbon
+                        target_resource = "carbon"
+
                 if target_resource and target_resource in RESOURCE_VIBES:
                     vibe = RESOURCE_VIBES[target_resource]
                 else:
@@ -2160,6 +2193,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if self.map_manager is None:
             return None
 
+        # BUG FIX: Safety check for map_manager.grid
+        if self.map_manager.grid is None:
+            self._logger.error(f"  PATHFIND: MapManager grid is None! Falling back to greedy")
+            return None
+
         # DEBUG: Check target cell type
         from .map import MapCellType
         target_cell = self.map_manager.grid[target[0]][target[1]]
@@ -2221,15 +2259,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             if 0 <= next_r < state.map_height and 0 <= next_c < state.map_width:
                 next_cell = self.map_manager.grid[next_r][next_c]
+                # BUG FIX #4: Don't suggest moves into known WALL or DEAD_END cells
                 # Allow moving into FREE or UNKNOWN cells (explore toward target)
                 from .map import MapCellType
                 if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
-                    # FIX: Also check observation to ensure cell is actually clear
+                    # Also check observation to ensure cell is actually clear
                     if self._is_direction_clear_in_obs(state, primary_dir):
                         self._logger.info(f"  PATHFIND: Using greedy fallback {primary_dir} toward {target} (cell={next_cell.name})")
                         return primary_dir
                     else:
                         self._logger.debug(f"  PATHFIND: Greedy {primary_dir} blocked in observation despite map showing {next_cell.name}")
+                elif next_cell in (MapCellType.WALL, MapCellType.DEAD_END):
+                    self._logger.debug(f"  PATHFIND: Greedy {primary_dir} blocked by {next_cell.name} in map")
 
             # Try perpendicular directions
             alt_directions = []
@@ -2243,8 +2284,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 next_r, next_c = state.row + adr, state.col + adc
                 if 0 <= next_r < state.map_height and 0 <= next_c < state.map_width:
                     next_cell = self.map_manager.grid[next_r][next_c]
+                    # BUG FIX #4: Don't suggest moves into known WALL or DEAD_END cells
                     if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
-                        # FIX: Also check observation to ensure cell is actually clear
+                        # Also check observation to ensure cell is actually clear
                         if self._is_direction_clear_in_obs(state, alt_dir):
                             self._logger.info(f"  PATHFIND: Using greedy fallback {alt_dir} toward {target} (perpendicular)")
                             return alt_dir
@@ -2259,16 +2301,65 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         dr = next_pos[0] - state.row
         dc = next_pos[1] - state.col
 
+        # Determine direction from delta
+        direction = None
         if dr == -1:
-            return "north"
+            direction = "north"
         elif dr == 1:
-            return "south"
+            direction = "south"
         elif dc == -1:
-            return "west"
+            direction = "west"
         elif dc == 1:
-            return "east"
+            direction = "east"
 
-        return None  # Invalid move
+        if direction is None:
+            return None  # Invalid move
+
+        # BUG FIX #1: CRITICAL - Validate path's next step with current observation
+        # The path was computed using MapManager (stale map), but current observation
+        # may show dynamic obstacles (other agents) that make the path invalid
+        if not self._is_direction_clear_in_obs(state, direction):
+            self._logger.warning(f"  PATHFIND: Path step {direction} to {next_pos} BLOCKED in observation, invalidating cache and using greedy")
+            # Invalidate cached path since it's blocked
+            state.cached_path = None
+            state.cached_path_target = None
+
+            # Fall back to greedy navigation
+            dr_target = target[0] - state.row
+            dc_target = target[1] - state.col
+
+            # Try primary direction (larger delta)
+            if abs(dr_target) > abs(dc_target):
+                primary_dir = "north" if dr_target < 0 else "south"
+            else:
+                primary_dir = "east" if dc_target > 0 else "west"
+
+            dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+
+            # Try primary direction
+            if self._is_direction_clear_in_obs(state, primary_dir):
+                self._logger.info(f"  PATHFIND: Using greedy fallback {primary_dir} toward {target}")
+                return primary_dir
+
+            # Try perpendicular directions
+            alt_directions = []
+            if abs(dr_target) > abs(dc_target):
+                alt_directions = ["east" if dc_target > 0 else "west", "west" if dc_target > 0 else "east"]
+            else:
+                alt_directions = ["north" if dr_target < 0 else "south", "south" if dr_target < 0 else "north"]
+
+            for alt_dir in alt_directions:
+                if self._is_direction_clear_in_obs(state, alt_dir):
+                    self._logger.info(f"  PATHFIND: Using greedy fallback {alt_dir} toward {target} (perpendicular)")
+                    return alt_dir
+
+            # All directions blocked
+            self._logger.warning(f"  PATHFIND: All directions blocked in observation")
+            return None
+
+        # Path is valid - use it!
+        self._logger.debug(f"  PATHFIND: Validated path step {direction} to {next_pos}")
+        return direction
 
     def _move_towards(
         self, state: HarvestState, target: tuple[int, int], reach_adjacent: bool = False, station_name: str | None = None
@@ -2563,6 +2654,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         best_direction = max(direction_scores, key=lambda x: x[1])[0]
 
         # OSCILLATION FIX: Track committed direction for momentum
+        # BUG FIX #5: Reset commitment when making good progress (found objects, explored significant area)
+        current_explored = len(state.explored_cells)
+        if hasattr(state, '_last_commitment_check_explored'):
+            progress_since_commit = current_explored - state._last_commitment_check_explored
+            if progress_since_commit > 50:  # Significant progress - reset to allow new directions
+                self._logger.info(f"  EXPLORE: Resetting direction commitment (explored +{progress_since_commit} cells)")
+                state.committed_exploration_direction = None
+                state.committed_direction_steps = 0
+        state._last_commitment_check_explored = current_explored
+
         if best_direction == state.committed_exploration_direction:
             # Continuing in same direction - increment counter
             state.committed_direction_steps += 1
@@ -2608,30 +2709,43 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Only re-evaluate when we get close, stuck, or commitment expires
             committed_target = state.committed_frontier_target
             if committed_target and state.frontier_target_commitment_steps > 0:
-                # Check if we're close to the target (within 3 cells)
-                dist_to_target = abs(committed_target[0] - state.row) + abs(committed_target[1] - state.col)
-                if dist_to_target <= 3:
-                    # Close enough - clear commitment and find new target
-                    self._logger.info(f"Step {state.step_count}: EXPLORE: Reached committed frontier {committed_target}, clearing commitment")
+                # BUG FIX #2: Validate frontier target hasn't become WALL or DEAD_END
+                # Frontiers can be marked as WALL after commitment when agent gets closer
+                from .map import MapCellType
+                target_cell = self.map_manager.grid[committed_target[0]][committed_target[1]]
+                if target_cell in (MapCellType.WALL, MapCellType.DEAD_END):
+                    self._logger.warning(f"Step {state.step_count}: EXPLORE: Committed frontier {committed_target} became {target_cell.name}, clearing commitment")
                     state.committed_frontier_target = None
                     state.frontier_target_commitment_steps = 0
-                # CRITICAL: Clear commitment if stuck to avoid oscillating on unreachable frontiers
-                elif state.consecutive_failed_moves >= 5:
-                    self._logger.warning(f"Step {state.step_count}: EXPLORE: STUCK ({state.consecutive_failed_moves} fails) while pursuing frontier {committed_target}, clearing commitment to find alternate target")
-                    state.committed_frontier_target = None
-                    state.frontier_target_commitment_steps = 0
-                else:
-                    # Still far away and not stuck - continue toward committed target
-                    direction = self._navigate_to_with_mapmanager(state, committed_target, reach_adjacent=False)
-                    if direction and self._is_direction_clear_in_obs(state, direction):
-                        state.frontier_target_commitment_steps -= 1
-                        self._logger.debug(f"Step {state.step_count}: EXPLORE: Continuing toward committed frontier {committed_target} ({dist_to_target} away, {state.frontier_target_commitment_steps} steps left)")
-                        return self._actions.move.Move(direction)
-                    else:
-                        # Path blocked - clear commitment and find new target
-                        self._logger.info(f"Step {state.step_count}: EXPLORE: Path to committed frontier {committed_target} blocked, clearing commitment")
+                    committed_target = None  # Clear for subsequent checks
+
+                # BUG FIX: Only proceed with navigation if committed_target is still valid (not cleared above)
+                if committed_target is not None:
+                    # Check if we're close to the target (within 3 cells)
+                    dist_to_target = abs(committed_target[0] - state.row) + abs(committed_target[1] - state.col)
+
+                    if dist_to_target <= 3:
+                        # Close enough - clear commitment and find new target
+                        self._logger.info(f"Step {state.step_count}: EXPLORE: Reached committed frontier {committed_target}, clearing commitment")
                         state.committed_frontier_target = None
                         state.frontier_target_commitment_steps = 0
+                    # CRITICAL: Clear commitment if stuck to avoid oscillating on unreachable frontiers
+                    elif state.consecutive_failed_moves >= 5:
+                        self._logger.warning(f"Step {state.step_count}: EXPLORE: STUCK ({state.consecutive_failed_moves} fails) while pursuing frontier {committed_target}, clearing commitment to find alternate target")
+                        state.committed_frontier_target = None
+                        state.frontier_target_commitment_steps = 0
+                    else:
+                        # Still far away and not stuck - continue toward committed target
+                        direction = self._navigate_to_with_mapmanager(state, committed_target, reach_adjacent=False)
+                        if direction and self._is_direction_clear_in_obs(state, direction):
+                            state.frontier_target_commitment_steps -= 1
+                            self._logger.debug(f"Step {state.step_count}: EXPLORE: Continuing toward committed frontier {committed_target} ({dist_to_target} away, {state.frontier_target_commitment_steps} steps left)")
+                            return self._actions.move.Move(direction)
+                        else:
+                            # Path blocked - clear commitment and find new target
+                            self._logger.info(f"Step {state.step_count}: EXPLORE: Path to committed frontier {committed_target} blocked, clearing commitment")
+                            state.committed_frontier_target = None
+                            state.frontier_target_commitment_steps = 0
 
             # Need to find new frontier target (no commitment or commitment cleared)
             # CRITICAL FIX: Find ALL frontier candidates and try pathfinding to each
@@ -2786,12 +2900,24 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         dr, dc = dir_offsets[direction]
         target_obs_pos = (self._obs_hr + dr, self._obs_wr + dc)
 
+        # DEBUG: Log ALL tags we see in first 100 steps to understand tag name format
+        if state.step_count < 100:
+            all_tags_at_pos = []
+            for tok in state.current_obs.tokens:
+                if tok.location == target_obs_pos and tok.feature.name == "tag":
+                    tag_name = self._tag_names.get(tok.value, "")
+                    all_tags_at_pos.append(tag_name)
+            if all_tags_at_pos:
+                self._logger.info(f"  TAG_DEBUG: Step {state.step_count}, checking {direction}, tags at {target_obs_pos}: {all_tags_at_pos}")
+
         # Check all tokens at the target position
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
                 # Block ONLY on true obstacles: walls and agents
-                if "wall" in tag_name or tag_name == "agent":
+                # FIX: Check if "agent" is IN tag_name to catch Agent0, Agent1, etc.
+                if "wall" in tag_name or "agent" in tag_name:
+                    self._logger.info(f"  OBS_CHECK: Blocking {direction} - found tag '{tag_name}' at {target_obs_pos}")
                     return False
 
         # No blocking object found - path is clear
@@ -2858,9 +2984,28 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         if not frontier_candidates:
             return []
 
-        # Sort by distance and return top N
+        # FIX: Encourage full map exploration by mixing near and far frontiers
+        # Always exploring nearest frontiers leads to incomplete coverage
+        # Strategy: Return mix of closest and farthest frontiers
         frontier_candidates.sort(key=lambda x: x[0])
-        return [(r, c) for (_, r, c) in frontier_candidates[:max_candidates]]
+
+        # Take closest frontiers
+        num_near = max_candidates // 2
+        near_frontiers = frontier_candidates[:num_near]
+
+        # Take farthest frontiers to encourage breadth
+        num_far = max_candidates - num_near
+        far_frontiers = frontier_candidates[-num_far:] if len(frontier_candidates) > num_near else []
+
+        # Alternate near/far for diversity: near, far, near, far, ...
+        result = []
+        for i in range(max(len(near_frontiers), len(far_frontiers))):
+            if i < len(near_frontiers):
+                result.append(near_frontiers[i])
+            if i < len(far_frontiers):
+                result.append(far_frontiers[i])
+
+        return [(r, c) for (_, r, c) in result[:max_candidates]]
 
     def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
         """Find explored cells that are adjacent to unexplored cells (frontier)."""

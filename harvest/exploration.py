@@ -137,6 +137,9 @@ class ExplorationManager:
         in the movement history. This prevents re-entering the same corridor
         from further back.
 
+        BUG FIX #8: Don't mark positions with 3+ passable neighbors (junctions)
+        to avoid trapping the agent.
+
         Args:
             state: Current agent state (will be modified)
         """
@@ -148,11 +151,28 @@ class ExplorationManager:
             if pos not in state.dead_end_positions:
                 positions_to_mark.append(pos)
 
-        # Add all positions to dead-end set
+        # Add positions to dead-end set, but skip junctions (3+ clear neighbors)
+        marked_count = 0
         for pos in positions_to_mark:
-            state.dead_end_positions.add(pos)
+            # Count passable neighbors
+            passable_neighbors = 0
+            for direction in ["north", "south", "east", "west"]:
+                # Temporarily set state position to check from this pos
+                original_row, original_col = state.row, state.col
+                state.row, state.col = pos[0], pos[1]
 
-        return len(positions_to_mark)
+                if self._is_direction_clear(state, direction):
+                    passable_neighbors += 1
+
+                # Restore original position
+                state.row, state.col = original_row, original_col
+
+            # Only mark as dead-end if it's not a junction (< 3 neighbors)
+            if passable_neighbors < 3:
+                state.dead_end_positions.add(pos)
+                marked_count += 1
+
+        return marked_count
 
     def _is_direction_clear(self, state: HarvestState, direction: str) -> bool:
         """Check if direction is clear in observation.
@@ -174,7 +194,15 @@ class ExplorationManager:
         # Check all tokens at target position
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
-                tag_name = self._tag_names.get(tok.value, "").lower()
+                # Handle both list and dict for tag_names (list during __init__, dict after initial_agent_state)
+                if isinstance(self._tag_names, dict):
+                    tag_name = self._tag_names.get(tok.value, "").lower()
+                elif isinstance(self._tag_names, list):
+                    # tag_names is a list - use index lookup
+                    tag_name = self._tag_names[tok.value].lower() if tok.value < len(self._tag_names) else ""
+                else:
+                    tag_name = ""
+
                 # Block on walls and agents only
                 if "wall" in tag_name or tag_name == "agent":
                     return False
