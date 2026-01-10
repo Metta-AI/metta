@@ -12,7 +12,7 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
-from mettagrid.util.file import write_file
+from mettagrid.util.file import local_copy, write_file
 from mettagrid.util.uri_resolvers.schemes import resolve_uri
 
 logger = logging.getLogger(__name__)
@@ -140,6 +140,9 @@ class CheckpointManager:
                     for file_path in checkpoint_dir.rglob("*"):
                         if file_path.is_file():
                             zipf.write(file_path, arcname=file_path.relative_to(checkpoint_dir))
+                    trainer_state_path = self.checkpoint_dir / "trainer_state.pt"
+                    if trainer_state_path.exists():
+                        zipf.write(trainer_state_path, arcname="trainer_state.pt")
                 write_file(remote_zip, str(zip_path), content_type="application/zip")
             finally:
                 zip_path.unlink(missing_ok=True)
@@ -149,11 +152,37 @@ class CheckpointManager:
         logger.debug("Policy checkpoint saved locally to %s", checkpoint_dir.as_uri())
         return checkpoint_dir.as_uri()
 
-    def load_trainer_state(self) -> Optional[Dict[str, Any]]:
+    def load_trainer_state(self, policy_uri: str | None = None) -> Optional[Dict[str, Any]]:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
-        if not trainer_file.exists():
+        if trainer_file.exists():
+            return torch.load(trainer_file, map_location="cpu", weights_only=False)
+        if not policy_uri:
             return None
-        return torch.load(trainer_file, map_location="cpu", weights_only=False)
+
+        try:
+            parsed = resolve_uri(policy_uri)
+        except ValueError as exc:
+            logger.debug("Skipping trainer state for %s: %s", policy_uri, exc)
+            return None
+
+        if parsed.local_path and parsed.local_path.is_dir():
+            trainer_path = parsed.local_path / "trainer_state.pt"
+            if trainer_path.exists():
+                return torch.load(trainer_path, map_location="cpu", weights_only=False)
+            return None
+
+        if not parsed.canonical.endswith(".zip"):
+            return None
+
+        try:
+            with local_copy(parsed.canonical) as local_path, zipfile.ZipFile(local_path, "r") as zipf:
+                with zipf.open("trainer_state.pt") as handle:
+                    return torch.load(handle, map_location="cpu", weights_only=False)
+        except KeyError:
+            return None
+        except (OSError, zipfile.BadZipFile) as exc:
+            logger.debug("Failed to read trainer state from %s: %s", parsed.canonical, exc)
+            return None
 
     def save_trainer_state(
         self,
