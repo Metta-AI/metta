@@ -301,6 +301,7 @@ def policy_spec_from_uri(
     if uri.startswith("metta://policy/"):
         from mettagrid.policy.loader import discover_and_register_policies
         from mettagrid.policy.policy_registry import get_policy_registry
+        from mettagrid.util.module import load_symbol
 
         identifier = uri[len("metta://policy/") :]
         discover_and_register_policies()
@@ -312,8 +313,6 @@ def policy_spec_from_uri(
         # Check if it looks like a full class path and is importable.
         # Otherwise, fall through to metta scheme resolution (e.g., policy names with dots).
         if "." in identifier and ":v" not in identifier and not identifier.endswith(":latest"):
-            from mettagrid.util.module import load_symbol
-
             if load_symbol(identifier, strict=False) is not None:
                 return PolicySpec(class_path=identifier)
 
