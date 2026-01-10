@@ -23,15 +23,6 @@ class PolicyVersionInfo(BaseModel):
     version: int
 
 
-class PolicyVersionDetails(BaseModel):
-    id: uuid.UUID
-    policy_id: uuid.UUID
-    version: int
-    s3_path: str | None
-    policy_spec: dict[str, Any]
-    name: str
-
-
 class PoolInfo(BaseModel):
     name: str
     description: str
@@ -173,22 +164,6 @@ class TournamentServerClient:
         entries = result.get("entries", [])
         return [PolicyVersionInfo.model_validate(e) for e in entries]
 
-    def get_policy_versions(
-        self,
-        name: str | None = None,
-        version: int | None = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> list[PolicyVersionInfo]:
-        params: dict[str, Any] = {"limit": limit, "offset": offset}
-        if name is not None:
-            params["name_exact"] = name
-        if version is not None:
-            params["version"] = version
-        result = self._get("/stats/policy-versions", params=params)
-        entries = result.get("entries", [])
-        return [PolicyVersionInfo.model_validate(e) for e in entries]
-
     def lookup_policy_version(
         self,
         name: str,
@@ -197,19 +172,8 @@ class TournamentServerClient:
         versions = self.get_my_policy_versions(name=name, version=version)
         return versions[0] if versions else None
 
-    def lookup_policy_version_by_name(
-        self,
-        name: str,
-        version: int | None = None,
-    ) -> PolicyVersionInfo | None:
-        versions = self.get_policy_versions(name=name, version=version, limit=1)
-        return versions[0] if versions else None
-
     def get_policy_version(self, policy_version_id: uuid.UUID) -> PolicyVersionInfo:
         return self._get(f"/stats/policy-versions/{policy_version_id}", PolicyVersionInfo)
-
-    def get_policy_version_details(self, policy_version_id: uuid.UUID) -> PolicyVersionDetails:
-        return self._get(f"/stats/policies/versions/{policy_version_id}", PolicyVersionDetails)
 
     def submit_to_season(self, season_name: str, policy_version_id: uuid.UUID) -> SubmitToSeasonResponse:
         return self._post(
