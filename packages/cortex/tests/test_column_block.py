@@ -1,3 +1,4 @@
+import pytest
 import torch
 from cortex import (
     AxonLayer,
@@ -16,6 +17,7 @@ from cortex import (
     mLSTMCellConfig,
     sLSTMCellConfig,
 )
+from cortex.cuda_utils import is_cuda_supported
 
 
 def _stack_with_column(d_hidden: int = 64, k: int = 3):
@@ -141,6 +143,11 @@ def test_auto_config_axonify_flags():
 
 
 def test_auto_block_forward_and_state():
+    # Devices with unsupported capability will fail
+    # on the initialization of the GPU Context
+    if not is_cuda_supported():
+        pytest.skip("CUDA not supported")
+
     d_hidden = 32
     block = build_column_auto_block(d_hidden=d_hidden, pattern="AXMSM^X^S^")
     B, T = 2, 5

@@ -7,6 +7,7 @@ from typing import ClassVar, Literal
 import numpy as np
 from pydantic import ConfigDict, Field
 
+from metta.common.cuda_utils import is_cuda_supported
 from mettagrid.base_config import Config
 
 
@@ -14,9 +15,7 @@ def guess_device() -> str:
     if platform.system() == "Darwin":
         return "mps"
 
-    import torch  # Lazy import: torch is heavy and not needed at module load time
-
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         return "cpu"
 
     local_rank = 0

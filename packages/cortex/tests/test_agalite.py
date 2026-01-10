@@ -8,12 +8,13 @@ import pytest
 import torch
 from cortex.cells.agalite import AGaLiTeCell
 from cortex.config import AGaLiTeCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.agalite import discounted_sum_pytorch
 from tensordict import TensorDict
 
 
 def _device():
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    return torch.device("cuda" if is_cuda_supported() else "cpu")
 
 
 # ---------------------------- Kernel-level tests ----------------------------
@@ -58,7 +59,7 @@ def test_discounted_sum_pytorch_shapes_and_broadcast(T: int, B: int, Nextra: int
 @pytest.mark.cuda
 @pytest.mark.parametrize("shape_case", [(6, 5, 2, 3), (3, 2, 1, 7)])
 def test_discounted_sum_cuda_parity(shape_case) -> None:
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         pytest.skip("CUDA not available")
 
     T, B, R, D = shape_case

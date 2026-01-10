@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from metta.common.cuda_utils import is_cuda_supported
 from metta.rl.advantage import compute_delta_lambda, td_lambda_reverse_scan_cuda, td_lambda_reverse_scan_pytorch
 
 
@@ -58,7 +59,7 @@ def test_td_lambda_error_is_differentiable_wrt_values() -> None:
 
 
 def test_td_lambda_reverse_scan_cuda_matches_pytorch() -> None:
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         pytest.skip("CUDA not available")
 
     device = torch.device("cuda")

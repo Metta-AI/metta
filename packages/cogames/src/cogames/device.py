@@ -3,6 +3,8 @@
 import torch
 from rich.console import Console
 
+from cogames.cuda_utils import is_cuda_supported
+
 
 def resolve_training_device(console: Console, requested: str) -> torch.device:
     normalized = requested.strip().lower()
@@ -13,7 +15,7 @@ def resolve_training_device(console: Console, requested: str) -> torch.device:
             return False
         if not hasattr(torch._C, "_cuda_getDeviceCount"):
             return False
-        return torch.cuda.is_available()
+        return is_cuda_supported()
 
     if normalized == "auto":
         if cuda_usable():

@@ -4,13 +4,14 @@ import pytest
 import torch
 from cortex.cells.lstm import LSTMCell
 from cortex.config import LSTMCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.lstm import lstm_sequence_pytorch
 from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
     """Get the appropriate device for testing (CUDA if available, else CPU)."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     print(f"Using device: {device}")
     return device
 
@@ -165,7 +166,7 @@ def test_lstm_state_reset():
     assert torch.allclose(new_c[2:], state["c"][2:])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available() or not TRITON_AVAILABLE, reason="Triton backend unavailable")
+@pytest.mark.skipif(not is_cuda_supported() or not TRITON_AVAILABLE, reason="Triton backend unavailable")
 def test_lstm_reset_forward_backward_match_backends():
     """Ensure Triton reset behaviour matches PyTorch forward/backward on CUDA."""
     from cortex.kernels.triton.lstm import lstm_sequence_triton
@@ -299,7 +300,7 @@ if __name__ == "__main__":
     test_lstm_multi_layer_unsupported()
     test_lstm_projection_unsupported()
     test_lstm_state_reset()
-    if torch.cuda.is_available() and TRITON_AVAILABLE:
+    if is_cuda_supported() and TRITON_AVAILABLE:
         test_lstm_reset_forward_backward_match_backends()
     test_lstm_with_resets()
     test_lstm_gradient_flow()

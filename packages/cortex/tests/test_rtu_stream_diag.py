@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.rtu.rtu_stream_diag import rtu_stream_diag_pytorch
 
 try:
@@ -288,7 +289,7 @@ def test_streaming_vs_whole_grad_parity_with_resets() -> None:
         )
 
 
-@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.skipif(not _HAS_TRITON or not is_cuda_supported(), reason="Triton+CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> None:
     """Compare Triton streaming diagonal kernel to PyTorch reference.
@@ -374,7 +375,7 @@ def test_triton_streaming_diag_forward_and_grad_parity(with_resets: bool) -> Non
         )
 
 
-@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.skipif(not _HAS_TRITON or not is_cuda_supported(), reason="Triton+CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool) -> None:
     """Parity when processing the sequence in chunks (Triton vs whole PyTorch).
@@ -501,7 +502,7 @@ def test_triton_streaming_diag_chunked_forward_and_grad_parity(with_resets: bool
                 )
 
 
-@pytest.mark.skipif(not _HAS_CUDA_SEQ or not torch.cuda.is_available(), reason="CUDA extension required")
+@pytest.mark.skipif(not _HAS_CUDA_SEQ or not is_cuda_supported(), reason="CUDA extension required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_cuda_seq_streaming_diag_forward_and_grad_parity(with_resets: bool) -> None:
     """Compare CUDA all-in sequential kernel to PyTorch streaming diag.
@@ -583,7 +584,7 @@ def test_cuda_seq_streaming_diag_forward_and_grad_parity(with_resets: bool) -> N
         )
 
 
-@pytest.mark.skipif(not _HAS_CUDA_SEQ or not torch.cuda.is_available(), reason="CUDA extension required")
+@pytest.mark.skipif(not _HAS_CUDA_SEQ or not is_cuda_supported(), reason="CUDA extension required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> None:
     """CUDA-vs-CUDA parity: whole sequence vs chunked streaming.
@@ -704,7 +705,7 @@ def test_cuda_seq_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> N
                 assert torch.allclose(gw, gs, rtol=rtol, atol=atol), msg
 
 
-@pytest.mark.skipif(not _HAS_TRITON or not torch.cuda.is_available(), reason="Triton+CUDA required")
+@pytest.mark.skipif(not _HAS_TRITON or not is_cuda_supported(), reason="Triton+CUDA required")
 @pytest.mark.parametrize("with_resets", [False, True])
 def test_triton_streaming_diag_whole_vs_chunked_parity(with_resets: bool) -> None:
     """Triton-vs-Triton parity: whole sequence vs chunked streaming.

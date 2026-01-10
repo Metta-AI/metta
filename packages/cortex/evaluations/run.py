@@ -9,6 +9,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 
 import torch
 import torch.nn as nn
+from cortex.cuda_utils import is_cuda_supported
 from cortex.stacks import CortexStack
 from cortex.torch_init import enable_determinism, seed_everything
 from model import SequenceClassifier  # type: ignore[import-not-found]
@@ -715,7 +716,7 @@ def main() -> None:
     seed_everything(args.seed)
     if args.deterministic:
         enable_determinism()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     logging.info("device=%s seed=%d", device, args.seed)
 
     task = make_task(args.task, num_samples=args.num_samples, seed=args.seed)

@@ -7,6 +7,7 @@ import torch
 import torch.distributed
 
 from metta.agent.policy import DistributedPolicy
+from metta.common.cuda_utils import is_cuda_supported
 from metta.common.util.log_config import getRankAwareLogger
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -52,7 +53,7 @@ class DistributedHelper:
 
     def _setup_torch_optimizations(self) -> None:
         """Configure PyTorch for optimal performance."""
-        if torch.cuda.is_available():
+        if is_cuda_supported():
             torch.backends.cuda.enable_flash_sdp(True)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
             torch.backends.cuda.enable_math_sdp(True)

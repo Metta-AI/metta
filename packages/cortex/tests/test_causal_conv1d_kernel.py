@@ -6,13 +6,14 @@ reference implementation, verifying both forward and backward passes.
 
 import pytest
 import torch
+from cortex.cuda_utils import is_cuda_supported
 from cortex.kernels.pytorch.conv1d import causal_conv1d_pytorch
 from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
     """Get the appropriate device for testing (CUDA if available, else CPU)."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     print(f"Using device: {device}")
     return device
 
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     # Run tests manually
     print("Testing causal conv1d kernel implementations...")
 
-    if TRITON_AVAILABLE and torch.cuda.is_available():
+    if TRITON_AVAILABLE and is_cuda_supported():
         print("\n=== Testing Triton forward pass ===")
         test_causal_conv1d_triton_vs_pytorch_forward()
         print("✓ Forward pass test passed")

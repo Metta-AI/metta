@@ -13,6 +13,7 @@ from cortex.blocks import ColumnBlock, build_block
 from cortex.blocks.base import BaseBlock
 from cortex.cells import build_cell
 from cortex.config import CortexStackConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.types import MaybeState, ResetMask, Tensor
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class CortexStack(nn.Module):
         self._compiled_blocks: list | None = None
 
         compile_requested = bool(getattr(cfg, "compile_blocks", False))
-        if compile_requested and not torch.cuda.is_available():
+        if compile_requested and not is_cuda_supported():
             logger.warning("Disabling block compilation for CortexStack: running on CPU.")
             compile_requested = False
 

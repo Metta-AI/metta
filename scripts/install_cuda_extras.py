@@ -15,6 +15,8 @@ import subprocess
 import sys
 from typing import Iterable
 
+from metta.common.cuda_utils import is_cuda_supported
+
 # Mapping from CUDA version reported by PyTorch to preferred wheel tags in the
 # PyTorch extra index. We include a couple of fallbacks for neighbouring
 # versions to maximise the chance of finding a matching wheel.
@@ -117,7 +119,7 @@ def main() -> int:
 
     # Optionally narrow compiled architectures to all visible GPUs.
     try:
-        assert torch.cuda.is_available()
+        assert is_cuda_supported()
         caps = sorted(
             {f"{m}.{n}" for i in range(torch.cuda.device_count()) for (m, n) in [torch.cuda.get_device_capability(i)]}
         )

@@ -4,11 +4,12 @@ import torch
 from cortex.blocks import PostUpBlock
 from cortex.cells.slstm import sLSTMCell
 from cortex.config import PostUpBlockConfig, sLSTMCellConfig
+from cortex.cuda_utils import is_cuda_supported
 
 
 def get_test_device():
     """Get the appropriate device for testing (CUDA if available, else CPU)."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     print(f"Using device: {device}")
     return device
 
@@ -506,7 +507,7 @@ def test_slstm_triton_vs_pytorch_with_resets() -> None:
     dtype = torch.float32
 
     # Skip if not on CUDA (Triton only runs on CUDA)
-    if not torch.cuda.is_available():
+    if not is_cuda_supported():
         print("⊘ Skipping Triton vs PyTorch resets test (CUDA not available)")
         return
 

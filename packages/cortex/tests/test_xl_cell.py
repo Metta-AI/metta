@@ -8,6 +8,7 @@ import pytest
 import torch
 from cortex.cells.xl import XLCell
 from cortex.config import AxonConfig, XLCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from tensordict import TensorDict
 
 _RUN_SLOW = os.getenv("RUN_SLOW_CORTEX_TESTS", "0").lower() in {"1", "true", "yes", "y", "on"}
@@ -19,7 +20,7 @@ pytestmark = (
 
 
 def get_test_device():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     print(f"Using device: {device}")
     return device
 

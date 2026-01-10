@@ -5,12 +5,13 @@ import torch
 from cortex.blocks import PreUpBlock
 from cortex.cells.mlstm import mLSTMCell
 from cortex.config import PreUpBlockConfig, mLSTMCellConfig
+from cortex.cuda_utils import is_cuda_supported
 from cortex.utils import TRITON_AVAILABLE
 
 
 def get_test_device():
     """Get the appropriate device for testing (CUDA if available, else CPU)."""
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if is_cuda_supported() else "cpu")
     print(f"Using device: {device}")
     return device
 
