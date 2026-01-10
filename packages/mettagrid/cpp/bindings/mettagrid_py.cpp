@@ -89,6 +89,18 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
       obj_dict["inventory"] = inventory_dict;
     }
 
+    // Add collective_id for alignable objects
+    Collective* collective = obj->getCollective();
+    if (collective != nullptr) {
+      // Find the index of this collective in _collectives
+      for (size_t i = 0; i < _collectives.size(); i++) {
+        if (_collectives[i].get() == collective) {
+          obj_dict["collective_id"] = static_cast<int>(i);
+          break;
+        }
+      }
+    }
+
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["group_id"] = agent->group;

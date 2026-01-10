@@ -12,9 +12,6 @@ from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
 from mettagrid.mettagrid_c import AlignmentCondition as CppAlignmentCondition
 from mettagrid.mettagrid_c import AlignmentFilterConfig as CppAlignmentFilterConfig
-from mettagrid.mettagrid_c import AOEAlignmentFilter as CppAOEAlignmentFilter
-from mettagrid.mettagrid_c import AOEConfig as CppAOEConfig
-from mettagrid.mettagrid_c import AOEResourceDelta as CppAOEResourceDelta
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
@@ -35,51 +32,6 @@ from mettagrid.mettagrid_c import ResourceFilterConfig as CppResourceFilterConfi
 from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
-
-
-def _convert_aoe_configs(aoe_configs, resource_name_to_id, tag_name_to_id):
-    """Convert Python AOEEffectConfig list to C++ AOEConfig list.
-
-    Args:
-        aoe_configs: List of AOEEffectConfig from Python
-        resource_name_to_id: Dict mapping resource names to IDs
-        tag_name_to_id: Dict mapping tag names to IDs
-
-    Returns:
-        List of CppAOEConfig objects
-    """
-    cpp_aoes = []
-    for aoe in aoe_configs:
-        cpp_aoe = CppAOEConfig()
-        cpp_aoe.radius = aoe.range
-
-        # Convert resource deltas
-        deltas = []
-        for resource_name, delta in aoe.resource_deltas.items():
-            if resource_name in resource_name_to_id:
-                deltas.append(CppAOEResourceDelta(resource_name_to_id[resource_name], delta))
-        cpp_aoe.deltas = deltas
-
-        # Convert target tags
-        if aoe.target_tags:
-            cpp_aoe.target_tag_ids = [tag_name_to_id[tag] for tag in aoe.target_tags if tag in tag_name_to_id]
-
-        # Convert alignment filter from the filters list
-        # The C++ side only supports a single alignment filter, so we extract it
-        cpp_aoe.alignment_filter = CppAOEAlignmentFilter.any
-        for filter_config in aoe.filters:
-            # Check filter type by attribute (avoid circular import)
-            if hasattr(filter_config, "alignment"):
-                from mettagrid.config.handler_config import AlignmentCondition
-
-                if filter_config.alignment == AlignmentCondition.SAME_COLLECTIVE:
-                    cpp_aoe.alignment_filter = CppAOEAlignmentFilter.same_collective
-                elif filter_config.alignment == AlignmentCondition.DIFFERENT_COLLECTIVE:
-                    cpp_aoe.alignment_filter = CppAOEAlignmentFilter.different_collective
-                break  # Only use the first alignment filter
-
-        cpp_aoes.append(cpp_aoe)
-    return cpp_aoes
 
 
 def _convert_alignment_condition(alignment) -> CppAlignmentCondition:
@@ -139,6 +91,51 @@ def _convert_handlers(handlers_dict, resource_name_to_id, limit_name_to_resource
             limit_name_to_resource_ids,
             context=f"handler '{handler_name}'",
         )
+
+        cpp_handlers.append(cpp_handler)
+
+    return cpp_handlers
+
+
+def _convert_aoes_to_handlers(aoes, resource_name_to_id):
+    """Convert Python AOEEffectConfig list to C++ HandlerConfig list.
+
+    Converts the simplified AOEEffectConfig format (with resource_deltas and filters)
+    into the full Handler format that the C++ AOE system uses.
+
+    Args:
+        aoes: List of AOEEffectConfig from Python
+        resource_name_to_id: Dict mapping resource names to IDs
+
+    Returns:
+        List of CppHandlerConfig objects
+    """
+    from mettagrid.mettagrid_c import EntityRef as CppEntityRef
+    from mettagrid.mettagrid_c import ResourceDeltaMutationConfig as CppResourceDeltaMutationConfig
+
+    cpp_handlers = []
+
+    for idx, aoe in enumerate(aoes):
+        cpp_handler = CppHandlerConfig(f"aoe_{idx}")
+        cpp_handler.radius = aoe.range
+
+        # Convert filters
+        for filter_config in aoe.filters:
+            filter_type = getattr(filter_config, "filter_type", None)
+
+            if filter_type == "alignment":
+                cpp_filter = CppAlignmentFilterConfig()
+                cpp_filter.condition = _convert_alignment_condition(filter_config.alignment)
+                cpp_handler.add_alignment_filter(cpp_filter)
+
+        # Convert resource_deltas to mutations
+        for resource_name, delta in aoe.resource_deltas.items():
+            if resource_name in resource_name_to_id:
+                mutation = CppResourceDeltaMutationConfig()
+                mutation.entity = CppEntityRef.target  # AOE affects target
+                mutation.resource_id = resource_name_to_id[resource_name]
+                mutation.delta = delta
+                cpp_handler.add_resource_delta_mutation(mutation)
 
         cpp_handlers.append(cpp_handler)
 
@@ -487,6 +484,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cpp_config.aoe_handlers = _convert_handlers(
                     object_config.aoe_handlers, resource_name_to_id, limit_name_to_resource_ids
                 )
+
+            # Convert aoes (AOEEffectConfig) to AOE handlers
+            if object_config.aoes:
+                aoe_handlers_from_aoes = _convert_aoes_to_handlers(object_config.aoes, resource_name_to_id)
+                # Append to existing aoe_handlers if any
+                if cpp_config.aoe_handlers:
+                    cpp_config.aoe_handlers.extend(aoe_handlers_from_aoes)
+                else:
+                    cpp_config.aoe_handlers = aoe_handlers_from_aoes
 
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_config
