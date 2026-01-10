@@ -3,22 +3,21 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections import defaultdict
 from typing import Literal, Optional, TypeAlias
 
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
-from alo.multi_episode_runner import multi_episode_rollout
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
@@ -37,6 +36,23 @@ class RawMissionEvaluationResult(BaseModel):
     # List of action timeouts per episode for each policy
     # per_episode_timeouts[episode_idx][policy_idx] = number of timeouts for policy_idx in episode episode_idx.
     per_episode_timeouts: list[np.ndarray]
+
+
+def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
+    total = sum(proportions)
+    if total <= 0:
+        raise ValueError("Total policy proportion must be positive.")
+    fractions = [proportion / total for proportion in proportions]
+
+    ideals = [num_agents * f for f in fractions]
+    counts = [int(x) for x in ideals]
+    remaining = num_agents - sum(counts)
+
+    remainders = [(i, ideals[i] - counts[i]) for i in range(len(fractions))]
+    remainders.sort(key=lambda x: x[1], reverse=True)
+    for i in range(remaining):
+        counts[remainders[i][0]] += 1
+    return counts
 
 
 def evaluate(
@@ -69,37 +85,53 @@ def evaluate(
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
-        env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        policy_instances: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
-        ]
+        policy_counts = _compute_policy_agent_counts(env_cfg.game.num_agents, proportions)
+        assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
+        rng = np.random.default_rng(seed)
 
+        episode_results: list[EpisodeRolloutResult] = []
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
         with typer.progressbar(progress_iterable, label=progress_label) as progress:
-            iterator = iter(progress)
+            for episode_idx in progress:
+                rng.shuffle(assignments)
+                replay_path = None
+                if save_replay is not None:
+                    replay_path = f"{save_replay}/{uuid.uuid4()}.json.z"
 
-            def _progress_callback(_: int, progress_iter=iterator) -> None:
-                try:
-                    next(progress_iter)
-                except StopIteration:
-                    pass
+                job = PureSingleEpisodeSpecJob(
+                    policy_specs=policy_specs,
+                    assignments=assignments.tolist(),
+                    env=env_cfg,
+                    replay_uri=replay_path,
+                    seed=seed + episode_idx,
+                    max_action_time_ms=action_timeout_ms,
+                )
+                results, replay = run_pure_single_episode_from_specs(job, device="cpu")
 
-            rollout_payload = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=policy_instances,
-                proportions=proportions,
-                episodes=episodes,
-                max_action_time_ms=action_timeout_ms,
-                seed=seed,
-                progress_callback=_progress_callback,
-                save_replay=save_replay,
-            )
-        mission_results.append(rollout_payload)
-        # Collect replay paths from this mission
-        for episode in rollout_payload.episodes:
-            if episode.replay_path:
-                all_replay_paths.append(episode.replay_path)
+                if replay_path is not None:
+                    if replay is None:
+                        raise ValueError("No replay was generated")
+                    if replay_path.endswith(".z"):
+                        replay.set_compression("zlib")
+                    elif replay_path.endswith(".gz"):
+                        replay.set_compression("gzip")
+                    replay.write_replay(replay_path)
+                    all_replay_paths.append(replay_path)
+
+                episode_results.append(
+                    EpisodeRolloutResult(
+                        assignments=assignments.copy(),
+                        rewards=np.array(results.rewards, dtype=float),
+                        action_timeouts=np.array(results.action_timeouts, dtype=float),
+                        stats=results.stats,
+                        replay_path=replay_path,
+                        steps=results.steps,
+                        max_steps=env_cfg.game.max_steps,
+                    )
+                )
+
+        mission_results.append(MultiEpisodeRolloutResult(episodes=episode_results))
 
     summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]

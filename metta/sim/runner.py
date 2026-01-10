@@ -7,9 +7,7 @@ from alo.multi_episode_runner import multi_episode_rollout
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
 
@@ -23,22 +21,18 @@ def _run_single_simulation(
     sim_cfg = SimulationRunConfig.model_validate(simulation)
     policy_specs = [PolicySpec.model_validate(spec) for spec in policy_data]
 
-    env_interface = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
-    multi_agent_policies: list[MultiAgentPolicy] = [
-        initialize_or_load_policy(env_interface, spec, device_override) for spec in policy_specs
-    ]
-
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
 
     rollout_result = multi_episode_rollout(
         env_cfg=sim_cfg.env,
-        policies=multi_agent_policies,
+        policy_specs=policy_specs,
         episodes=sim_cfg.num_episodes,
         seed=seed,
         proportions=sim_cfg.proportions,
         save_replay=replay_dir,
         max_action_time_ms=sim_cfg.max_action_time_ms,
+        device_override=device_override,
     )
 
     return SimulationRunResult(run=sim_cfg, results=rollout_result)

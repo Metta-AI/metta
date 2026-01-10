@@ -43,7 +43,7 @@ from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from alo.multi_episode_runner import multi_episode_rollout
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from mettagrid.policy.policy import PolicySpec
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

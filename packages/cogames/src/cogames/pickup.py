@@ -1,21 +1,21 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import typer
-from alo.multi_episode_runner import multi_episode_rollout
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from rich.console import Console
 from rich.table import Table
 
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from mettagrid import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
+from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
 
 
 def make_machina1_open_world_env(
@@ -88,9 +88,7 @@ def pickup(
     pool_labels: Optional[list[str]] = None,
 ) -> None:
     env_cfg = make_machina1_open_world_env(num_cogs=num_cogs, seed=seed, map_seed=map_seed, steps=steps)
-    env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
     policy_specs = [candidate_spec, *pool_specs]
-    policies = [initialize_or_load_policy(env_interface, spec) for spec in policy_specs]
 
     scenarios: list[PickupScenario] = [
         PickupScenario(
@@ -115,15 +113,50 @@ def pickup(
 
     with typer.progressbar(scenarios, label="Simulating") as progress:
         for scenario in progress:
-            rollout = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=policies,
-                proportions=[scenario.candidate_count, *scenario.pool_counts],
-                episodes=episodes,
-                seed=seed,
-                max_action_time_ms=action_timeout_ms,
-                save_replay=str(save_replay_dir) if save_replay_dir else None,
+            assignments = np.repeat(
+                np.arange(len(policy_specs)), [scenario.candidate_count, *scenario.pool_counts]
             )
+            rng = np.random.default_rng(seed)
+
+            episode_results = []
+            for episode_idx in range(episodes):
+                rng.shuffle(assignments)
+                replay_path = None
+                if save_replay_dir:
+                    replay_path = str(save_replay_dir / f"{uuid.uuid4()}.json.z")
+
+                job = PureSingleEpisodeSpecJob(
+                    policy_specs=policy_specs,
+                    assignments=assignments.tolist(),
+                    env=env_cfg,
+                    replay_uri=replay_path,
+                    seed=seed + episode_idx,
+                    max_action_time_ms=action_timeout_ms,
+                )
+                results, replay = run_pure_single_episode_from_specs(job, device="cpu")
+
+                if replay_path is not None:
+                    if replay is None:
+                        raise ValueError("No replay was generated")
+                    if replay_path.endswith(".z"):
+                        replay.set_compression("zlib")
+                    elif replay_path.endswith(".gz"):
+                        replay.set_compression("gzip")
+                    replay.write_replay(replay_path)
+
+                episode_results.append(
+                    EpisodeRolloutResult(
+                        assignments=assignments.copy(),
+                        rewards=np.array(results.rewards, dtype=float),
+                        action_timeouts=np.array(results.action_timeouts, dtype=float),
+                        stats=results.stats,
+                        replay_path=replay_path,
+                        steps=results.steps,
+                        max_steps=env_cfg.game.max_steps,
+                    )
+                )
+
+            rollout = MultiEpisodeRolloutResult(episodes=episode_results)
 
             candidate_sum = 0.0
             candidate_count = 0
