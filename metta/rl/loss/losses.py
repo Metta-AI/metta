@@ -9,6 +9,7 @@ from metta.rl.loss.action_supervised import ActionSupervisedConfig
 from metta.rl.loss.cmpo import CMPOConfig
 from metta.rl.loss.eer_cloner import EERClonerConfig
 from metta.rl.loss.eer_kickstarter import EERKickstarterConfig
+from metta.rl.loss.future_latent_ema import FutureLatentEMALossConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.kickstarter import KickstarterConfig
 from metta.rl.loss.logit_kickstarter import LogitKickstarterConfig
@@ -42,6 +43,7 @@ class LossesConfig(Config):
         "vit_reconstruction",
         "contrastive",
         "stable_latent",
+        "future_latent_ema",
         "grpo",
         "supervisor",
         "sl_checkpointed_kickstarter",
@@ -61,6 +63,9 @@ class LossesConfig(Config):
         default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
     stable_latent: StableLatentStateConfig = Field(default_factory=lambda: StableLatentStateConfig(enabled=False))
+    future_latent_ema: FutureLatentEMALossConfig = Field(
+        default_factory=lambda: FutureLatentEMALossConfig(enabled=False)
+    )
     supervisor: ActionSupervisedConfig = Field(default_factory=lambda: ActionSupervisedConfig(enabled=False))
     grpo: GRPOConfig = Field(default_factory=lambda: GRPOConfig(enabled=False))
     kickstarter: KickstarterConfig = Field(default_factory=lambda: KickstarterConfig(enabled=False))
