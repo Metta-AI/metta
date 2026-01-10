@@ -70,6 +70,8 @@ def evaluate(
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
         raise ValueError("At least one policy specification must be provided for evaluation.")
+    if len(proportions) != len(policy_specs):
+        raise ValueError("Number of proportions must match number of policies.")
 
     mission_names = [mission_name for mission_name, _ in missions]
     if len(missions) == 1:

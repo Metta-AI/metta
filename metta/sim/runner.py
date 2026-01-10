@@ -28,6 +28,8 @@ def _run_single_simulation(
         os.makedirs(replay_dir, exist_ok=True)
 
     proportions = list(sim_cfg.proportions) if sim_cfg.proportions is not None else [1.0] * len(policy_specs)
+    if len(proportions) != len(policy_specs):
+        raise ValueError("Number of proportions must match number of policies.")
     total = sum(proportions)
     if total <= 0:
         raise ValueError("Total policy proportion must be positive.")
