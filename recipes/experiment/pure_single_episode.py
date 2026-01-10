@@ -8,7 +8,7 @@ from cogames.cogs_vs_clips.missions import Machina1OpenWorldSharedRewardsMission
 from metta.app_backend.clients.base_client import get_machine_token
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
-from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob
+from alo.pure_single_episode_runner import PureSingleEpisodeJob
 from metta.tools.utils.auto_config import auto_stats_server_uri
 
 
@@ -21,7 +21,7 @@ class PureSingleEpisodeTool(Tool):
                 json.dumps({"job": self.job.model_dump(), "device": "cpu", "allow_network": True}).encode("utf-8")
             )
             temp_file.flush()
-            subprocess.run(["python", "-m", "metta.sim.pure_single_episode_runner", temp_file.name], check=True)
+            subprocess.run(["python", "-m", "alo.pure_single_episode_runner", temp_file.name], check=True)
         return 0
 
 

@@ -15,7 +15,7 @@ from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
+from alo.multi_episode_runner import multi_episode_rollout
 
 
 def make_machina1_open_world_env(

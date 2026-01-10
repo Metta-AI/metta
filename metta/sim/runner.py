@@ -9,7 +9,8 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from alo.multi_episode_runner import multi_episode_rollout
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
 
 def _run_single_simulation(

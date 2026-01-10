@@ -17,7 +17,8 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from alo.multi_episode_runner import multi_episode_rollout
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
