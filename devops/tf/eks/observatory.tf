@@ -13,7 +13,8 @@ module "observatory_irsa" {
   }
 
   role_policy_arns = {
-    policy = aws_iam_policy.observatory_s3.arn
+    s3_policy = aws_iam_policy.observatory_s3.arn
+    secrets_policy = aws_iam_policy.observatory_secrets.arn
   }
 }
 
@@ -34,6 +35,28 @@ resource "aws_iam_policy" "observatory_s3" {
           "arn:aws:s3:::softmax-public/*",
           "arn:aws:s3:::observatory-private",
           "arn:aws:s3:::observatory-private/*",
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "observatory_secrets" {
+  name = "observatory-secrets-access"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:github/webhook-secret-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:asana/access-token-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:asana/api-key-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:asana/atlas_app-*",
+          "arn:aws:secretsmanager:us-east-1:751442549699:secret:github/token-*"
         ]
       }
     ]

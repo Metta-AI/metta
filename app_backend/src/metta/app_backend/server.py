@@ -17,6 +17,7 @@ from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.github_webhook.routes import create_github_webhook_router
 from metta.app_backend.routes import (
     eval_task_routes,
     job_routes,
@@ -125,6 +126,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     stats_router = stats_routes.create_stats_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     jobs_router = job_routes.create_job_router()
+    webhook_router = create_github_webhook_router()
     tournament_router = tournament_routes.create_tournament_router()
 
     app.include_router(eval_task_router)
@@ -132,6 +134,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     app.include_router(stats_router)
     app.include_router(sweep_router)
     app.include_router(jobs_router)
+    app.include_router(webhook_router)
     app.include_router(tournament_router)
 
     @app.get("/whoami")
