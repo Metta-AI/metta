@@ -195,8 +195,9 @@ def is_s3_uri(path: str) -> bool:
 
 
 def _policy_source_is_s3(agent_config: AgentConfig) -> bool:
-    source = agent_config.source or agent_config.policy_path
-    return is_s3_uri(source)
+    return any(
+        is_s3_uri(path) for path in (agent_config.source, agent_config.policy_path, agent_config.data_path) if path
+    )
 
 
 def load_policy(
@@ -484,7 +485,7 @@ def run_evaluation(
                     _configure_env_for_action_space(env_config_0, policy_action_space)
 
                 policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
-                policy_ref = agent_config.source or agent_config.policy_path
+                policy_ref = agent_config.source or agent_config.data_path or agent_config.policy_path
                 logger.info(f"Pre-loading policy from {policy_ref}...")
                 cached_policy = load_policy(
                     policy_env_info_0,
