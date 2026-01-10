@@ -9,11 +9,12 @@ from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import normalize_advantage_distributed
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class PPOActorConfig(LossConfig):
+class PPOActorConfig(NodeConfig):
     # PPO hyperparameters
     # Clip coefficient (0.1-0.3 typical; Schulman et al. 2017)
     clip_coef: float = Field(default=0.22017136216163635, gt=0, le=1.0)
@@ -37,21 +38,8 @@ class PPOActorConfig(LossConfig):
         return PPOActor(policy, trainer_cfg, env, device, instance_name, self)
 
 
-class PPOActor(Loss):
+class PPOActor(NodeBase):
     """PPO actor loss."""
-
-    __slots__ = ()
-
-    def __init__(
-        self,
-        policy: Policy,
-        trainer_cfg: Any,
-        env: TrainingEnvironment,
-        device: torch.device,
-        instance_name: str,
-        cfg: "PPOActorConfig",
-    ):
-        super().__init__(policy, trainer_cfg, env, device, instance_name, cfg)
 
     def get_experience_spec(self) -> Composite:
         return Composite(act_log_prob=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32))
@@ -131,3 +119,14 @@ class PPOActor(Loss):
         self.loss_tracker["current_logprobs"].append(float(new_logprob.mean().item()))
 
         return loss, shared_loss_data, stop_update_epoch
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="ppo_actor",
+        config_cls=PPOActorConfig,
+        default_enabled=True,
+        has_rollout=False,
+        has_train=True,
+    )
+]

@@ -7,7 +7,8 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 
 # Keep: heavy module + manages circular dependency (loss <-> trainer)
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class ActionSupervisedConfig(LossConfig):
+class ActionSupervisedConfig(NodeConfig):
     action_loss_coef: float = Field(default=1, ge=0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)  # at 0.0, it's purely student-led
 
@@ -35,7 +36,7 @@ class ActionSupervisedConfig(LossConfig):
         return ActionSupervised(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class ActionSupervised(Loss):
+class ActionSupervised(NodeBase):
     def __init__(
         self,
         policy: Policy,
@@ -104,3 +105,14 @@ class ActionSupervised(Loss):
             # softplus?
 
         return loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="supervisor",
+        config_cls=ActionSupervisedConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

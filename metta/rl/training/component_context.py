@@ -48,14 +48,14 @@ class TrainerState:
     agent_step: int = 0
     avg_reward: torch.Tensor = field(default_factory=lambda: torch.tensor(0.0, dtype=torch.float32))
     latest_policy_uri: Optional[str] = None
-    latest_losses_stats: Dict[str, float] = field(default_factory=dict)
+    latest_graph_stats: Dict[str, float] = field(default_factory=dict)
     gradient_stats: Dict[str, float] = field(default_factory=dict)
     training_env_window: Optional[TrainingEnvWindow] = None
     optimizer_state: Optional[Dict[str, Any]] = None
     stopwatch_state: Optional[Dict[str, Any]] = None
     curriculum_state: Optional[Dict[str, Any]] = None
     latest_saved_policy_epoch: int = 0
-    loss_states: Dict[str, Any] = field(default_factory=dict)
+    node_states: Dict[str, Any] = field(default_factory=dict)
 
 
 class ComponentContext:
@@ -94,11 +94,12 @@ class ComponentContext:
         self.memory_monitor: MemoryMonitor | None = None
         self.system_monitor: SystemMonitor | None = None
         self.latest_policy_uri_fn: Callable[[], Optional[str]] | None = None
-        self.losses: Dict[str, Any] = {}
+        self.nodes: Dict[str, Any] = {}
+        self.node_specs: Dict[str, Any] = {}
 
         # Scheduler-related state
-        self.loss_run_gates: Dict[str, Dict[str, bool]] = {}
-        self.loss_scheduler: Any | None = None
+        self.node_run_gates: Dict[str, Dict[str, bool]] = {}
+        self.node_scheduler: Any | None = None
 
         self.get_train_epoch_fn = get_train_epoch_fn
         self.set_train_epoch_fn = set_train_epoch_fn
@@ -173,12 +174,12 @@ class ComponentContext:
     # Stats tracking
     # ------------------------------------------------------------------
     @property
-    def latest_losses_stats(self) -> Dict[str, float]:
-        return self.state.latest_losses_stats
+    def latest_graph_stats(self) -> Dict[str, float]:
+        return self.state.latest_graph_stats
 
-    @latest_losses_stats.setter
-    def latest_losses_stats(self, value: Dict[str, float]) -> None:
-        self.state.latest_losses_stats = dict(value)
+    @latest_graph_stats.setter
+    def latest_graph_stats(self, value: Dict[str, float]) -> None:
+        self.state.latest_graph_stats = dict(value)
 
     @property
     def gradient_stats(self) -> Dict[str, float]:

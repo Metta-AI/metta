@@ -153,7 +153,8 @@ class CheckpointManager:
         trainer_file = self.checkpoint_dir / "trainer_state.pt"
         if not trainer_file.exists():
             return None
-        return torch.load(trainer_file, map_location="cpu", weights_only=False)
+        state = torch.load(trainer_file, map_location="cpu", weights_only=False)
+        return state
 
     def save_trainer_state(
         self,
@@ -163,7 +164,7 @@ class CheckpointManager:
         avg_reward: torch.Tensor | float | None = None,
         stopwatch_state: Optional[Dict[str, Any]] = None,
         curriculum_state: Optional[Dict[str, Any]] = None,
-        loss_states: Optional[Dict[str, Any]] = None,
+        node_states: Optional[Dict[str, Any]] = None,
     ):
         is_schedulefree = is_schedulefree_optimizer(optimizer)
         if is_schedulefree:
@@ -176,8 +177,8 @@ class CheckpointManager:
             state["stopwatch_state"] = stopwatch_state
         if curriculum_state:
             state["curriculum_state"] = curriculum_state
-        if loss_states is not None:
-            state["loss_states"] = loss_states
+        if node_states is not None:
+            state["node_states"] = node_states
 
         with tempfile.NamedTemporaryFile(
             dir=self.checkpoint_dir,

@@ -11,6 +11,13 @@ from metta.common.util.collections import duplicates
 from metta.rl.training.batch import calculate_prioritized_sampling_params
 
 
+def _spec_signature(spec) -> tuple:
+    shape = getattr(spec, "shape", None)
+    shape = tuple(shape) if shape is not None else ()
+    dtype = getattr(spec, "dtype", None)
+    return (type(spec), shape, dtype)
+
+
 class Experience:
     """Segmented tensor storage for RL experience with BPTT support."""
 
@@ -103,7 +110,7 @@ class Experience:
         )
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int64)
 
-        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per loss gate activity.
+        # Keys to use when writing into the buffer; defaults to all spec keys. Scheduler updates per node gate activity.
         self._store_keys: List[Any] = list(self.buffer.keys(include_nested=True, leaves_only=True))
 
     @property
@@ -119,7 +126,7 @@ class Experience:
         t_in_row_val = int(self.t_in_row_cpu[env_id.start].item())
         row_ids = self.row_slot_ids[env_id]
 
-        # Scheduler updates these keys based on the active losses for the epoch.
+        # Scheduler updates these keys based on the active nodes for the epoch.
         if self._store_keys:
             self.buffer.update_at_(data_td.select(*self._store_keys), (row_ids, t_in_row_val))
         else:
@@ -164,7 +171,7 @@ class Experience:
             "dones": self.buffer["dones"].mean().item(),
             "truncateds": self.buffer["truncateds"].mean().item(),
         }
-        # Only include values if they exist (not all losses use value networks)
+        # Only include values if they exist (not all nodes use value networks)
         if "values" in self.buffer.keys():
             stats["values"] = self.buffer["values"].mean().item()
         if "ratio" in self.buffer.keys():
@@ -204,21 +211,17 @@ class Experience:
         looks for keys that are not in the tensor dict when calling store().
         """
         all_keys = set(self.buffer.keys(include_nested=True, leaves_only=True))
-        missing = [k for k in keys if k not in all_keys]
+        normalized = list(keys)
+        if "reward_baseline" in all_keys and "reward_baseline" not in normalized:
+            normalized.append("reward_baseline")
+        missing = [k for k in normalized if k not in all_keys]
         if missing:
             raise KeyError(f"Attempted to set unknown experience keys: {missing}")
-        self._store_keys = list(keys)
+        self._store_keys = normalized
 
     def reset_store_keys(self) -> None:
         """Reset store keys so that all spec keys are written on store."""
         self._store_keys = list(self.buffer.keys(include_nested=True, leaves_only=True))
-
-    def give_me_empty_md_td(self) -> TensorDict:
-        return TensorDict(
-            {},
-            batch_size=(self.minibatch_segments, self.bptt_horizon),
-            device=self.device,
-        )
 
     def sample_sequential(self, mb_idx: int) -> tuple[TensorDict, Tensor]:
         """Sample a contiguous minibatch from the buffer in sequential order."""
@@ -276,7 +279,11 @@ class Experience:
         batch_size: int,
         advantages: Tensor,
     ) -> TensorDict:
-        shared_loss_mb_data = self.give_me_empty_md_td()
+        shared_loss_mb_data = TensorDict(
+            {},
+            batch_size=(self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+        )
 
         if self.sampling_config.method == "sequential":
             minibatch, indices = self.sample_sequential(mb_idx)
@@ -295,31 +302,43 @@ class Experience:
         shared_loss_mb_data["prio_weights"] = prio_weights
 
         shared_loss_mb_data["sampled_mb"] = minibatch
-        # broadcasting indices lets slicing work on it too. that way losses can more easily update buffer using indices
+        # broadcasting indices lets slicing work on it too. that way nodes can more easily update buffer using indices
         shared_loss_mb_data["indices"] = indices[:, None].expand(-1, self.bptt_horizon)
         shared_loss_mb_data["advantages"] = advantages[indices]
 
         return shared_loss_mb_data
 
     @staticmethod
-    def from_losses(
+    def from_nodes(
         total_agents: int,
         batch_size: int,
         bptt_horizon: int,
         minibatch_size: int,
         max_minibatch_size: int,
         policy_experience_spec: Composite,
-        losses: Dict[str, Any],
+        nodes: Dict[str, Any],
         device: torch.device | str,
         sampling_config: Any,  # av fix
     ) -> "Experience":
-        """Create experience buffer with merged specs from policy and losses."""
+        """Create experience buffer with merged specs from policy and nodes."""
 
         # Merge all specs
         merged_spec_dict: dict = dict(policy_experience_spec.items())
-        for loss in losses.values():
-            spec = loss.get_experience_spec()
-            merged_spec_dict.update(dict(spec.items()))
+        spec_sources = {key: "policy" for key in merged_spec_dict}
+        spec_signatures = {key: _spec_signature(spec) for key, spec in merged_spec_dict.items()}
+
+        for node_name, node in nodes.items():
+            spec = node.get_experience_spec()
+            for key, value in spec.items():
+                if key in merged_spec_dict:
+                    if _spec_signature(value) != spec_signatures[key]:
+                        raise ValueError(
+                            "Experience spec conflict for key '%s': %s vs node '%s'"
+                            % (key, spec_sources[key], node_name)
+                        )
+                merged_spec_dict[key] = value
+                spec_sources[key] = f"node '{node_name}'"
+                spec_signatures[key] = _spec_signature(value)
 
         merged_spec_dict.setdefault(
             "reward_baseline",
@@ -337,6 +356,6 @@ class Experience:
             device=device,
             sampling_config=sampling_config,
         )
-        for loss in losses.values():
-            loss.attach_replay_buffer(experience)
+        for node in nodes.values():
+            node.attach_replay_buffer(experience)
         return experience

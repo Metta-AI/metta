@@ -312,12 +312,12 @@ from metta.common.types import AgentProtocol
 
 **Internal Modules** (in `metta/` directory):
 
-- **Examples:** `metta/rl/loss/__init__.py`, `metta/cogworks/curriculum/__init__.py`, `metta/sim/envs/__init__.py`
+- **Examples:** `metta/rl/nodes/__init__.py`, `metta/cogworks/curriculum/__init__.py`, `metta/sim/envs/__init__.py`
 - **Purpose:** Python package organization (implementation detail)
 - **Should be:** Empty or minimal
 - **Rationale:**
   - No external users - only internal codebase imports
-  - VS Code autocompletes full paths: `from metta.rl.loss.ppo import PPOLoss`
+  - VS Code autocompletes full paths: `from metta.rl.nodes.ppo_actor import PPOActorConfig`
   - Avoids hidden circular dependencies from re-export chains
   - Makes refactoring easier (no re-export lists to update)
   - Import statements show exactly where code comes from
@@ -410,13 +410,13 @@ Only if there's a specific justification:
 
 ```python
 # DON'T DO THIS in internal modules
-from metta.rl.loss import PPOLoss, VTraceLoss
+from metta.rl.nodes import PPOActorConfig, PPOCriticConfig
 from metta.rl.trainer import Trainer
 from metta.rl.vecenv import VecEnv
 # ... 20+ re-exports
 
 # Instead: Let users import from specific modules
-# from metta.rl.loss.ppo import PPOLoss
+# from metta.rl.nodes.ppo_actor import PPOActorConfig
 ```
 
 **Simplification criteria:**

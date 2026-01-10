@@ -7,7 +7,8 @@ from torch import Tensor
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 
 # Keep: heavy module + manages circular dependency (loss <-> trainer)
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 
 
-class SlicedScriptedClonerConfig(LossConfig):
+class SlicedScriptedClonerConfig(NodeConfig):
     action_loss_coef: float = Field(default=1.0, ge=0, le=1.0)
 
     # PPO consumes whatever portion of the batch isn't claimed by these slices
@@ -41,7 +42,7 @@ class SlicedScriptedClonerConfig(LossConfig):
         return SlicedScriptedCloner(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class SlicedScriptedCloner(Loss):
+class SlicedScriptedCloner(NodeBase):
     """This uses a scripted policy's actions (provided by the environment) to supervise the student
     on specific slices of the experience, similar to SlicedKickstarter but with Ground Truth actions.
     """
@@ -183,3 +184,14 @@ class SlicedScriptedCloner(Loss):
     def _update_slices(self) -> None:
         # we count on the hyperparmeter scheduler to update the cfg proportions
         self._create_slices(self.rollout_batch_size)
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="sliced_scripted_cloner",
+        config_cls=SlicedScriptedClonerConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

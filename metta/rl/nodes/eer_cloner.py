@@ -9,11 +9,12 @@ from torchrl.data import Composite, UnboundedDiscrete
 if TYPE_CHECKING:
     from metta.rl.trainer_config import TrainerConfig
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 
 
-class EERClonerConfig(LossConfig):
+class EERClonerConfig(NodeConfig):
     action_loss_coef: float = Field(default=1, ge=0)
     r_lambda: float = Field(default=0.01, ge=0)  # scale the teacher log likelihoods that are added to rewards
 
@@ -32,7 +33,7 @@ class EERClonerConfig(LossConfig):
         return EERCloner(policy, trainer_cfg, vec_env, device, instance_name, self)
 
 
-class EERCloner(Loss):
+class EERCloner(NodeBase):
     __slots__ = ("last_teacher_actions", "has_last_actions")
 
     def __init__(
@@ -109,7 +110,7 @@ class EERCloner(Loss):
         minibatch = shared_loss_data["sampled_mb"]
         policy_td = shared_loss_data["policy_td"]
 
-        # Supervised Loss: Maximize log probability of the teacher's action -> L = - log(pi_student(a_teacher | s))
+        # Supervised NodeBase: Maximize log probability of the teacher's action -> L = - log(pi_student(a_teacher | s))
         policy_full_log_probs = policy_td["full_log_probs"].reshape(minibatch.shape[0], minibatch.shape[1], -1)
         teacher_actions = minibatch["teacher_actions"]
         student_log_probs = policy_full_log_probs.gather(dim=-1, index=teacher_actions.unsqueeze(-1))
@@ -120,3 +121,14 @@ class EERCloner(Loss):
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
 
         return loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="eer_cloner",
+        config_cls=EERClonerConfig,
+        default_enabled=False,
+        has_rollout=True,
+        has_train=True,
+    )
+]

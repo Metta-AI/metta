@@ -10,7 +10,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from metta.agent.components.obs_tokenizers import ObsAttrEmbedFourier
 from metta.agent.policy import Policy
-from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.nodes.base import NodeBase, NodeConfig
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext
 
 # Keep: heavy modules, TrainerConfig manages circular dep (loss <-> trainer)
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from metta.rl.training import TrainingEnvironment
 
 
-class ViTReconstructionLossConfig(LossConfig):
+class ViTReconstructionLossConfig(NodeConfig):
     # Weights for the two parts of the loss
     id_loss_coef: float = Field(default=0.08, ge=0)
     val_loss_coef: float = Field(default=0.4, ge=0)
@@ -149,7 +150,7 @@ class ViTReconstructionDecoder(nn.Module):
         return pred_logits, pred_values, target_ids, target_values, valid_mask
 
 
-class ViTReconstructionLoss(Loss):
+class ViTReconstructionLoss(NodeBase):
     """
     Reconstruction loss for ViT architectures.
     Reconstructs the input sparse observations from the latent representation.
@@ -275,7 +276,7 @@ class ViTReconstructionLoss(Loss):
 
         # 7. Compute Losses
 
-        # Part A: Attribute ID Loss (BCE)
+        # Part A: Attribute ID NodeBase (BCE)
         loss_id = F.binary_cross_entropy_with_logits(pred_logits, target_ids, reduction="none")
 
         # Use the derived num_attribute_classes for normalization
@@ -284,12 +285,12 @@ class ViTReconstructionLoss(Loss):
         mask_expanded = valid_mask.unsqueeze(-1)
         loss_id = (loss_id * mask_expanded).sum() / (mask_expanded.sum() * num_classes + 1e-6)
 
-        # Part B: Attribute Value Loss (Masked MSE)
+        # Part B: Attribute Value NodeBase (Masked MSE)
         sq_error = (pred_values - target_values) ** 2
         val_loss_mask = mask_expanded * target_ids
         loss_val = (sq_error * val_loss_mask).sum() / (val_loss_mask.sum() + 1e-6)
 
-        # Total Loss
+        # Total NodeBase
         total_loss = self.cfg.id_loss_coef * loss_id + self.cfg.val_loss_coef * loss_val
 
         # Logging
@@ -298,3 +299,14 @@ class ViTReconstructionLoss(Loss):
         self.loss_tracker["vit_val_loss"].append(loss_val.item())
 
         return total_loss, shared_loss_data, False
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="vit_reconstruction",
+        config_cls=ViTReconstructionLossConfig,
+        default_enabled=False,
+        has_rollout=False,
+        has_train=True,
+    )
+]

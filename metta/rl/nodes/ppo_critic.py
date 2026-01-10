@@ -10,11 +10,12 @@ from typing_extensions import Literal
 
 from metta.agent.policy import Policy
 from metta.rl.advantage import td_lambda_reverse_scan
-from metta.rl.loss.loss import Loss, LossConfig, analyze_loss_alignment
+from metta.rl.nodes.base import NodeBase, NodeConfig, analyze_loss_alignment
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import ComponentContext, TrainingEnvironment
 
 
-class PPOCriticConfig(LossConfig):
+class PPOCriticConfig(NodeConfig):
     vf_clip_coef: float = Field(default=0.1, ge=0)
     vf_coef: float = Field(default=0.49657103419303894, ge=0)
     # Value loss clipping toggle
@@ -35,7 +36,7 @@ class PPOCriticConfig(LossConfig):
         return PPOCritic(policy, trainer_cfg, env, device, instance_name, self)
 
 
-class PPOCritic(Loss):
+class PPOCritic(NodeBase):
     """PPO value loss."""
 
     __slots__ = (
@@ -273,3 +274,14 @@ class PPOCritic(Loss):
             self.loss_tracker["explained_variance"].append(float(ev))
 
         super().on_train_phase_end(context)
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="ppo_critic",
+        config_cls=PPOCriticConfig,
+        default_enabled=True,
+        has_rollout=True,
+        has_train=True,
+    )
+]

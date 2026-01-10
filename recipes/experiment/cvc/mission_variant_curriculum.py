@@ -19,7 +19,6 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -501,9 +500,7 @@ def train(
         stats_max_cap=stats_max_cap,
     )
 
-    trainer_cfg = TrainerConfig(
-        losses=LossesConfig(),
-    )
+    trainer_cfg = TrainerConfig()
 
     # For evaluation, "all" is treated the same as "no explicit variant filter".
     # Only use specific variants if provided, otherwise use eval_variants or None.

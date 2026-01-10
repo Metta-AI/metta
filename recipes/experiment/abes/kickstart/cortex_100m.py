@@ -14,10 +14,9 @@ from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
 )
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
-from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import AdvantageConfig, OptimizerConfig, TorchProfilerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
+from metta.rl.training.scheduler import RunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
@@ -147,16 +146,15 @@ def train(
         )
         policy_architecture = CortexBaseConfig(stack_cfg=stack_cfg, dtype=dtype)
 
-    losses_config = LossesConfig()
     default_teacher_steps = 1_000_000_000
     teacher = teacher or TeacherConfig(
         policy_uri="s3://softmax-public/policies/subho.abes.vit_baseline/subho.abes.vit_baseline:v2340.mpt",
         mode="eer_kickstarter",
     )
-    # losses_config.eer_kickstarter.action_loss_coef = 1.0
-    # losses_config.eer_kickstarter.value_loss_coef = 0.0
+    # trainer_cfg.nodes["eer_kickstarter"].action_loss_coef = 1.0
+    # trainer_cfg.nodes["eer_kickstarter"].value_loss_coef = 0.0
 
-    trainer_cfg = TrainerConfig(losses=losses_config)
+    trainer_cfg = TrainerConfig()
     trainer_cfg = trainer_cfg.model_copy(update=trainer_updates)
 
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
@@ -169,7 +167,7 @@ def train(
         policy_architecture=policy_architecture,
         torch_profiler=TorchProfilerConfig(),
     )
-    scheduler_run_gates: list[LossRunGate] = []
+    scheduler_run_gates: list[RunGate] = []
     scheduler_rules: list[ScheduleRule] = []
     apply_teacher_phase(
         trainer_cfg=tt.trainer,

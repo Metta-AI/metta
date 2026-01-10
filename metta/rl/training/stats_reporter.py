@@ -75,7 +75,7 @@ def build_wandb_payload(
             payload[metric_key] = scalar
 
     _update(overview, prefix="overview/")
-    _update(processed_stats.get("losses_stats", {}), prefix="losses/")
+    _update(processed_stats.get("graph_stats", {}))
 
     # Get experience stats and compute area under reward
     experience_stats = processed_stats.get("experience_stats", {})
@@ -191,7 +191,7 @@ class StatsReporter(TrainerComponent):
         self,
         epoch: int,
         agent_step: int,
-        losses_stats: dict[str, float],
+        graph_stats: dict[str, float],
         experience: Any,
         policy: Any,
         timer: Timer | None,
@@ -202,7 +202,7 @@ class StatsReporter(TrainerComponent):
 
         with timing_context:
             payload = self._build_wandb_payload(
-                losses_stats=losses_stats,
+                graph_stats=graph_stats,
                 experience=experience,
                 trainer_cfg=trainer_cfg,
                 policy=policy,
@@ -263,7 +263,7 @@ class StatsReporter(TrainerComponent):
         self.report_epoch(
             epoch=ctx.epoch,
             agent_step=ctx.agent_step,
-            losses_stats=ctx.latest_losses_stats,
+            graph_stats=ctx.latest_graph_stats,
             experience=ctx.experience,
             policy=ctx.policy,
             timer=ctx.stopwatch,
@@ -297,7 +297,7 @@ class StatsReporter(TrainerComponent):
     def _build_wandb_payload(
         self,
         *,
-        losses_stats: dict[str, float],
+        graph_stats: dict[str, float],
         experience: Any,
         trainer_cfg: Any,
         policy: Any,
@@ -313,7 +313,7 @@ class StatsReporter(TrainerComponent):
 
         processed = process_training_stats(
             raw_stats=self._state.rollout_stats,
-            losses_stats=losses_stats,
+            graph_stats=graph_stats,
             experience=experience,
             trainer_config=trainer_cfg,
         )

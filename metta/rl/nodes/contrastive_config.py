@@ -1,16 +1,17 @@
-# metta/rl/loss/contrastive_config.py
+# metta/rl/nodes/contrastive_config.py
 from typing import Any
 
 import torch
 from pydantic import Field
 
 from metta.agent.policy import Policy
-from metta.rl.loss.contrastive import ContrastiveLoss
-from metta.rl.loss.loss import LossConfig
+from metta.rl.nodes.base import NodeConfig
+from metta.rl.nodes.contrastive import ContrastiveLoss
+from metta.rl.nodes.registry import NodeSpec
 from metta.rl.training import TrainingEnvironment
 
 
-class ContrastiveConfig(LossConfig):
+class ContrastiveConfig(NodeConfig):
     """Configuration for contrastive loss."""
 
     temperature: float = Field(default=0.1902943104505539, gt=0, description="Temperature for contrastive learning")
@@ -35,3 +36,14 @@ class ContrastiveConfig(LossConfig):
     ) -> "ContrastiveLoss":
         """Create the contrastive loss instance."""
         return ContrastiveLoss(policy, trainer_cfg, env, device, instance_name, self)
+
+
+NODE_SPECS = [
+    NodeSpec(
+        key="contrastive",
+        config_cls=ContrastiveConfig,
+        default_enabled=False,
+        has_rollout=False,
+        has_train=True,
+    )
+]

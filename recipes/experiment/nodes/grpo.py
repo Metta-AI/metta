@@ -1,8 +1,7 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
-from metta.rl.loss.grpo import GRPOConfig
-from metta.rl.loss.losses import LossesConfig
+from metta.rl.nodes.grpo import GRPOConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.tools.train import TrainTool
@@ -21,7 +20,7 @@ from recipes.prod.arena_basic_easy_shaped import (
 def train(
     enable_detailed_slice_logging: bool = False,
 ) -> TrainTool:
-    """Train with GRPO loss (critic-free, group-based advantages).
+    """Train with GRPO node (critic-free, group-based advantages).
 
     GRPO eliminates the value network and computes advantages by comparing
     each trajectory's return against the mean return of a group of sampled
@@ -30,7 +29,7 @@ def train(
     """
     curriculum = make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -52,7 +51,7 @@ def train(
     )
 
     trainer_config = TrainerConfig(
-        losses=LossesConfig(grpo=grpo_config),
+        nodes={"grpo": grpo_config},
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -66,7 +65,7 @@ def train(
 
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
-    """Train with GRPO loss on shaped rewards task.
+    """Train with GRPO node on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
@@ -75,7 +74,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     # Get the base shaped training tool
     base_tool = base_train_shaped(rewards=rewards)
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -83,10 +82,6 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         group_size=4,
         norm_adv=True,
         target_kl=None,
-    )
-
-    loss_config = LossesConfig(
-        grpo=grpo_config,
     )
 
     # Configure optimizer
@@ -101,7 +96,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        nodes={"grpo": grpo_config},
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )
@@ -115,7 +110,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
 
 
 def basic_easy_shaped() -> TrainTool:
-    """Train with GRPO loss on basic easy shaped rewards task.
+    """Train with GRPO node on basic easy shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
     using the critic-free GRPO algorithm.
@@ -124,7 +119,7 @@ def basic_easy_shaped() -> TrainTool:
     # Get the base shaped training tool
     base_tool = arena_basic_easy_shaped_train()
 
-    # Configure GRPO loss
+    # Configure GRPO node
     grpo_config = GRPOConfig(
         clip_coef=0.2,
         ent_coef=0.01,
@@ -132,10 +127,6 @@ def basic_easy_shaped() -> TrainTool:
         group_size=4,
         norm_adv=True,
         target_kl=None,
-    )
-
-    loss_config = LossesConfig(
-        grpo=grpo_config,
     )
 
     # Configure optimizer
@@ -150,7 +141,7 @@ def basic_easy_shaped() -> TrainTool:
     )
 
     trainer_config = TrainerConfig(
-        losses=loss_config,
+        nodes={"grpo": grpo_config},
         optimizer=optimizer_config,
         total_timesteps=50_000_000_000,
     )

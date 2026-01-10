@@ -5,6 +5,7 @@ import torch
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.nodes.registry import discover_node_specs
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -70,7 +71,7 @@ class Trainer:
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
-        losses = self._cfg.losses.init_losses(self._policy, self._cfg, self._env, self._device)
+        node_specs, nodes = self._build_nodes()
         self._policy.train()
 
         batch_info = self._env.batch_info
@@ -79,14 +80,14 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
-        self._experience = Experience.from_losses(
+        self._experience = Experience.from_nodes(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
             bptt_horizon=self._cfg.bptt_horizon,
             minibatch_size=self._cfg.minibatch_size,
             max_minibatch_size=self._cfg.minibatch_size,
             policy_experience_spec=self._policy.get_agent_experience_spec(),
-            losses=losses,
+            nodes=nodes,
             device=self._device,
             sampling_config=self._cfg.sampling,
         )
@@ -126,19 +127,32 @@ class Trainer:
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
             experience=self._experience,
-            losses=losses,
+            nodes=nodes,
+            node_specs=node_specs,
             optimizer=self.optimizer,
             device=self._device,
             context=self._context,
         )
 
-        self._losses = losses
-        self._context.losses = losses
+        self._nodes = nodes
+        self._context.nodes = nodes
+        self._context.node_specs = {spec.key: spec for spec in node_specs}
 
-        for loss in losses.values():
-            loss.attach_context(self._context)
+        for node in nodes.values():
+            node.attach_context(self._context)
 
         self._prev_agent_step_for_step_callbacks: int = 0
+
+    def _build_nodes(self) -> tuple[list[Any], dict[str, Any]]:
+        node_specs_all = discover_node_specs()
+        nodes: dict[str, Any] = {}
+        for spec in node_specs_all:
+            cfg = self._cfg.nodes.get(spec.key)
+            if cfg is None or not getattr(cfg, "enabled", False):
+                continue
+            nodes[spec.key] = cfg.create(self._policy, self._cfg, self._env, self._device, spec.key)
+        node_specs = [spec for spec in node_specs_all if spec.key in nodes]
+        return node_specs, nodes
 
     @property
     def context(self) -> ComponentContext:
@@ -193,7 +207,7 @@ class Trainer:
             if self._is_schedulefree:
                 self.optimizer.train()
 
-            losses_stats, epochs_trained = self.core_loop.training_phase(
+            graph_stats, epochs_trained = self.core_loop.training_phase(
                 context=self._context,
                 update_epochs=self._cfg.update_epochs,
                 max_grad_norm=0.5,
@@ -202,8 +216,8 @@ class Trainer:
         # Synchronize before proceeding
         self._distributed_helper.synchronize()
 
-        # Store losses stats for callbacks
-        self._context.latest_losses_stats = losses_stats
+        # Store graph stats for callbacks
+        self._context.latest_graph_stats = graph_stats
 
         # Invoke callbacks for epoch end on every rank. Components that should
         # only run on the master process must set `_master_only` so they aren't
