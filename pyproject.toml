@@ -114,9 +114,12 @@ mcp-servers = ["metta-pr-similarity-mcp"]
 dev = [{ include-group = "testing" }, { include-group = "lint" }, { include-group = "mcp-servers" }]
 
 [project.scripts]
-metta = "metta.setup.metta_cli:cli_entry"
-skypilot = "devops.skypilot.launch:cli_entry"
-skypilot-sandbox = "devops.skypilot.sandbox:cli_entry"
+metta = "metta.setup.metta_cli:main"
+doxascope = "metta.doxascope.cli:main"
+skypilot = "devops.skypilot.launch:main"
+skypilot-sandbox = "devops.skypilot.sandbox:main"
+mapgen = "tools.map.gen:main"
+mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

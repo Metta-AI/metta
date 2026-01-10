@@ -2,6 +2,7 @@ import logging
 import time
 from typing import Optional
 
+from metta.doxascope.doxascope_data import DoxascopeLogger
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.envs.stats_tracker import StatsTracker
 from mettagrid.policy.policy import AgentPolicy
@@ -45,6 +46,12 @@ class Rollout:
         self._sim = self._simulator.new_simulation(config, seed)
         self._agents = self._sim.agents()
 
+        # Add pointer to policies so that Doxascope EventHandlers can access:
+        self._sim._context["policies"] = self._policies
+
+        # Commented because it breaks things
+        # sim = self._sim if self._pass_sim_to_policies else None
+
         # Reset policies and create agent policies if needed
         for policy in self._policies:
             policy.reset()
@@ -59,6 +66,7 @@ class Rollout:
         for i in range(len(self._policies)):
             start_time = time.time()
             action = self._policies[i].step(self._agents[i].observation)
+
             end_time = time.time()
             if (end_time - start_time) > self._max_action_time_ms:
                 logger.warning(

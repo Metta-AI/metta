@@ -724,6 +724,20 @@ def run_cmd(
             "Each replay will be saved with a unique UUID-based filename."
         ),
     ),
+    doxascope_enabled: bool = typer.Option(
+        False,
+        "--enable-doxascope",
+        help="Enable activation logging for the Doxascope interpretability tool.",
+    ),
+    doxascope_output_dir: Optional[Path] = typer.Option(
+        None,
+        "--doxascope-output-dir",
+        help= (
+            "Directory to save Doxascope log data to. "
+            "(Defaults to ./train_dir/doxascope/raw_data/)"
+        )
+    ),
+
 ) -> None:
     # Handle mission set expansion
     if mission_set and missions:
@@ -769,7 +783,9 @@ def run_cmd(
         episodes=episodes,
         seed=seed,
         output_format=format_,
-        save_replay=str(save_replay_dir) if save_replay_dir else None,
+        save_replay=save_replay_dir,
+        doxascope_enabled=doxascope_enabled,
+        doxascope_output_dir=doxascope_output_dir,
     )
 
 

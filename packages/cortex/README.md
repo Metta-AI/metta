@@ -48,8 +48,8 @@ Cortex implements a modular stack-based memory architecture with four core abstr
 
 3. **Column**: A router‑mixed set of expert blocks executed in parallel and combined
    - Purpose: Let multiple block "experts" compete/cooperate per token/over time.
-   - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer ReZero
-     stabilize depth
+   - How: A global prior gate (with optional per‑token refinement) mixes expert deltas; an E‑axis mixer and outer
+     ReZero stabilize depth
    - Code: `packages/cortex/src/cortex/blocks/column/column.py` and helpers in
      `packages/cortex/src/cortex/blocks/column/auto.py`
 
@@ -143,8 +143,7 @@ out_step, state = stack.step(x_step, state)
 
 Advanced control:
 
-- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern "XXS" repeated with
-  `num_layers`.
+- Per‑layer patterns: pass a list like `["AXMS", "AM^S", "XXS", "M^"]`; or a single pattern "XXS" repeated with `num_layers`.
 - Custom symbols: supply `custom_map={"Q": PreUpBlockConfig(cell=mLSTMCellConfig(...))}` and use "Q" in patterns.
 - Column implementation: `packages/cortex/src/cortex/blocks/column/column.py`; pattern builder:
   `packages/cortex/src/cortex/blocks/column/auto.py`.
@@ -201,13 +200,13 @@ Notes:
 Core computational units implementing recurrent logic. All cells follow batch-first convention: `[B, T, H]` for
 sequences, `[B, H]` for single-step.
 
-| Cell           | Description                                                                                                 | Triton Accelerated        | CUDA Accelerated         |
-| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------ |
-| `LSTMCell`     | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets.         | Yes                       | No                       |
-| `mLSTMCell`    | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation.  | Yes                       | No                       |
-| `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D.  | Yes                       | No                       |
-| `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                    | Yes (channel-mixing only) | No                       |
-| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).          | Yes                       | Yes (seq‑allin, short‑T) |
+| Cell           | Description                                                                                                | Triton Accelerated        | CUDA Accelerated         |
+| -------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------ |
+| `LSTMCell`     | Stateless LSTM wrapper with TensorDict state (`h`, `c`); step and sequence parity; optional resets.        | Yes                       | No                       |
+| `mLSTMCell`    | Matrix-LSTM with per-head state, chunkwise closed-form updates, and optional causal Conv1D pre-activation. | Yes                       | No                       |
+| `sLSTMCell`    | Structured LSTM with per-head gating, stabilized accumulators (`c`, `n`, `m`), and optional causal Conv1D. | Yes                       | No                       |
+| `CausalConv1d` | Depthwise causal Conv1D cell (ring-buffer state); supports optional channel-mixing mode.                   | Yes (channel-mixing only) | No                       |
+| `AxonCell`     | Streaming RTU with diagonal input weights (per-channel local recurrence, 2H→H→out_dim projection).         | Yes                       | Yes (seq‑allin, short‑T) |
 | `XLCell`       | Transformer‑XL style multi‑head attention with rolling memory; optional AxonLayer‑backed Q/K/V projections. | No                        | No                       |
 | `AGaLiTeCell`  | AGaLiTe attention                                                                                           | No                        | Yes (fused discount sum) |
 
@@ -315,10 +314,12 @@ y_{\mathrm{total}}(t) &= x_t + r_t \\
 \end{aligned}
 $$
 
+
+
 ## Advanced Setup
 
-Compose stacks manually by specifying columns, blocks and cells directly. This mirrors what the DSL expands to and is
-useful for full control or experimentation.
+Compose stacks manually by specifying columns, blocks and cells directly. This mirrors what the DSL expands to and is useful for
+full control or experimentation.
 
 ```python
 import torch

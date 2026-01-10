@@ -4,13 +4,14 @@ import math
 import multiprocessing
 from typing import Sequence
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import PolicyVersionWithName
 from metta.common.tool import Tool
 from metta.common.tool.tool import ToolResult, ToolWithResult
 from metta.common.wandb.context import WandbRunAppendContext
+from metta.doxascope.doxascope_data import DoxascopeEventHandler, DoxascopeLogger
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import render_eval_summary
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult
@@ -21,16 +22,21 @@ from metta.sim.simulate_and_record import (
 )
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator import SimulatorEventHandler
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
 
 
 class EvaluateTool(Tool):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     simulations: Sequence[SimulationConfig] | Sequence[SimulationRunConfig]
     policy_uris: str | list[str] = Field(description="Policy URIs to evaluate. The first URI is the primary policy.")
 
     replay_dir: str = Field(default_factory=auto_replay_dir)
+    doxascope_logger: DoxascopeLogger | None = None
 
     stats_server_uri: str | None = Field(default_factory=auto_stats_server_uri)
     verbose: bool = False
@@ -105,6 +111,22 @@ class EvaluateTool(Tool):
                     "needed to push metrics to WandB."
                 )
 
+        # Create event handlers list at the highest level
+        event_handlers: list[SimulatorEventHandler] = []
+
+        # Configure doxascope logger and create event handler if provided
+        if self.doxascope_logger and policy_uris:
+            # Extract object_type_names from the first simulation's environment config
+            sim_configs = self._to_simulation_run_configs()
+            object_type_names = list(sim_configs[0].env.game.objects.keys()) if sim_configs else None
+            # Use the original policy URI (not resolved S3 URI) for output directory naming
+            self.doxascope_logger.configure(
+                policy_uri=policy_uris[0],
+                object_type_names=object_type_names
+            )
+            # Create DoxascopeEventHandler and add to event handlers list
+            event_handlers.append(DoxascopeEventHandler(self.doxascope_logger))
+
         with wandb_context as wandb_run:
             if self.push_metrics_to_wandb:
                 assert wandb_run is not None and epoch is not None and agent_step is not None
@@ -114,7 +136,10 @@ class EvaluateTool(Tool):
                     agent_step=agent_step,
                 )
 
-            if self.max_workers is not None:
+            # When doxascope is enabled, we need sequential processing
+            if self.doxascope_logger:
+                num_workers = 1
+            elif self.max_workers is not None:
                 num_workers = self.max_workers
             else:
                 cpu_count = multiprocessing.cpu_count()
@@ -135,6 +160,7 @@ class EvaluateTool(Tool):
                 seed=self.system.seed,
                 observatory_writer=observatory_writer,
                 wandb_writer=wandb_writer,
+                event_handlers=event_handlers if event_handlers else None,
                 max_workers=num_workers,
                 on_progress=logger.info if self.verbose else lambda x: None,
             )

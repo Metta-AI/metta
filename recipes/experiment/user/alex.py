@@ -107,10 +107,9 @@ def train(
         ),
     )
     # policy_config = FastDynamicsConfig()
-    # policy_config = FastLSTMResetConfig()
     # policy_config = FastConfig()
     # policy_config = ViTSmallConfig()
-    policy_config = ViTSlidingTransConfig()
+    policy_config = TRXLConfig()
     training_env = TrainingEnvironmentConfig(curriculum=curriculum)
     evaluator = EvaluatorConfig(simulations=eval_simulations)
 

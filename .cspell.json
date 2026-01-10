@@ -91,6 +91,7 @@
     "dockerenv",
     "docstrings",
     "dones",
+    "doxascope",
     "dtype",
     "elif",
     "endforeach",
@@ -336,5 +337,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

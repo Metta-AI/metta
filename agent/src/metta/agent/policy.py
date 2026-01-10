@@ -213,16 +213,18 @@ class Policy(MultiAgentPolicy, nn.Module):
 
     def _obs_to_td(self, obs: AgentObservation, device: torch.device, agent_id: int | None = None) -> TensorDict:
         obs_tensor = obs_to_obs_tensor(obs, self._policy_env_info.observation_space.shape, device)
+        agent_slot = int(agent_id) if agent_id is not None else 0
         td = TensorDict(
             {
                 "env_obs": obs_tensor,
                 "dones": torch.zeros(1, dtype=torch.float32, device=device),
                 "truncateds": torch.zeros(1, dtype=torch.float32, device=device),
                 "bptt": torch.ones(1, dtype=torch.long, device=device),
+                "training_env_ids": torch.tensor([[agent_slot]], dtype=torch.long, device=device),
             },
             batch_size=[1],
         )
-        self._set_single_step_metadata(td, agent_slot=int(agent_id) if agent_id is not None else 0)
+        self._set_single_step_metadata(td, agent_slot=agent_slot)
         return td
 
     def _set_single_step_metadata(self, td: TensorDict, *, agent_slot: int) -> None:

@@ -65,6 +65,7 @@ def multi_episode_rollout(
     save_replay: Optional[str] = None,
     max_action_time_ms: int | None = None,
     render_mode: Optional[RenderMode] = None,
+    event_handlers: Optional[list[SimulatorEventHandler]] = None,
 ) -> MultiEpisodeRolloutResult:
     """
     Runs rollout for multiple episodes, randomizing agent assignments for each episode in proportions
@@ -97,8 +98,10 @@ def multi_episode_rollout(
             policies[assignments[agent_id]].agent_policy(agent_id) for agent_id in range(env_cfg.game.num_agents)
         ]
 
+        # Start with provided event handlers or empty list
+        handlers: list[SimulatorEventHandler] = list(event_handlers) if event_handlers is not None else []
+
         # Create a new replay writer for each episode if save_replay is provided
-        handlers: list[SimulatorEventHandler] = []
         episode_replay_writer = None
         if save_replay is not None:
             episode_replay_writer = ReplayLogWriter(save_replay)

@@ -7,6 +7,7 @@ from metta.common.wandb.context import WandbRun
 from metta.sim.handle_results import send_eval_results_to_wandb, write_eval_results_to_observatory
 from metta.sim.runner import SimulationRunConfig, SimulationRunResult, run_simulations
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator import SimulatorEventHandler
 
 
 class WandbWriter(BaseModel):
@@ -51,6 +52,7 @@ def simulate_and_record(
     observatory_writer: ObservatoryWriter | None = None,
     wandb_writer: WandbWriter | None = None,
     on_progress: Callable[[str], None] = lambda x: None,
+    event_handlers: list[SimulatorEventHandler] | None = None,
 ) -> list[SimulationRunResult]:
     rollout_results = run_simulations(
         policy_specs=policy_specs,
@@ -59,6 +61,7 @@ def simulate_and_record(
         seed=seed,
         max_workers=max_workers,
         on_progress=on_progress,
+        event_handlers=event_handlers,
     )
 
     if observatory_writer is not None:
