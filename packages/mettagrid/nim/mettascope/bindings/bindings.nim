@@ -19,7 +19,7 @@ proc ctrlCHandler() {.noconv.} =
     window.close()
   quit(0)
 
-proc init(dataDir: string, replay: string): RenderResponse =
+proc init(dataDir: string, replay: string, autostart: bool): RenderResponse =
   try:
     echo "Initializing Mettascope..."
     if os.getEnv("METTASCOPE_DISABLE_CTRL_C", "") == "":
@@ -27,6 +27,7 @@ proc init(dataDir: string, replay: string): RenderResponse =
     result = RenderResponse(shouldClose: false, actions: @[])
     playMode = Realtime
     setDataDir(dataDir)
+    play = autostart
     common.replay = loadReplayString(replay, "MettaScope")
     window = newWindow(
       "MettaScope",
