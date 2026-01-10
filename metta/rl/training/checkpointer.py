@@ -119,25 +119,106 @@ class Checkpointer(TrainerComponent):
         self._save_policy(self.context.epoch)
 
     def _save_policy(self, epoch: int) -> None:
-        uri = self._checkpoint_manager.save_policy_checkpoint(
-            state_dict=self.context.policy.state_dict(),
-            architecture=self._policy_architecture,
-            epoch=epoch,
-        )
+        slot_policies = getattr(self.context, "slot_policies", None) or {}
+        slot_cfgs = list(getattr(self.context, "policy_slots", []) or [])
+        slot_lookup = getattr(self.context, "slot_id_lookup", {})
 
-        self._latest_policy_uri = uri
-        self.context.latest_policy_uri_value = uri
-        self.context.latest_saved_policy_epoch = epoch
+        if slot_policies and slot_cfgs:
+            latest_uris: dict[str, str] = {}
+            for slot_cfg, policy, arch_spec, checkpoint_slot_id in self._iter_checkpoint_slots(
+                slot_cfgs, slot_lookup, slot_policies
+            ):
+                uri = self._checkpoint_manager.save_policy_checkpoint(
+                    state_dict=policy.state_dict(),
+                    architecture=arch_spec,
+                    epoch=epoch,
+                    slot_id=checkpoint_slot_id,
+                )
+                latest_uris[slot_cfg.id] = uri
+
+            if latest_uris:
+                self._update_latest_uris(latest_uris, slot_cfgs, epoch)
+        else:
+            uri = self._checkpoint_manager.save_policy_checkpoint(
+                state_dict=self.context.policy.state_dict(),
+                architecture=self._policy_architecture,
+                epoch=epoch,
+            )
+
+            self._latest_policy_uri = uri
+            self.context.latest_policy_uri_value = uri
+            self.context.latest_saved_policy_epoch = epoch
 
         # Log latest checkpoint URI to wandb if available
         stats_reporter = getattr(self.context, "stats_reporter", None)
         wandb_run = getattr(stats_reporter, "wandb_run", None) if stats_reporter is not None else None
         if wandb_run is not None:
-            wandb_run.log(
-                {
-                    "checkpoint/latest_uri": uri,
-                    "checkpoint/latest_epoch": float(epoch),
-                },
-                step=self.context.agent_step,
+            payload = {
+                "checkpoint/latest_epoch": float(epoch),
+            }
+            if self._latest_policy_uri:
+                payload["checkpoint/latest_uri"] = self._latest_policy_uri
+            latest_uris = getattr(self.context, "latest_policy_uris", None) or {}
+            for slot_id, uri in latest_uris.items():
+                payload[f"checkpoint/latest_uri/{slot_id}"] = uri
+            wandb_run.log(payload, step=self.context.agent_step)
+            logger.info("Logged checkpoint URIs to wandb")
+
+    def _iter_checkpoint_slots(
+        self,
+        slot_cfgs,
+        slot_lookup: dict[str, int],
+        slot_policies: dict[int, Policy],
+    ):
+        for slot_cfg in slot_cfgs:
+            if not slot_cfg.trainable:
+                continue
+            slot_idx = slot_lookup.get(slot_cfg.id)
+            if slot_idx is None:
+                continue
+            policy = slot_policies.get(slot_idx)
+            if policy is None:
+                continue
+            arch_spec = self._resolve_architecture_spec(
+                policy,
+                slot_cfg,
+                fallback=self._policy_architecture if slot_cfg.use_trainer_policy else None,
             )
-            logger.info(f"Logged checkpoint URI to wandb: {uri}")
+            if not arch_spec:
+                logger.warning("Skipping checkpoint for slot '%s' (no architecture spec available)", slot_cfg.id)
+                continue
+            checkpoint_slot_id = None if slot_cfg.use_trainer_policy else slot_cfg.id
+            yield slot_cfg, policy, arch_spec, checkpoint_slot_id
+
+    def _update_latest_uris(self, latest_uris: dict[str, str], slot_cfgs, epoch: int) -> None:
+        self.context.latest_policy_uris = latest_uris
+        main_uri = None
+        for slot_cfg in slot_cfgs:
+            if slot_cfg.use_trainer_policy and slot_cfg.id in latest_uris:
+                main_uri = latest_uris[slot_cfg.id]
+                break
+        if main_uri is None and slot_cfgs and slot_cfgs[0].id in latest_uris:
+            main_uri = latest_uris[slot_cfgs[0].id]
+        if main_uri:
+            self._latest_policy_uri = main_uri
+            self.context.latest_policy_uri_value = main_uri
+            self.context.latest_saved_policy_epoch = epoch
+
+    def _resolve_architecture_spec(
+        self,
+        policy: Policy,
+        slot_cfg,
+        *,
+        fallback: PolicyArchitecture | None = None,
+    ) -> str | None:
+        if slot_cfg and getattr(slot_cfg, "architecture_spec", None):
+            return slot_cfg.architecture_spec
+        spec = getattr(policy, "architecture_spec", None)
+        if isinstance(spec, str):
+            return spec
+        cfg = getattr(policy, "config", None)
+        if isinstance(cfg, PolicyArchitecture):
+            return cfg.to_spec()
+        if fallback is not None:
+            return fallback.to_spec()
+        return None

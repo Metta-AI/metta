@@ -2,9 +2,11 @@ import importlib
 from typing import Any, Callable, Optional
 
 import torch
+from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.common.util.log_config import getRankAwareLogger
+from metta.rl.slot import LossProfileConfig, PolicySlotConfig, SlotControllerPolicy, SlotRegistry
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import (
@@ -63,10 +65,22 @@ class Trainer:
         self._components: list[TrainerComponent] = []
         self.timer = Stopwatch(log_level=logger.getEffectiveLevel())
         self.timer.start()
+        self._slot_registry = SlotRegistry()
 
         self._policy.to(self._device)
         self._policy.initialize_to_environment(self._env.policy_env_info, self._device)
         self._policy.train()
+
+        slot_state = self._build_slot_state(self._policy)
+        if len(slot_state["slots"]) > 1 or not slot_state["slots"][0].use_trainer_policy:
+            self._policy = SlotControllerPolicy(
+                slot_lookup=slot_state["slot_lookup"],
+                slots=slot_state["slots"],
+                slot_policies=slot_state["slot_policies"],
+                policy_env_info=self._env.policy_env_info,
+                controller_device=self._device,
+                agent_slot_map=slot_state["slot_ids"],
+            )
 
         self._policy = self._distributed_helper.wrap_policy(self._policy, self._device)
         self._policy.to(self._device)
@@ -79,13 +93,21 @@ class Trainer:
         if parallel_agents is None:
             parallel_agents = batch_info.num_envs * self._env.policy_env_info.num_agents
 
+        base_spec = self._policy.get_agent_experience_spec()
+        slot_metadata = {
+            "slot_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "loss_profile_id": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.int64),
+            "is_trainable_agent": UnboundedDiscrete(shape=torch.Size([]), dtype=torch.bool),
+        }
+        policy_experience_spec = Composite({**dict(base_spec.items()), **slot_metadata})
+
         self._experience = Experience.from_losses(
             total_agents=parallel_agents,
             batch_size=self._cfg.batch_size,
             bptt_horizon=self._cfg.bptt_horizon,
             minibatch_size=self._cfg.minibatch_size,
             max_minibatch_size=self._cfg.minibatch_size,
-            policy_experience_spec=self._policy.get_agent_experience_spec(),
+            policy_experience_spec=policy_experience_spec,
             losses=losses,
             device=self._device,
             sampling_config=self._cfg.sampling,
@@ -122,6 +144,14 @@ class Trainer:
             run_name=self._run_name,
             curriculum=curriculum,
         )
+        self._context.slot_id_per_agent = slot_state["slot_ids"]
+        self._context.loss_profile_id_per_agent = slot_state["loss_profile_ids"]
+        self._context.trainable_agent_mask = slot_state["trainable_mask"]
+        self._context.slot_id_lookup = slot_state["slot_lookup"]
+        self._context.loss_profile_lookup = slot_state["loss_profile_lookup"]
+        self._context.policy_slots = slot_state["slots"]
+        self._context.slot_policies = slot_state["slot_policies"]
+        self._assign_loss_profiles(losses, slot_state["loss_profile_lookup"])
 
         self.core_loop = CoreTrainingLoop(
             policy=self._policy,
@@ -139,6 +169,41 @@ class Trainer:
             loss.attach_context(self._context)
 
         self._prev_agent_step_for_step_callbacks: int = 0
+
+    def _assign_loss_profiles(self, losses: dict[str, Any], loss_profile_lookup: dict[str, int]) -> None:
+        """Attach resolved loss profile ids to losses based on config."""
+
+        if not loss_profile_lookup:
+            return
+
+        # Build reverse map: profile -> loss names declared in loss_profiles config
+        configured_profile_losses: dict[str, set[str]] = {}
+        for profile_name, profile_cfg in self._cfg.loss_profiles.items():
+            configured_profile_losses[profile_name] = set(getattr(profile_cfg, "losses", []))
+
+        for loss_name, loss_obj in losses.items():
+            profiles: set[int] = set()
+
+            cfg_attr = getattr(self._cfg.losses, loss_name, None)
+            if cfg_attr is None and loss_name == "action_supervisor":
+                cfg_attr = getattr(self._cfg.losses, "supervisor", None)
+
+            explicit = getattr(cfg_attr, "profiles", None)
+            if explicit:
+                profiles |= {loss_profile_lookup[name] for name in explicit if name in loss_profile_lookup}
+
+            for profile_name, losses_for_profile in configured_profile_losses.items():
+                if loss_name in losses_for_profile and profile_name in loss_profile_lookup:
+                    profiles.add(loss_profile_lookup[profile_name])
+
+            if profiles:
+                loss_obj.loss_profiles = profiles
+
+    def _set_trainable_flag(self, policy: Policy, trainable: bool) -> None:
+        """Set requires_grad according to slot.trainable."""
+
+        for param in policy.parameters():
+            param.requires_grad = trainable
 
     @property
     def context(self) -> ComponentContext:
@@ -247,6 +312,81 @@ class Trainer:
 
         self._components.append(component)
         component.register(self._context)
+
+    def _build_slot_state(self, trainer_policy: Policy) -> dict[str, Any]:
+        num_agents = self._env.policy_env_info.num_agents
+        slots_cfg = list(self._cfg.policy_slots or [])
+        if not slots_cfg:
+            slots_cfg = [PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True)]
+
+        trainer_slot_idx = next((idx for idx, slot in enumerate(slots_cfg) if slot.use_trainer_policy), None)
+        if trainer_slot_idx is None:
+            slots_cfg.insert(0, PolicySlotConfig(id="main", use_trainer_policy=True, trainable=True))
+        elif trainer_slot_idx != 0:
+            slots_cfg.insert(0, slots_cfg.pop(trainer_slot_idx))
+
+        slot_lookup: dict[str, int] = {}
+        for slot in slots_cfg:
+            slot_lookup[slot.id] = len(slot_lookup)
+
+        resolved_agent_map = (
+            list(self._cfg.agent_slot_map)
+            if self._cfg.agent_slot_map is not None
+            else [slots_cfg[0].id for _ in range(num_agents)]
+        )
+        if len(resolved_agent_map) != num_agents:
+            raise ValueError(
+                f"agent_slot_map must have length num_agents ({num_agents}); got {len(resolved_agent_map)}"
+            )
+
+        slot_ids: list[int] = []
+        for idx, slot_id in enumerate(resolved_agent_map):
+            if slot_id not in slot_lookup:
+                raise ValueError(f"agent_slot_map[{idx}] references unknown slot id '{slot_id}'")
+            slot_ids.append(slot_lookup[slot_id])
+
+        slot_policies: dict[int, Policy] = {}
+        for idx, slot in enumerate(slots_cfg):
+            if slot.use_trainer_policy:
+                self._set_trainable_flag(trainer_policy, slot.trainable)
+                slot_policies[idx] = trainer_policy
+            else:
+                loaded_policy = self._slot_registry.get(slot, self._env.policy_env_info, self._device)
+                self._set_trainable_flag(loaded_policy, slot.trainable)
+                slot_policies[idx] = loaded_policy
+
+        # Loss profiles (config-only in Phase 0)
+        loss_profiles = dict(self._cfg.loss_profiles)
+        if not loss_profiles:
+            loss_profiles = {"default": LossProfileConfig(losses=[])}
+        loss_profile_lookup = {name: idx for idx, name in enumerate(loss_profiles.keys())}
+
+        default_slot_profile = next(iter(loss_profiles))
+
+        loss_profile_ids = []
+        trainable_mask = []
+        for slot_idx in slot_ids:
+            slot = slots_cfg[slot_idx]
+            profile_name = slot.loss_profile or default_slot_profile
+            if profile_name not in loss_profile_lookup:
+                # Auto-register profile if referenced but not defined
+                loss_profile_lookup[profile_name] = len(loss_profile_lookup)
+            loss_profile_ids.append(loss_profile_lookup[profile_name])
+            trainable_mask.append(bool(slot.trainable))
+
+        slot_tensor = torch.tensor(slot_ids, dtype=torch.long)
+        loss_profile_tensor = torch.tensor(loss_profile_ids, dtype=torch.long)
+        trainable_tensor = torch.tensor(trainable_mask, dtype=torch.bool)
+
+        return {
+            "slots": slots_cfg,
+            "slot_lookup": slot_lookup,
+            "loss_profile_lookup": loss_profile_lookup,
+            "slot_ids": slot_tensor,
+            "loss_profile_ids": loss_profile_tensor,
+            "trainable_mask": trainable_tensor,
+            "slot_policies": slot_policies,
+        }
 
     def _invoke_callback(self, callback_type: TrainerCallback, infos: Optional[list[dict[str, Any]]] = None) -> None:
         """Invoke all registered callbacks of the specified type.

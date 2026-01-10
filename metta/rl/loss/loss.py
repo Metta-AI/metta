@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Optional
 import torch
 import torch.nn.functional as F
 from pydantic import Field
-from tensordict import TensorDict
+from tensordict import NonTensorData, TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
@@ -121,6 +121,14 @@ class LossConfig(Config):
         raise NotImplementedError("Subclasses must implement create method")
 
 
+@dataclass(frozen=True)
+class MaskMeta:
+    agent_mask: Optional[torch.Tensor]
+    agent_axis: Optional[int]
+    mask_flat: Optional[torch.Tensor]
+    mask_shape: tuple[int, ...]
+
+
 @dataclass(slots=True)
 class Loss:
     """Base class coordinating rollout and training behaviour for concrete losses."""
@@ -132,6 +140,8 @@ class Loss:
     instance_name: str
     cfg: LossConfig
 
+    trainable_only: bool = False
+    loss_profiles: set[int] | None = None
     policy_experience_spec: Composite | None = None
     replay: Experience | None = None
     loss_tracker: dict[str, list[float]] | None = None
@@ -265,6 +275,225 @@ class Loss:
     def attach_replay_buffer(self, experience: Experience) -> None:
         """Attach the replay buffer to the loss."""
         self.replay = experience
+        # Align with replay layout so slot metadata survives policy TD prep
+        spec = getattr(experience, "experience_spec", None)
+        if spec is None:
+            spec = getattr(experience.buffer, "spec", None)
+        if spec is not None:
+            self.policy_experience_spec = spec
+
+    def _filter_minibatch(self, shared_loss_data: TensorDict) -> TensorDict:
+        """Filter minibatch rows by slot profile/trainable flags.
+
+        Returns a clone of ``shared_loss_data`` with mask metadata attached at
+        ``_applied_mask`` so downstream consumers can apply the same masking to
+        auxiliary tensors (e.g., advantages, priorities).
+        """
+        mb = shared_loss_data["sampled_mb"]
+
+        # Step 1: Create mask based on profiles and trainable flags
+        mask = self._create_filter_mask(mb)
+        if mask is None:
+            return shared_loss_data
+
+        # Step 2: Detect mask pattern (per-agent vs mixed)
+        agent_mask, agent_axis = self._detect_mask_pattern(mask)
+
+        # Step 3: Apply the appropriate masking strategy
+        if agent_mask is not None:
+            return self._apply_agent_masking(shared_loss_data, mb, mask, agent_mask, agent_axis)
+        else:
+            return self._apply_flat_masking(shared_loss_data, mb, mask)
+
+    def _create_filter_mask(self, mb: TensorDict) -> torch.Tensor | None:
+        """Create a mask based on loss profiles and trainable flags."""
+        mask = None
+
+        # Apply loss profile filter
+        if (profiles := getattr(self, "loss_profiles", None)) is not None:
+            mask = torch.isin(mb["loss_profile_id"], torch.as_tensor(list(profiles), device=mb.device))
+
+        # Apply trainable-only filter
+        if getattr(self, "trainable_only", False):
+            mask = mb["is_trainable_agent"] if mask is None else mask & mb["is_trainable_agent"]
+
+        return mask
+
+    def _detect_mask_pattern(self, mask: torch.Tensor) -> tuple[torch.Tensor | None, int | None]:
+        """Detect if mask is per-agent (constant across time) or mixed.
+
+        Returns:
+            agent_mask: The per-agent mask if pattern detected, None otherwise
+            agent_axis: The axis containing agents if per-agent pattern, None otherwise
+        """
+        mask_shape = mask.shape
+
+        if mask.dim() == 2:
+            # Check if constant across time (axis 1)
+            first_step = mask[:, :1]
+            if torch.equal(mask, first_step.expand_as(mask)):
+                return mask[:, 0], 0
+
+            # Check if constant across environments (axis 0)
+            first_row = mask[0]
+            if torch.equal(mask, first_row.expand_as(mask)):
+                return first_row, 1
+
+        elif mask.dim() > 2:
+            # For higher dimensions, check if last dimension is agent axis
+            mask_2d = mask.reshape(-1, mask_shape[-1])
+            if mask_2d.numel() > 0:
+                first_row = mask_2d[0]
+                if torch.equal(mask_2d, first_row.expand_as(mask_2d)):
+                    return first_row, -1
+
+        return None, None
+
+    def _apply_agent_masking(
+        self,
+        shared_loss_data: TensorDict,
+        mb: TensorDict,
+        mask: torch.Tensor,
+        agent_mask: torch.Tensor,
+        agent_axis: int,
+    ) -> TensorDict:
+        """Apply per-agent masking, preserving batch structure."""
+        filtered = shared_loss_data.clone()
+        mask_shape = mask.shape
+        agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+
+        # Helper to mask individual tensors
+        def mask_agent_tensor(t: torch.Tensor) -> torch.Tensor:
+            lead = len(mask_shape)
+            if t.dim() < lead or tuple(t.shape[:lead]) != mask_shape:
+                return t
+
+            rest_shape = t.shape[lead:]
+            if agent_axis in (0, -lead):
+                t_sel = t.index_select(0, agent_idx)
+                new_shape = (int(agent_idx.numel()), *mask_shape[1:], *rest_shape)
+                return t_sel.reshape(new_shape)
+            if agent_axis in (lead - 1, -1):
+                t_view = t.reshape(-1, mask_shape[-1], *rest_shape)
+                t_sel = t_view.index_select(1, agent_idx)
+                new_shape = (*mask_shape[:-1], int(agent_idx.numel()), *rest_shape)
+                return t_sel.reshape(new_shape)
+            return t
+
+        # Compute new batch size
+        if agent_axis in (0, -len(mask_shape)):
+            new_batch = (int(agent_idx.numel()), *mask_shape[1:])
+        else:
+            new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+
+        # Apply masking to minibatch
+        filtered["sampled_mb"] = TensorDict(
+            {k: mask_agent_tensor(v) for k, v in mb.items()},
+            batch_size=new_batch,
+            device=mb.device,
+        )
+
+        # Apply to other data and attach metadata
+        mask_meta = MaskMeta(agent_mask=agent_mask, agent_axis=agent_axis, mask_flat=None, mask_shape=mask_shape)
+        for key, value in list(filtered.items()):
+            if key != "sampled_mb":
+                filtered[key] = self._apply_row_mask(value, mask_meta)
+
+        filtered["_applied_mask"] = NonTensorData(mask_meta)
+        return filtered
+
+    def _apply_flat_masking(self, shared_loss_data: TensorDict, mb: TensorDict, mask: torch.Tensor) -> TensorDict:
+        """Apply flat masking when mask varies across batch."""
+        filtered = shared_loss_data.clone()
+        mask_flat = mask.flatten()
+        mb_flat = mb.flatten()
+
+        filtered["sampled_mb"] = mb_flat[mask_flat]
+
+        # Apply to other data and attach metadata
+        mask_meta = MaskMeta(agent_mask=None, agent_axis=None, mask_flat=mask_flat, mask_shape=mask.shape)
+        for key, value in list(filtered.items()):
+            if key != "sampled_mb":
+                filtered[key] = self._apply_row_mask(value, mask_meta)
+
+        filtered["_applied_mask"] = NonTensorData(mask_meta)
+        return filtered
+
+    def _apply_row_mask(self, value: Any, mask_meta: MaskMeta) -> Any:
+        """Apply either a flattened mask or per-agent mask to a value."""
+
+        agent_mask = mask_meta.agent_mask
+        agent_axis = mask_meta.agent_axis
+        mask_flat = mask_meta.mask_flat
+        mask_shape = mask_meta.mask_shape
+
+        def apply_flat(t: torch.Tensor) -> torch.Tensor:
+            """Mask tensors when mask varies within the batch/agent grid."""
+
+            assert mask_flat is not None
+            target = mask_flat.numel()
+            lead = len(mask_shape)
+
+            if tuple(t.shape[:lead]) == mask_shape:
+                return t.reshape(target, *t.shape[lead:])[mask_flat]
+
+            if t.shape and t.shape[0] == target:
+                return t[mask_flat]
+
+            if lead > 1 and t.shape and t.shape[0] == mask_shape[0]:
+                repeat = int(target // t.shape[0])
+                expanded = t.repeat_interleave(repeat, dim=0)
+                return expanded[mask_flat]
+
+            return t
+
+        def apply_agent(t: torch.Tensor) -> torch.Tensor:
+            assert agent_mask is not None
+            agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+            lead = len(mask_shape)
+            if t.dim() < lead:
+                return t
+            if tuple(t.shape[:lead]) != mask_shape:
+                return t
+            if agent_axis in (0, -lead):
+                return t.index_select(0, agent_idx)
+            if agent_axis in (lead - 1, -1):
+                return t.index_select(lead - 1, agent_idx)
+            return t
+
+        masker = apply_agent if agent_mask is not None else apply_flat
+
+        def apply_tensordict(td: TensorDict) -> TensorDict:
+            if agent_mask is not None:
+                agent_idx = agent_mask.nonzero(as_tuple=False).squeeze(-1)
+                if agent_axis in (0, -len(mask_shape)):
+                    new_batch = (int(agent_idx.numel()), *mask_shape[1:])
+                else:
+                    new_batch = (*mask_shape[:-1], int(agent_idx.numel()))
+                masked = TensorDict({}, batch_size=new_batch, device=td.device)
+                for key in td.keys(include_nested=True, leaves_only=True):
+                    item = td.get(key)
+                    if isinstance(item, torch.Tensor):
+                        masked.set(key, apply_agent(item))
+                    else:
+                        masked.set(key, item)
+                return masked
+            assert mask_flat is not None
+            return td.flatten()[mask_flat]
+
+        if isinstance(value, NonTensorData):
+            data = value.data
+            return NonTensorData(masker(data)) if hasattr(data, "shape") else value
+        if isinstance(value, TensorDict):
+            return apply_tensordict(value)
+        if isinstance(value, torch.Tensor):
+            return masker(value)
+        if hasattr(value, "batch_size"):
+            try:
+                return masker(value)
+            except Exception:
+                return value
+        return value
 
     # End utility helpers
 

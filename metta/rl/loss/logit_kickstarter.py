@@ -39,12 +39,7 @@ class LogitKickstarterConfig(LossConfig):
 class LogitKickstarter(Loss):
     """This also injects the teacher's logits into the student's observations."""
 
-    __slots__ = (
-        "teacher_policy",
-        "extended_policy_env_info",
-        "logit_feature_ids",
-        "num_actions",
-    )
+    __slots__ = ("teacher_policy", "num_actions")
 
     def __init__(
         self,
@@ -62,6 +57,7 @@ class LogitKickstarter(Loss):
         self.num_actions = int(act_space.n)
 
         self.teacher_policy = load_teacher_policy(self.env, policy_uri=self.cfg.teacher_uri, device=self.device)
+        self.trainable_only = True
 
     def get_experience_spec(self) -> Composite:
         # Get action space size for logits shape
@@ -100,6 +96,7 @@ class LogitKickstarter(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch = shared_loss_data["sampled_mb"]
         B, TT = minibatch.batch_size
 

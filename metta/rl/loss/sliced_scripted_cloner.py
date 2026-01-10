@@ -8,6 +8,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.policy import Policy
 from metta.rl.loss.loss import Loss, LossConfig
+from metta.rl.slot import apply_slot_routing
 from metta.rl.training import ComponentContext
 
 # Keep: heavy module + manages circular dependency (loss <-> trainer)
@@ -21,6 +22,8 @@ class SlicedScriptedClonerConfig(LossConfig):
     # PPO consumes whatever portion of the batch isn't claimed by these slices
     student_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
     teacher_led_proportion: float = Field(default=0.0, ge=0, le=1.0)
+    teacher_slot_id: str | None = Field(default=None, description="Slot id that should act during teacher-led slices.")
+    student_slot_id: str | None = Field(default=None, description="Slot id that should act during student/PPO slices.")
     restrict_ppo_to_ppo_mask: bool = Field(
         default=True,
         description=(
@@ -58,6 +61,8 @@ class SlicedScriptedCloner(Loss):
         cfg: "SlicedScriptedClonerConfig",
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, instance_name, cfg)
+        self.trainable_only = True
+        self.loss_profiles: set[int] | None = None
 
     def get_experience_spec(self) -> Composite:
         teacher_actions = UnboundedDiscrete(shape=torch.Size([]), dtype=torch.long)
@@ -84,6 +89,16 @@ class SlicedScriptedCloner(Loss):
         with torch.no_grad():
             if not hasattr(self, "rollout_batch_size") or self.rollout_batch_size != td.batch_size.numel():
                 self._create_slices(td.batch_size.numel())
+
+            apply_slot_routing(
+                td,
+                teacher_mask=self.teacher_mask,
+                student_mask=self.stud_mask,
+                ppo_mask=self.ppo_mask,
+                teacher_slot_id=self.cfg.teacher_slot_id,
+                student_slot_id=self.cfg.student_slot_id,
+                slot_lookup=context.slot_id_lookup,
+            )
 
             self.policy.forward(td)
 
@@ -114,9 +129,9 @@ class SlicedScriptedCloner(Loss):
         context: ComponentContext,
         mb_idx: int,
     ) -> tuple[Tensor, TensorDict, bool]:
+        shared_loss_data = self._filter_minibatch(shared_loss_data)
         minibatch = shared_loss_data["sampled_mb"]
         student_td = shared_loss_data["policy_td"]
-
         # slice - minus teacher led minus student led
         train_stud_mask = minibatch["stud_mask"][:, 0]
         train_teacher_mask = minibatch["teacher_mask"][:, 0]
@@ -159,8 +174,8 @@ class SlicedScriptedCloner(Loss):
 
         self.loss_tracker["supervised_action_loss"].append(float(loss.item()))
         self.loss_tracker["supervised_action_loss_coef"].append(float(self.cfg.action_loss_coef))
-        self.loss_tracker["teacher_led_proportion"].append(float(self.cfg.teacher_led_proportion))
-        self.loss_tracker["student_led_proportion"].append(float(self.cfg.student_led_proportion))
+        self.loss_tracker["led_proportion"].append(float(self.cfg.teacher_led_proportion))
+        self.loss_tracker["student_proportion"].append(float(self.cfg.student_led_proportion))
 
         return loss, shared_loss_data_for_downstream, False
 

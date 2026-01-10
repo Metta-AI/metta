@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from metta.rl.slot import PolicySlotConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.training_environment import TrainingEnvironmentConfig
@@ -33,6 +34,9 @@ class TeacherConfig(Config):
     # Match mainline BC defaults: start at 20% teacher-led, anneal to 0.
     teacher_led_proportion: float = Field(default=0.2, ge=0.0, le=1.0)
     student_led_proportion: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Optional slot wiring: teacher/student slot ids used during teacher-led phases.
+    teacher_slot_id: str = Field(default="teacher")
+    student_slot_id: str = Field(default="main")
     # Optional per-mode overrides applied to the selected teacher loss config.
     #
     # Example CLI usage:
@@ -77,6 +81,37 @@ def apply_teacher_phase(
     if loss_cfg is not None:
         _apply_teacher_kwargs(loss_cfg=loss_cfg, teacher_cfg=teacher_cfg)
 
+    def _ensure_teacher_slot() -> None:
+        if not teacher_cfg.policy_uri:
+            return
+        slots = list(trainer_cfg.policy_slots or [])
+        if any(slot.id == teacher_cfg.teacher_slot_id for slot in slots):
+            trainer_cfg.policy_slots = slots
+            return
+        slots.append(
+            PolicySlotConfig(
+                id=teacher_cfg.teacher_slot_id,
+                policy_uri=teacher_cfg.policy_uri,
+                class_path=None,
+                policy_kwargs={},
+                trainable=False,
+                loss_profile=None,
+                use_trainer_policy=False,
+            )
+        )
+        trainer_cfg.policy_slots = slots
+
+    def _wire_slot_ids(loss_cfg: object) -> None:
+        configured = False
+        if hasattr(loss_cfg, "teacher_slot_id"):
+            loss_cfg.teacher_slot_id = teacher_cfg.teacher_slot_id
+            configured = True
+        if hasattr(loss_cfg, "student_slot_id"):
+            loss_cfg.student_slot_id = teacher_cfg.student_slot_id
+            configured = True
+        if configured:
+            _ensure_teacher_slot()
+
     def _gate_loss(name: str, end_at_step: int = total_steps) -> None:
         if end_at_step:
             scheduler_run_gates.extend(
@@ -119,6 +154,7 @@ def apply_teacher_phase(
         slicer.enabled = True
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
+        _wire_slot_ids(slicer)
 
         _gate_loss("sliced_scripted_cloner")
         _gate_critic_after_teacher()
@@ -138,6 +174,7 @@ def apply_teacher_phase(
         slicer.enabled = True
         slicer.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         slicer.student_led_proportion = teacher_cfg.student_led_proportion
+        _wire_slot_ids(slicer)
 
         _gate_loss("sliced_scripted_cloner")
         _gate_critic_after_teacher()
@@ -172,6 +209,7 @@ def apply_teacher_phase(
         sliced_kick.teacher_uri = teacher_cfg.policy_uri
         sliced_kick.teacher_led_proportion = teacher_cfg.teacher_led_proportion
         sliced_kick.student_led_proportion = teacher_cfg.student_led_proportion
+        _wire_slot_ids(sliced_kick)
 
         _gate_loss("sliced_kickstarter")
         _gate_critic_after_teacher()

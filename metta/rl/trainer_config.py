@@ -3,6 +3,7 @@ from typing import Any, ClassVar, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.rl.loss.losses import LossesConfig
+from metta.rl.slot import LossProfileConfig, PolicySlotConfig
 from metta.rl.training import HeartbeatConfig
 from metta.rl.training.update_epochs_tuner import UpdateEpochAutoTunerConfig
 from mettagrid.base_config import Config
@@ -79,6 +80,16 @@ class TrainerConfig(Config):
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     advantage: AdvantageConfig = Field(default_factory=AdvantageConfig)
+    policy_slots: list[PolicySlotConfig] | None = Field(
+        default=None, description="Optional list of policy slots; defaults to a single trainer policy slot."
+    )
+    agent_slot_map: list[str] | None = Field(
+        default=None,
+        description="Optional mapping (length=num_agents) assigning each agent index to a policy slot id.",
+    )
+    loss_profiles: dict[str, LossProfileConfig] = Field(
+        default_factory=dict, description="Optional loss profiles keyed by name."
+    )
 
     require_contiguous_env_ids: bool = False
     verbose: bool = True

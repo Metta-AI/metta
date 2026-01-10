@@ -8,12 +8,16 @@ from typing import Any, Dict, Optional
 import torch
 from safetensors.torch import save_file as save_safetensors_file
 
+from metta.agent.policy import PolicyArchitecture
 from metta.rl.system_config import SystemConfig
 from metta.rl.training.optimizer import is_schedulefree_optimizer
 from metta.tools.utils.auto_config import PolicyStorageDecision, auto_policy_storage_decision
+from mettagrid.policy.loader import initialize_or_load_policy
+from mettagrid.policy.policy import MultiAgentPolicy
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 from mettagrid.util.file import write_file
-from mettagrid.util.uri_resolvers.schemes import resolve_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +108,18 @@ class CheckpointManager:
     def output_uri(self) -> str:
         return self._remote_prefix or f"file://{self.checkpoint_dir}"
 
-    def get_latest_checkpoint(self) -> str | None:
+    def _checkpoint_root(self, slot_id: str | None = None) -> Path:
+        if slot_id:
+            return self.checkpoint_dir / "slots" / slot_id
+        return self.checkpoint_dir
+
+    def _checkpoint_uri_base(self, slot_id: str | None = None) -> str:
+        if self._remote_prefix:
+            suffix = f"/slots/{slot_id}" if slot_id else ""
+            return f"{self._remote_prefix.rstrip('/')}{suffix}"
+        return f"file://{self._checkpoint_root(slot_id)}"
+
+    def get_latest_checkpoint(self, slot_id: str | None = None) -> str | None:
         def resolve_candidate(uri: str) -> tuple[str, int] | None:
             parsed = resolve_uri(uri)
             info = parsed.checkpoint_info
@@ -112,21 +127,32 @@ class CheckpointManager:
                 return (parsed.canonical, info[1])
             return None
 
-        local = resolve_candidate(f"file://{self.checkpoint_dir}")
-        remote = resolve_candidate(self.output_uri) if self._remote_prefix else None
+        local = resolve_candidate(f"file://{self._checkpoint_root(slot_id)}")
+        remote = resolve_candidate(self._checkpoint_uri_base(slot_id)) if self._remote_prefix else None
         candidates = [c for c in [local, remote] if c]
         return max(candidates, key=lambda x: x[1])[0] if candidates else None
 
-    def save_policy_checkpoint(self, state_dict: dict, architecture, epoch: int) -> str:
-        checkpoint_dir = (self.checkpoint_dir / f"{self.run_name}:v{epoch}").expanduser().resolve()
+    def save_policy_checkpoint(
+        self,
+        state_dict: dict,
+        architecture: PolicyArchitecture | str,
+        epoch: int,
+        *,
+        slot_id: str | None = None,
+    ) -> str:
+        checkpoint_root = self._checkpoint_root(slot_id)
+        checkpoint_root.mkdir(parents=True, exist_ok=True)
+        checkpoint_dir = (checkpoint_root / f"{self.run_name}:v{epoch}").expanduser().resolve()
+        architecture_spec = architecture.to_spec() if isinstance(architecture, PolicyArchitecture) else architecture
         write_checkpoint_bundle(
             checkpoint_dir,
-            architecture_spec=architecture.to_spec(),
+            architecture_spec=architecture_spec,
             state_dict=state_dict,
         )
 
         if self._remote_prefix:
-            remote_zip = f"{self.output_uri.rstrip('/')}/{checkpoint_dir.name}.zip"
+            remote_base = self._checkpoint_uri_base(slot_id)
+            remote_zip = f"{remote_base.rstrip('/')}/{checkpoint_dir.name}.zip"
             with tempfile.NamedTemporaryFile(
                 dir=checkpoint_dir.parent,
                 prefix=f".{checkpoint_dir.name}.",
@@ -191,3 +217,16 @@ class CheckpointManager:
 
         if is_schedulefree:
             optimizer.train()
+
+    @staticmethod
+    def load_from_uri(
+        uri: str,
+        policy_env_info: PolicyEnvInterface,
+        device: torch.device | str = "cpu",
+        *,
+        strict: bool = True,
+    ) -> MultiAgentPolicy:
+        """Load a policy checkpoint."""
+
+        policy_spec = policy_spec_from_uri(uri, device=str(device))
+        return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
