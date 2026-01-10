@@ -525,6 +525,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Execute current phase
         action = self._execute_phase(state)
         state.last_action = action
+
+        # Track last move direction for anti-oscillation
+        if action.name == "move":
+            # Extract direction from move action (stored in first argument)
+            if hasattr(action, 'args') and action.args:
+                state.last_move_direction = action.args[0]  # e.g., "north", "south", etc.
+            elif hasattr(action, 'direction'):
+                state.last_move_direction = action.direction
+        elif action.name == "noop":
+            # Don't update last_move_direction on noop
+            pass
+
         self._logger.debug(f"  ACTION: {action.name}")
         return action, state
 
@@ -610,6 +622,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Remove from explored cells since it's blocked
                 state.explored_cells.discard((target_r, target_c))
 
+                # CRITICAL: Also update MapManager grid so pathfinding learns from failures
+                # Without this, pathfinder will keep planning routes through blocked cells
+                if self.map_manager:
+                    self.map_manager.mark_wall(target_r, target_c)
+
             # If too many consecutive failed moves, invalidate cached paths
             # This suggests position drift - our map may be out of sync
             if state.consecutive_failed_moves >= 5:
@@ -624,28 +641,43 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         """Detect if agent is oscillating between 2-3 positions.
 
         FIX ISSUE #4: Detect oscillation patterns that aren't caught by failed move counting.
+        STRENGTHENED: Detect faster (10 steps) and with stricter criteria.
 
         Returns:
             True if agent is oscillating (stuck), False otherwise.
         """
-        if len(state.position_history) < 20:
+        # STRENGTHENED: Detect after just 10 steps instead of 20
+        if len(state.position_history) < 10:
             return False  # Not enough history
 
-        recent_positions = state.position_history[-20:]
+        recent_positions = state.position_history[-10:]
         unique_positions = set(recent_positions)
 
-        # Oscillation: visiting only 2-3 unique positions in last 20 steps
+        # STRENGTHENED: Detect 2-position oscillation (most common pattern)
+        if len(unique_positions) == 2:
+            # Check if alternating between exactly 2 positions
+            pos_list = list(unique_positions)
+            # Count how many times each position appears
+            count_0 = recent_positions.count(pos_list[0])
+            count_1 = recent_positions.count(pos_list[1])
+            # If both positions appear 3+ times in last 10 steps → oscillating
+            if count_0 >= 3 and count_1 >= 3:
+                self._logger.warning(f"  OSCILLATION: Alternating between {pos_list[0]} and {pos_list[1]} "
+                                   f"({count_0} and {count_1} times in last 10 steps)")
+                return True
+
+        # Original check: visiting only 2-3 unique positions in last 10 steps
         if len(unique_positions) > 3:
             return False  # Moving through too many positions, not oscillating
 
         # Check if we're making progress toward any target
-        # If we have a target and are getting closer, not stuck
+        # STRENGTHENED: Only need to move 1 cell closer (was 2)
         if hasattr(state, 'current_recharge_target') and state.current_recharge_target:
             target = state.current_recharge_target
             initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
             final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
 
-            if final_dist < initial_dist - 2:  # Making progress (moved 2+ cells closer)
+            if final_dist < initial_dist - 1:  # Making progress (moved 1+ cells closer)
                 return False
 
         if hasattr(state, 'committed_frontier_target') and state.committed_frontier_target:
@@ -653,7 +685,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
             final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
 
-            if final_dist < initial_dist - 2:  # Making progress
+            if final_dist < initial_dist - 1:  # Making progress
                 return False
 
         # No progress toward any target and visiting only 2-3 positions → Oscillating!
@@ -1954,11 +1986,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # (Always check this, even when stuck - we might have found it!)
         adj_dir = self._find_station_adjacent_in_obs(state, station_type)
         if adj_dir is not None:
-            self._logger.info(f"  {station_type.upper()}: Adjacent in direction {adj_dir}, moving onto it")
-            state.using_object_this_step = True
-            # Exit stuck recovery since we found what we need
-            state.stuck_recovery_active = False
-            return self._actions.move.Move(adj_dir)
+            # CRITICAL FIX: Check if direction is actually clear before moving!
+            # Station may be adjacent but blocked by another agent or obstacle
+            if self._is_direction_clear_in_obs(state, adj_dir):
+                self._logger.info(f"  {station_type.upper()}: Adjacent in direction {adj_dir}, moving onto it")
+                state.using_object_this_step = True
+                # Exit stuck recovery since we found what we need
+                state.stuck_recovery_active = False
+                return self._actions.move.Move(adj_dir)
+            else:
+                self._logger.warning(f"  {station_type.upper()}: Adjacent {adj_dir} but BLOCKED - will try alternate route")
+                # Don't return - fall through to other priorities to find alternate route
 
         # Priority 2: Check if station is visible (but not adjacent)
         nav_result = self._find_station_direction_in_obs(state, station_type)
@@ -2021,11 +2059,35 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         return self._explore(state)
 
     def _do_assemble(self, state: HarvestState) -> Action:
-        """Assemble hearts at the assembler."""
+        """Assemble hearts at the assembler.
+
+        ANTI-OSCILLATION FIX: Add stuck recovery like recharge phase.
+        """
+        # ANTI-OSCILLATION: If stuck OR oscillating trying to reach assembler, force exploration
+        # This prevents oscillation loops where agent alternates between 2 positions
+        # Check BOTH consecutive_failed_moves AND stuck_recovery_active (set by oscillation detection)
+        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
+            self._logger.error(f"  ASSEMBLE: STUCK/OSCILLATING (fails={state.consecutive_failed_moves}, stuck_active={state.stuck_recovery_active}) - forcing exploration to find alternate route")
+            # Ensure stuck recovery is active
+            state.stuck_recovery_active = True
+            # Try exploration to find alternate path
+            return self._explore(state)
+
+        # Normal navigation to assembler
         return self._navigate_to_station(state, "assembler")
 
     def _do_deliver(self, state: HarvestState) -> Action:
-        """Deliver hearts to the chest."""
+        """Deliver hearts to the chest.
+
+        ANTI-OSCILLATION FIX: Add stuck recovery like assemble phase.
+        """
+        # ANTI-OSCILLATION: If stuck OR oscillating trying to reach chest, force exploration
+        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
+            self._logger.error(f"  DELIVER: STUCK/OSCILLATING (fails={state.consecutive_failed_moves}, stuck_active={state.stuck_recovery_active}) - forcing exploration to find alternate route")
+            state.stuck_recovery_active = True
+            return self._explore(state)
+
+        # Normal navigation to chest
         return self._navigate_to_station(state, "chest")
 
     def _do_recharge(self, state: HarvestState) -> Action:
@@ -2191,8 +2253,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 return self._explore(state)
 
             # Use MapManager pathfinding for intelligent navigation to charger
-            # Chargers are traversable - path directly to them
-            direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=False)
+            # Chargers are non-traversable - path to adjacent cell to use them
+            direction = self._navigate_to_with_mapmanager(state, target_charger, reach_adjacent=True)
 
             if direction:
                 self._logger.debug(f"  RECHARGE: Moving {direction} toward charger (MapManager pathfinding)")
@@ -2621,13 +2683,37 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 state.cached_path_reach_adjacent = reach_adjacent
 
         if not path:
-            # Pathfinding failed - just try any clear direction
-            # (Don't call _explore here to avoid recursion)
-            self._logger.warning(f"Step {state.step_count}: PATHFIND FAILED to {target}, trying any clear direction (THIS CAUSES OSCILLATION!)")
+            # ANTI-OSCILLATION FIX: Use greedy/gradient descent instead of random direction
+            # Move in direction that gets us CLOSER to target (Manhattan distance)
+            self._logger.warning(f"Step {state.step_count}: PATHFIND FAILED to {target}, using greedy approach")
+
+            current_dist = abs(target[0] - state.row) + abs(target[1] - state.col)
+
+            # Calculate distance for each direction
+            direction_scores = []
             for direction in ["north", "south", "east", "west"]:
                 if self._is_direction_clear_in_obs(state, direction):
-                    self._logger.debug(f"Step {state.step_count}: PATHFIND FAILED: Moving {direction} (random)")
-                    return self._actions.move.Move(direction)
+                    # Calculate position after move
+                    dr, dc = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}[direction]
+                    new_r, new_c = state.row + dr, state.col + dc
+                    new_dist = abs(target[0] - new_r) + abs(target[1] - new_c)
+
+                    # Penalty for opposite of last move (anti-oscillation)
+                    penalty = 0
+                    if hasattr(state, 'last_move_direction') and state.last_move_direction:
+                        opposite = {"north": "south", "south": "north", "east": "west", "west": "east"}
+                        if direction == opposite.get(state.last_move_direction):
+                            penalty = 100  # Large penalty for reversing
+
+                    direction_scores.append((new_dist + penalty, direction))
+
+            if direction_scores:
+                # Pick direction with smallest distance (greedy - always get closer)
+                direction_scores.sort()
+                best_direction = direction_scores[0][1]
+                self._logger.info(f"Step {state.step_count}: PATHFIND FAILED: Using greedy {best_direction} (gets closer to target)")
+                return self._actions.move.Move(best_direction)
+
             self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked, nooping")
             return self._actions.noop.Noop()
 
@@ -3115,10 +3201,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block on truly impassable objects: walls and agents
-                # All game objects (extractors, chargers, assemblers, chests) are traversable
-                # - you move ONTO them to use them
-                if "wall" in tag_name or "agent" in tag_name:
+                # Block walls, agents, and stations (charger/assembler/chest)
+                # Stations are non-traversable - you stand ADJACENT to use them
+                # Only extractors are traversable (you stand ON them to use)
+                if "wall" in tag_name or "agent" in tag_name or "charger" in tag_name or "assembler" in tag_name or "chest" in tag_name:
                     if state.step_count < 100:
                         self._logger.info(f"  OBS_CHECK: Blocking {direction} - found impassable '{tag_name}' at {target_obs_pos}")
                     return False
