@@ -46,16 +46,16 @@ class TestCollectiveConfig:
         assert cfg.tags.count("collective:shared") == 1
 
     def test_game_config_with_collectives(self):
-        """Test that GameConfig accepts collectives list."""
+        """Test that GameConfig accepts collectives dict."""
         game_config = GameConfig(
             num_agents=1,
-            collectives=[
-                CollectiveConfig(name="team_storage", inventory=InventoryConfig(initial={"gold": 50})),
-            ],
+            collectives={
+                "team_storage": CollectiveConfig(inventory=InventoryConfig(initial={"gold": 50})),
+            },
             resource_names=["gold"],
         )
         assert len(game_config.collectives) == 1
-        assert game_config.collectives[0].name == "team_storage"
+        assert "team_storage" in game_config.collectives
 
 
 class TestCollectiveConversion:
@@ -66,15 +66,14 @@ class TestCollectiveConversion:
         game_config = GameConfig(
             num_agents=1,
             resource_names=["gold", "silver"],
-            collectives=[
-                CollectiveConfig(
-                    name="vault",
+            collectives={
+                "vault": CollectiveConfig(
                     inventory=InventoryConfig(
                         initial={"gold": 100, "silver": 50},
                         limits={"precious": ResourceLimitsConfig(limit=500, resources=["gold", "silver"])},
                     ),
                 ),
-            ],
+            },
         )
 
         cpp_config = convert_to_cpp_game_config(game_config)
@@ -102,15 +101,14 @@ class TestCollectiveIntegration:
                 max_steps=100,
                 resource_names=["gold"],
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-                collectives=[
-                    CollectiveConfig(
-                        name="team_vault",
+                collectives={
+                    "team_vault": CollectiveConfig(
                         inventory=InventoryConfig(
                             initial={"gold": 100},
                             limits={"gold": ResourceLimitsConfig(limit=1000, resources=["gold"])},
                         ),
                     ),
-                ],
+                },
                 objects={
                     "wall": WallConfig(),
                     "chest": ChestConfig(
@@ -153,10 +151,10 @@ class TestCollectiveIntegration:
         game_config = GameConfig(
             num_agents=2,
             resource_names=["gold", "silver"],
-            collectives=[
-                CollectiveConfig(name="team_red_vault", inventory=InventoryConfig(initial={"gold": 50})),
-                CollectiveConfig(name="team_blue_vault", inventory=InventoryConfig(initial={"silver": 50})),
-            ],
+            collectives={
+                "team_red_vault": CollectiveConfig(inventory=InventoryConfig(initial={"gold": 50})),
+                "team_blue_vault": CollectiveConfig(inventory=InventoryConfig(initial={"silver": 50})),
+            },
         )
 
         cpp_config = convert_to_cpp_game_config(game_config)
@@ -173,12 +171,11 @@ class TestCollectiveIntegration:
                 max_steps=100,
                 resource_names=["ore", "metal"],
                 actions=ActionsConfig(noop=NoopActionConfig(), move=MoveActionConfig()),
-                collectives=[
-                    CollectiveConfig(
-                        name="factory_storage",
+                collectives={
+                    "factory_storage": CollectiveConfig(
                         inventory=InventoryConfig(initial={"ore": 100}),
                     ),
-                ],
+                },
                 objects={
                     "wall": WallConfig(),
                     "smelter": AssemblerConfig(
@@ -216,7 +213,7 @@ class TestCollectiveTagMapping:
         game_config = GameConfig(
             num_agents=1,
             resource_names=["gold"],
-            collectives=[CollectiveConfig(name="vault", inventory=InventoryConfig())],
+            collectives={"vault": CollectiveConfig(inventory=InventoryConfig())},
             objects={
                 "wall": WallConfig(collective="vault"),
             },
@@ -233,7 +230,7 @@ class TestCollectiveTagMapping:
         game_config = GameConfig(
             num_agents=1,
             resource_names=["gold"],
-            collectives=[CollectiveConfig(name="shared", inventory=InventoryConfig())],
+            collectives={"shared": CollectiveConfig(inventory=InventoryConfig())},
             objects={
                 "wall1": WallConfig(name="wall1", collective="shared"),
                 "wall2": WallConfig(name="wall2", collective="shared"),

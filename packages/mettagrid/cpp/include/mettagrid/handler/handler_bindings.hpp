@@ -28,6 +28,12 @@ inline void bind_handler_config(py::module& m) {
   // AlignTo enum
   py::enum_<AlignTo>(m, "AlignTo").value("actor_collective", AlignTo::actor_collective).value("none", AlignTo::none);
 
+  // HandlerType enum
+  py::enum_<HandlerType>(m, "HandlerType")
+      .value("on_use", HandlerType::on_use)
+      .value("on_update", HandlerType::on_update)
+      .value("aoe", HandlerType::aoe);
+
   // Filter configs
   py::class_<VibeFilterConfig>(m, "VibeFilterConfig")
       .def(py::init<>())
@@ -74,7 +80,7 @@ inline void bind_handler_config(py::module& m) {
   py::class_<ClearInventoryMutationConfig>(m, "ClearInventoryMutationConfig")
       .def(py::init<>())
       .def_readwrite("entity", &ClearInventoryMutationConfig::entity)
-      .def_readwrite("resource_id", &ClearInventoryMutationConfig::resource_id);
+      .def_readwrite("resource_ids", &ClearInventoryMutationConfig::resource_ids);
 
   py::class_<AttackMutationConfig>(m, "AttackMutationConfig")
       .def(py::init<>())
@@ -83,18 +89,54 @@ inline void bind_handler_config(py::module& m) {
       .def_readwrite("health_resource", &AttackMutationConfig::health_resource)
       .def_readwrite("damage_multiplier", &AttackMutationConfig::damage_multiplier);
 
-  // Note: FilterConfig and MutationConfig are std::variant types.
-  // For full Python support, you'd need to bind each variant alternative
-  // and use py::implicitly_convertible or custom type casters.
-  // For now, the individual config types above can be used directly.
-
-  // HandlerConfig
+  // HandlerConfig with methods to add filters and mutations
   py::class_<HandlerConfig, std::shared_ptr<HandlerConfig>>(m, "HandlerConfig")
       .def(py::init<>())
       .def(py::init<const std::string&>(), py::arg("name"))
-      .def_readwrite("name", &HandlerConfig::name);
-  // Note: filters and mutations vectors contain std::variant types.
-  // For full Python support, custom conversion would be needed.
+      .def_readwrite("name", &HandlerConfig::name)
+      .def_readwrite("radius", &HandlerConfig::radius)
+      // Add filter methods - each type wraps into the variant
+      .def(
+          "add_vibe_filter",
+          [](HandlerConfig& self, const VibeFilterConfig& cfg) { self.filters.push_back(cfg); },
+          py::arg("filter"))
+      .def(
+          "add_resource_filter",
+          [](HandlerConfig& self, const ResourceFilterConfig& cfg) { self.filters.push_back(cfg); },
+          py::arg("filter"))
+      .def(
+          "add_alignment_filter",
+          [](HandlerConfig& self, const AlignmentFilterConfig& cfg) { self.filters.push_back(cfg); },
+          py::arg("filter"))
+      .def(
+          "add_tag_filter",
+          [](HandlerConfig& self, const TagFilterConfig& cfg) { self.filters.push_back(cfg); },
+          py::arg("filter"))
+      // Add mutation methods - each type wraps into the variant
+      .def(
+          "add_resource_delta_mutation",
+          [](HandlerConfig& self, const ResourceDeltaMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"))
+      .def(
+          "add_resource_transfer_mutation",
+          [](HandlerConfig& self, const ResourceTransferMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"))
+      .def(
+          "add_alignment_mutation",
+          [](HandlerConfig& self, const AlignmentMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"))
+      .def(
+          "add_freeze_mutation",
+          [](HandlerConfig& self, const FreezeMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"))
+      .def(
+          "add_clear_inventory_mutation",
+          [](HandlerConfig& self, const ClearInventoryMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"))
+      .def(
+          "add_attack_mutation",
+          [](HandlerConfig& self, const AttackMutationConfig& cfg) { self.mutations.push_back(cfg); },
+          py::arg("mutation"));
 }
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_

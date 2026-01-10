@@ -1,63 +1,55 @@
 #ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_AOE_HELPER_HPP_
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_AOE_HELPER_HPP_
 
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
-#include "core/aoe_config.hpp"
 #include "core/grid_object.hpp"
-
-// Forward declarations
-class HasInventory;
+#include "handler/handler.hpp"
 
 namespace mettagrid {
 
-// An AOE effect source registered at a cell location
-struct AOEEffectSource {
-  AOEConfig config;
-  const GridObject* source;  // The object that created this effect
+// An AOE handler source registered at a cell location
+struct AOEHandlerSource {
+  std::shared_ptr<Handler> handler;
+  GridObject* source;  // The object that owns this handler
 
-  AOEEffectSource() : source(nullptr) {}
-  AOEEffectSource(const AOEConfig& cfg, const GridObject* src) : config(cfg), source(src) {}
+  AOEHandlerSource() : handler(nullptr), source(nullptr) {}
+  AOEHandlerSource(std::shared_ptr<Handler> h, GridObject* src) : handler(std::move(h)), source(src) {}
 };
 
 /**
- * AOEEffectGrid manages cell-based AOE effect registration.
+ * AOEEffectGrid manages cell-based AOE handler registration.
  *
- * Instead of tracking individual targets, effects are registered at cell locations.
- * Objects query effects at their location and apply those that pass filters.
+ * Instead of tracking individual targets, handlers are registered at cell locations.
+ * Objects query handlers at their location and apply those that pass filters.
  *
  * Usage:
  *   1. Create AOEEffectGrid with grid dimensions
  *   2. Call register_source() when an AOE source is placed
  *   3. Call unregister_source() when an AOE source is removed
- *   4. Objects call apply_effects_at() to get effects applied at their location
+ *   4. Objects call apply_effects_at() to get handlers applied at their location
  */
 class AOEEffectGrid {
 public:
   AOEEffectGrid(GridCoord height, GridCoord width);
   ~AOEEffectGrid() = default;
 
-  // Register an AOE source - adds effect to all cells within radius
-  void register_source(const GridObject& source, const AOEConfig& config);
+  // Register an AOE source - adds handler to all cells within radius
+  void register_source(GridObject& source, std::shared_ptr<Handler> handler);
 
-  // Unregister an AOE source - removes effect from all cells
-  void unregister_source(const GridObject& source);
+  // Unregister all AOE handlers for a source - removes from all cells
+  void unregister_source(GridObject& source);
 
-  // Apply all AOE effects at a location to a target object
-  // Filters are checked before applying each effect
+  // Apply all AOE handlers at a location to a target object
+  // Handler filters are checked before applying mutations
   void apply_effects_at(const GridLocation& loc, GridObject& target);
 
-  // Get number of effect sources at a location (for testing/debugging)
+  // Get number of handler sources at a location (for testing/debugging)
   size_t effect_count_at(const GridLocation& loc) const;
 
 private:
-  // Check if target passes tag filter for an effect
-  static bool passes_tag_filter(const AOEConfig& config, const GridObject& target);
-
-  // Check if target passes alignment filter for an effect
-  static bool passes_alignment_filter(const AOEConfig& config, const GridObject& source, const GridObject& target);
-
   // Hash function for GridLocation
   struct LocationHash {
     size_t operator()(const GridLocation& loc) const {
@@ -68,11 +60,11 @@ private:
   GridCoord _height;
   GridCoord _width;
 
-  // Map from cell location to list of effect sources affecting that cell
-  std::unordered_map<GridLocation, std::vector<AOEEffectSource>, LocationHash> _cell_effects;
+  // Map from cell location to list of handler sources affecting that cell
+  std::unordered_map<GridLocation, std::vector<AOEHandlerSource>, LocationHash> _cell_effects;
 
-  // Map from source object to its registered config (for unregistration)
-  std::unordered_map<const GridObject*, AOEConfig> _source_configs;
+  // Map from source object to its registered handlers (for unregistration)
+  std::unordered_map<GridObject*, std::vector<std::shared_ptr<Handler>>> _source_handlers;
 };
 
 }  // namespace mettagrid

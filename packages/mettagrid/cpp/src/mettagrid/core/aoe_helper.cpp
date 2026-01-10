@@ -2,22 +2,22 @@
 
 #include <algorithm>
 
-#include "objects/collective.hpp"
+#include "handler/handler_context.hpp"
 #include "objects/has_inventory.hpp"
 
 namespace mettagrid {
 
 AOEEffectGrid::AOEEffectGrid(GridCoord height, GridCoord width) : _height(height), _width(width) {}
 
-void AOEEffectGrid::register_source(const GridObject& source, const AOEConfig& config) {
-  // Store the config for later unregistration
-  _source_configs[&source] = config;
+void AOEEffectGrid::register_source(GridObject& source, std::shared_ptr<Handler> handler) {
+  // Store the handler for later unregistration
+  _source_handlers[&source].push_back(handler);
 
   const GridLocation& source_loc = source.location;
-  int radius = config.radius;
-  AOEEffectSource effect_source(config, &source);
+  int radius = handler->radius();
+  AOEHandlerSource handler_source(handler, &source);
 
-  // Register effect at all cells within L-infinity (Chebyshev) distance
+  // Register handler at all cells within L-infinity (Chebyshev) distance
   for (int dr = -radius; dr <= radius; ++dr) {
     int cell_r = static_cast<int>(source_loc.r) + dr;
     if (cell_r < 0 || cell_r >= static_cast<int>(_height)) {
@@ -29,28 +29,32 @@ void AOEEffectGrid::register_source(const GridObject& source, const AOEConfig& c
         continue;
       }
       GridLocation cell_loc(static_cast<GridCoord>(cell_r), static_cast<GridCoord>(cell_c));
-      _cell_effects[cell_loc].push_back(effect_source);
+      _cell_effects[cell_loc].push_back(handler_source);
     }
   }
 }
 
-void AOEEffectGrid::unregister_source(const GridObject& source) {
-  auto config_it = _source_configs.find(&source);
-  if (config_it == _source_configs.end()) {
+void AOEEffectGrid::unregister_source(GridObject& source) {
+  auto handlers_it = _source_handlers.find(&source);
+  if (handlers_it == _source_handlers.end()) {
     return;
   }
 
-  const AOEConfig& config = config_it->second;
-  const GridLocation& source_loc = source.location;
-  int radius = config.radius;
+  // Get the maximum radius from all handlers for this source
+  int max_radius = 0;
+  for (const auto& handler : handlers_it->second) {
+    max_radius = std::max(max_radius, handler->radius());
+  }
 
-  // Remove effect from all cells within L-infinity (Chebyshev) distance
-  for (int dr = -radius; dr <= radius; ++dr) {
+  const GridLocation& source_loc = source.location;
+
+  // Remove all handlers from this source from all cells within max radius
+  for (int dr = -max_radius; dr <= max_radius; ++dr) {
     int cell_r = static_cast<int>(source_loc.r) + dr;
     if (cell_r < 0 || cell_r >= static_cast<int>(_height)) {
       continue;
     }
-    for (int dc = -radius; dc <= radius; ++dc) {
+    for (int dc = -max_radius; dc <= max_radius; ++dc) {
       int cell_c = static_cast<int>(source_loc.c) + dc;
       if (cell_c < 0 || cell_c >= static_cast<int>(_width)) {
         continue;
@@ -61,7 +65,7 @@ void AOEEffectGrid::unregister_source(const GridObject& source) {
         auto& effects = cell_it->second;
         effects.erase(
             std::remove_if(
-                effects.begin(), effects.end(), [&source](const AOEEffectSource& e) { return e.source == &source; }),
+                effects.begin(), effects.end(), [&source](const AOEHandlerSource& e) { return e.source == &source; }),
             effects.end());
         if (effects.empty()) {
           _cell_effects.erase(cell_it);
@@ -70,50 +74,7 @@ void AOEEffectGrid::unregister_source(const GridObject& source) {
     }
   }
 
-  _source_configs.erase(config_it);
-}
-
-bool AOEEffectGrid::passes_tag_filter(const AOEConfig& config, const GridObject& target) {
-  if (config.target_tag_ids.empty()) {
-    return true;
-  }
-
-  for (int required_tag_id : config.target_tag_ids) {
-    for (int target_tag_id : target.tag_ids) {
-      if (required_tag_id == target_tag_id) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-bool AOEEffectGrid::passes_alignment_filter(const AOEConfig& config,
-                                            const GridObject& source,
-                                            const GridObject& target) {
-  if (config.alignment_filter == AOEAlignmentFilter::any) {
-    return true;
-  }
-
-  Collective* source_collective = source.getCollective();
-  Collective* target_collective = target.getCollective();
-
-  // Both must have collectives for collective-based filtering
-  if (source_collective == nullptr || target_collective == nullptr) {
-    return false;
-  }
-
-  bool same = (source_collective == target_collective);
-
-  switch (config.alignment_filter) {
-    case AOEAlignmentFilter::same_collective:
-      return same;
-    case AOEAlignmentFilter::different_collective:
-      return !same;
-    default:
-      return true;
-  }
+  _source_handlers.erase(handlers_it);
 }
 
 void AOEEffectGrid::apply_effects_at(const GridLocation& loc, GridObject& target) {
@@ -122,29 +83,17 @@ void AOEEffectGrid::apply_effects_at(const GridLocation& loc, GridObject& target
     return;
   }
 
-  HasInventory* target_inventory = dynamic_cast<HasInventory*>(&target);
-  if (target_inventory == nullptr) {
-    return;
-  }
-
-  for (const AOEEffectSource& effect : cell_it->second) {
+  for (AOEHandlerSource& effect : cell_it->second) {
     // Skip if target is the source
     if (effect.source == &target) {
       continue;
     }
 
-    // Check filters
-    if (!passes_tag_filter(effect.config, target)) {
-      continue;
-    }
-    if (!passes_alignment_filter(effect.config, *effect.source, target)) {
-      continue;
-    }
+    // Create context: actor=source, target=affected object
+    HandlerContext ctx(effect.source, &target);
 
-    // Apply all resource deltas
-    for (const AOEResourceDelta& delta : effect.config.deltas) {
-      target_inventory->inventory.update(delta.resource_id, delta.delta);
-    }
+    // Handler's filters and mutations are applied via try_apply
+    effect.handler->try_apply(ctx);
   }
 }
 

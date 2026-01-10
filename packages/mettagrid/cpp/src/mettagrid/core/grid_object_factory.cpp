@@ -67,13 +67,36 @@ GridObject* create_object_from_config(GridCoord r,
   }
 
   // Set up handlers for this object
-  if (created_object && !config->handlers.empty()) {
-    std::vector<std::shared_ptr<mettagrid::Handler>> handlers;
-    handlers.reserve(config->handlers.size());
-    for (const auto& handler_config : config->handlers) {
-      handlers.push_back(std::make_shared<mettagrid::Handler>(handler_config));
+  if (created_object) {
+    // on_use handlers
+    if (!config->on_use_handlers.empty()) {
+      std::vector<std::shared_ptr<mettagrid::Handler>> handlers;
+      handlers.reserve(config->on_use_handlers.size());
+      for (const auto& handler_config : config->on_use_handlers) {
+        handlers.push_back(std::make_shared<mettagrid::Handler>(handler_config));
+      }
+      created_object->set_on_use_handlers(std::move(handlers));
     }
-    created_object->set_handlers(std::move(handlers));
+
+    // on_update handlers
+    if (!config->on_update_handlers.empty()) {
+      std::vector<std::shared_ptr<mettagrid::Handler>> handlers;
+      handlers.reserve(config->on_update_handlers.size());
+      for (const auto& handler_config : config->on_update_handlers) {
+        handlers.push_back(std::make_shared<mettagrid::Handler>(handler_config));
+      }
+      created_object->set_on_update_handlers(std::move(handlers));
+    }
+
+    // AOE handlers
+    if (!config->aoe_handlers.empty()) {
+      std::vector<std::shared_ptr<mettagrid::Handler>> handlers;
+      handlers.reserve(config->aoe_handlers.size());
+      for (const auto& handler_config : config->aoe_handlers) {
+        handlers.push_back(std::make_shared<mettagrid::Handler>(handler_config));
+      }
+      created_object->set_aoe_handlers(std::move(handlers));
+    }
   }
 
   return created_object;

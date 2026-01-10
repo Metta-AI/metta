@@ -9,7 +9,7 @@ namespace mettagrid {
 
 /**
  * Base interface for handler filters.
- * Filters determine whether a handler should proceed.
+ * Filters determine whether a handler should trigger.
  */
 class Filter {
 public:
