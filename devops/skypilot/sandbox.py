@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 # ruff: noqa: E402
+from devops.skypilot.utils.job_helpers import skypilot_sanity_check
 from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
@@ -500,6 +501,8 @@ def new(
         time.sleep(1)
 
     print("\n⏳ This will take a few minutes...")
+
+    skypilot_sanity_check()
 
     # Check authentication
     try:

@@ -8,13 +8,22 @@ from typing import cast
 import sky
 import sky.exceptions
 import sky.jobs
-from sky.server.common import RequestId
+from sky.server.common import RequestId, get_server_url
 
 logger = logging.getLogger(__name__)
 
 
+SERVER_DOMAIN_SUFFIX = "softmax-research.net"
+
+
 def get_devops_skypilot_dir() -> Path:
     return Path(__file__).parent.parent
+
+
+def skypilot_sanity_check() -> None:
+    server_url = get_server_url()
+    if not server_url.endswith(SERVER_DOMAIN_SUFFIX):
+        raise ValueError(f"Invalid SkyPilot server URL: {server_url}. Try `metta install skypilot --force` to fix.")
 
 
 def get_jobs_controller_name() -> str:
