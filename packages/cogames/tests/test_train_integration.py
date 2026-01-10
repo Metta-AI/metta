@@ -28,7 +28,7 @@ def test_env_config():
     return get_mission("machina_1")[1]
 
 
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(180)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
     """Test training with LSTMPolicy for 1000 steps."""
     train(

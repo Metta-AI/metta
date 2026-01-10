@@ -140,7 +140,7 @@ def _execute_ci_packages(
             duration=duration,
         )
 
-    with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         for package, target in zip(packages, targets, strict=True):
             futures.append(pool.submit(_run_ci_package, package, target, base_cmd, report_dir))
 
@@ -202,8 +202,8 @@ def run(
         base_cmd = [
             *cmd,
             "-n",
-            "4",
-            "--timeout=100",
+            "auto",
+            "--timeout=180",
             "--timeout-method=thread",
             "--disable-warnings",
             "--color=no",
