@@ -60,8 +60,11 @@ class _PufferlibCogsStatefulImpl(StatefulPolicyImpl[dict[str, torch.Tensor | Non
         for idx, token in enumerate(obs.tokens):
             if idx >= self._num_tokens:
                 break
-            raw = torch.as_tensor(token.raw_token, device=self._device, dtype=obs_tensor.dtype)
-            obs_tensor[idx, : raw.numel()] = raw
+            raw = torch.as_tensor(token.raw_token, device=self._device, dtype=obs_tensor.dtype).flatten()
+            if raw.numel() == 0:
+                continue
+            copy_len = min(raw.numel(), self._token_dim)
+            obs_tensor[idx, :copy_len] = raw[:copy_len]
 
         obs_tensor = obs_tensor * (1.0 / 255.0)
         obs_tensor = obs_tensor.unsqueeze(0)
@@ -75,17 +78,20 @@ class _PufferlibCogsStatefulImpl(StatefulPolicyImpl[dict[str, torch.Tensor | Non
         else:
             state_dict = None
 
+        next_state: dict[str, torch.Tensor | None] | None
         with torch.no_grad():
             self._net.eval()
-            logits, _ = self._net.forward_eval(obs_tensor, state_dict)  # type: ignore[arg-type]
+            logits, next_state = self._net.forward_eval(obs_tensor, state_dict)  # type: ignore[arg-type]
             sampled, _, _ = pufferlib.pytorch.sample_logits(logits)
         action_idx = max(0, min(int(sampled.item()), len(self._action_names) - 1))
         action = Action(name=self._action_names[action_idx])
 
         if state_dict is None:
             return action, {}
-        next_h = state_dict.get("lstm_h")
-        next_c = state_dict.get("lstm_c")
+        if next_state is None:
+            next_state = state_dict
+        next_h = next_state.get("lstm_h")
+        next_c = next_state.get("lstm_c")
         return action, {
             "lstm_h": next_h.detach() if next_h is not None else None,
             "lstm_c": next_c.detach() if next_c is not None else None,
