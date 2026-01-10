@@ -73,13 +73,23 @@ vibes = [
 
 
 def supply_depot_config(map_name: str) -> CollectiveChestConfig:
-    """Supply depot that receives element resources via default vibe into collective."""
+    """Supply depot that receives element resources via default vibe into collective.
+
+    Also emits AOE effect that restores energy and reduces damage for nearby agents.
+    """
     return CollectiveChestConfig(
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
         collective="cogs",
         vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
+        aoes=[
+            AOEEffectConfig(
+                range=10,
+                resource_deltas={"energy": 100, "damage": -100},
+                members_only=True,
+            )
+        ],
     )
 
 

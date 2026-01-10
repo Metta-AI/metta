@@ -73,6 +73,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
+  _grid->set_tag_id_map(&_game_config.tag_id_map);  // For AOE commons filtering at registration time
   _obs_encoder = std::make_unique<ObservationEncoder>(
       game_config.protocol_details_obs, resource_names, game_config.feature_ids, game_config.token_value_base);
 
@@ -650,6 +651,117 @@ void MettaGrid::_step() {
     }
   }
 
+  // Apply AOE cell effects from the grid at each agent's location
+  // Agents are checked every tick since they move around
+  // We aggregate all deltas first, then apply them to avoid order-dependent effects
+  const std::string commons_tag_prefix = "commons:";
+  for (auto* agent : _agents) {
+    // Use individual effect sources for commons-aware filtering
+    const auto& cell_effects = _grid->effect_sources_at(agent->location.r, agent->location.c);
+    Commons* agent_commons = agent->getCommons();
+
+    // Get agent's commons name for tag-based comparison
+    std::string agent_commons_name;
+    if (agent_commons) {
+      agent_commons_name = agent_commons->name;
+    }
+
+    // Aggregate all deltas from all applicable AOE sources
+    std::unordered_map<InventoryItem, InventoryDelta> aggregated_deltas;
+
+    for (const auto& source : cell_effects.sources) {
+      const auto* config = source.config;
+      if (!config) {
+        continue;
+      }
+
+      // Check target_tags filter first (if configured)
+      // If target_tag_ids is set, only affect objects with at least one matching tag
+      if (!config->target_tag_ids.empty()) {
+        bool has_matching_tag = false;
+        for (int tag_id : agent->tag_ids) {
+          if (std::find(config->target_tag_ids.begin(), config->target_tag_ids.end(), tag_id) !=
+              config->target_tag_ids.end()) {
+            has_matching_tag = true;
+            break;
+          }
+        }
+        if (!has_matching_tag) {
+          continue;  // Skip: agent doesn't have any matching tags
+        }
+      }
+
+      // Check commons membership filtering
+      // First try Alignable interface (for agents), then check tags (for walls, etc.)
+      bool same_commons = false;
+      bool source_has_commons = false;
+
+      if (auto* source_alignable = dynamic_cast<Alignable*>(source.owner)) {
+        // Source is Alignable (e.g., another agent)
+        source_has_commons = (source_alignable->getCommons() != nullptr);
+        same_commons = (agent_commons != nullptr && source_alignable->getCommons() == agent_commons);
+      } else if (source.owner) {
+        // Source is not Alignable (e.g., Wall), check tags for commons
+        for (int tag_id : source.owner->tag_ids) {
+          auto tag_it = _game_config.tag_id_map.find(tag_id);
+          if (tag_it != _game_config.tag_id_map.end()) {
+            const std::string& tag_name = tag_it->second;
+            if (tag_name.rfind(commons_tag_prefix, 0) == 0) {
+              source_has_commons = true;
+              std::string source_commons_name = tag_name.substr(commons_tag_prefix.length());
+              if (!agent_commons_name.empty() && source_commons_name == agent_commons_name) {
+                same_commons = true;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // Apply members_only and ignore_members filters
+      if (config->members_only && !same_commons) {
+        continue;  // Skip: effect only for members, but agent is not a member
+      }
+      if (config->ignore_members && (!source_has_commons || same_commons)) {
+        continue;  // Skip: effect ignores members, and agent is a member (or source has no alignment)
+      }
+
+      // Aggregate the deltas from this source
+      for (const auto& [item, delta] : config->resource_deltas) {
+        aggregated_deltas[item] += delta;
+      }
+    }
+
+    // Apply the aggregated deltas to the agent's inventory
+    for (const auto& [item, delta] : aggregated_deltas) {
+      agent->inventory.update(item, delta);
+    }
+  }
+
+  // Apply AOE effects to registered static inventory objects
+  // Objects are pre-filtered at registration time (target_tags + commons)
+  // so we just apply effects to all registered objects
+  for (const auto* aoe_helper : _grid->registered_aoe_helpers()) {
+    if (!aoe_helper->is_registered() || !aoe_helper->config()) {
+      continue;
+    }
+
+    const auto* config = aoe_helper->config();
+
+    for (GridObject* target_obj : aoe_helper->registered_inventory_objects()) {
+      // Get the HasInventory interface
+      auto* target_inventory = dynamic_cast<HasInventory*>(target_obj);
+      if (!target_inventory) {
+        continue;
+      }
+
+      // Apply the effect to the target's inventory (no filtering - already done at registration)
+      for (const auto& [item, delta] : config->resource_deltas) {
+        target_inventory->inventory.update(item, delta);
+      }
+    }
+  }
+
   // Check and apply damage for all agents
   for (auto* agent : _agents) {
     agent->check_and_apply_damage(_rng);
@@ -1054,8 +1166,28 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("resource_names", &MettaGrid::resource_names)
       .def("set_inventory", &MettaGrid::set_inventory, py::arg("agent_id"), py::arg("inventory"));
 
+  // Bind AOEEffectConfig for AOE effects on any object
+  py::class_<AOEEffectConfig>(m, "AOEEffectConfig")
+      .def(py::init<>())
+      .def(py::init<unsigned int,
+                    const std::unordered_map<InventoryItem, InventoryDelta>&,
+                    const std::vector<int>&,
+                    bool,
+                    bool>(),
+           py::arg("range") = 1,
+           py::arg("resource_deltas") = std::unordered_map<InventoryItem, InventoryDelta>(),
+           py::arg("target_tag_ids") = std::vector<int>(),
+           py::arg("members_only") = false,
+           py::arg("ignore_members") = false)
+      .def_readwrite("range", &AOEEffectConfig::range)
+      .def_readwrite("resource_deltas", &AOEEffectConfig::resource_deltas)
+      .def_readwrite("target_tag_ids", &AOEEffectConfig::target_tag_ids)
+      .def_readwrite("members_only", &AOEEffectConfig::members_only)
+      .def_readwrite("ignore_members", &AOEEffectConfig::ignore_members);
+
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def_readwrite("aoes", &GridObjectConfig::aoes);
 
   bind_wall_config(m);
 

@@ -360,6 +360,42 @@ class GlobalObsConfig(Config):
     goal_obs: bool = Field(default=False)
 
 
+class AOEEffectConfig(Config):
+    """Configuration for Area of Effect (AOE) resource effects.
+
+    When attached to a grid object, objects with inventory within range receive the resource_deltas each tick.
+
+    Target filtering:
+    - target_tags: If set, only objects with at least one matching tag are affected.
+                   If None or empty, all HasInventory objects are affected.
+                   Agents are always checked every tick (they move).
+                   Static objects are registered/unregistered with the AOE for efficiency.
+
+    Commons filtering:
+    - members_only: If True, effect only applies to objects with the same commons as the source object
+    - ignore_members: If True, effect is skipped for objects with the same commons as the source object
+    """
+
+    range: int = Field(default=1, ge=0, description="Radius of effect (Manhattan distance)")
+    resource_deltas: dict[str, int] = Field(
+        default_factory=dict,
+        description="Resource changes per tick for objects in range. Positive = gain, negative = lose.",
+    )
+    target_tags: Optional[list[str]] = Field(
+        default=None,
+        description="If set, only objects with at least one matching tag are affected. "
+        "If None, all HasInventory objects are affected.",
+    )
+    members_only: bool = Field(
+        default=False,
+        description="If True, effect only applies to objects with the same commons as the source object",
+    )
+    ignore_members: bool = Field(
+        default=False,
+        description="If True, effect is skipped for objects with the same commons as the source object",
+    )
+
+
 class GridObjectConfig(Config):
     """Base configuration for all grid objects.
 
@@ -377,6 +413,10 @@ class GridObjectConfig(Config):
     collective: Optional[str] = Field(
         default=None,
         description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+    )
+    aoes: list[AOEEffectConfig] = Field(
+        default_factory=list,
+        description="List of AOE effects this object emits to agents within range each tick",
     )
 
     @model_validator(mode="after")
