@@ -1150,9 +1150,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         max_exploration_distance = (available_energy - return_cost) // 2
 
         # FIX ISSUE #1: Emergency mode to prevent deadlock
-        # When budget would be 0 or negative and energy is critically low,
-        # allow aggressive exploration to discover nearby chargers
-        if max_exploration_distance <= 0 and current_energy < recharge_threshold:
+        # CRITICAL FIX: Emergency mode should activate for ANY restrictive budget situation
+        # Not just low energy - also when charger is far away!
+        if max_exploration_distance <= 0:
             # RECHARGE LOOP FIX: More aggressive emergency exploration
             # When desperately stuck (energy <= 5), we MUST take risks to escape
             if current_energy <= 5:
@@ -1161,11 +1161,17 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 emergency_radius = 30
                 self._logger.error(f"  ENERGY BUDGET: DESPERATE mode - budget={max_exploration_distance} → {emergency_radius} "
                                  f"(energy={current_energy}, threshold={recharge_threshold})")
-            else:
-                # Conservative emergency: Scale with remaining energy + buffer
+            elif current_energy < recharge_threshold:
+                # Low energy emergency: Limited exploration
                 emergency_radius = min(current_energy + 10, 20)
-                self._logger.warning(f"  ENERGY BUDGET: Emergency mode - budget={max_exploration_distance} → {emergency_radius} "
+                self._logger.warning(f"  ENERGY BUDGET: Low energy emergency - budget={max_exploration_distance} → {emergency_radius} "
                                    f"(energy={current_energy}, threshold={recharge_threshold})")
+            else:
+                # HIGH energy but charger FAR away: Allow reasonable exploration
+                # Agent has energy=99 but nearest charger is 70+ cells away
+                emergency_radius = 50  # Conservative but enough to make progress
+                self._logger.warning(f"  ENERGY BUDGET: Distant charger emergency - budget={max_exploration_distance} → {emergency_radius} "
+                                   f"(energy={current_energy}, charger_dist={nearest_charger_dist})")
             return emergency_radius
 
         # Ensure non-negative
