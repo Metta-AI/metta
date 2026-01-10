@@ -61,6 +61,7 @@ class InitialPolicyConfig(Config):
 class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
     profile_dir: str | None = Field(default=None)
+    active_steps: int = Field(default=1_000_000, ge=1)  # schedule active window
 
     @property
     def enabled(self) -> bool:

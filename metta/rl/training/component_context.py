@@ -106,6 +106,9 @@ class ComponentContext:
         self._training_env_id: slice | None = (
             self.state.training_env_window.to_slice() if self.state.training_env_window else None
         )
+        # Optional hook that external components (e.g., torch profiler) can set to
+        # receive per-minibatch callbacks during training.
+        self.profiler_step: Callable[[], None] | None = None
 
     # ------------------------------------------------------------------
     # Epoch / step tracking

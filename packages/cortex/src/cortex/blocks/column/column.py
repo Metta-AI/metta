@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from torch._dynamo import disable
+from torch.profiler import record_function
 
 from cortex.blocks.base import BaseBlock
 from cortex.blocks.column.routers import GlobalContextRouter, TokenRefiner
@@ -140,7 +141,8 @@ class ColumnBlock(BaseBlock):
             )
             return y0, next_state
         # Boundary normalization
-        u = self.boundary_norm(x)
+        with record_function("column.boundary_norm"):
+            u = self.boundary_norm(x)
         use_compiled = self._compiled_experts is not None and torch.is_grad_enabled()
         expert_call_list = self._compiled_experts if use_compiled else list(self.experts)
 
@@ -153,41 +155,43 @@ class ColumnBlock(BaseBlock):
         can_parallel = num_experts > 1 and x.is_cuda and torch.cuda.is_available()
 
         if can_parallel:
-            # Lazily create one stream per expert on the input tensor's device.
-            dev = x.device
-            if (
-                self._cuda_streams is None
-                or len(self._cuda_streams) != num_experts
-                or any(s.device != dev for s in (self._cuda_streams or []))
-            ):
-                self._cuda_streams = [torch.cuda.Stream(device=dev) for _ in range(num_experts)]
+            with record_function("column.experts.parallel"):
+                # Lazily create one stream per expert on the input tensor's device.
+                dev = x.device
+                if (
+                    self._cuda_streams is None
+                    or len(self._cuda_streams) != num_experts
+                    or any(s.device != dev for s in (self._cuda_streams or []))
+                ):
+                    self._cuda_streams = [torch.cuda.Stream(device=dev) for _ in range(num_experts)]
 
-            current = torch.cuda.current_stream(dev)
-            # Schedule each expert on its own stream.
-            for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
-                s = self._cuda_streams[i]
-                # Ensure expert stream sees work done on current stream for inputs.
-                s.wait_stream(current)
-                with torch.cuda.stream(s):
+                current = torch.cuda.current_stream(dev)
+                # Schedule each expert on its own stream.
+                for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
+                    s = self._cuda_streams[i]
+                    # Ensure expert stream sees work done on current stream for inputs.
+                    s.wait_stream(current)
+                    with torch.cuda.stream(s):
+                        expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
+                        if expert_state is None:
+                            expert_state = td_empty
+                        y_i, s_i = expert(u, expert_state, resets=resets)
+                        expert_outs[i] = y_i
+                        expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
+
+                # Back on current stream, wait for all expert streams before consuming outputs.
+                for s in self._cuda_streams:
+                    current.wait_stream(s)
+        else:
+            # Fallback sequential execution (CPU or when parallelism is disabled)
+            with record_function("column.experts.sequential"):
+                for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
                     expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
                     if expert_state is None:
                         expert_state = td_empty
                     y_i, s_i = expert(u, expert_state, resets=resets)
                     expert_outs[i] = y_i
                     expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
-
-            # Back on current stream, wait for all expert streams before consuming outputs.
-            for s in self._cuda_streams:
-                current.wait_stream(s)
-        else:
-            # Fallback sequential execution (CPU or when parallelism is disabled)
-            for i, (key, expert) in enumerate(zip(self._expert_keys, expert_call_list, strict=False)):
-                expert_state = state.get(key) if isinstance(state, TensorDict) else td_empty
-                if expert_state is None:
-                    expert_state = td_empty
-                y_i, s_i = expert(u, expert_state, resets=resets)
-                expert_outs[i] = y_i
-                expert_states[i] = s_i if isinstance(s_i, TensorDict) else make_empty_td(B, x.device)
 
         # Build the next state TensorDict on the current stream after synchronization.
         # Replace None placeholders and build state map
@@ -208,29 +212,35 @@ class ColumnBlock(BaseBlock):
         D = torch.stack(D_list, dim=2)  # [B,T,E,H]
 
         # E-axis mixing (cross-attention residual)
-        D_mixed = self.e_mixer(U_tokens, D)  # [B,T,E,H]
+        with record_function("column.e_mixer"):
+            D_mixed = self.e_mixer(U_tokens, D)  # [B,T,E,H]
 
         restrict = bool(getattr(self.config.router, "restrict_to_topk", True))
-        g_logits = self.router.global_logits(restrict_topk=restrict).to(D_mixed.dtype)  # [E]
+        with record_function("column.router"):
+            g_logits = self.router.global_logits(restrict_topk=restrict).to(D_mixed.dtype)  # [E]
 
         lam = float(getattr(self.config.router, "whisper_lambda", 0.0))
         if lam > 0.0:
-            p_t = self.refiner(U_tokens)  # type: ignore[operator]  # [B,T,E]
-            logits_total = g_logits.view(1, 1, -1) + (lam * p_t)
-            a_t = torch.softmax(logits_total.to(dtype=torch.float32), dim=-1).to(D_mixed.dtype)
+            with record_function("column.refiner"):
+                p_t = self.refiner(U_tokens)  # type: ignore[operator]  # [B,T,E]
+                logits_total = g_logits.view(1, 1, -1) + (lam * p_t)
+                a_t = torch.softmax(logits_total.to(dtype=torch.float32), dim=-1).to(D_mixed.dtype)
         else:
-            # Broadcast global prior over tokens
-            a_t = torch.softmax(g_logits.to(dtype=torch.float32), dim=-1).to(D_mixed.dtype)
-            a_t = a_t.view(1, 1, -1).expand(D_mixed.shape[0], D_mixed.shape[1], -1)
+            with record_function("column.refiner"):
+                # Broadcast global prior over tokens
+                a_t = torch.softmax(g_logits.to(dtype=torch.float32), dim=-1).to(D_mixed.dtype)
+                a_t = a_t.view(1, 1, -1).expand(D_mixed.shape[0], D_mixed.shape[1], -1)
 
         # Reduce across experts to form the total mixture and then apply ReZero around it:
         # y_total = sum_k a_{t,k} y_k = x + [sum_k a_{t,k} (y_k - u) + (u - x)]
-        y_delta = (a_t.unsqueeze(-1) * D_mixed).sum(dim=2)  # [B,T,H]
-        res_corr = U_tokens - x_tokens  # [B,T,H]
-        y_minus_x = y_delta + res_corr  # equals y_total - x
-        y_total = x_tokens + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
-        h = self.head(y_minus_x)  # small corrective head on the residual
-        out = y_total + self.alpha_col.to(h.dtype) * h
+        with record_function("column.mix_apply"):
+            y_delta = (a_t.unsqueeze(-1) * D_mixed).sum(dim=2)  # [B,T,H]
+            res_corr = U_tokens - x_tokens  # [B,T,H]
+            y_minus_x = y_delta + res_corr  # equals y_total - x
+            y_total = x_tokens + self.alpha_main.to(y_minus_x.dtype) * y_minus_x
+        with record_function("column.head_residual"):
+            h = self.head(y_minus_x)  # small corrective head on the residual
+            out = y_total + self.alpha_col.to(h.dtype) * h
         return (out.squeeze(1) if is_step else out), next_state
 
     @staticmethod
