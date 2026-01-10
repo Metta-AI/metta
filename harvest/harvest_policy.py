@@ -2224,8 +2224,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Allow moving into FREE or UNKNOWN cells (explore toward target)
                 from .map import MapCellType
                 if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
-                    self._logger.info(f"  PATHFIND: Using greedy fallback {primary_dir} toward {target} (cell={next_cell.name})")
-                    return primary_dir
+                    # FIX: Also check observation to ensure cell is actually clear
+                    if self._is_direction_clear_in_obs(state, primary_dir):
+                        self._logger.info(f"  PATHFIND: Using greedy fallback {primary_dir} toward {target} (cell={next_cell.name})")
+                        return primary_dir
+                    else:
+                        self._logger.debug(f"  PATHFIND: Greedy {primary_dir} blocked in observation despite map showing {next_cell.name}")
 
             # Try perpendicular directions
             alt_directions = []
@@ -2240,8 +2244,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 if 0 <= next_r < state.map_height and 0 <= next_c < state.map_width:
                     next_cell = self.map_manager.grid[next_r][next_c]
                     if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
-                        self._logger.info(f"  PATHFIND: Using greedy fallback {alt_dir} toward {target} (perpendicular)")
-                        return alt_dir
+                        # FIX: Also check observation to ensure cell is actually clear
+                        if self._is_direction_clear_in_obs(state, alt_dir):
+                            self._logger.info(f"  PATHFIND: Using greedy fallback {alt_dir} toward {target} (perpendicular)")
+                            return alt_dir
 
             self._logger.warning(f"  PATHFIND: Greedy fallback also failed - all directions blocked")
             return None
