@@ -363,6 +363,18 @@ class TrainTool(Tool):
         if self.scheduler is not None:
             trainer.register(LossScheduler(self.scheduler))
 
+        # Optional stopwatch dump controlled by env for ad-hoc profiling.
+        try:
+            from metta.rl.training.timer_reporter import TimerReporter, _env_enabled
+        except Exception:
+            TimerReporter = None  # type: ignore
+
+            def _env_enabled() -> bool:
+                return False
+
+        if TimerReporter is not None and _env_enabled() and distributed_helper.is_master():
+            trainer.register(TimerReporter())
+
     def _configure_torch_backends(self) -> None:
         if not torch.cuda.is_available():
             return
