@@ -37,3 +37,13 @@ def compute_weighted_scores(
             weight_totals[pv] += weight
 
     return {pv: weighted_sums[pv] / weight_totals[pv] if weight_totals[pv] > 0 else 0.0 for pv in policy_version_ids}
+
+
+def value_over_replacement(candidate_score: float, replacement_score: float) -> float:
+    return candidate_score - replacement_score
+
+
+def overall_value_over_replacement(weighted_sum: float, total_agents: int, replacement_score: float) -> float | None:
+    if total_agents <= 0:
+        return None
+    return weighted_sum / total_agents - replacement_score

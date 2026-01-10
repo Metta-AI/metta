@@ -5,14 +5,13 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Tuple
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+
 import cogames.policy.nim_agents.agents as na
 from cogames.cli.utils import suppress_noisy_logs
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.rollout import Rollout
 
 # Agent to evaluate
 AGENT_PATH = "cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy"
@@ -129,70 +128,52 @@ def _load_all_missions() -> Dict[str, Mission]:
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
-    # Keep minimal and silent if anything fails
-    try:
-        assembler = env_cfg.game.objects.get("assembler")
-        uses_gear = False
-        if assembler is not None and hasattr(assembler, "protocols"):
-            for proto in assembler.protocols:
-                if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                    uses_gear = True
-                    break
-        if uses_gear:
+    assembler = env_cfg.game.objects.get("assembler")
+    protocols = getattr(assembler, "protocols", None) if assembler is not None else None
+    if not protocols:
+        return
+    for proto in protocols:
+        if any(v == "gear" for v in getattr(proto, "vibes", [])):
             change_vibe = env_cfg.game.actions.change_vibe
-            has_gear = any(v.name == "gear" for v in change_vibe.vibes)
-            if not has_gear:
+            if not any(v.name == "gear" for v in change_vibe.vibes):
                 from mettagrid.config.vibes import VIBE_BY_NAME
 
                 change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
-    except Exception:
-        pass
+            return
 
 
 def run_eval(experiment_name: str, tag: str, mission_map: Dict[str, Mission], num_cogs: int, seed: int) -> float:
     start = time.perf_counter()
-    try:
-        if experiment_name not in mission_map:
-            print(f"{tag:<6} {experiment_name:<40} {'MISSION NOT FOUND':>6}")
-            return 0.0
-
-        base_mission = mission_map[experiment_name]
-        mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
-
-        env_cfg = mission.make_env()
-        _ensure_vibe_supports_gear(env_cfg)
-        env_cfg.game.max_steps = MAX_STEPS
-
-        # Create policy and rollout
-        pei = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        policy = initialize_or_load_policy(
-            pei,
-            PolicySpec(class_path=AGENT_PATH, data_path=None),
-        )
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
-        rollout = Rollout(
-            env_cfg,
-            agent_policies,
-            render_mode="none",
-            seed=seed,
-        )
-        rollout.run_until_done()
-
-        total_reward = float(sum(rollout._sim.episode_rewards))
-        hearts_per_agent = total_reward / max(1, num_cogs)
-        elapsed = time.perf_counter() - start
-
-        # One simple line per eval
-        hpa = f"{hearts_per_agent:.2f}"
-        tm = f"{elapsed:.2f}"
-        print(f"{tag:<6} {experiment_name:<40} {hpa:>6}h {tm:>6}s")
-        return hearts_per_agent
-    except Exception as e:
-        elapsed = time.perf_counter() - start
-        error_message = str(e)
-        print(f"{tag:<6} {experiment_name:<40} {error_message}")
+    if experiment_name not in mission_map:
+        print(f"{tag:<6} {experiment_name:<40} {'MISSION NOT FOUND':>6}")
         return 0.0
+
+    base_mission = mission_map[experiment_name]
+    mission = base_mission.with_variants([NumCogsVariant(num_cogs=num_cogs)])
+
+    env_cfg = mission.make_env()
+    _ensure_vibe_supports_gear(env_cfg)
+    env_cfg.game.max_steps = MAX_STEPS
+
+    policy_spec = PolicySpec(class_path=AGENT_PATH, data_path=None)
+    job = PureSingleEpisodeSpecJob(
+        policy_specs=[policy_spec],
+        assignments=[0] * num_cogs,
+        env=env_cfg,
+        seed=seed,
+        max_action_time_ms=10000,
+    )
+    results, _replay = run_pure_single_episode_from_specs(job, device="cpu")
+
+    total_reward = float(sum(results.rewards))
+    hearts_per_agent = total_reward / max(1, num_cogs)
+    elapsed = time.perf_counter() - start
+
+    # One simple line per eval
+    hpa = f"{hearts_per_agent:.2f}"
+    tm = f"{elapsed:.2f}"
+    print(f"{tag:<6} {experiment_name:<40} {hpa:>6}h {tm:>6}s")
+    return hearts_per_agent
 
 
 def main() -> None:

@@ -8,6 +8,7 @@ from typing import Optional, cast
 import numpy as np
 import typer
 from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+from alo.scoring import overall_value_over_replacement, value_over_replacement
 from rich.console import Console
 from rich.table import Table
 
@@ -239,7 +240,7 @@ def pickup(
             vor = None
         else:
             candidate_score = result.candidate_mean
-            vor = candidate_score - replacement_mean
+            vor = value_over_replacement(candidate_score, replacement_mean)
 
         candidate_text = f"{candidate_score:.2f}" if candidate_score is not None else "-"
         vor_text = f"{vor:.2f}" if vor is not None else "-"
@@ -248,10 +249,7 @@ def pickup(
     console.print("\n[bold cyan]Value Over Replacement[/bold cyan]")
     console.print(vor_table)
 
-    overall_vor = None
-    if total_candidate_agents > 0:
-        overall_candidate_avg = total_candidate_weighted_sum / total_candidate_agents
-        overall_vor = overall_candidate_avg - replacement_mean
+    overall_vor = overall_value_over_replacement(total_candidate_weighted_sum, total_candidate_agents, replacement_mean)
 
     if overall_vor is not None:
         console.print(f"\n[bold cyan]Overall VOR[/bold cyan] {overall_vor:.2f}")
