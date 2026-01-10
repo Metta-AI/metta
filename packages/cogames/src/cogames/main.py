@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Literal, Optional, TypeVar
+from typing import Literal, Optional, TypeVar
 
 import httpx
 import typer
@@ -382,11 +382,11 @@ def play_cmd(
     policy: str = typer.Option("class=noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
-    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for simulator/policy RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -411,15 +411,11 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    # Optional MapGen seed override for procedural maps.
+    if map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
-        if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
-            map_builder.seed = effective_map_seed
+        if isinstance(map_builder, MapGen.Config):
+            map_builder.seed = map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
@@ -596,11 +592,11 @@ def train_cmd(
         "--device",
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
-    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for training RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Optional MapGen seed override for procedural maps (for deterministic map layouts)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -641,29 +637,6 @@ def train_cmd(
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
-    # Optional MapGen seed override for deterministic procedural maps during training.
-    # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
-
-    if map_seed is not None:
-
-        def _maybe_seed(cfg: Any) -> None:
-            mb = getattr(cfg.game, "map_builder", None)
-            if isinstance(mb, MapGen.Config) and mb.seed is None:
-                mb.seed = map_seed
-
-        if env_cfg is not None:
-            _maybe_seed(env_cfg)
-
-        if supplier is not None:
-            base_supplier = supplier
-
-            def _seeded_supplier() -> Any:
-                cfg = base_supplier()
-                _maybe_seed(cfg)
-                return cfg
-
-            supplier = _seeded_supplier
-
     try:
         train_module.train(
             env_cfg=env_cfg,
@@ -673,6 +646,7 @@ def train_cmd(
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
+            map_seed=map_seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             vector_num_workers=num_workers,
@@ -734,11 +708,11 @@ def run_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for evaluation RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
@@ -777,16 +751,12 @@ def run_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    # Optional MapGen seed override for procedural maps.
+    if map_seed is not None:
         for _, env_cfg in selected_missions:
             map_builder = getattr(env_cfg.game, "map_builder", None)
             if isinstance(map_builder, MapGen.Config):
-                map_builder.seed = effective_map_seed
+                map_builder.seed = map_seed
 
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
@@ -863,7 +833,7 @@ def pickup_cmd(
     pool_labels = pool
     candidate_spec = get_policy_spec(ctx, policy)
     try:
-        pool_specs = [parse_policy_spec(spec) for spec in pool]
+        pool_specs = [parse_policy_spec(spec).to_policy_spec() for spec in pool]
     except (ValueError, ModuleNotFoundError, httpx.HTTPError) as exc:
         translated = translate_policy_parse_error(exc)
         console.print(f"[yellow]Error parsing pool policy: {translated}[/yellow]\n")
@@ -967,6 +937,58 @@ app.command(
     name="leaderboard",
     help="Show tournament leaderboard for a season",
 )(leaderboard_cmd)
+
+
+@app.command(name="diagnose", help="Run diagnostic evals for a policy checkpoint")
+def diagnose_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Argument(
+        ...,
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    mission_set: Literal["diagnostic_evals", "integrated_evals", "spanning_evals", "tournament", "all"] = typer.Option(
+        "diagnostic_evals",
+        "--mission-set",
+        "-S",
+        help="Eval suite to run for diagnostics",
+    ),
+    experiments: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--experiments",
+        "-m",
+        help="Specific experiments to run (subset of the mission set)",
+    ),
+    cogs: Optional[list[int]] = typer.Option(  # noqa: B008
+        None,
+        "--cogs",
+        "-c",
+        help="Agent counts to test (default depends on eval suite)",
+    ),
+    steps: int = typer.Option(1000, "--steps", help="Max steps per episode"),
+    repeats: int = typer.Option(3, "--repeats", help="Runs per case"),
+) -> None:
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
+
+    cmd = [sys.executable, str(script_path)]
+    cmd.extend(["--mission-set", mission_set])
+
+    if experiments:
+        cmd.append("--experiments")
+        cmd.extend(experiments)
+
+    if cogs:
+        cmd.append("--cogs")
+        cmd.extend(str(c) for c in cogs)
+
+    cmd.extend(["--steps", str(steps)])
+    cmd.extend(["--repeats", str(repeats)])
+    cmd.append("--no-plots")
+
+    cmd.extend(["--policy", policy])
+
+    console.print("[cyan]Running diagnostic evaluation...[/cyan]")
+    console.print(f"[dim]{' '.join(cmd)}[/dim]")
+    subprocess.run(cmd, check=True)
 
 
 @app.command(name="validate-policy", help="Validate the policy loads and runs a single step")

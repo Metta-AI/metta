@@ -206,16 +206,16 @@ For systematic evaluation across multiple missions and configurations:
 ```bash
 # Evaluate on integrated eval suite
 uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --policy class=thinky \
   --mission-set integrated_evals \
   --cogs 4 \
   --repeats 2
 
 # Evaluate specific agent
 uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent simple \
+  --policy class=baseline \
   --steps 1000 \
-  --output eval_simple.json
+  --output eval_baseline.json
 ```
 
 ### Using in Curriculum Training

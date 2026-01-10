@@ -77,7 +77,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
         console.print("[yellow]Missing: --policy / -p[/yellow]\n")
     else:
         try:
-            return _parse_policy_spec(spec=policy_arg).to_policy_spec()
+            return parse_policy_spec(spec=policy_arg).to_policy_spec()
         except (ValueError, ModuleNotFoundError, httpx.HTTPError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
@@ -100,7 +100,7 @@ def get_policy_specs_with_proportions(
         console.print("[yellow]Supply at least one: --policy / -p[/yellow]\n")
     else:
         try:
-            return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
+            return [parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
         except (ValueError, ModuleNotFoundError, httpx.HTTPError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
@@ -115,15 +115,7 @@ def get_policy_specs_with_proportions(
     raise typer.Exit(1)
 
 
-def parse_policy_spec(spec: str) -> PolicySpec:
-    return _parse_policy_spec(spec=spec).to_policy_spec()
-
-
-def translate_policy_parse_error(e: Exception) -> str:
-    return _translate_error(e)
-
-
-def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
+def parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     """Parse a policy CLI option into its components.
 
     Supports two formats:
@@ -221,6 +213,10 @@ def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         proportion=fraction,
         init_kwargs=init_kwargs,
     )
+
+
+def translate_policy_parse_error(e: Exception) -> str:
+    return _translate_error(e)
 
 
 def parse_policy_identifier(identifier: str) -> tuple[str, Optional[int]]:
