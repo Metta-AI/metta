@@ -38,6 +38,8 @@ def make_machina1_open_world_env(
 
 def allocate_counts(total: int, weights: list[float]) -> list[int]:
     total_weight = sum(weights)
+    if total_weight == 0:
+        return [0] * len(weights)
     fractions = [weight / total_weight for weight in weights]
     ideals = [total * fraction for fraction in fractions]
     counts = [int(value) for value in ideals]
