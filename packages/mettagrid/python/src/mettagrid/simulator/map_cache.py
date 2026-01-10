@@ -133,6 +133,8 @@ class SharedMapCache:
             GameMap from cache or newly created.
         """
         cache_key = self._make_key(map_builder, num_agents)
+        seed_is_set = hasattr(map_builder, "seed") and map_builder.seed is not None
+        maps_per_key = 1 if seed_is_set else _maps_per_key
         lock_file = _get_lock_file()
 
         def _reconstruct_or_refresh(cache_entry: dict) -> GameMap:
@@ -167,12 +169,12 @@ class SharedMapCache:
 
                     # Decide whether to create new map or reuse cached one
                     should_create_new = False
-                    if _maps_per_key is None:
+                    if maps_per_key is None:
                         # Unlimited: create new only if cache is empty
                         should_create_new = len(maps_list) == 0
                     else:
                         # Limited: create new only if under limit
-                        should_create_new = len(maps_list) < _maps_per_key
+                        should_create_new = len(maps_list) < maps_per_key
 
                     if should_create_new:
                         # Create a new map
@@ -186,10 +188,10 @@ class SharedMapCache:
                         maps_list = registry[cache_key]
 
                         # Check again if we still need to create (another process might have created it)
-                        if _maps_per_key is None:
+                        if maps_per_key is None:
                             still_need_create = len(maps_list) == 0
                         else:
-                            still_need_create = len(maps_list) < _maps_per_key
+                            still_need_create = len(maps_list) < maps_per_key
 
                         if still_need_create:
                             # Store it in cache
@@ -200,7 +202,7 @@ class SharedMapCache:
 
                             logger.info(
                                 f"Created new map for key {cache_key} "
-                                f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
+                                f"(cached maps: {len(maps_list)}/{maps_per_key if maps_per_key else 'unlimited'})"
                             )
                             return game_map
                         else:
@@ -224,10 +226,10 @@ class SharedMapCache:
                 registry[cache_key] = []
             maps_list = registry[cache_key]
 
-            if _maps_per_key is None:
+            if maps_per_key is None:
                 should_create_new = len(maps_list) == 0
             else:
-                should_create_new = len(maps_list) < _maps_per_key
+                should_create_new = len(maps_list) < maps_per_key
 
             if should_create_new:
                 builder = map_builder.create()
@@ -240,10 +242,10 @@ class SharedMapCache:
                 maps_list = registry[cache_key]
 
                 # Check again if we still need to create (another process might have created it)
-                if _maps_per_key is None:
+                if maps_per_key is None:
                     still_need_create = len(maps_list) == 0
                 else:
-                    still_need_create = len(maps_list) < _maps_per_key
+                    still_need_create = len(maps_list) < maps_per_key
 
                 if still_need_create:
                     cache_entry = self._store_map_in_shared_memory(cache_key, len(maps_list), game_map)
@@ -252,7 +254,7 @@ class SharedMapCache:
                     _save_registry(registry)
                     logger.info(
                         f"Created new map for key {cache_key} "
-                        f"(cached maps: {len(maps_list)}/{_maps_per_key if _maps_per_key else 'unlimited'})"
+                        f"(cached maps: {len(maps_list)}/{maps_per_key if maps_per_key else 'unlimited'})"
                     )
                     return game_map
                 else:
