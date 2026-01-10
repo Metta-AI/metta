@@ -157,8 +157,8 @@ def pickup(
             if scenario.candidate_count == 0:
                 replacement_mean = scenario_replacement_mean
             elif candidate_mean is not None:
-                total_candidate_weighted_sum += candidate_mean * scenario.candidate_count * episodes
-                total_candidate_agents += scenario.candidate_count * episodes
+                total_candidate_weighted_sum += candidate_mean * scenario.candidate_count * candidate_count
+                total_candidate_agents += scenario.candidate_count * candidate_count
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Scenario")
