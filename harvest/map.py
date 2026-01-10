@@ -248,15 +248,12 @@ class MapManager:
 
         # UNKNOWN cells are NOT traversable - we can't path through unexplored territory
         # WALL and DEAD_END are NOT traversable
-        # CHARGER, ASSEMBLER, CHEST are NOT traversable - you stand ADJACENT to use them
-        # Only FREE and EXTRACTORS are traversable (you stand ON extractors to use them)
+        # CRITICAL FIX: CHARGER, ASSEMBLER, CHEST ARE traversable - you move ONTO them to use them!
+        # They are destinations, not obstacles. Only WALL and DEAD_END block movement.
         return cell_type not in (
             MapCellType.UNKNOWN,
             MapCellType.WALL,
-            MapCellType.DEAD_END,
-            MapCellType.CHARGER,
-            MapCellType.ASSEMBLER,
-            MapCellType.CHEST
+            MapCellType.DEAD_END
         )
 
     def get_nearest_object(
