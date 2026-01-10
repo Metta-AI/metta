@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Literal, Optional, TypeVar
 
+import httpx
 import typer
 import yaml  # type: ignore[import]
 from click.core import ParameterSource
@@ -53,13 +54,13 @@ from cogames.cli.mission import (
     list_variants,
 )
 from cogames.cli.policy import (
-    _parse_policy_spec,
-    _translate_error,
     get_policy_spec,
     get_policy_specs_with_proportions,
     parse_policy_identifier,
+    parse_policy_spec,
     policy_arg_example,
     policy_arg_w_proportion_example,
+    translate_policy_parse_error,
 )
 from cogames.cli.submit import DEFAULT_SUBMIT_SERVER, upload_policy, validate_policy_spec
 from cogames.curricula import make_rotation
@@ -832,9 +833,9 @@ def pickup_cmd(
     pool_labels = pool
     candidate_spec = get_policy_spec(ctx, policy)
     try:
-        pool_specs = [_parse_policy_spec(spec).to_policy_spec() for spec in pool]
-    except (ValueError, ModuleNotFoundError) as exc:
-        translated = _translate_error(exc)
+        pool_specs = [parse_policy_spec(spec).to_policy_spec() for spec in pool]
+    except (ValueError, ModuleNotFoundError, httpx.HTTPError) as exc:
+        translated = translate_policy_parse_error(exc)
         console.print(f"[yellow]Error parsing pool policy: {translated}[/yellow]\n")
         raise typer.Exit(1) from exc
 
@@ -1074,6 +1075,7 @@ def upload_cmd(
     server: str = typer.Option(
         DEFAULT_SUBMIT_SERVER,
         "--server",
+        "-s",
         help="Server URL",
     ),
     dry_run: bool = typer.Option(
@@ -1141,6 +1143,7 @@ def submit_cmd(
     server: str = typer.Option(
         DEFAULT_SUBMIT_SERVER,
         "--server",
+        "-s",
         help="Server URL",
     ),
 ) -> None:
@@ -1153,8 +1156,6 @@ def submit_cmd(
       cogames submit my-policy --season beta
       cogames submit my-policy:v3 --season beta
     """
-    import httpx
-
     client = TournamentServerClient.from_login(server_url=server, login_server=login_server)
     if not client:
         raise typer.Exit(1)
