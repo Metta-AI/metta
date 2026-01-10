@@ -118,6 +118,7 @@ def parse_policy_spec(spec: str) -> PolicySpecWithProportion:
     Supports two formats:
     - class=...[,data=...][,proportion=1.0][,kw.<key>=<value>]
     - URI: metta://policy/xxx[,proportion=1.0]
+    - Policy name: name[:vN][,proportion=1.0]
     """
     entries = [part.strip() for part in spec.split(",") if part.strip()]
     if not entries:
@@ -144,12 +145,21 @@ def parse_policy_spec(spec: str) -> PolicySpecWithProportion:
 
     fraction = 1.0
     first = entries[0]
-    if parse_uri(first, allow_none=True, default_scheme=None):
-        policy = policy_spec_from_uri(first)
+    parsed_uri = parse_uri(first, allow_none=True, default_scheme=None)
+    if parsed_uri or "=" not in first:
+        if parsed_uri:
+            policy_uri = first
+            label = "checkpoint URI"
+        else:
+            name, version = parse_policy_identifier(first)
+            version_suffix = f":v{version}" if version is not None else ""
+            policy_uri = f"metta://policy/{name}{version_suffix}"
+            label = "policy name"
+        policy = policy_spec_from_uri(policy_uri)
         for entry in entries[1:]:
             key, value = parse_key_value(entry)
             if key != "proportion":
-                raise ValueError("Only proportion is supported after a checkpoint URI.")
+                raise ValueError(f"Only proportion is supported after a {label}.")
             fraction = parse_proportion(value)
 
         return PolicySpecWithProportion(
@@ -200,3 +210,16 @@ def parse_policy_spec(spec: str) -> PolicySpecWithProportion:
         proportion=fraction,
         init_kwargs=init_kwargs,
     )
+
+
+def parse_policy_identifier(identifier: str) -> tuple[str, Optional[int]]:
+    """Parse 'name' or 'name:v3' into (name, version)."""
+    if ":" in identifier:
+        name, version_str = identifier.rsplit(":", 1)
+        version_str = version_str.lstrip("v")
+        try:
+            version = int(version_str)
+        except ValueError:
+            raise ValueError(f"Invalid version format: {identifier}") from None
+        return name, version
+    return identifier, None

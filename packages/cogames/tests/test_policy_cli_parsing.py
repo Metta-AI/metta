@@ -35,7 +35,7 @@ def test_parse_policy_spec_with_data_proportion_and_kwargs(tmp_path: Path):
         "",
         "data=only",
         "random:train_dir/model.pt",
-        "random",
+        "not-a-policy",
         "class=random,proportion=-1",
     ],
 )
