@@ -309,9 +309,13 @@ def policy_spec_from_uri(
         # Check if it's a registered short name
         if identifier in registry:
             return PolicySpec(class_path=registry[identifier])
-        # Check if it looks like a full class path
-        if "." in identifier:
-            return PolicySpec(class_path=identifier)
+        # Check if it looks like a full class path and is importable.
+        # Otherwise, fall through to metta scheme resolution (e.g., policy names with dots).
+        if "." in identifier and ":v" not in identifier and not identifier.endswith(":latest"):
+            from mettagrid.util.module import load_symbol
+
+            if load_symbol(identifier, strict=False) is not None:
+                return PolicySpec(class_path=identifier)
 
     parsed = resolve_uri(uri)
 
