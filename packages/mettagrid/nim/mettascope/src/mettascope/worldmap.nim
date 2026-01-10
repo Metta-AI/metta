@@ -751,14 +751,9 @@ proc drawWorldMap*(zoomInfo: ZoomInfo) =
     return
 
   if needsInitialFit:
-    fitFullMap(zoomInfo)
-    var baseEntity: Entity = nil
-    for obj in replay.objects:
-      if obj.typeName == "assembler":
-        baseEntity = obj
-        break
-    if baseEntity != nil:
-      centerAt(zoomInfo, baseEntity)
+    # initial fit needs to happen after the the panel is set up to the correct size and the replay is loaded
+    fitVisibleMap(zoomInfo)
+    # fitFullMap(zoomInfo)
     needsInitialFit = false
 
   ## Draw the world map.
