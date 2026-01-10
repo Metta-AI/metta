@@ -1326,6 +1326,7 @@ def main():
         global _cached_policy, _cached_policy_key, _policy_action_space_cache
         _cached_policy = None
         _cached_policy_key = None
+        _policy_action_space_cache = {}
 
         policy_results = run_evaluation(
             agent_config=config,
