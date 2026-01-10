@@ -202,8 +202,8 @@ def run(
         base_cmd = [
             *cmd,
             "-n",
-            "auto",
-            "--timeout=180",
+            "4",
+            "--timeout=240",
             "--timeout-method=thread",
             "--disable-warnings",
             "--color=no",
