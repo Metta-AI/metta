@@ -57,7 +57,7 @@ from metta.tools.utils.auto_config import (
 )
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
+from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
 
 logger = getRankAwareLogger(__name__)
 
@@ -99,6 +99,8 @@ class TrainTool(Tool):
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
+
+        self._apply_resume_hints()
 
         if self.run is None:
             self.run = auto_run_name(prefix="local")
@@ -277,6 +279,22 @@ class TrainTool(Tool):
 
         return trainer
 
+    def _apply_resume_hints(self) -> None:
+        if not self.initial_policy_uri:
+            return
+        try:
+            parsed = resolve_uri(self.initial_policy_uri)
+        except ValueError as exc:
+            logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
+            return
+        if parsed.scheme == "mock" or not parsed.checkpoint_info or self.run is not None:
+            return
+        self.run = parsed.checkpoint_info[0]
+
+        trainer_state_path = self.system.data_dir / self.run / "checkpoints" / "trainer_state.pt"
+        if trainer_state_path.exists():
+            logger.info("Trainer state found at %s; optimizer/curriculum state will be restored.", trainer_state_path)
+
     def _register_components(
         self,
         *,
@@ -336,12 +354,13 @@ class TrainTool(Tool):
                 self.context_checkpointer,
             )
 
-        trainer_checkpointer = ContextCheckpointer(
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
+        components.append(
+            ContextCheckpointer(
+                checkpoint_manager=checkpoint_manager,
+                distributed_helper=distributed_helper,
+                epoch_interval=max(1, self.checkpointer.epoch_interval),
+            )
         )
-        components.append(trainer_checkpointer)
-
         components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
