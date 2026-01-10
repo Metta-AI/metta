@@ -1,5 +1,5 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_CONFIG_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_CONFIG_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONFIG_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONFIG_HPP_
 
 #include <string>
 #include <variant>
@@ -105,18 +105,18 @@ using MutationConfig = std::variant<ResourceDeltaMutationConfig,
                                     AttackMutationConfig>;
 
 // ============================================================================
-// Activation Handler Config
+// Handler Config
 // ============================================================================
 
-struct ActivationHandlerConfig {
+struct HandlerConfig {
   std::string name;
   std::vector<FilterConfig> filters;      // All must pass for handler to trigger
   std::vector<MutationConfig> mutations;  // Applied sequentially if filters pass
 
-  ActivationHandlerConfig() = default;
-  explicit ActivationHandlerConfig(const std::string& handler_name) : name(handler_name) {}
+  HandlerConfig() = default;
+  explicit HandlerConfig(const std::string& handler_name) : name(handler_name) {}
 };
 
 }  // namespace mettagrid
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_CONFIG_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONFIG_HPP_

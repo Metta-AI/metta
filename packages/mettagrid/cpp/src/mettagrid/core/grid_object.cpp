@@ -1,6 +1,6 @@
 #include "core/grid_object.hpp"
 
-#include "actions/activation_handler.hpp"
+#include "handler/handler.hpp"
 #include "objects/agent.hpp"
 
 bool GridObject::onUse(Agent& actor, ActionArg /*arg*/) {

@@ -1,14 +1,14 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "actions/activation_handler_config.hpp"
+#include "handler/handler_config.hpp"
 
 namespace py = pybind11;
 
-inline void bind_activation_handler_config(py::module& m) {
+inline void bind_handler_config(py::module& m) {
   using namespace mettagrid;
 
   // EntityRef enum
@@ -88,13 +88,13 @@ inline void bind_activation_handler_config(py::module& m) {
   // and use py::implicitly_convertible or custom type casters.
   // For now, the individual config types above can be used directly.
 
-  // ActivationHandlerConfig
-  py::class_<ActivationHandlerConfig, std::shared_ptr<ActivationHandlerConfig>>(m, "ActivationHandlerConfig")
+  // HandlerConfig
+  py::class_<HandlerConfig, std::shared_ptr<HandlerConfig>>(m, "HandlerConfig")
       .def(py::init<>())
       .def(py::init<const std::string&>(), py::arg("name"))
-      .def_readwrite("name", &ActivationHandlerConfig::name);
+      .def_readwrite("name", &HandlerConfig::name);
   // Note: filters and mutations vectors contain std::variant types.
   // For full Python support, custom conversion would be needed.
 }
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_BINDINGS_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_BINDINGS_HPP_

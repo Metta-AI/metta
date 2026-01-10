@@ -8,9 +8,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "actions/activation_handler_config.hpp"
 #include "core/aoe_config.hpp"
 #include "core/types.hpp"
+#include "handler/handler_config.hpp"
 #include "objects/alignable.hpp"
 #include "objects/constants.hpp"
 #include "objects/has_inventory.hpp"
@@ -63,8 +63,8 @@ struct GridObjectConfig {
   ObservationType initial_vibe;
   InventoryConfig inventory_config;
   std::unordered_map<InventoryItem, InventoryQuantity> initial_inventory;
-  std::vector<std::shared_ptr<mettagrid::AOEConfig>> aoes;   // AOE effects emitted by this object
-  std::vector<mettagrid::ActivationHandlerConfig> handlers;  // Activation handlers for this object
+  std::vector<std::shared_ptr<mettagrid::AOEConfig>> aoes;  // AOE effects emitted by this object
+  std::vector<mettagrid::HandlerConfig> handlers;           // Handlers for this object
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
       : type_id(type_id),
@@ -79,9 +79,9 @@ struct GridObjectConfig {
   virtual ~GridObjectConfig() = default;
 };
 
-// Forward declaration for ActivationHandler
+// Forward declaration for Handler
 namespace mettagrid {
-class ActivationHandler;
+class Handler;
 }
 
 class GridObject : public HasVibe, public Alignable, public HasInventory, public Usable {
@@ -112,8 +112,8 @@ public:
     this->vibe = object_vibe;
   }
 
-  // Set activation handlers from config
-  void set_handlers(std::vector<std::shared_ptr<mettagrid::ActivationHandler>> handlers) {
+  // Set handlers from config
+  void set_handlers(std::vector<std::shared_ptr<mettagrid::Handler>> handlers) {
     _handlers = std::move(handlers);
   }
 
@@ -122,7 +122,7 @@ public:
     return !_handlers.empty();
   }
 
-  // Override onUse to try activation handlers
+  // Override onUse to try handlers
   bool onUse(Agent& actor, ActionArg arg) override;
 
   virtual std::vector<PartialObservationToken> obs_features() const {
@@ -130,7 +130,7 @@ public:
   }
 
 protected:
-  std::vector<std::shared_ptr<mettagrid::ActivationHandler>> _handlers;
+  std::vector<std::shared_ptr<mettagrid::Handler>> _handlers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_

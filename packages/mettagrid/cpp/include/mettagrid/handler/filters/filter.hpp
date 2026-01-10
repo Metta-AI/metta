@@ -1,22 +1,22 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_FILTERS_FILTER_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_FILTERS_FILTER_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_FILTERS_FILTER_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_FILTERS_FILTER_HPP_
 
-#include "actions/activation_context.hpp"
-#include "actions/activation_handler_config.hpp"
 #include "core/grid_object.hpp"
+#include "handler/handler_config.hpp"
+#include "handler/handler_context.hpp"
 
 namespace mettagrid {
 
 /**
- * Base interface for activation filters.
- * Filters determine whether an activation should proceed.
+ * Base interface for handler filters.
+ * Filters determine whether a handler should proceed.
  */
 class Filter {
 public:
   virtual ~Filter() = default;
 
-  // Returns true if the activation passes this filter
-  virtual bool passes(const ActivationContext& ctx) const = 0;
+  // Returns true if the handler passes this filter
+  virtual bool passes(const HandlerContext& ctx) const = 0;
 };
 
 // ============================================================================
@@ -30,7 +30,7 @@ class VibeFilter : public Filter {
 public:
   explicit VibeFilter(const VibeFilterConfig& config) : _config(config) {}
 
-  bool passes(const ActivationContext& ctx) const override {
+  bool passes(const HandlerContext& ctx) const override {
     // Cast to GridObject to access vibe (GridObject inherits from HasVibe)
     GridObject* grid_obj = dynamic_cast<GridObject*>(ctx.resolve(_config.entity));
     if (grid_obj == nullptr) {
@@ -51,7 +51,7 @@ class ResourceFilter : public Filter {
 public:
   explicit ResourceFilter(const ResourceFilterConfig& config) : _config(config) {}
 
-  bool passes(const ActivationContext& ctx) const override {
+  bool passes(const HandlerContext& ctx) const override {
     HasInventory* entity = ctx.resolve(_config.entity);
     if (entity == nullptr) {
       return false;
@@ -71,7 +71,7 @@ class AlignmentFilter : public Filter {
 public:
   explicit AlignmentFilter(const AlignmentFilterConfig& config) : _config(config) {}
 
-  bool passes(const ActivationContext& ctx) const override {
+  bool passes(const HandlerContext& ctx) const override {
     Collective* actor_coll = ctx.actor_collective();
     Collective* target_coll = ctx.target_collective();
 
@@ -104,7 +104,7 @@ class TagFilter : public Filter {
 public:
   explicit TagFilter(const TagFilterConfig& config) : _config(config) {}
 
-  bool passes(const ActivationContext& ctx) const override {
+  bool passes(const HandlerContext& ctx) const override {
     // Get GridObject to access tag_ids
     GridObject* grid_obj = dynamic_cast<GridObject*>(ctx.resolve(_config.entity));
     if (grid_obj == nullptr) {
@@ -134,4 +134,4 @@ private:
 
 }  // namespace mettagrid
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_FILTERS_FILTER_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_FILTERS_FILTER_HPP_
