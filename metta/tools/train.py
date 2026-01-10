@@ -280,23 +280,20 @@ class TrainTool(Tool):
         return trainer
 
     def _apply_resume_hints(self) -> None:
-        run_from_uri: str | None = None
-        if self.initial_policy_uri:
-            try:
-                parsed = resolve_uri(self.initial_policy_uri)
-            except ValueError as exc:
-                logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
-                parsed = None
-            if parsed and parsed.scheme == "mock":
-                logger.debug("Skipping resume hints for mock policy %s", parsed.canonical)
-                parsed = None
-            if parsed and parsed.checkpoint_info:
-                run_from_uri = parsed.checkpoint_info[0]
-            elif parsed:
-                logger.debug("No checkpoint info in %s; resume hints ignored", parsed.canonical)
+        if not self.initial_policy_uri:
+            return
 
-        if run_from_uri and self.run is None:
-            self.run = run_from_uri
+        try:
+            parsed = resolve_uri(self.initial_policy_uri)
+        except ValueError as exc:
+            logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
+            return
+
+        if parsed.scheme == "mock":
+            return
+
+        if parsed.checkpoint_info and self.run is None:
+            self.run = parsed.checkpoint_info[0]
 
         if not self.run:
             return
@@ -317,11 +314,6 @@ class TrainTool(Tool):
         wandb_run: WandbRun | None,
     ) -> None:
         components: list[TrainerComponent] = []
-        trainer_checkpointer = ContextCheckpointer(
-            checkpoint_manager=checkpoint_manager,
-            distributed_helper=distributed_helper,
-            epoch_interval=max(1, self.checkpointer.epoch_interval),
-        )
 
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
         if heartbeat_cfg is not None:
@@ -344,7 +336,6 @@ class TrainTool(Tool):
             )
             components.append(stats_component)
 
-            components.append(trainer_checkpointer)
             components.append(policy_checkpointer)
 
             self.evaluator = self.evaluator.model_copy(deep=True)
@@ -362,7 +353,6 @@ class TrainTool(Tool):
             components.append(Monitor(enabled=reporting_enabled))
             components.append(ProgressLogger())
         else:
-            components.append(trainer_checkpointer)
             components.append(policy_checkpointer)
 
         if self.context_checkpointer:
@@ -371,6 +361,13 @@ class TrainTool(Tool):
                 self.context_checkpointer,
             )
 
+        components.append(
+            ContextCheckpointer(
+                checkpoint_manager=checkpoint_manager,
+                distributed_helper=distributed_helper,
+                epoch_interval=max(1, self.checkpointer.epoch_interval),
+            )
+        )
         components.append(WandbAborter(wandb_run=wandb_run, config=self.wandb_aborter))
 
         if distributed_helper.is_master() and getattr(self.torch_profiler, "interval_epochs", 0):
