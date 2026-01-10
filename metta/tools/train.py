@@ -282,21 +282,14 @@ class TrainTool(Tool):
     def _apply_resume_hints(self) -> None:
         if not self.initial_policy_uri:
             return
-
         try:
             parsed = resolve_uri(self.initial_policy_uri)
         except ValueError as exc:
             logger.debug("Skipping resume hints for %s: %s", self.initial_policy_uri, exc)
             return
-
-        if parsed.scheme == "mock":
+        if parsed.scheme == "mock" or not parsed.checkpoint_info or self.run is not None:
             return
-
-        if parsed.checkpoint_info and self.run is None:
-            self.run = parsed.checkpoint_info[0]
-
-        if not self.run:
-            return
+        self.run = parsed.checkpoint_info[0]
 
         trainer_state_path = self.system.data_dir / self.run / "checkpoints" / "trainer_state.pt"
         if trainer_state_path.exists():
