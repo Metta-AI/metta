@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Literal, Optional, TypeVar
+from typing import Literal, Optional, TypeVar
 
 import typer
 import yaml  # type: ignore[import]
@@ -150,6 +150,18 @@ def tutorial_cmd(
     # Force 1 agent for tutorial
     env_cfg.game.num_agents = 1
 
+    stop_event = threading.Event()
+
+    def _wait_for_enter(prompt: str) -> bool:
+        if stop_event.is_set():
+            return False
+        try:
+            Prompt.ask(prompt, default="", show_default=False)
+        except (KeyboardInterrupt, EOFError):
+            stop_event.set()
+            return False
+        return True
+
     def run_tutorial_steps():
         # Wait a moment for the window to appear
         time.sleep(3)
@@ -215,6 +227,8 @@ def tutorial_cmd(
         )
 
         for idx, step in enumerate(tutorial_steps):
+            if stop_event.is_set():
+                return
             console.print()
             console.print(f"[bold cyan]{step['title']}[/bold cyan]")
             console.print()
@@ -222,7 +236,8 @@ def tutorial_cmd(
                 console.print(f"  • {line}")
             console.print()
             if idx < len(tutorial_steps) - 1:
-                Prompt.ask("[dim]Press Enter for next step[/dim]", default="", show_default=False)
+                if not _wait_for_enter("[dim]Press Enter for next step[/dim]"):
+                    return
 
         console.print(
             "[bold green]REFERENCE DOSSIERS[/bold green]\n"
@@ -232,19 +247,25 @@ def tutorial_cmd(
         )
         console.print()
         console.print("[dim]Tutorial briefing complete. Good luck, Cognitive.[/dim]")
+        console.print("[dim]Close the Mettascope window to exit the tutorial.[/dim]")
 
     # Start tutorial interaction in a background thread
     tutorial_thread = threading.Thread(target=run_tutorial_steps, daemon=True)
     tutorial_thread.start()
 
     # Run play (blocks main thread)
-    play_module.play(
-        console,
-        env_cfg=env_cfg,
-        policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
-        game_name="tutorial",
-        render_mode="gui",
-    )
+    try:
+        play_module.play(
+            console,
+            env_cfg=env_cfg,
+            policy_spec=get_policy_spec(ctx, "class=noop"),  # Default to noop, assuming human control
+            game_name="tutorial",
+            render_mode="gui",
+        )
+    except KeyboardInterrupt:
+        logger.info("Tutorial interrupted; exiting.")
+    finally:
+        stop_event.set()
 
 
 app.add_typer(tutorial_app, name="tutorial")
@@ -357,11 +378,11 @@ def play_cmd(
     policy: str = typer.Option("class=noop", "--policy", "-p", help=f"Policy ({policy_arg_example})"),
     steps: int = typer.Option(1000, "--steps", "-s", help="Number of steps to run", min=1),
     render: RenderMode = typer.Option("gui", "--render", "-r", help="Render mode"),  # noqa: B008
-    seed: int = typer.Option(42, "--seed", help="Seed for the simulator and policy", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for simulator/policy RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -386,15 +407,11 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    # Optional MapGen seed override for procedural maps.
+    if map_seed is not None:
         map_builder = getattr(env_cfg.game, "map_builder", None)
-        if isinstance(map_builder, MapGen.Config) and map_builder.seed is None:
-            map_builder.seed = effective_map_seed
+        if isinstance(map_builder, MapGen.Config):
+            map_builder.seed = map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
@@ -571,11 +588,11 @@ def train_cmd(
         "--device",
         help="Device to train on (e.g. 'auto', 'cpu', 'cuda')",
     ),
-    seed: int = typer.Option(42, "--seed", help="Seed for training", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for training RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Optional MapGen seed override for procedural maps (for deterministic map layouts)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -616,29 +633,6 @@ def train_cmd(
     policy_spec = get_policy_spec(ctx, policy)
     torch_device = resolve_training_device(console, device)
 
-    # Optional MapGen seed override for deterministic procedural maps during training.
-    # We keep this opt-in (via --map-seed) to avoid reducing map diversity by default.
-
-    if map_seed is not None:
-
-        def _maybe_seed(cfg: Any) -> None:
-            mb = getattr(cfg.game, "map_builder", None)
-            if isinstance(mb, MapGen.Config) and mb.seed is None:
-                mb.seed = map_seed
-
-        if env_cfg is not None:
-            _maybe_seed(env_cfg)
-
-        if supplier is not None:
-            base_supplier = supplier
-
-            def _seeded_supplier() -> Any:
-                cfg = base_supplier()
-                _maybe_seed(cfg)
-                return cfg
-
-            supplier = _seeded_supplier
-
     try:
         train_module.train(
             env_cfg=env_cfg,
@@ -648,6 +642,7 @@ def train_cmd(
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
+            map_seed=map_seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             vector_num_workers=num_workers,
@@ -709,11 +704,11 @@ def run_cmd(
         min=1,
     ),
     steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
-    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    seed: int = typer.Option(42, "--seed", help="Seed for evaluation RNG", min=0),
     map_seed: Optional[int] = typer.Option(
         None,
         "--map-seed",
-        help="Override MapGen seed for procedural maps (defaults to --seed if not set)",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
@@ -752,16 +747,12 @@ def run_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    # Optionally override MapGen seed so maps are reproducible across runs.
-    # This uses --map-seed if provided, otherwise reuses the main --seed.
-    from mettagrid.mapgen.mapgen import MapGen
-
-    effective_map_seed: Optional[int] = map_seed if map_seed is not None else seed
-    if effective_map_seed is not None:
+    # Optional MapGen seed override for procedural maps.
+    if map_seed is not None:
         for _, env_cfg in selected_missions:
             map_builder = getattr(env_cfg.game, "map_builder", None)
             if isinstance(map_builder, MapGen.Config):
-                map_builder.seed = effective_map_seed
+                map_builder.seed = map_seed
 
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -27,6 +28,7 @@ class MettascopeRenderer(Renderer):
 
         self._mettascope = mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
+        os.environ.setdefault("METTASCOPE_DISABLE_CTRL_C", "1")
 
     def on_episode_start(self) -> None:
         # Get the GameConfig from MettaGridConfig
@@ -53,7 +55,12 @@ class MettascopeRenderer(Renderer):
 
         # mettascope.init requires data_dir and replay arguments
         json_str = json.dumps(initial_replay, allow_nan=False)
-        self.response = self._mettascope.init(self._data_dir, json_str)
+        try:
+            self.response = self._mettascope.init(self._data_dir, json_str)
+        except KeyboardInterrupt:
+            logger.info("Interrupt received during mettascope init; ending episode.")
+            self._sim.end_episode()
+            return
 
     def render(self) -> None:
         """Render current state and capture user input."""
@@ -84,7 +91,12 @@ class MettascopeRenderer(Renderer):
         step_replay = {"step": self._sim.current_step, "objects": grid_objects}
 
         # Render and get user input
-        self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
+        try:
+            self.response = self._mettascope.render(self._sim.current_step, json.dumps(step_replay, allow_nan=False))
+        except KeyboardInterrupt:
+            logger.info("Interrupt received during mettascope render; ending episode.")
+            self._sim.end_episode()
+            return
         if self.response.should_close:
             self._sim.end_episode()
             return

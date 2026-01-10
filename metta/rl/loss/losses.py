@@ -20,6 +20,7 @@ from metta.rl.loss.quantile_ppo_critic import QuantilePPOCriticConfig
 from metta.rl.loss.sl_checkpointed_kickstarter import SLCheckpointedKickstarterConfig
 from metta.rl.loss.sliced_kickstarter import SlicedKickstarterConfig
 from metta.rl.loss.sliced_scripted_cloner import SlicedScriptedClonerConfig
+from metta.rl.loss.stable_latent import StableLatentStateConfig
 from metta.rl.loss.vit_reconstruction import ViTReconstructionLossConfig
 from metta.rl.training import TrainingEnvironment
 from mettagrid.base_config import Config
@@ -41,6 +42,7 @@ class LossesConfig(Config):
         "cmpo",
         "vit_reconstruction",
         "contrastive",
+        "stable_latent",
         "future_latent_ema",
         "grpo",
         "supervisor",
@@ -60,6 +62,7 @@ class LossesConfig(Config):
     contrastive: contrastive_config.ContrastiveConfig = Field(
         default_factory=lambda: contrastive_config.ContrastiveConfig(enabled=False)
     )
+    stable_latent: StableLatentStateConfig = Field(default_factory=lambda: StableLatentStateConfig(enabled=False))
     future_latent_ema: FutureLatentEMALossConfig = Field(
         default_factory=lambda: FutureLatentEMALossConfig(enabled=False)
     )
