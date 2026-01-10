@@ -47,14 +47,10 @@ from cogames.cogs_vs_clips.variants import VARIANTS
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Cache for loaded policies to avoid reloading for each case (used in sequential mode)
-_cached_policy = None
-_cached_policy_key = None
 
 
 def _ensure_vibe_supports_gear(env_cfg) -> None:
@@ -279,10 +275,7 @@ def _run_case(
     seed: int,
     runs_per_case: int,
     agent_config: AgentConfig,
-    cached_policy=None,  # Optional pre-loaded policy to reuse
 ) -> List[EvalResult]:
-    global _cached_policy, _cached_policy_key
-
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
@@ -311,45 +304,26 @@ def _run_case(
             env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
 
         actual_max_steps = env_config.game.max_steps
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
+        policy_spec = PolicySpec(
+            class_path=agent_config.policy_path,
+            data_path=agent_config.data_path,
+            init_kwargs=agent_config.init_kwargs or {},
+        )
 
-        # Use cached policy if provided, otherwise try global cache, otherwise load fresh
-        if cached_policy is not None:
-            policy = cached_policy
-        elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-            # Reuse globally cached policy
-            policy = _cached_policy
-        else:
-            # Load fresh and cache it globally for S3 policies
-            policy = load_policy(
-                policy_env_info,
-                agent_config.policy_path,
-                agent_config.data_path,
-                init_kwargs=agent_config.init_kwargs,
-            )
-            if _policy_source_is_s3(agent_config):
-                _cached_policy = policy
-                _cached_policy_key = agent_config.policy_path
-
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
+        rollout_payload = multi_episode_rollout(
+            env_cfg=env_config,
+            policy_specs=[policy_spec],
+            episodes=runs_per_case,
+            seed=seed,
+        )
 
         out: List[EvalResult] = []
-        for run_idx in range(runs_per_case):
-            run_seed = seed + run_idx
-            rollout = Rollout(
-                env_config,
-                agent_policies,
-                render_mode="none",
-                seed=run_seed,
-            )
-            rollout.run_until_done()
-
-            total_reward = float(sum(rollout._sim.episode_rewards))
+        for run_idx, episode in enumerate(rollout_payload.episodes, start=1):
+            total_reward = float(episode.rewards.sum())
             avg_reward_per_agent = total_reward / max(1, num_cogs)
-            final_step = rollout._sim.current_step
 
             heart_gained = 0.0
-            episode_stats = rollout._sim.episode_stats
+            episode_stats = episode.stats
             if "agent" in episode_stats:
                 agent_stats_list = episode_stats["agent"]
                 for agent_stats in agent_stats_list:
@@ -368,11 +342,11 @@ def _run_case(
                     hearts_assembled=int(total_reward),
                     heart_gained=heart_gained,
                     avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                    steps_taken=final_step + 1,
+                    steps_taken=episode.steps + 1,
                     max_steps=actual_max_steps,
                     success=total_reward > 0,
-                    seed_used=run_seed,
-                    run_index=run_idx + 1,
+                    seed_used=seed + (run_idx - 1),
+                    run_index=run_idx,
                 )
             )
         return out
@@ -460,43 +434,10 @@ def run_evaluation(
                     f"(progress {completed}/{total_tests})"
                 )
     else:
-        # Sequential execution for S3 policies (TensorDict doesn't work well with threading)
         if _policy_source_is_s3(agent_config):
             logger.info("Running sequentially (S3 policies require sequential execution due to TensorDict)")
         else:
             logger.info("Running sequentially (--jobs 1)")
-
-        # Pre-load the policy once using the first case's env config
-        cached_policy = None
-        if cases and _policy_source_is_s3(agent_config):
-            first_case = cases[0]
-            exp_name_0, variant_name_0, num_cogs_0, base_mission_0, variant_0, _ = first_case
-            try:
-                mission_variants_0: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs_0)]
-                if variant_0:
-                    mission_variants_0.insert(0, variant_0)
-                mission_0 = base_mission_0.with_variants(mission_variants_0)
-                env_config_0 = mission_0.make_env()
-                _ensure_vibe_supports_gear(env_config_0)
-
-                # Auto-detect policy action space and configure environment to match
-                policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
-                if policy_action_space is not None:
-                    _configure_env_for_action_space(env_config_0, policy_action_space)
-
-                policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
-                policy_ref = agent_config.source or agent_config.data_path or agent_config.policy_path
-                logger.info(f"Pre-loading policy from {policy_ref}...")
-                cached_policy = load_policy(
-                    policy_env_info_0,
-                    agent_config.policy_path,
-                    agent_config.data_path,
-                    init_kwargs=agent_config.init_kwargs,
-                )
-                logger.info("Policy loaded successfully, will reuse for all cases")
-            except Exception as e:
-                logger.warning(f"Failed to pre-load policy: {e}. Will load per-case instead.")
-                cached_policy = None
 
         for idx, (exp_name, variant_name, num_cogs, base_mission, variant, clip_period) in enumerate(cases, start=1):
             case_results = _run_case(
@@ -510,7 +451,6 @@ def run_evaluation(
                 seed,
                 runs_per_case,
                 agent_config,
-                cached_policy=cached_policy,
             )
             results.extend(case_results)
             completed += len(case_results)
