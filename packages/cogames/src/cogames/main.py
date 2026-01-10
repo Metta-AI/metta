@@ -18,7 +18,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Literal, Optional, TypeVar
+from typing import Literal, Optional, TypeVar
 
 import typer
 import yaml  # type: ignore[import]

@@ -222,8 +222,8 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 - If the mission sets a MapGen seed, all commands use it unless you pass `--map-seed`.
 - `--map-seed` overrides the MapGen seed for procedural maps.
 - `--seed` controls simulator/policy RNG (and is used for training map derivation when `--map-seed` is unset).
-- `train`: with `--map-seed`, map seed = `--map-seed + env_seed`; without `--map-seed` (and no mission seed), map seed
-  = `--seed + env_seed` (reproducible variety).
+- `train`: with `--map-seed`, map seed = `--map-seed + env_seed`; without `--map-seed` (and no mission seed), map seed =
+  `--seed + env_seed` (reproducible variety).
 - `play`/`eval`: with `--map-seed`, the map layout is fixed; without `--map-seed` (and no mission seed), the map layout
   is random.
 - For fully reproducible play/eval runs, set **both** `--seed` and `--map-seed`.
