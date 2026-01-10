@@ -617,7 +617,12 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
             # CRITICAL FIX: Mark the target cell as OBSTACLE to learn from failures
             # This prevents repeatedly trying invalid moves to the same cell
-            if path_is_within_bounds(state, target_r, target_c):
+            bounds_check = path_is_within_bounds(state, target_r, target_c)
+            if not bounds_check:
+                self._logger.warning(f"  BOUNDS CHECK FAILED: ({target_r},{target_c}) out of bounds "
+                                   f"(map={state.map_height}x{state.map_width})")
+
+            if bounds_check:
                 state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
                 # Remove from explored cells since it's blocked
                 state.explored_cells.discard((target_r, target_c))
@@ -626,6 +631,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Without this, pathfinder will keep planning routes through blocked cells
                 if self.map_manager:
                     self.map_manager.mark_wall(target_r, target_c)
+                    self._logger.debug(f"  LEARNED WALL: Marked ({target_r},{target_c}) as WALL due to failed move")
 
             # If too many consecutive failed moves, invalidate cached paths
             # This suggests position drift - our map may be out of sync
@@ -679,30 +685,33 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     self._set_forced_escape_direction(state, pos_list)
                     return True
 
-        # Original check: visiting only 2-3 unique positions in last 10 steps
-        if len(unique_positions) > 3:
-            return False  # Moving through too many positions, not oscillating
+            # Original check: visiting only 2-3 unique positions in last 10 steps
+            if len(unique_positions) > 3:
+                return False  # Moving through too many positions, not oscillating
 
-        # Check if we're making progress toward any target
-        # STRENGTHENED: Only need to move 1 cell closer (was 2)
-        if hasattr(state, 'current_recharge_target') and state.current_recharge_target:
-            target = state.current_recharge_target
-            initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
-            final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
+            # Check if we're making progress toward any target
+            # STRENGTHENED: Only need to move 1 cell closer (was 2)
+            if hasattr(state, 'current_recharge_target') and state.current_recharge_target:
+                target = state.current_recharge_target
+                initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
+                final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
 
-            if final_dist < initial_dist - 1:  # Making progress (moved 1+ cells closer)
-                return False
+                if final_dist < initial_dist - 1:  # Making progress (moved 1+ cells closer)
+                    return False
 
-        if hasattr(state, 'committed_frontier_target') and state.committed_frontier_target:
-            target = state.committed_frontier_target
-            initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
-            final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
+            if hasattr(state, 'committed_frontier_target') and state.committed_frontier_target:
+                target = state.committed_frontier_target
+                initial_dist = abs(recent_positions[0][0] - target[0]) + abs(recent_positions[0][1] - target[1])
+                final_dist = abs(recent_positions[-1][0] - target[0]) + abs(recent_positions[-1][1] - target[1])
 
-            if final_dist < initial_dist - 1:  # Making progress
-                return False
+                if final_dist < initial_dist - 1:  # Making progress
+                    return False
 
-        # No progress toward any target and visiting only 2-3 positions → Oscillating!
-        return True
+            # No progress toward any target and visiting only 2-3 positions → Oscillating!
+            return True
+
+        # Not enough history to detect oscillation
+        return False
 
     def _set_forced_escape_direction(self, state: HarvestState, oscillating_positions: list[tuple[int, int]]) -> None:
         """Set a forced exploration direction to escape oscillation.
@@ -735,6 +744,60 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # Set forced direction for next 5 steps to break pattern
         state.forced_exploration_direction = perpendicular[0]  # Try first perpendicular direction
         self._logger.info(f"  ANTI-OSCILLATION: Forcing {state.forced_exploration_direction} movement for 5 steps")
+
+    def _count_valid_exits(self, state: HarvestState, pos: tuple[int, int]) -> int:
+        """Count how many valid exit directions a position has.
+
+        A position with 0-1 exits is a dead-end. We want to avoid entering these.
+
+        Args:
+            state: Current agent state
+            pos: Position to check (row, col)
+
+        Returns:
+            Number of valid exit directions (0-4)
+        """
+        row, col = pos
+        exits = 0
+
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            next_r, next_c = row + dr, col + dc
+
+            # Check bounds
+            if not (0 <= next_r < state.map_height and 0 <= next_c < state.map_width):
+                continue
+
+            # Check if traversable in map
+            if hasattr(self, 'map_manager') and self.map_manager:
+                if self.map_manager.is_traversable(next_r, next_c):
+                    exits += 1
+
+        return exits
+
+    def _is_dead_end(self, state: HarvestState, pos: tuple[int, int]) -> bool:
+        """Check if a position is a dead-end (has only 0-1 exit).
+
+        Dead-ends are dangerous because the agent can get trapped with no escape route.
+        """
+        return self._count_valid_exits(state, pos) <= 1
+
+    def _find_last_safe_position(self, state: HarvestState) -> tuple[int, int] | None:
+        """Find the most recent position in history that has multiple exits.
+
+        Used for emergency backtracking when agent is trapped in a dead-end.
+
+        Returns:
+            Position with 2+ exits, or None if no safe position in recent history
+        """
+        if len(state.position_history) < 5:
+            return None
+
+        # Check last 10 positions for one with multiple exits
+        for pos in reversed(state.position_history[-10:]):
+            if self._count_valid_exits(state, pos) >= 2:
+                return pos
+
+        return None
 
     def _verify_move_success(self, state: HarvestState, obs: AgentObservation, dr: int, dc: int) -> bool:
         """Verify if the last move succeeded using multiple methods.
@@ -1249,7 +1312,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     state,
                     (state.row, state.col),
                     [charger_pos],
-                    allow_goal_block=False,  # Chargers are traversable - path directly to them
+                    allow_goal_block=True,  # Chargers are non-traversable for intermediate waypoints but reachable as goals
                     cell_type=CellType,
                     is_traversable_fn=self.map_manager.is_traversable
                 )
@@ -2112,20 +2175,29 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_assemble(self, state: HarvestState) -> Action:
         """Assemble hearts at the assembler.
 
-        IMPROVED NAVIGATION: Instead of just exploring when stuck, try smarter navigation:
-        1. Check if adjacent to assembler - move directly onto it
-        2. Check if standing ON assembler - use it
-        3. If oscillating, clear the stuck flag and retry with forced direction
-        4. Only explore as last resort
+        IMPROVED NAVIGATION + DETAILED DEBUGGING to understand why no hearts are being assembled.
         """
         assembler_pos = state.stations.get("assembler")
+
+        # DEBUGGING: Log current state
+        dist_to_assembler = abs(state.row - assembler_pos[0]) + abs(state.col - assembler_pos[1]) if assembler_pos else 999
+        self._logger.error(f"╔══ ASSEMBLE DEBUG ══════════════════════════════════")
+        self._logger.error(f"║ Position: ({state.row},{state.col})")
+        self._logger.error(f"║ Assembler: {assembler_pos}")
+        self._logger.error(f"║ Distance to assembler: {dist_to_assembler}")
+        self._logger.error(f"║ Inventory: C:{state.carbon} O:{state.oxygen} G:{state.germanium} Si:{state.silicon} H:{state.hearts}")
+        self._logger.error(f"║ Recipe: {state.heart_recipe}")
+        self._logger.error(f"║ Energy: {state.energy}")
+        self._logger.error(f"║ Consecutive fails: {state.consecutive_failed_moves}")
+        self._logger.error(f"╚════════════════════════════════════════════════════")
+
         if not assembler_pos:
-            self._logger.error(f"  ASSEMBLE: No assembler found!")
+            self._logger.error(f"  ASSEMBLE: No assembler found - exploring!")
             return self._explore(state)
 
         # Check if standing ON the assembler
         if (state.row, state.col) == assembler_pos:
-            self._logger.info(f"  ASSEMBLE: Standing ON assembler, attempting assembly")
+            self._logger.error(f"  ✓✓✓ ASSEMBLE: STANDING ON ASSEMBLER! Attempting assembly...")
             # Try all assembly actions
             return self._actions.noop.Noop()  # Using assembler
 
@@ -2140,8 +2212,18 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             elif dc == -1: direction = "west"
 
             if direction and self._is_direction_clear_in_obs(state, direction):
-                self._logger.info(f"  ASSEMBLE: Adjacent to assembler, moving {direction} onto it")
+                self._logger.error(f"  >>> ASSEMBLE: ADJACENT to assembler! Moving {direction} onto it")
                 return self._actions.move.Move(direction)
+            else:
+                self._logger.error(f"  ASSEMBLE: Adjacent but direction {direction} is BLOCKED")
+
+        # Log navigation attempt
+        if dist_to_assembler <= 10:
+            self._logger.error(f"  ASSEMBLE: Close to assembler (dist={dist_to_assembler}), navigating...")
+        elif dist_to_assembler <= 30:
+            self._logger.warning(f"  ASSEMBLE: Medium distance to assembler (dist={dist_to_assembler})")
+        else:
+            self._logger.warning(f"  ASSEMBLE: FAR from assembler (dist={dist_to_assembler})")
 
         # If oscillating, clear stuck flag to allow retry with forced direction
         if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
@@ -2373,8 +2455,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Horizontal movement more important
                 direction = "east" if dc > 0 else "west"
 
-            # Check if that direction is clear
-            if self._is_direction_clear_in_obs(state, direction):
+            # Check if that direction is clear (both in observation AND learned walls)
+            if self._is_direction_clear(state, direction):
                 self._logger.debug(f"  RECHARGE: Moving {direction} toward charger (greedy fallback)")
                 return self._actions.move.Move(direction)
 
@@ -2386,7 +2468,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
 
             for alt_dir in alt_directions:
-                if self._is_direction_clear_in_obs(state, alt_dir):
+                if self._is_direction_clear(state, alt_dir):
                     self._logger.debug(f"  RECHARGE: Primary blocked, trying {alt_dir}")
                     return self._actions.move.Move(alt_dir)
 
@@ -2589,7 +2671,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             state=state,
             start=(state.row, state.col),
             goals=goals,
-            allow_goal_block=False,  # All game objects are traversable
+            allow_goal_block=True,  # Allow reaching non-traversable goals (chargers/assemblers/chests)
             cell_type=CellType,
             is_traversable_fn=lambda r, c: self.map_manager.is_traversable(r, c)
         )
@@ -2852,9 +2934,22 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.info(f"Step {state.step_count}: PATHFIND FAILED: Using greedy {best_direction} (gets closer to target)")
                 return self._actions.move.Move(best_direction)
 
-            # DEAD-END DETECTION: Mark this position as a dead-end if all directions blocked
-            self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked at ({state.row},{state.col}), marking as dead-end")
+            # EMERGENCY BACKTRACK: When completely trapped, try to backtrack to last safe position
+            self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked at ({state.row},{state.col}) - EMERGENCY BACKTRACK")
             state.dead_end_positions.add((state.row, state.col))
+
+            # Try to find a safe position to backtrack to
+            safe_pos = self._find_last_safe_position(state)
+            if safe_pos and safe_pos != (state.row, state.col):
+                self._logger.info(f"  BACKTRACK: Found safe position at {safe_pos}, attempting navigation")
+                # Try to navigate back to safe position
+                try:
+                    return self._move_towards(state, safe_pos)
+                except Exception as e:
+                    self._logger.error(f"  BACKTRACK FAILED: {e}")
+
+            # If backtrack fails or no safe position, just noop
+            self._logger.warning(f"  BACKTRACK: No safe position found, nooping")
             return self._actions.noop.Noop()
 
         # Get next step
@@ -3353,6 +3448,39 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # No blocking object found - path is clear
         return True
 
+    def _is_direction_clear(self, state: HarvestState, direction: str) -> bool:
+        """Check if a direction is clear based on BOTH observation AND learned walls.
+
+        More conservative than _is_direction_clear_in_obs - also checks MapManager
+        for learned walls to avoid repeatedly hitting the same obstacles.
+
+        Returns True if:
+        - Direction is clear in observation (no walls/agents visible)
+        - Target cell is not a learned WALL in MapManager
+        """
+        # First check observation
+        if not self._is_direction_clear_in_obs(state, direction):
+            return False
+
+        # Also check MapManager for learned walls
+        if self.map_manager:
+            dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+            dr, dc = dir_offsets[direction]
+            target_r, target_c = state.row + dr, state.col + dc
+
+            # Check if target is traversable in MapManager (respects learned walls)
+            if not self.map_manager.is_traversable(target_r, target_c):
+                from .map import MapCellType
+                cell_type = self.map_manager.grid[target_r][target_c]
+                # If it's a learned WALL or DEAD_END, don't go there
+                if cell_type in (MapCellType.WALL, MapCellType.DEAD_END):
+                    self._logger.debug(f"  WALL CHECK: Blocking {direction} - learned {cell_type.name} at ({target_r},{target_c})")
+                    return False
+                # If it's a charger/assembler/chest, allow it (they're valid destinations)
+                # The pathfinding will handle routing to them properly
+
+        return True
+
     def _find_all_frontier_cells(
         self,
         state: HarvestState,
@@ -3408,8 +3536,16 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                             break
 
                 if is_frontier:
+                    # DEAD-END AVOIDANCE: Skip frontiers that are dead-ends (only 1 exit)
+                    exit_count = self._count_valid_exits(state, (r, c))
+                    if exit_count <= 1:
+                        continue  # Skip dead-end frontiers
+
                     dist = abs(r - state.row) + abs(c - state.col)
-                    frontier_candidates.append((dist, r, c))
+                    # Prioritize frontiers with more exits (safer)
+                    safety_bonus = (exit_count - 2) * 3  # Extra exits reduce effective distance
+                    adjusted_dist = max(1, dist - safety_bonus)
+                    frontier_candidates.append((adjusted_dist, dist, r, c))
 
         if not frontier_candidates:
             return []
@@ -3435,7 +3571,8 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if i < len(far_frontiers):
                 result.append(far_frontiers[i])
 
-        return [(r, c) for (_, r, c) in result[:max_candidates]]
+        # Extract (r, c) from (adjusted_dist, original_dist, r, c) tuples
+        return [(r, c) for (_, _, r, c) in result[:max_candidates]]
 
     def _find_frontier_targets(self, state: HarvestState) -> list[tuple[int, int]]:
         """Find explored cells that are adjacent to unexplored cells (frontier)."""
