@@ -103,3 +103,38 @@ def test_no_circular_import_with_config():
 
     assert convert_to_cpp_game_config is not None
     assert MultiAgentPolicy is not None
+
+
+def test_policy_init_is_minimal():
+    """Test that policy __init__.py remains minimal to avoid circular imports.
+
+    The __init__.py should only contain docstrings and __all__, no actual imports.
+    This prevents circular dependency issues with mettagrid.config.
+    """
+    import mettagrid.policy
+
+    # The __init__.py should not actually import any policy classes
+    # (it can mention them in docstrings, but not import them)
+    # Check that common classes are NOT in the module's __dict__
+    policy_module_attrs = set(dir(mettagrid.policy))
+
+    # These should NOT be directly available from mettagrid.policy
+    # (they should only be importable from submodules like mettagrid.policy.policy)
+    classes_that_should_not_be_imported = {
+        "MultiAgentPolicy",
+        "AgentPolicy",
+        "PolicySpec",
+        "PolicyEnvInterface",
+        "initialize_or_load_policy",
+    }
+
+    accidentally_imported = classes_that_should_not_be_imported & policy_module_attrs
+
+    assert not accidentally_imported, (
+        f"policy/__init__.py should not import these classes to avoid circular dependencies:\n"
+        f"  {', '.join(sorted(accidentally_imported))}\n\n"
+        f"These classes should only be imported from their respective submodules:\n"
+        f"  from mettagrid.policy.policy import MultiAgentPolicy\n"
+        f"  from mettagrid.policy.loader import initialize_or_load_policy\n"
+        f"  etc."
+    )
