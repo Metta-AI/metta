@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Alignment League runner utilities"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = ["mettagrid==0.2.0.58", "numpy>=2", "pydantic>=2.11.5"]
+dependencies = ["mettagrid==0.2.0.58", "pydantic>=2.11.5"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

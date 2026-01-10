@@ -3,12 +3,16 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Callable, Sequence
 
-from alo.multi_episode_runner import multi_episode_rollout
+import math
+import uuid
+
+import numpy as np
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
+from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
 
 
 def _run_single_simulation(
@@ -24,16 +28,64 @@ def _run_single_simulation(
     if replay_dir:
         os.makedirs(replay_dir, exist_ok=True)
 
-    rollout_result = multi_episode_rollout(
-        env_cfg=sim_cfg.env,
-        policy_specs=policy_specs,
-        episodes=sim_cfg.num_episodes,
-        seed=seed,
-        proportions=sim_cfg.proportions,
-        save_replay=replay_dir,
-        max_action_time_ms=sim_cfg.max_action_time_ms,
-        device_override=device_override,
-    )
+    proportions = list(sim_cfg.proportions) if sim_cfg.proportions is not None else [1.0] * len(policy_specs)
+    total = sum(proportions)
+    if total <= 0:
+        raise ValueError("Total policy proportion must be positive.")
+    fractions = [proportion / total for proportion in proportions]
+
+    ideals = [sim_cfg.env.game.num_agents * f for f in fractions]
+    counts = [math.floor(x) for x in ideals]
+    remaining = sim_cfg.env.game.num_agents - sum(counts)
+    remainders = [(i, ideals[i] - counts[i]) for i in range(len(fractions))]
+    remainders.sort(key=lambda x: x[1], reverse=True)
+    for i in range(remaining):
+        counts[remainders[i][0]] += 1
+
+    assignments = np.repeat(np.arange(len(policy_specs)), counts)
+    rng = np.random.default_rng(seed)
+    episode_results = []
+    device = device_override or "cpu"
+    max_action_time_ms = sim_cfg.max_action_time_ms or 10000
+
+    for episode_idx in range(sim_cfg.num_episodes):
+        rng.shuffle(assignments)
+        replay_path = None
+        if replay_dir:
+            replay_path = os.path.join(replay_dir, f"{uuid.uuid4()}.json.z")
+
+        job = PureSingleEpisodeSpecJob(
+            policy_specs=policy_specs,
+            assignments=assignments.tolist(),
+            env=sim_cfg.env,
+            replay_uri=replay_path,
+            seed=seed + episode_idx,
+            max_action_time_ms=max_action_time_ms,
+        )
+        results, replay = run_pure_single_episode_from_specs(job, device=device)
+
+        if replay_path is not None:
+            if replay is None:
+                raise ValueError("No replay was generated")
+            if replay_path.endswith(".z"):
+                replay.set_compression("zlib")
+            elif replay_path.endswith(".gz"):
+                replay.set_compression("gzip")
+            replay.write_replay(replay_path)
+
+        episode_results.append(
+            EpisodeRolloutResult(
+                assignments=assignments.copy(),
+                rewards=np.array(results.rewards, dtype=float),
+                action_timeouts=np.array(results.action_timeouts, dtype=float),
+                stats=results.stats,
+                replay_path=replay_path,
+                steps=results.steps,
+                max_steps=sim_cfg.env.game.max_steps,
+            )
+        )
+
+    rollout_result = MultiEpisodeRolloutResult(episodes=episode_results)
 
     return SimulationRunResult(run=sim_cfg, results=rollout_result)
 

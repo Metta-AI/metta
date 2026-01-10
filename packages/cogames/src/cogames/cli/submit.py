@@ -195,16 +195,18 @@ def validate_policy_spec(policy_spec: PolicySpec) -> None:
     from cogames.cli.mission import get_mission
 
     _, env_cfg, _ = get_mission("machina_1")
-    from alo.multi_episode_runner import multi_episode_rollout
+    from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 
     # Run 1 episode for up to 10 steps to validate the policy works
     env_cfg.game.max_steps = 10
-    multi_episode_rollout(
-        env_cfg=env_cfg,
+    job = PureSingleEpisodeSpecJob(
         policy_specs=[policy_spec],
-        episodes=1,
+        assignments=[0] * env_cfg.game.num_agents,
+        env=env_cfg,
         seed=42,
+        max_action_time_ms=10000,
     )
+    run_pure_single_episode_from_specs(job, device="cpu")
 
 
 def validate_policy_in_isolation(
