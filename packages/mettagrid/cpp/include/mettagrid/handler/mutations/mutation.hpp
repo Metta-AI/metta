@@ -1,25 +1,25 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MUTATIONS_MUTATION_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MUTATIONS_MUTATION_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_MUTATIONS_MUTATION_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_MUTATIONS_MUTATION_HPP_
 
 #include <algorithm>
 #include <cmath>
 
-#include "actions/activation_context.hpp"
-#include "actions/activation_handler_config.hpp"
+#include "handler/handler_config.hpp"
+#include "handler/handler_context.hpp"
 #include "objects/has_inventory.hpp"
 
 namespace mettagrid {
 
 /**
- * Base interface for activation mutations.
- * Mutations modify state when an activation occurs.
+ * Base interface for handler mutations.
+ * Mutations modify state when a handler triggers.
  */
 class Mutation {
 public:
   virtual ~Mutation() = default;
 
   // Apply the mutation to the context
-  virtual void apply(ActivationContext& ctx) = 0;
+  virtual void apply(HandlerContext& ctx) = 0;
 };
 
 // ============================================================================
@@ -33,7 +33,7 @@ class ResourceDeltaMutation : public Mutation {
 public:
   explicit ResourceDeltaMutation(const ResourceDeltaMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     HasInventory* entity = ctx.resolve(_config.entity);
     if (entity == nullptr) {
       return;
@@ -53,7 +53,7 @@ class ResourceTransferMutation : public Mutation {
 public:
   explicit ResourceTransferMutation(const ResourceTransferMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     HasInventory* source = ctx.resolve(_config.source);
     HasInventory* dest = ctx.resolve(_config.destination);
 
@@ -86,7 +86,7 @@ class AlignmentMutation : public Mutation {
 public:
   explicit AlignmentMutation(const AlignmentMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     Alignable* target_alignable = dynamic_cast<Alignable*>(ctx.target);
     if (target_alignable == nullptr) {
       return;
@@ -119,7 +119,7 @@ class FreezeMutation : public Mutation {
 public:
   explicit FreezeMutation(const FreezeMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     // TODO: Integrate with agent freeze system
     // For now, this is a placeholder
     (void)ctx;
@@ -137,7 +137,7 @@ class ClearInventoryMutation : public Mutation {
 public:
   explicit ClearInventoryMutation(const ClearInventoryMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     HasInventory* entity = ctx.resolve(_config.entity);
     if (entity == nullptr) {
       return;
@@ -167,7 +167,7 @@ class AttackMutation : public Mutation {
 public:
   explicit AttackMutation(const AttackMutationConfig& config) : _config(config) {}
 
-  void apply(ActivationContext& ctx) override {
+  void apply(HandlerContext& ctx) override {
     if (ctx.actor == nullptr || ctx.target == nullptr) {
       return;
     }
@@ -194,4 +194,4 @@ private:
 
 }  // namespace mettagrid
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_MUTATIONS_MUTATION_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_MUTATIONS_MUTATION_HPP_

@@ -4,16 +4,14 @@
 #include <string>
 #include <vector>
 
-#include "actions/activation_context.hpp"
-#include "actions/activation_handler.hpp"
-#include "actions/activation_handler_config.hpp"
-#include "actions/filters/filter.hpp"
-#include "actions/mutations/mutation.hpp"
 #include "core/grid_object.hpp"
-#include "objects/alignable.hpp"
+#include "handler/filters/filter.hpp"
+#include "handler/handler.hpp"
+#include "handler/handler_config.hpp"
+#include "handler/handler_context.hpp"
+#include "handler/mutations/mutation.hpp"
 #include "objects/collective.hpp"
 #include "objects/collective_config.hpp"
-#include "objects/has_inventory.hpp"
 #include "objects/inventory_config.hpp"
 
 using namespace mettagrid;
@@ -62,7 +60,7 @@ void test_vibe_filter_matches() {
   TestActivationObject actor("actor", 1);    // vibe = 1
   TestActivationObject target("target", 2);  // vibe = 2
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   // Filter for target with vibe_id = 2
   VibeFilterConfig config;
@@ -81,7 +79,7 @@ void test_vibe_filter_no_match() {
   TestActivationObject actor("actor", 1);
   TestActivationObject target("target", 3);  // vibe = 3
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   // Filter for target with vibe_id = 2 (doesn't match)
   VibeFilterConfig config;
@@ -100,7 +98,7 @@ void test_vibe_filter_actor() {
   TestActivationObject actor("actor", 5);  // vibe = 5
   TestActivationObject target("target", 0);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   // Filter for actor with vibe_id = 5
   VibeFilterConfig config;
@@ -120,7 +118,7 @@ void test_resource_filter_passes() {
   TestActivationObject target("target");
   target.inventory.update(0, 100);  // 100 health
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceFilterConfig config;
   config.entity = EntityRef::target;
@@ -140,7 +138,7 @@ void test_resource_filter_fails() {
   TestActivationObject target("target");
   target.inventory.update(0, 25);  // Only 25 health
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceFilterConfig config;
   config.entity = EntityRef::target;
@@ -165,7 +163,7 @@ void test_alignment_filter_same_collective() {
   actor.setCollective(&collective);
   target.setCollective(&collective);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AlignmentFilterConfig config;
   config.condition = AlignmentCondition::same_collective;
@@ -190,7 +188,7 @@ void test_alignment_filter_different_collective() {
   actor.setCollective(&collective_a);
   target.setCollective(&collective_b);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AlignmentFilterConfig config;
   config.condition = AlignmentCondition::different_collective;
@@ -208,7 +206,7 @@ void test_alignment_filter_unaligned() {
   TestActivationObject target("target");
   // Neither has a collective
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AlignmentFilterConfig config;
   config.condition = AlignmentCondition::unaligned;
@@ -227,7 +225,7 @@ void test_tag_filter_matches() {
   target.tag_ids.push_back(42);
   target.tag_ids.push_back(100);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   TagFilterConfig config;
   config.entity = EntityRef::target;
@@ -247,7 +245,7 @@ void test_tag_filter_no_match() {
   target.tag_ids.push_back(1);
   target.tag_ids.push_back(2);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   TagFilterConfig config;
   config.entity = EntityRef::target;
@@ -265,7 +263,7 @@ void test_tag_filter_empty_required() {
   TestActivationObject actor("actor");
   TestActivationObject target("target");
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   TagFilterConfig config;
   config.entity = EntityRef::target;
@@ -288,7 +286,7 @@ void test_resource_delta_mutation_add() {
   TestActivationObject target("target");
   target.inventory.update(0, 100);  // Start with 100 health
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceDeltaMutationConfig config;
   config.entity = EntityRef::target;
@@ -310,7 +308,7 @@ void test_resource_delta_mutation_subtract() {
   TestActivationObject target("target");
   target.inventory.update(0, 100);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceDeltaMutationConfig config;
   config.entity = EntityRef::target;
@@ -332,7 +330,7 @@ void test_resource_transfer_mutation() {
   TestActivationObject target("target");
   actor.inventory.update(1, 100);  // Actor has 100 energy
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceTransferMutationConfig config;
   config.source = EntityRef::actor;
@@ -356,7 +354,7 @@ void test_resource_transfer_mutation_all() {
   TestActivationObject target("target");
   actor.inventory.update(2, 75);  // Actor has 75 gold
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ResourceTransferMutationConfig config;
   config.source = EntityRef::actor;
@@ -385,7 +383,7 @@ void test_alignment_mutation_to_actor_collective() {
   actor.setCollective(&collective);
   // Target has no collective initially
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AlignmentMutationConfig config;
   config.align_to = AlignTo::actor_collective;
@@ -409,7 +407,7 @@ void test_alignment_mutation_to_none() {
 
   target.setCollective(&collective);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AlignmentMutationConfig config;
   config.align_to = AlignTo::none;
@@ -431,7 +429,7 @@ void test_clear_inventory_mutation_specific() {
   target.inventory.update(1, 50);   // energy
   target.inventory.update(2, 25);   // gold
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
@@ -456,7 +454,7 @@ void test_clear_inventory_mutation_all() {
   target.inventory.update(1, 50);
   target.inventory.update(2, 25);
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
@@ -482,7 +480,7 @@ void test_attack_mutation() {
   target.inventory.update(1, 3);   // Armor = 3
   target.inventory.update(2, 50);  // Health = 50
 
-  ActivationContext ctx(&actor, &target);
+  HandlerContext ctx(&actor, &target);
 
   AttackMutationConfig config;
   config.weapon_resource = 0;
@@ -501,11 +499,11 @@ void test_attack_mutation() {
 }
 
 // ============================================================================
-// ActivationHandler Tests
+// Handler Tests
 // ============================================================================
 
-void test_activation_handler_filters_pass() {
-  std::cout << "Testing ActivationHandler filters pass..." << std::endl;
+void test_handler_filters_pass() {
+  std::cout << "Testing Handler filters pass..." << std::endl;
 
   CollectiveConfig coll_config = create_test_collective_config("team_a");
   Collective collective(coll_config, &test_resource_names);
@@ -517,7 +515,7 @@ void test_activation_handler_filters_pass() {
   target.inventory.update(0, 100);
 
   // Create handler config with alignment and resource filters
-  ActivationHandlerConfig handler_config("test_handler");
+  HandlerConfig handler_config("test_handler");
 
   AlignmentFilterConfig align_filter;
   align_filter.condition = AlignmentCondition::same_collective;
@@ -536,17 +534,17 @@ void test_activation_handler_filters_pass() {
   delta_mutation.delta = -25;
   handler_config.mutations.push_back(delta_mutation);
 
-  ActivationHandler handler(handler_config);
+  Handler handler(handler_config);
   bool result = handler.try_apply(&actor, &target);
 
   assert(result == true);
   assert(target.inventory.amount(0) == 75);  // 100 - 25
 
-  std::cout << "✓ ActivationHandler filters pass test passed" << std::endl;
+  std::cout << "✓ Handler filters pass test passed" << std::endl;
 }
 
-void test_activation_handler_filters_fail() {
-  std::cout << "Testing ActivationHandler filters fail..." << std::endl;
+void test_handler_filters_fail() {
+  std::cout << "Testing Handler filters fail..." << std::endl;
 
   CollectiveConfig coll_config_a = create_test_collective_config("team_a");
   CollectiveConfig coll_config_b = create_test_collective_config("team_b");
@@ -560,7 +558,7 @@ void test_activation_handler_filters_fail() {
   target.inventory.update(0, 100);
 
   // Create handler config with same_collective filter
-  ActivationHandlerConfig handler_config("test_handler");
+  HandlerConfig handler_config("test_handler");
 
   AlignmentFilterConfig align_filter;
   align_filter.condition = AlignmentCondition::same_collective;  // Will fail
@@ -572,24 +570,24 @@ void test_activation_handler_filters_fail() {
   delta_mutation.delta = -25;
   handler_config.mutations.push_back(delta_mutation);
 
-  ActivationHandler handler(handler_config);
+  Handler handler(handler_config);
   bool result = handler.try_apply(&actor, &target);
 
   assert(result == false);
   assert(target.inventory.amount(0) == 100);  // Unchanged
 
-  std::cout << "✓ ActivationHandler filters fail test passed" << std::endl;
+  std::cout << "✓ Handler filters fail test passed" << std::endl;
 }
 
-void test_activation_handler_multiple_mutations() {
-  std::cout << "Testing ActivationHandler multiple mutations..." << std::endl;
+void test_handler_multiple_mutations() {
+  std::cout << "Testing Handler multiple mutations..." << std::endl;
 
   TestActivationObject actor("actor");
   TestActivationObject target("target");
   actor.inventory.update(2, 100);  // Actor has gold
   target.inventory.update(0, 50);  // Target has health
 
-  ActivationHandlerConfig handler_config("multi_mutation_handler");
+  HandlerConfig handler_config("multi_mutation_handler");
 
   // Mutation 1: Transfer gold from actor to target
   ResourceTransferMutationConfig transfer;
@@ -606,7 +604,7 @@ void test_activation_handler_multiple_mutations() {
   heal.delta = 20;
   handler_config.mutations.push_back(heal);
 
-  ActivationHandler handler(handler_config);
+  Handler handler(handler_config);
   bool result = handler.try_apply(&actor, &target);
 
   assert(result == true);
@@ -614,17 +612,17 @@ void test_activation_handler_multiple_mutations() {
   assert(target.inventory.amount(2) == 30);  // 0 + 30
   assert(target.inventory.amount(0) == 70);  // 50 + 20
 
-  std::cout << "✓ ActivationHandler multiple mutations test passed" << std::endl;
+  std::cout << "✓ Handler multiple mutations test passed" << std::endl;
 }
 
-void test_activation_handler_check_filters_only() {
-  std::cout << "Testing ActivationHandler check_filters..." << std::endl;
+void test_handler_check_filters_only() {
+  std::cout << "Testing Handler check_filters..." << std::endl;
 
   TestActivationObject actor("actor");
   TestActivationObject target("target");
   target.inventory.update(0, 100);
 
-  ActivationHandlerConfig handler_config("test_handler");
+  HandlerConfig handler_config("test_handler");
 
   ResourceFilterConfig resource_filter;
   resource_filter.entity = EntityRef::target;
@@ -638,18 +636,18 @@ void test_activation_handler_check_filters_only() {
   delta_mutation.delta = -25;
   handler_config.mutations.push_back(delta_mutation);
 
-  ActivationHandler handler(handler_config);
+  Handler handler(handler_config);
 
   // check_filters should pass but NOT apply mutations
   bool can_apply = handler.check_filters(&actor, &target);
   assert(can_apply == true);
   assert(target.inventory.amount(0) == 100);  // Still unchanged
 
-  std::cout << "✓ ActivationHandler check_filters test passed" << std::endl;
+  std::cout << "✓ Handler check_filters test passed" << std::endl;
 }
 
 int main() {
-  std::cout << "Running ActivationHandler tests..." << std::endl;
+  std::cout << "Running Handler tests..." << std::endl;
   std::cout << "================================================" << std::endl;
 
   // Filter tests
@@ -677,13 +675,13 @@ int main() {
   test_attack_mutation();
 
   // Handler tests
-  test_activation_handler_filters_pass();
-  test_activation_handler_filters_fail();
-  test_activation_handler_multiple_mutations();
-  test_activation_handler_check_filters_only();
+  test_handler_filters_pass();
+  test_handler_filters_fail();
+  test_handler_multiple_mutations();
+  test_handler_check_filters_only();
 
   std::cout << "================================================" << std::endl;
-  std::cout << "All ActivationHandler tests passed! ✓" << std::endl;
+  std::cout << "All Handler tests passed! ✓" << std::endl;
 
   return 0;
 }

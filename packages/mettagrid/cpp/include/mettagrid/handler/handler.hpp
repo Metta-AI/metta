@@ -1,30 +1,30 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_HPP_
 
 #include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
-#include "actions/activation_context.hpp"
-#include "actions/activation_handler_config.hpp"
-#include "actions/filters/filter.hpp"
-#include "actions/mutations/mutation.hpp"
+#include "handler/filters/filter.hpp"
+#include "handler/handler_config.hpp"
+#include "handler/handler_context.hpp"
+#include "handler/mutations/mutation.hpp"
 
 namespace mettagrid {
 
 /**
- * ActivationHandler processes object activations through configurable
+ * Handler processes object activations through configurable
  * filter chains and mutation chains.
  *
  * Usage:
- *   1. Create handler with ActivationHandlerConfig
+ *   1. Create handler with HandlerConfig
  *   2. Call try_apply() with actor and target
  *   3. Returns true if all filters passed and mutations were applied
  */
-class ActivationHandler {
+class Handler {
 public:
-  explicit ActivationHandler(const ActivationHandlerConfig& config);
+  explicit Handler(const HandlerConfig& config);
 
   // Get handler name
   const std::string& name() const {
@@ -52,4 +52,4 @@ private:
 
 }  // namespace mettagrid
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_HANDLER_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_HPP_

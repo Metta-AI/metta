@@ -1,7 +1,7 @@
-#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_CONTEXT_HPP_
-#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_CONTEXT_HPP_
+#ifndef PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONTEXT_HPP_
+#define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONTEXT_HPP_
 
-#include "actions/activation_handler_config.hpp"
+#include "handler/handler_config.hpp"
 #include "objects/alignable.hpp"
 #include "objects/collective.hpp"
 #include "objects/has_inventory.hpp"
@@ -9,16 +9,16 @@
 namespace mettagrid {
 
 /**
- * ActivationContext holds references to all entities involved in an activation
+ * HandlerContext holds references to all entities involved in an activation
  * and provides entity resolution for filters and mutations.
  */
-class ActivationContext {
+class HandlerContext {
 public:
   HasInventory* actor = nullptr;
   HasInventory* target = nullptr;
 
-  ActivationContext() = default;
-  ActivationContext(HasInventory* act, HasInventory* tgt) : actor(act), target(tgt) {}
+  HandlerContext() = default;
+  HandlerContext(HasInventory* act, HasInventory* tgt) : actor(act), target(tgt) {}
 
   // Resolve an EntityRef to the corresponding HasInventory*
   HasInventory* resolve(EntityRef ref) const {
@@ -58,4 +58,4 @@ public:
 
 }  // namespace mettagrid
 
-#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_ACTIONS_ACTIVATION_CONTEXT_HPP_
+#endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_HANDLER_HANDLER_CONTEXT_HPP_

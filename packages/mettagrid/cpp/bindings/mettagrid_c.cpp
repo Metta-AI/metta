@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
-#include "actions/activation_handler_bindings.hpp"
+#include "handler/handler_bindings.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
@@ -1073,7 +1073,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_aoe_config(m);
 
   // Activation handler bindings
-  bind_activation_handler_config(m);
+  bind_handler_config(m);
 
   // Export data types from types.hpp
   m.attr("dtype_observations") = dtype_observations();
