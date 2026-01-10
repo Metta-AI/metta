@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from alo.scoring import compute_weighted_scores
+
 from metta.app_backend.tournament.referees.base import ScoredMatchData, ScorerInterface
 
 

@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "alo",
     "codebot",
     "cogames",
     "cortexcore",
@@ -174,6 +175,23 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6b/45/6f4555f2039f364c3ce31399529dcf48dd60726ff3715ad67f547d87dfd2/alembic-1.17.0.tar.gz", hash = "sha256:4652a0b3e19616b57d652b82bfa5e38bf5dbea0813eed971612671cb9e90c0fe", size = 1975526, upload-time = "2025-10-11T18:40:13.585Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/44/1f/38e29b06bfed7818ebba1f84904afdc8153ef7b6c7e0d8f3bc6643f5989c/alembic-1.17.0-py3-none-any.whl", hash = "sha256:80523bc437d41b35c5db7e525ad9d908f79de65c27d6a5a5eab6df348a352d99", size = 247449, upload-time = "2025-10-11T18:40:16.288Z" },
+]
+
+[[package]]
+name = "alo"
+version = "0.1.0"
+source = { editable = "packages/alo" }
+dependencies = [
+    { name = "mettagrid" },
+    { name = "numpy" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mettagrid", editable = "packages/mettagrid" },
+    { name = "numpy", specifier = ">=2" },
+    { name = "pydantic", specifier = ">=2.11.5" },
 ]
 
 [[package]]
@@ -2242,6 +2260,7 @@ name = "metta"
 version = "0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "alo" },
     { name = "altair" },
     { name = "anywidget" },
     { name = "asana" },
@@ -2368,6 +2387,7 @@ testing = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alo", editable = "packages/alo" },
     { name = "altair", specifier = ">=5.5.0" },
     { name = "anywidget", specifier = ">=0.9.18" },
     { name = "asana", specifier = ">=5.2.2" },
@@ -2531,6 +2551,7 @@ version = "0.1.0"
 source = { editable = "app_backend" }
 dependencies = [
     { name = "aioboto3" },
+    { name = "alo" },
     { name = "boto3" },
     { name = "ddtrace" },
     { name = "duckdb" },
@@ -2565,6 +2586,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aioboto3", specifier = ">=13.2.0" },
+    { name = "alo", editable = "packages/alo" },
     { name = "boto3", specifier = ">=1.38.32" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "duckdb", specifier = ">=1.3.0" },

@@ -9,6 +9,7 @@ from typing import Literal, Optional, TypeAlias
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
+from alo.multi_episode_runner import multi_episode_rollout
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
@@ -17,7 +18,6 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from alo.multi_episode_runner import multi_episode_rollout
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 

@@ -6,6 +6,7 @@ from typing import Any, NewType
 
 import duckdb
 import wandb
+from alo.pure_single_episode_runner import PureSingleEpisodeResult
 from pydantic import Field
 from rich.console import Console
 from rich.table import Table
@@ -27,7 +28,6 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
-from alo.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.common import METTASCOPE_REPLAY_URL_PREFIX
