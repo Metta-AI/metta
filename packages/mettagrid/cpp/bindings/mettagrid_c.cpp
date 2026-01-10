@@ -30,6 +30,8 @@
 #include "objects/assembler_config.hpp"
 #include "objects/chest.hpp"
 #include "objects/collective.hpp"
+#include "objects/collective_chest.hpp"
+#include "objects/collective_chest_config.hpp"
 #include "objects/collective_config.hpp"
 #include "objects/constants.hpp"
 #include "objects/inventory_config.hpp"
@@ -225,6 +227,17 @@ void MettaGrid::_init_grid(const GameConfig& game_config, const py::list& map) {
         assembler->set_grid(_grid.get());
         assembler->set_current_timestep_ptr(&current_step);
         assembler->set_obs_encoder(_obs_encoder.get());
+        continue;
+      }
+
+      // Check CollectiveChestConfig BEFORE ChestConfig since it's a subclass
+      const CollectiveChestConfig* collective_chest_config = dynamic_cast<const CollectiveChestConfig*>(object_cfg);
+      if (collective_chest_config) {
+        CollectiveChest* collective_chest = new CollectiveChest(r, c, *collective_chest_config, _stats.get());
+        _grid->add_object(collective_chest);
+        _stats->incr("objects." + cell);
+        collective_chest->set_grid(_grid.get());
+        collective_chest->set_obs_encoder(_obs_encoder.get());
         continue;
       }
 
@@ -812,8 +825,11 @@ py::dict MettaGrid::grid_objects(int min_row, int max_row, int min_col, int max_
 
     if (auto* has_inventory = dynamic_cast<HasInventory*>(obj)) {
       py::dict inventory_dict;
-      for (const auto& [resource, quantity] : has_inventory->inventory.get()) {
-        inventory_dict[py::int_(resource)] = quantity;
+      Inventory* inv = has_inventory->get_accessible_inventory();
+      if (inv) {
+        for (const auto& [resource, quantity] : inv->get()) {
+          inventory_dict[py::int_(resource)] = quantity;
+        }
       }
       obj_dict["inventory"] = inventory_dict;
     }
@@ -1059,6 +1075,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_agent_config(m);
   bind_assembler_config(m);
   bind_chest_config(m);
+  bind_collective_chest_config(m);
   bind_action_config(m);
   bind_attack_action_config(m);
   bind_vibe_transfer_effect(m);

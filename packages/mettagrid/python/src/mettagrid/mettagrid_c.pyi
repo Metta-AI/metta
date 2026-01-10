@@ -174,6 +174,14 @@ class ChestConfig(GridObjectConfig):
     inventory_config: InventoryConfig
     initial_vibe: int
 
+class CollectiveChestConfig(ChestConfig):
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        initial_vibe: int = 0,
+    ) -> None: ...
+
 class ClipperConfig:
     def __init__(self) -> None: ...
     unclipping_protocols: list[Protocol]

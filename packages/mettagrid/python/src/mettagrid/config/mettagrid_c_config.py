@@ -3,6 +3,7 @@ from mettagrid.config.mettagrid_config import (
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
+    CollectiveChestConfig,
     GameConfig,
     WallConfig,
 )
@@ -14,6 +15,7 @@ from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
 from mettagrid.mettagrid_c import ChangeVibeActionConfig as CppChangeVibeActionConfig
 from mettagrid.mettagrid_c import ChestConfig as CppChestConfig
 from mettagrid.mettagrid_c import ClipperConfig as CppClipperConfig
+from mettagrid.mettagrid_c import CollectiveChestConfig as CppCollectiveChestConfig
 from mettagrid.mettagrid_c import CollectiveConfig as CppCollectiveConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
@@ -135,6 +137,17 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         for k, v in rewards_config.get("inventory_max", {}).items():
             assert k in resource_name_to_id, f"Inventory reward max {k} not in resource_names"
             stat_name = k + ".amount"
+            assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
+            stat_reward_max[stat_name] = v
+        # Collective inventory rewards use "collective.{resource}.amount" stat names
+        for k, v in rewards_config.get("collective_inventory", {}).items():
+            assert k in resource_name_to_id, f"Collective inventory reward {k} not in resource_names"
+            stat_name = "collective." + k + ".amount"
+            assert stat_name not in stat_rewards, f"Stat reward {stat_name} already exists"
+            stat_rewards[stat_name] = v
+        for k, v in rewards_config.get("collective_inventory_max", {}).items():
+            assert k in resource_name_to_id, f"Collective inventory reward max {k} not in resource_names"
+            stat_name = "collective." + k + ".amount"
             assert stat_name not in stat_reward_max, f"Stat reward max {stat_name} already exists"
             stat_reward_max[stat_name] = v
 
@@ -305,7 +318,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
             # Key by map_name so map grid (which uses map_name) resolves directly.
             objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
-        elif isinstance(object_config, ChestConfig):
+        elif isinstance(object_config, (ChestConfig, CollectiveChestConfig)):
             # Convert tag names to IDs
             tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
 
@@ -346,9 +359,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config = CppInventoryConfig()
             inventory_config.limit_defs = limit_defs
 
-            cpp_chest_config = CppChestConfig(
-                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
-            )
+            # Use CollectiveChestConfig or ChestConfig depending on type
+            if isinstance(object_config, CollectiveChestConfig):
+                cpp_chest_config = CppCollectiveChestConfig(
+                    type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
+                )
+            else:
+                cpp_chest_config = CppChestConfig(
+                    type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
+                )
             cpp_chest_config.vibe_transfers = vibe_transfers_map
             cpp_chest_config.initial_inventory = initial_inventory_cpp
             cpp_chest_config.inventory_config = inventory_config
