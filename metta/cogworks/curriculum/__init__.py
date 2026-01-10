@@ -1,6 +1,6 @@
 from mettagrid.config.mettagrid_config import MettaGridConfig
 
-from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from .curriculum import Curriculum, CurriculumConfig, _rebuild_models
 from .curriculum_env import CurriculumEnv
 from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressConfig
 from .stats import SliceAnalyzer, StatsLogger
@@ -14,9 +14,15 @@ from .task_generator import (
     TaskGeneratorSet,
 )
 from .task_tracker import TaskTracker
+from .types import CurriculumAlgorithm, CurriculumAlgorithmConfig, CurriculumTask
+
+# Rebuild Pydantic models after all imports to resolve forward references
+_rebuild_models()
 
 __all__ = [
     "Curriculum",
+    "CurriculumAlgorithm",
+    "CurriculumAlgorithmConfig",
     "CurriculumConfig",
     "CurriculumTask",
     "LearningProgressAlgorithm",
