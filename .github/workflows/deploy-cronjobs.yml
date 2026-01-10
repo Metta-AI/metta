@@ -1,0 +1,86 @@
+name: "Deploy CronJobs"
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "devops/cost_alerter/**"
+      - "devops/datadog/**"
+      - "devops/skypilot/cost.py"
+      - "mcp_servers/pr_similarity/**"
+      - "common/**"
+      - "softmax/**"
+      - "packages/gitta/**"
+      - "devops/charts/cronjob/**"
+      - ".github/workflows/deploy-cronjobs.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-4core
+    timeout-minutes: 30
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build Docker image
+        id: build-image
+        uses: ./.github/actions/docker-build
+        with:
+          image_name: metta-cronjobs
+          suffix: -cronjob
+          dockerfile: ./devops/charts/cronjob/Dockerfile
+          aws_role: ${{ vars.AWS_ROLE }}
+
+      - name: Configure EKS
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/eks-configure
+
+      - name: Deploy pr-similarity-cache-cronjob
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: pr-similarity-cache-cronjob
+          chart: ./devops/charts/cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="0 0 * * *"
+            --set datadog.service=pr-similarity-cache-refresh
+            --set-json 'command=["uv","run","python","/workspace/metta/mcp_servers/pr_similarity/build_cache.py","--download-from-s3"]'
+
+      - name: Deploy metrics-collector-cronjob
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: metrics-collector-cronjob
+          chart: ./devops/charts/cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="*/15 * * * *"
+            --set datadog.service=metrics-collector
+            --set-json 'command=["uv","run","python","-m","devops.datadog.cli","collect","--push"]'
+
+      - name: Deploy cost-alerter-cronjob
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/helm-deploy
+        with:
+          namespace: monitoring
+          release: cost-alerter-cronjob
+          chart: ./devops/charts/cronjob
+          image_tag: ${{ steps.build-image.outputs.tag }}
+          extra_args: >-
+            --set schedule="0 */4 * * *"
+            --set datadog.service=cost-alerter
+            --set-json 'command=["uv","run","python","-m","devops.cost_alerter.cli","check"]'

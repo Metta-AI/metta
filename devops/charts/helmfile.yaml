@@ -129,23 +129,23 @@ releases:
   # All cronjobs get broad read-only cluster permissions (see cronjob/templates/rbac.yaml).
   # We value simplicity over fine-grained security - some cronjobs get more access than needed.
   #
-  # NOTE: Cronjobs are deployed automatically by GitHub Actions workflows, not manually via helmfile.
-  # The workflows override the image.tag values below with specific SHA-tagged images.
-  # The tag values here are only used if someone manually runs: helmfile apply -l name=<cronjob>
+  # All cronjobs share a single Docker image (devops/charts/cronjob/Dockerfile) that includes
+  # the full repo with uv sync. Each cronjob specifies its command in the values below.
+  #
+  # NOTE: Cronjobs are deployed automatically by .github/workflows/deploy-cronjobs.yml
   #
   # To add a new cronjob:
-  #   1. Create Dockerfile.{name} in devops/charts/cronjob/
-  #   2. Add release entry below using <<: *cronjob_template
-  #   3. Create GitHub workflow in .github/workflows/deploy-{name}-cronjob.yml
-  #      - Set image_name: metta-cronjobs
-  #      - Set suffix: -{name} to create tags like latest-{name}
+  #   1. Add release entry below using <<: *cronjob_template
+  #   2. Specify the command to run
+  #   3. Add a deploy step to .github/workflows/deploy-cronjobs.yml
 
   - name: pr-similarity-cache-cronjob
     <<: *cronjob_template
     values:
       - schedule: "0 0 * * *" # Daily at midnight
+      - command: ["uv", "run", "python", "/workspace/metta/mcp_servers/pr_similarity/build_cache.py", "--download-from-s3"]
       - image:
-          tag: latest-pr-similarity # Workflow overrides with sha-abc123-pr-similarity
+          tag: latest-cronjob
       - datadog:
           service: pr-similarity-cache-refresh
 
@@ -153,8 +153,9 @@ releases:
     <<: *cronjob_template
     values:
       - schedule: "*/15 * * * *" # Every 15 minutes
+      - command: ["uv", "run", "python", "-m", "devops.datadog.cli", "collect", "--push"]
       - image:
-          tag: latest-metrics-collector # Workflow overrides with sha-abc123-metrics-collector
+          tag: latest-cronjob
       - datadog:
           service: metrics-collector
 
