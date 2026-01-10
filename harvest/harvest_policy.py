@@ -1536,38 +1536,49 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # STUCK RECOVERY: If stuck, try to escape
         # Light stuck (5-9 failures): try observation-only exploration
-        # Heavy stuck (10+ failures) ON LARGE MAPS: navigate back to charger to reset position
+        # Heavy stuck (10+ failures): navigate back to charger OR explore aggressively
         if state.stuck_recovery_active or state.consecutive_failed_moves >= 5:
             # HEAVY STUCK: Navigate back to charger to reset
-            # Use mission-aware stuck threshold
-            stuck_threshold = state.mission_profile.stuck_threshold if state.mission_profile else 10
-            if state.consecutive_failed_moves >= stuck_threshold and state.discovered_chargers:
-                self._logger.info(f"  GATHER: HEAVILY STUCK ({state.consecutive_failed_moves} fails >= {stuck_threshold}), navigating to charger to reset")
-                nearest_charger = self._find_nearest_charger(state)
-                dr = nearest_charger[0] - state.row
-                dc = nearest_charger[1] - state.col
+            # FIX: Reduced threshold from 10 to 7 for faster recovery
+            stuck_threshold = max(7, state.mission_profile.stuck_threshold if state.mission_profile else 7)
+            if state.consecutive_failed_moves >= stuck_threshold:
+                self._logger.info(f"  GATHER: HEAVILY STUCK ({state.consecutive_failed_moves} fails >= {stuck_threshold}), attempting aggressive recovery")
 
-                # Pick direction that reduces distance most
-                if abs(dr) > abs(dc):
-                    direction = "north" if dr < 0 else "south"
-                else:
-                    direction = "east" if dc > 0 else "west"
+                # FIX: Try exploring in a random direction if we can't reach charger
+                # This helps escape local minima where pathfinding fails
+                if state.discovered_chargers:
+                    nearest_charger = self._find_nearest_charger(state)
+                    dr = nearest_charger[0] - state.row
+                    dc = nearest_charger[1] - state.col
 
-                if self._is_direction_clear_in_obs(state, direction):
-                    self._logger.debug(f"  GATHER: Moving {direction} toward charger at {nearest_charger}")
-                    return self._actions.move.Move(direction)
+                    # Pick direction that reduces distance most
+                    if abs(dr) > abs(dc):
+                        direction = "north" if dr < 0 else "south"
+                    else:
+                        direction = "east" if dc > 0 else "west"
 
-                # Try perpendicular
-                alt_directions = []
-                if abs(dr) > abs(dc):
-                    alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
-                else:
-                    alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+                    if self._is_direction_clear_in_obs(state, direction):
+                        self._logger.debug(f"  GATHER: Moving {direction} toward charger at {nearest_charger}")
+                        return self._actions.move.Move(direction)
 
-                for alt_dir in alt_directions:
-                    if self._is_direction_clear_in_obs(state, alt_dir):
-                        self._logger.debug(f"  GATHER: Primary blocked, trying {alt_dir}")
-                        return self._actions.move.Move(alt_dir)
+                    # Try perpendicular
+                    alt_directions = []
+                    if abs(dr) > abs(dc):
+                        alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+                    else:
+                        alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+
+                    for alt_dir in alt_directions:
+                        if self._is_direction_clear_in_obs(state, alt_dir):
+                            self._logger.debug(f"  GATHER: Primary blocked, trying {alt_dir}")
+                            return self._actions.move.Move(alt_dir)
+
+                # FIX: If charger navigation fails, try ANY free direction to escape
+                self._logger.warning(f"  GATHER: CRITICAL STUCK - trying any free direction to escape")
+                for try_dir in ["north", "south", "east", "west"]:
+                    if self._is_direction_clear_in_obs(state, try_dir):
+                        self._logger.info(f"  GATHER: Escaping in direction {try_dir}")
+                        return self._actions.move.Move(try_dir)
 
             # LIGHT STUCK: Try observation-only exploration
             return self._explore_observation_only(state)
@@ -2190,7 +2201,49 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         )
 
         if not path or len(path) < 1:
-            self._logger.warning(f"  PATHFIND: No path found from {state.row, state.col} to {target}")
+            self._logger.warning(f"  PATHFIND: No BFS path found from {state.row, state.col} to {target}")
+
+            # FIX: Greedy fallback - move toward target even without complete path
+            # This helps when UNKNOWN cells block pathfinding but target is reachable
+            dr = target[0] - state.row
+            dc = target[1] - state.col
+
+            # Try primary direction (larger delta)
+            if abs(dr) > abs(dc):
+                primary_dir = "north" if dr < 0 else "south"
+            else:
+                primary_dir = "east" if dc > 0 else "west"
+
+            # Check if primary direction leads to explored/free cell
+            dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
+            pdr, pdc = dir_offsets[primary_dir]
+            next_r, next_c = state.row + pdr, state.col + pdc
+
+            if 0 <= next_r < state.map_height and 0 <= next_c < state.map_width:
+                next_cell = self.map_manager.grid[next_r][next_c]
+                # Allow moving into FREE or UNKNOWN cells (explore toward target)
+                from .map import MapCellType
+                if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
+                    self._logger.info(f"  PATHFIND: Using greedy fallback {primary_dir} toward {target} (cell={next_cell.name})")
+                    return primary_dir
+
+            # Try perpendicular directions
+            alt_directions = []
+            if abs(dr) > abs(dc):
+                alt_directions = ["east" if dc > 0 else "west", "west" if dc > 0 else "east"]
+            else:
+                alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
+
+            for alt_dir in alt_directions:
+                adr, adc = dir_offsets[alt_dir]
+                next_r, next_c = state.row + adr, state.col + adc
+                if 0 <= next_r < state.map_height and 0 <= next_c < state.map_width:
+                    next_cell = self.map_manager.grid[next_r][next_c]
+                    if next_cell in (MapCellType.FREE, MapCellType.UNKNOWN):
+                        self._logger.info(f"  PATHFIND: Using greedy fallback {alt_dir} toward {target} (perpendicular)")
+                        return alt_dir
+
+            self._logger.warning(f"  PATHFIND: Greedy fallback also failed - all directions blocked")
             return None
 
         self._logger.debug(f"  PATHFIND: Path found, length={len(path)}, next={path[0]}")
@@ -2430,21 +2483,26 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     else:
                         score = 10  # Unexplored - high priority
 
-                    # OSCILLATION FIX: Momentum bonus for continuing in same direction
-                    # This prevents flip-flopping between directions with similar scores
-                    if direction == state.committed_exploration_direction and state.committed_direction_steps > 0:
-                        momentum_bonus = min(15, state.committed_direction_steps * 3)  # Up to +15 for continuing
-                        score += momentum_bonus
-                        self._logger.debug(f"  EXPLORE: Momentum bonus +{momentum_bonus} for continuing {direction} (steps={state.committed_direction_steps})")
-
                     # SPIRAL EXPLORATION: Alternate between horizontal and vertical movement
                     # This prevents getting stuck in linear corridors
                     # CRITICAL: If we're near charger/start position, STRONGLY prefer east/west to escape corridors
                     near_charger = dist_to_charger < 10
+
+                    # OSCILLATION FIX: Momentum bonus for continuing in same direction
+                    # Only apply momentum when NOT near charger to avoid lateral oscillation
+                    if not near_charger and direction == state.committed_exploration_direction and state.committed_direction_steps > 0:
+                        momentum_bonus = min(15, state.committed_direction_steps * 3)  # Up to +15 for continuing
+                        score += momentum_bonus
+                        self._logger.debug(f"  EXPLORE: Momentum bonus +{momentum_bonus} for continuing {direction} (steps={state.committed_direction_steps})")
+
                     if near_charger:
                         # Near charger - explore laterally to discover new areas
-                        if direction in ["east", "west"]:
-                            score += 20  # Very strong boost for lateral exploration
+                        # FIX: Prefer east to avoid east/west oscillation
+                        if direction == "east":
+                            score += 25  # Strong boost for east
+                            self._logger.info(f"  EXPLORE: Near charger, strongly boosting lateral {direction}")
+                        elif direction == "west":
+                            score += 20  # Less for west to break ties
                             self._logger.info(f"  EXPLORE: Near charger, strongly boosting lateral {direction}")
                     elif state.step_count % 20 < 10:
                         # Horizontal sweep phase - prefer east/west
