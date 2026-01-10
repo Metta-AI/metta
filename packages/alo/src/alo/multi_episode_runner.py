@@ -72,7 +72,7 @@ def multi_episode_rollout(
             max_action_time_ms=max_action_time,
         )
 
-        results, replay = run_pure_single_episode_from_specs(job, device)
+        results, replay = run_pure_single_episode_from_specs(job, device, render_mode=render_mode)
 
         if replay_path is not None:
             if replay is None:
@@ -82,9 +82,6 @@ def multi_episode_rollout(
             elif replay_path.endswith(".gz"):
                 replay.set_compression("gzip")
             replay.write_replay(replay_path)
-
-        if render_mode is not None and render_mode != "none":
-            raise ValueError("Rendering is not supported in alo multi-episode runner")
 
         result = EpisodeRolloutResult(
             assignments=assignments.copy(),

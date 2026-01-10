@@ -37,16 +37,14 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 from safetensors.torch import load_file as load_safetensors_file
 
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from mettagrid.policy.loader import initialize_or_load_policy
+from alo.multi_episode_runner import multi_episode_rollout
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -194,35 +192,6 @@ def _policy_source_is_s3(agent_config: AgentConfig) -> bool:
     return any(
         is_s3_uri(path) for path in (agent_config.source, agent_config.policy_path, agent_config.data_path) if path
     )
-
-
-def load_policy(
-    policy_env_info: PolicyEnvInterface,
-    policy_path: str,
-    checkpoint_path: Optional[str] = None,
-    init_kwargs: Optional[dict[str, str]] = None,
-    device: Optional[torch.device] = None,
-):
-    device = device or torch.device("cpu")
-    init_kwargs = init_kwargs or {}
-
-    if checkpoint_path and is_s3_uri(checkpoint_path):
-        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        if init_kwargs:
-            spec.init_kwargs.update(init_kwargs)
-        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
-
-    if is_s3_uri(policy_path):
-        logger.info(f"Loading policy from S3 URI: {policy_path}")
-        spec = policy_spec_from_uri(policy_path, device=str(device))
-        if init_kwargs:
-            spec.init_kwargs.update(init_kwargs)
-        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
-
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path, init_kwargs=init_kwargs)
-    return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
-
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
     "baseline": AgentConfig(
@@ -1264,9 +1233,7 @@ def main():
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
 
         # Clear policy cache between policies
-        global _cached_policy, _cached_policy_key, _policy_action_space_cache
-        _cached_policy = None
-        _cached_policy_key = None
+        global _policy_action_space_cache
         _policy_action_space_cache = {}
 
         policy_results = run_evaluation(

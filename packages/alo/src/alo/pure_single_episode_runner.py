@@ -9,6 +9,7 @@ from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -116,6 +117,7 @@ def _run_pure_single_episode(
     seed: int,
     replay_uri: str | None,
     device: str,
+    render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     env_interface = PolicyEnvInterface.from_mg_cfg(job_env)
     agent_policies: list[AgentPolicy] = [
@@ -132,7 +134,7 @@ def _run_pure_single_episode(
         job_env,
         agent_policies,
         max_action_time_ms=max_action_time_ms,
-        render_mode="none",
+        render_mode=render_mode,
         seed=seed,
         event_handlers=[replay_writer] if replay_writer is not None else None,
     )
@@ -191,6 +193,7 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
 def run_pure_single_episode(
     job: PureSingleEpisodeJob,
     device: str,
+    render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     policy_specs = [policy_spec_from_uri(uri) for uri in job.policy_uris]
 
@@ -202,12 +205,14 @@ def run_pure_single_episode(
         seed=job.seed,
         replay_uri=job.replay_uri,
         device=device,
+        render_mode=render_mode,
     )
 
 
 def run_pure_single_episode_from_specs(
     job: PureSingleEpisodeSpecJob,
     device: str,
+    render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     return _run_pure_single_episode(
         policy_specs=job.policy_specs,
@@ -217,6 +222,7 @@ def run_pure_single_episode_from_specs(
         seed=job.seed,
         replay_uri=job.replay_uri,
         device=device,
+        render_mode=render_mode,
     )
 
 
