@@ -3,15 +3,19 @@
 Evaluation Script for Policies
 
 Supports:
-- Built-in scripted agents: baseline, ladybug, thinky, racecar, starter (`--agent all` runs all)
-- Checkpoint directory URIs (s3:// or file://) with policy_spec.json bundles
+- Policy specs via --policy / -p (same format as cogames CLI, repeatable)
+- Checkpoint bundle URIs (s3:// or file://) with policy_spec.json bundles
+- Built-in scripted agents via --agent (legacy; `--agent all` runs all)
 
 Usage snippets:
-  uv run python packages/cogames/scripts/run_evaluation.py --agent all
+  uv run python packages/cogames/scripts/run_evaluation.py --policy class=ladybug
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent ladybug --experiments oxygen_bottleneck --cogs 1
+      --policy class=ladybug --experiments oxygen_bottleneck --cogs 1
   uv run python packages/cogames/scripts/run_evaluation.py \
-      --agent s3://bucket/path/checkpoints/run:v5 --cogs 1
+      --policy s3://bucket/path/checkpoints/run:v5 --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py \
+      --policy file://./train_dir/run:v5 --mission-set diagnostic_evals --cogs 1
+  uv run python packages/cogames/scripts/run_evaluation.py --agent all  # legacy
 """
 
 import argparse
@@ -27,6 +31,7 @@ from typing import Dict, List, Optional
 
 import matplotlib
 
+from cogames.cli.policy import parse_policy_spec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 matplotlib.use("Agg")
@@ -181,37 +186,45 @@ class AgentConfig:
     label: str
     policy_path: str
     data_path: Optional[str] = None
+    init_kwargs: Optional[dict[str, str]] = None
+    source: Optional[str] = None
 
 
 def is_s3_uri(path: str) -> bool:
     return path.startswith("s3://") if path else False
 
 
+def _policy_source_is_s3(agent_config: AgentConfig) -> bool:
+    return any(
+        is_s3_uri(path) for path in (agent_config.source, agent_config.policy_path, agent_config.data_path) if path
+    )
+
+
 def load_policy(
     policy_env_info: PolicyEnvInterface,
     policy_path: str,
     checkpoint_path: Optional[str] = None,
+    init_kwargs: Optional[dict[str, str]] = None,
     device: Optional[torch.device] = None,
 ):
     device = device or torch.device("cpu")
+    init_kwargs = init_kwargs or {}
 
     if checkpoint_path and is_s3_uri(checkpoint_path):
         logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        return initialize_or_load_policy(
-            policy_env_info,
-            policy_spec_from_uri(checkpoint_path, device=str(device)),
-            device_override=str(device),
-        )
+        spec = policy_spec_from_uri(checkpoint_path, device=str(device))
+        if init_kwargs:
+            spec.init_kwargs.update(init_kwargs)
+        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
 
     if is_s3_uri(policy_path):
         logger.info(f"Loading policy from S3 URI: {policy_path}")
-        return initialize_or_load_policy(
-            policy_env_info,
-            policy_spec_from_uri(policy_path, device=str(device)),
-            device_override=str(device),
-        )
+        spec = policy_spec_from_uri(policy_path, device=str(device))
+        if init_kwargs:
+            spec.init_kwargs.update(init_kwargs)
+        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
 
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path)
+    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path, init_kwargs=init_kwargs)
     return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
 
@@ -279,7 +292,7 @@ def _run_case(
         _ensure_vibe_supports_gear(env_config)
 
         # Auto-detect policy action space and configure environment to match
-        policy_action_space = _get_policy_action_space(agent_config.policy_path)
+        policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
         if policy_action_space is not None:
             _configure_env_for_action_space(env_config, policy_action_space)
 
@@ -308,8 +321,13 @@ def _run_case(
             policy = _cached_policy
         else:
             # Load fresh and cache it globally for S3 policies
-            policy = load_policy(policy_env_info, agent_config.policy_path, agent_config.data_path)
-            if is_s3_uri(agent_config.policy_path):
+            policy = load_policy(
+                policy_env_info,
+                agent_config.policy_path,
+                agent_config.data_path,
+                init_kwargs=agent_config.init_kwargs,
+            )
+            if _policy_source_is_s3(agent_config):
                 _cached_policy = policy
                 _cached_policy_key = agent_config.policy_path
 
@@ -409,7 +427,7 @@ def run_evaluation(
 
     # Force sequential execution for S3 policies to avoid TensorDict threading issues
     # TensorDict has internal state that conflicts with Python threading
-    use_threading = jobs != 1 and not is_s3_uri(agent_config.policy_path)
+    use_threading = jobs != 1 and not _policy_source_is_s3(agent_config)
     max_workers = jobs if jobs > 0 else max(1, os.cpu_count() or 1)
 
     if use_threading:
@@ -443,14 +461,14 @@ def run_evaluation(
                 )
     else:
         # Sequential execution for S3 policies (TensorDict doesn't work well with threading)
-        if is_s3_uri(agent_config.policy_path):
+        if _policy_source_is_s3(agent_config):
             logger.info("Running sequentially (S3 policies require sequential execution due to TensorDict)")
         else:
             logger.info("Running sequentially (--jobs 1)")
 
         # Pre-load the policy once using the first case's env config
         cached_policy = None
-        if cases and is_s3_uri(agent_config.policy_path):
+        if cases and _policy_source_is_s3(agent_config):
             first_case = cases[0]
             exp_name_0, variant_name_0, num_cogs_0, base_mission_0, variant_0, _ = first_case
             try:
@@ -462,13 +480,19 @@ def run_evaluation(
                 _ensure_vibe_supports_gear(env_config_0)
 
                 # Auto-detect policy action space and configure environment to match
-                policy_action_space = _get_policy_action_space(agent_config.policy_path)
+                policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
                 if policy_action_space is not None:
                     _configure_env_for_action_space(env_config_0, policy_action_space)
 
                 policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
-                logger.info(f"Pre-loading policy from {agent_config.policy_path}...")
-                cached_policy = load_policy(policy_env_info_0, agent_config.policy_path, agent_config.data_path)
+                policy_ref = agent_config.source or agent_config.data_path or agent_config.policy_path
+                logger.info(f"Pre-loading policy from {policy_ref}...")
+                cached_policy = load_policy(
+                    policy_env_info_0,
+                    agent_config.policy_path,
+                    agent_config.data_path,
+                    init_kwargs=agent_config.init_kwargs,
+                )
                 logger.info("Policy loaded successfully, will reuse for all cases")
             except Exception as e:
                 logger.warning(f"Failed to pre-load policy: {e}. Will load per-case instead.")
@@ -506,6 +530,19 @@ def print_summary(results: List[EvalResult]):
     logger.info(f"\n{'=' * 80}")
     logger.info("SUMMARY")
     logger.info(f"{'=' * 80}\n")
+
+    diagnostic_results = [r for r in results if r.experiment.startswith("diagnostic_")]
+    if diagnostic_results and len({r.agent for r in results}) == 1:
+        logger.info("DIAGNOSTIC SUMMARY")
+        grouped = defaultdict(list)
+        for r in diagnostic_results:
+            grouped[r.experiment].append(r)
+        for experiment in sorted(grouped):
+            group = grouped[experiment]
+            successes = sum(1 for r in group if r.success)
+            status = "PASS" if successes > 0 else "FAIL"
+            logger.info(f"{status} {experiment} ({successes}/{len(group)})")
+        logger.info("")
 
     total = len(results)
     successes = sum(1 for r in results if r.success)
@@ -1143,11 +1180,28 @@ def create_plots(results: List[EvalResult], output_dir: str = "eval_plots") -> N
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluate scripted or custom agents.")
-    parser.add_argument("--agent", nargs="*", default=None, help="Agent key, class path, or S3 URI")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path (or S3 URI)")
-    parser.add_argument("--experiments", nargs="*", default=None, help="Experiments to run")
+    parser.add_argument(
+        "--policy",
+        "-p",
+        action="append",
+        default=None,
+        help="Policy specification (same format as cogames CLI policy args). Repeat to evaluate multiple policies.",
+    )
+    parser.add_argument(
+        "--agent",
+        nargs="*",
+        default=None,
+        help="Legacy: agent key, class path, or S3 URI (prefer --policy)",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Legacy: checkpoint path for --agent (prefer --policy class=...,data=...)",
+    )
+    parser.add_argument("--experiments", "-m", nargs="*", default=None, help="Experiments to run")
     parser.add_argument("--variants", nargs="*", default=None, help="Variants to apply")
-    parser.add_argument("--cogs", nargs="*", type=int, default=None, help="Agent counts to test")
+    parser.add_argument("--cogs", "-c", nargs="*", type=int, default=None, help="Agent counts to test")
     parser.add_argument("--steps", type=int, default=1000, help="Max steps per episode")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output", type=str, default=None, help="Output JSON file for results")
@@ -1155,13 +1209,27 @@ def main():
     parser.add_argument("--no-plots", action="store_true", help="Skip generating plots")
     parser.add_argument(
         "--mission-set",
-        choices=["integrated_evals", "spanning_evals", "diagnostic_evals", "all"],
+        "-S",
+        choices=["integrated_evals", "spanning_evals", "diagnostic_evals", "tournament", "all"],
         default="all",
+    )
+    parser.add_argument("--diagnostic", action="store_true", help="Shortcut for --mission-set diagnostic_evals")
+    parser.add_argument(
+        "--tournament",
+        action="store_true",
+        help="Shortcut for integrated + diagnostic evals",
     )
     parser.add_argument("--repeats", type=int, default=3, help="Runs per case")
     parser.add_argument("--jobs", type=int, default=0, help="Max parallel cases (0 = CPU count)")
 
     args = parser.parse_args()
+
+    if args.diagnostic and args.tournament:
+        parser.error("Use only one of --diagnostic or --tournament.")
+    if args.diagnostic:
+        args.mission_set = "diagnostic_evals"
+    if args.tournament:
+        args.mission_set = "tournament"
 
     if args.mission_set == "all":
         missions_list = []
@@ -1175,6 +1243,10 @@ def main():
                 missions_list.append(mission)
     elif args.mission_set == "diagnostic_evals":
         missions_list = [mission_cls() for mission_cls in DIAGNOSTIC_EVALS]  # type: ignore[call-arg]
+    elif args.mission_set == "tournament":
+        missions_list = []
+        missions_list.extend(load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals"))
+        missions_list.extend([mission_cls() for mission_cls in DIAGNOSTIC_EVALS])  # type: ignore[call-arg]
     elif args.mission_set == "integrated_evals":
         missions_list = load_eval_missions("cogames.cogs_vs_clips.evals.integrated_evals")
     elif args.mission_set == "spanning_evals":
@@ -1188,19 +1260,61 @@ def main():
     global EXPERIMENT_MAP
     EXPERIMENT_MAP = experiment_map
 
-    agent_keys = args.agent if args.agent else ["ladybug"]
     configs: List[AgentConfig] = []
-    for agent_key in agent_keys:
-        if agent_key == "all":
-            configs.extend(list(AGENT_CONFIGS.values()))
-        elif agent_key in AGENT_CONFIGS:
-            configs.append(AGENT_CONFIGS[agent_key])
-        elif is_s3_uri(agent_key):
-            label = Path(agent_key).stem if "/" in agent_key else agent_key
-            configs.append(AgentConfig(key="custom", label=f"s3_{label}", policy_path=agent_key, data_path=None))
-        else:
-            label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
-            configs.append(AgentConfig(key="custom", label=label, policy_path=agent_key, data_path=args.checkpoint))
+    if args.policy:
+        if args.agent:
+            logger.warning("Ignoring --agent because --policy was provided.")
+        if args.checkpoint:
+            logger.warning("Ignoring --checkpoint because --policy was provided.")
+
+        for policy_arg in args.policy:
+            try:
+                policy_spec = parse_policy_spec(policy_arg).to_policy_spec()
+            except (ValueError, ModuleNotFoundError) as exc:
+                parser.error(f"Invalid --policy '{policy_arg}': {exc}")
+            configs.append(
+                AgentConfig(
+                    key="custom",
+                    label=policy_spec.name,
+                    policy_path=policy_spec.class_path,
+                    data_path=policy_spec.data_path,
+                    init_kwargs=policy_spec.init_kwargs,
+                    source=policy_arg,
+                )
+            )
+    else:
+        if args.agent:
+            logger.warning("--agent is deprecated; use --policy instead.")
+        if args.checkpoint and args.agent:
+            logger.warning("--checkpoint is deprecated; use --policy class=...,data=... instead.")
+
+        agent_keys = args.agent if args.agent else ["ladybug"]
+        for agent_key in agent_keys:
+            if agent_key == "all":
+                configs.extend(list(AGENT_CONFIGS.values()))
+            elif agent_key in AGENT_CONFIGS:
+                configs.append(AGENT_CONFIGS[agent_key])
+            elif is_s3_uri(agent_key):
+                label = Path(agent_key).stem if "/" in agent_key else agent_key
+                configs.append(
+                    AgentConfig(
+                        key="custom",
+                        label=f"s3_{label}",
+                        policy_path=agent_key,
+                        data_path=None,
+                        source=agent_key,
+                    )
+                )
+            else:
+                label = agent_key.rsplit(".", 1)[-1] if "." in agent_key else agent_key
+                configs.append(
+                    AgentConfig(
+                        key="custom",
+                        label=label,
+                        policy_path=agent_key,
+                        data_path=args.checkpoint,
+                    )
+                )
 
     experiments = args.experiments if args.experiments else list(experiment_map.keys())
 
@@ -1213,6 +1327,7 @@ def main():
         global _cached_policy, _cached_policy_key, _policy_action_space_cache
         _cached_policy = None
         _cached_policy_key = None
+        _policy_action_space_cache = {}
 
         policy_results = run_evaluation(
             agent_config=config,
