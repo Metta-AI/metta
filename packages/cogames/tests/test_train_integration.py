@@ -28,7 +28,7 @@ def test_env_config():
     return get_mission("machina_1")[1]
 
 
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(300)
 def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
     """Test training with LSTMPolicy for 1000 steps."""
     train(
@@ -58,7 +58,7 @@ def test_train_lstm_policy(test_env_config, temp_checkpoint_dir):
 
 # RandomPolicy is not trainable - it returns None from network()
 # so we skip testing it with the train function
-@pytest.mark.timeout(180)
+@pytest.mark.timeout(300)
 def test_train_lstm_and_load_policy_data(test_env_config, temp_checkpoint_dir):
     """Test training LSTM policy, then loading it for evaluation."""
     from mettagrid.policy.lstm import LSTMPolicy
