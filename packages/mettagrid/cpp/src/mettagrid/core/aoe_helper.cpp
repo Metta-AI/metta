@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "objects/alignable.hpp"
 #include "objects/collective.hpp"
 #include "objects/has_inventory.hpp"
 
@@ -97,15 +96,8 @@ bool AOEEffectGrid::passes_alignment_filter(const AOEConfig& config,
     return true;
   }
 
-  const Alignable* source_alignable = dynamic_cast<const Alignable*>(&source);
-  const Alignable* target_alignable = dynamic_cast<const Alignable*>(&target);
-
-  if (source_alignable == nullptr || target_alignable == nullptr) {
-    return false;
-  }
-
-  Collective* source_collective = source_alignable->getCollective();
-  Collective* target_collective = target_alignable->getCollective();
+  Collective* source_collective = source.getCollective();
+  Collective* target_collective = target.getCollective();
 
   // Both must have collectives for collective-based filtering
   if (source_collective == nullptr || target_collective == nullptr) {

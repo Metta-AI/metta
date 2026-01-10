@@ -2,13 +2,21 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "actions/activation_handler_config.hpp"
+#include "core/aoe_config.hpp"
 #include "core/types.hpp"
+#include "objects/alignable.hpp"
 #include "objects/constants.hpp"
+#include "objects/has_inventory.hpp"
 #include "objects/has_vibe.hpp"
+#include "objects/inventory_config.hpp"
+#include "objects/usable.hpp"
 
 using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
@@ -53,14 +61,30 @@ struct GridObjectConfig {
   std::string name;  // Instance name (defaults to type_name if empty)
   std::vector<int> tag_ids;
   ObservationType initial_vibe;
+  InventoryConfig inventory_config;
+  std::unordered_map<InventoryItem, InventoryQuantity> initial_inventory;
+  std::vector<std::shared_ptr<mettagrid::AOEConfig>> aoes;   // AOE effects emitted by this object
+  std::vector<mettagrid::ActivationHandlerConfig> handlers;  // Activation handlers for this object
 
   GridObjectConfig(TypeId type_id, const std::string& type_name, ObservationType initial_vibe = 0)
-      : type_id(type_id), type_name(type_name), name(""), tag_ids({}), initial_vibe(initial_vibe) {}
+      : type_id(type_id),
+        type_name(type_name),
+        name(""),
+        tag_ids({}),
+        initial_vibe(initial_vibe),
+        inventory_config(),
+        aoes(),
+        handlers() {}
 
   virtual ~GridObjectConfig() = default;
 };
 
-class GridObject : public HasVibe {
+// Forward declaration for ActivationHandler
+namespace mettagrid {
+class ActivationHandler;
+}
+
+class GridObject : public HasVibe, public Alignable, public HasInventory, public Usable {
 public:
   GridObjectId id{};
   GridLocation location{};
@@ -69,7 +93,10 @@ public:
   std::string name;       // Instance name (e.g., "carbon_extractor"), defaults to type_name
   std::vector<int> tag_ids;
 
-  virtual ~GridObject() = default;
+  // Constructor with optional inventory config (defaults to empty)
+  explicit GridObject(const InventoryConfig& inv_config = InventoryConfig()) : HasInventory(inv_config) {}
+
+  ~GridObject() override = default;
 
   void init(TypeId object_type_id,
             const std::string& object_type_name,
@@ -85,9 +112,25 @@ public:
     this->vibe = object_vibe;
   }
 
+  // Set activation handlers from config
+  void set_handlers(std::vector<std::shared_ptr<mettagrid::ActivationHandler>> handlers) {
+    _handlers = std::move(handlers);
+  }
+
+  // Check if this object has any handlers
+  bool has_handlers() const {
+    return !_handlers.empty();
+  }
+
+  // Override onUse to try activation handlers
+  bool onUse(Agent& actor, ActionArg arg) override;
+
   virtual std::vector<PartialObservationToken> obs_features() const {
     return {};  // Default: no observable features
   }
+
+protected:
+  std::vector<std::shared_ptr<mettagrid::ActivationHandler>> _handlers;
 };
 
 #endif  // PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_CORE_GRID_OBJECT_HPP_

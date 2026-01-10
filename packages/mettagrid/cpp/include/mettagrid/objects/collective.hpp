@@ -13,19 +13,10 @@
 #include "objects/inventory.hpp"
 #include "systems/stats_tracker.hpp"
 
-// Forward declaration
-class Alignable;
-
 class Collective : public HasInventory {
 private:
-  std::vector<Alignable*> _members;
+  std::vector<GridObject*> _members;
   std::unordered_map<std::string, int> _aligned_counts;  // type_name -> count
-
-  // Helper to get type_name from Alignable via dynamic_cast to GridObject
-  static std::string get_type_name(Alignable* obj) {
-    GridObject* grid_obj = dynamic_cast<GridObject*>(obj);
-    return grid_obj ? grid_obj->type_name : "";
-  }
 
 public:
   std::string name;
@@ -43,28 +34,26 @@ public:
 
   virtual ~Collective() = default;
 
-  // Add a member to this collective (type_name read from GridObject)
-  void addMember(Alignable* obj) {
+  // Add a member to this collective
+  void addMember(GridObject* obj) {
     if (obj && std::find(_members.begin(), _members.end(), obj) == _members.end()) {
       _members.push_back(obj);
-      std::string type_name = get_type_name(obj);
-      _aligned_counts[type_name]++;
-      stats.set("aligned." + type_name, static_cast<float>(_aligned_counts[type_name]));
+      _aligned_counts[obj->type_name]++;
+      stats.set("aligned." + obj->type_name, static_cast<float>(_aligned_counts[obj->type_name]));
     }
   }
 
-  // Remove a member from this collective (type_name read from GridObject)
-  void removeMember(Alignable* obj) {
+  // Remove a member from this collective
+  void removeMember(GridObject* obj) {
     auto it = std::find(_members.begin(), _members.end(), obj);
     if (it != _members.end()) {
       _members.erase(it);
-      std::string type_name = get_type_name(obj);
-      _aligned_counts[type_name]--;
-      if (_aligned_counts[type_name] <= 0) {
-        _aligned_counts.erase(type_name);
-        stats.set("aligned." + type_name, 0.0f);
+      _aligned_counts[obj->type_name]--;
+      if (_aligned_counts[obj->type_name] <= 0) {
+        _aligned_counts.erase(obj->type_name);
+        stats.set("aligned." + obj->type_name, 0.0f);
       } else {
-        stats.set("aligned." + type_name, static_cast<float>(_aligned_counts[type_name]));
+        stats.set("aligned." + obj->type_name, static_cast<float>(_aligned_counts[obj->type_name]));
       }
     }
   }
@@ -88,7 +77,7 @@ public:
   }
 
   // Get all members
-  const std::vector<Alignable*>& members() const {
+  const std::vector<GridObject*>& members() const {
     return _members;
   }
 

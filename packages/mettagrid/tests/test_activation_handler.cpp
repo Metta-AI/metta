@@ -21,11 +21,12 @@ using namespace mettagrid;
 // Resource names for testing
 static std::vector<std::string> test_resource_names = {"health", "energy", "gold"};
 
-// Simple GridObject subclass that has an inventory and is alignable
-class TestActivationObject : public GridObject, public HasInventory, public Alignable {
+// Simple GridObject subclass for testing
+// Note: GridObject already inherits from HasInventory and Alignable, so we only need to inherit from GridObject
+class TestActivationObject : public GridObject {
 public:
   explicit TestActivationObject(const std::string& type = "test_object", ObservationType initial_vibe = 0)
-      : HasInventory(create_inventory_config()) {
+      : GridObject(create_inventory_config()) {
     type_name = type;
     vibe = initial_vibe;
     location.r = 0;
