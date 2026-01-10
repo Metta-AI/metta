@@ -857,6 +857,58 @@ app.command(
 )(leaderboard_cmd)
 
 
+@app.command(name="diagnose", help="Run diagnostic evals for a policy checkpoint")
+def diagnose_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Argument(
+        ...,
+        help=f"Policy specification: {policy_arg_example}",
+    ),
+    mission_set: Literal["diagnostic_evals", "integrated_evals", "spanning_evals", "tournament", "all"] = typer.Option(
+        "diagnostic_evals",
+        "--mission-set",
+        "-S",
+        help="Eval suite to run for diagnostics",
+    ),
+    experiments: Optional[list[str]] = typer.Option(  # noqa: B008
+        None,
+        "--experiments",
+        "-m",
+        help="Specific experiments to run (subset of the mission set)",
+    ),
+    cogs: Optional[list[int]] = typer.Option(  # noqa: B008
+        None,
+        "--cogs",
+        "-c",
+        help="Agent counts to test (default depends on eval suite)",
+    ),
+    steps: int = typer.Option(1000, "--steps", help="Max steps per episode"),
+    repeats: int = typer.Option(3, "--repeats", help="Runs per case"),
+) -> None:
+    script_path = Path(__file__).resolve().parents[2] / "scripts" / "run_evaluation.py"
+
+    cmd = [sys.executable, str(script_path)]
+    cmd.extend(["--mission-set", mission_set])
+
+    if experiments:
+        cmd.append("--experiments")
+        cmd.extend(experiments)
+
+    if cogs:
+        cmd.append("--cogs")
+        cmd.extend(str(c) for c in cogs)
+
+    cmd.extend(["--steps", str(steps)])
+    cmd.extend(["--repeats", str(repeats)])
+    cmd.append("--no-plots")
+
+    cmd.extend(["--policy", policy])
+
+    console.print("[cyan]Running diagnostic evaluation...[/cyan]")
+    console.print(f"[dim]{' '.join(cmd)}[/dim]")
+    subprocess.run(cmd, check=True)
+
+
 @app.command(name="validate-policy", help="Validate the policy loads and runs a single step")
 def validate_policy_cmd(
     ctx: typer.Context,

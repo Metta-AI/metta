@@ -345,7 +345,7 @@ Usage example:
 
 ```bash
 uv run python packages/cogames/scripts/run_evaluation.py \
-  --agent cogames.policy.nim_agents.agents.ThinkyAgentsMultiPolicy \
+  --policy class=thinky \
   --mission-set integrated_evals \
   --cogs 4 \
   --repeats 2
