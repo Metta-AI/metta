@@ -412,13 +412,15 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # If stuck at same position for 5+ steps, set consecutive_failed_moves to match
         # This properly detects stuck state even when energy/inventory changes
-        if same_position_count >= 5:
+        # CRITICAL: Don't mark as stuck if energy is increasing (agent is charging!)
+        energy_increased = hasattr(state, 'prev_energy') and state.prev_energy is not None and state.energy > state.prev_energy
+        if same_position_count >= 5 and not energy_increased:
             # Agent is stuck at this position - use max to avoid overwriting higher counts
             state.consecutive_failed_moves = max(state.consecutive_failed_moves, same_position_count)
             self._logger.debug(f"  STUCK DETECTED: same position for {same_position_count} steps (consecutive_fails={state.consecutive_failed_moves})")
 
         else:
-            # Agent is moving - reset counter
+            # Agent is moving OR charging - reset counter
             state.consecutive_failed_moves = 0
 
         # Rotate quadrant based on progress, not just time
@@ -1302,17 +1304,32 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             return self._find_nearest_charger(state)
 
         # IMPROVEMENT #4: Filter chargers by reachability
+        # CRITICAL: Check if we can reach ADJACENT cells, not the charger itself!
+        # Navigation uses reach_adjacent=True, so reachability must match.
         reachable_chargers = []
         for charger_pos in state.discovered_chargers:
             # Check if a path exists using BFS pathfinding
             if self.map_manager:
                 from .pathfinding import shortest_path
                 from .types import CellType
+
+                # Find traversable adjacent cells (matching navigation logic)
+                goals = []
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = charger_pos[0] + dr, charger_pos[1] + dc
+                    if 0 <= nr < state.map_height and 0 <= nc < state.map_width:
+                        if self.map_manager.is_traversable(nr, nc):
+                            goals.append((nr, nc))
+
+                # If no adjacent cells traversable, try charger itself as fallback
+                if not goals:
+                    goals = [charger_pos]
+
                 path = shortest_path(
                     state,
                     (state.row, state.col),
-                    [charger_pos],
-                    allow_goal_block=True,  # Chargers are non-traversable for intermediate waypoints but reachable as goals
+                    goals,
+                    allow_goal_block=True,  # Allow reaching charger if no adjacent cells available
                     cell_type=CellType,
                     is_traversable_fn=self.map_manager.is_traversable
                 )
@@ -2314,12 +2331,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Not on charger or fully charged - find one
         # Check if charger adjacent - move onto it
-        # CRITICAL: Don't set using_object_this_step - let position update so we can move ONTO charger!
-        # BUT: If we've been stuck trying to move onto an adjacent charger for many steps, skip it and try navigation instead
+        # CRITICAL FIX: SET using_object_this_step when moving onto charger!
+        # Charger mechanics: move succeeds and charges, but position stays same
+        # Without this flag, move verification marks it as failed and learns wall at charger
         if state.consecutive_failed_moves < 5:  # Only try adjacent charger if not stuck
             adj_charger = self._find_station_adjacent_in_obs(state, "charger")
             if adj_charger is not None:
                 self._logger.info(f"  RECHARGE: Charger adjacent in direction {adj_charger}, moving onto it")
+                state.using_object_this_step = True
                 return self._actions.move.Move(adj_charger)
         else:
             self._logger.debug(f"  RECHARGE: Skipping adjacent charger check (stuck: {state.consecutive_failed_moves} failed moves)")
@@ -2455,8 +2474,10 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 # Horizontal movement more important
                 direction = "east" if dc > 0 else "west"
 
-            # Check if that direction is clear (both in observation AND learned walls)
-            if self._is_direction_clear(state, direction):
+            # Check if that direction is clear in observation
+            # Note: Greedy fallback doesn't check learned walls - it's a last resort
+            # that needs to try even risky moves to escape stuck situations
+            if self._is_direction_clear_in_obs(state, direction):
                 self._logger.debug(f"  RECHARGE: Moving {direction} toward charger (greedy fallback)")
                 return self._actions.move.Move(direction)
 
@@ -2468,7 +2489,7 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 alt_directions = ["north" if dr < 0 else "south", "south" if dr < 0 else "north"]
 
             for alt_dir in alt_directions:
-                if self._is_direction_clear(state, alt_dir):
+                if self._is_direction_clear_in_obs(state, alt_dir):
                     self._logger.debug(f"  RECHARGE: Primary blocked, trying {alt_dir}")
                     return self._actions.move.Move(alt_dir)
 

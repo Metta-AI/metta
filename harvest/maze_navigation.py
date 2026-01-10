@@ -392,10 +392,10 @@ class MazeNavigator:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 # Check if this tag blocks movement
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block on truly impassable objects: walls and agents
-                # All game objects (extractors, chargers, assemblers, chests) are traversable
-                # - you move ONTO them to use them
-                if "wall" in tag_name or "agent" in tag_name:
+                # Block walls, agents, and stations (charger/assembler/chest)
+                # Stations are non-traversable - you stand ADJACENT to use them
+                # Only extractors are traversable (you stand ON them to use)
+                if "wall" in tag_name or "agent" in tag_name or "charger" in tag_name or "assembler" in tag_name or "chest" in tag_name:
                     return False
 
         return True
