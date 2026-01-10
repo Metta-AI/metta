@@ -2677,12 +2677,21 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 if not goal_cells:
                     return self._actions.noop.Noop()
 
+                # DEAD-END AVOIDANCE: Create custom traversability check that excludes dead-ends
+                def is_traversable_no_deadends(r: int, c: int) -> bool:
+                    # Exclude dead-end positions (but allow the goal itself)
+                    if (r, c) in state.dead_end_positions and (r, c) != target:
+                        return False
+                    # Standard traversability check
+                    if not (0 <= r < state.map_height and 0 <= c < state.map_width):
+                        return False
+                    return state.occupancy[r][c] == CellType.FREE.value
+
                 if state.path_cache is not None:
-                    path = state.path_cache.shortest_path_fast(
-                        start, goal_cells, state.occupancy, CellType, state.agent_occupancy, False
-                    )
+                    # PathCache doesn't support custom traversability, so use regular shortest_path with dead-end avoidance
+                    path = shortest_path(state, start, goal_cells, False, CellType, is_traversable_no_deadends)
                 else:
-                    path = shortest_path(state, start, goal_cells, False, CellType)
+                    path = shortest_path(state, start, goal_cells, False, CellType, is_traversable_no_deadends)
 
                 state.cached_path = path.copy() if path else None
                 state.cached_path_target = target
@@ -2704,6 +2713,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                     new_r, new_c = state.row + dr, state.col + dc
                     new_dist = abs(target[0] - new_r) + abs(target[1] - new_c)
 
+                    # DEAD-END AVOIDANCE: Skip directions that lead to known dead-ends
+                    if (new_r, new_c) in state.dead_end_positions:
+                        self._logger.debug(f"  Skipping {direction} - leads to dead-end at ({new_r},{new_c})")
+                        continue
+
                     # Penalty for opposite of last move (anti-oscillation)
                     penalty = 0
                     if hasattr(state, 'last_move_direction') and state.last_move_direction:
@@ -2720,7 +2734,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.info(f"Step {state.step_count}: PATHFIND FAILED: Using greedy {best_direction} (gets closer to target)")
                 return self._actions.move.Move(best_direction)
 
-            self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked, nooping")
+            # DEAD-END DETECTION: Mark this position as a dead-end if all directions blocked
+            self._logger.error(f"Step {state.step_count}: PATHFIND FAILED: All directions blocked at ({state.row},{state.col}), marking as dead-end")
+            state.dead_end_positions.add((state.row, state.col))
             return self._actions.noop.Noop()
 
         # Get next step
@@ -3207,10 +3223,11 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         for tok in state.current_obs.tokens:
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
-                # Block walls, agents, and stations (charger/assembler/chest)
-                # Stations are non-traversable - you stand ADJACENT to use them
-                # Only extractors are traversable (you stand ON them to use)
-                if "wall" in tag_name or "agent" in tag_name or "charger" in tag_name or "assembler" in tag_name or "chest" in tag_name:
+
+                # CRITICAL FIX: Chargers, assemblers, chests, extractors ARE TRAVERSABLE!
+                # You move ONTO them to use them - they are DESTINATIONS, not obstacles.
+                # ONLY block walls and other agents.
+                if "wall" in tag_name or "agent" in tag_name:
                     if state.step_count < 100:
                         self._logger.info(f"  OBS_CHECK: Blocking {direction} - found impassable '{tag_name}' at {target_obs_pos}")
                     return False
