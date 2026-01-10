@@ -84,8 +84,8 @@ def pickup(
     steps: Optional[int],
     action_timeout_ms: int,
     save_replay_dir: Optional[Path],
-    candidate_label: str | None = None,
-    pool_labels: list[str] | None = None,
+    candidate_label: Optional[str] = None,
+    pool_labels: Optional[list[str]] = None,
 ) -> None:
     env_cfg = make_machina1_open_world_env(num_cogs=num_cogs, seed=seed, map_seed=map_seed, steps=steps)
     env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)

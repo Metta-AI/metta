@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
+import httpx
 import typer
 from pydantic import Field
 from rich.table import Table
@@ -19,8 +20,8 @@ ParsedPolicies = list[PolicySpec]
 
 default_checkpoint_dir = Path("train_dir")
 
-policy_arg_example = "URI (bundle dir or .zip) or class=NAME[,data=FILE][,kw.x=val]"
-policy_arg_w_proportion_example = "URI[,proportion=N] or class=NAME[,data=FILE][,proportion=N]"
+policy_arg_example = "name[:vN] or URI (bundle dir or .zip) or class=NAME[,data=FILE][,kw.x=val]"
+policy_arg_w_proportion_example = "name[:vN][,proportion=N] or URI[,proportion=N] or class=NAME[,data=FILE][,proportion=N]"
 
 
 class PolicySpecWithProportion(PolicySpec):
@@ -63,6 +64,8 @@ def describe_policy_arg(with_proportion: bool):
 
 def _translate_error(e: Exception) -> str:
     translated = str(e).replace("Invalid symbol name", "Could not find policy class")
+    if isinstance(e, httpx.HTTPError):
+        return f"Failed to reach stats server: {e}"
     if isinstance(e, ModuleNotFoundError):
         translated += ". Please make sure to specify your policy class."
     return translated
@@ -75,7 +78,7 @@ def get_policy_spec(ctx: typer.Context, policy_arg: Optional[str]) -> PolicySpec
     else:
         try:
             return _parse_policy_spec(spec=policy_arg).to_policy_spec()
-        except (ValueError, ModuleNotFoundError) as e:
+        except (ValueError, ModuleNotFoundError, httpx.HTTPError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]\n")
 
@@ -98,7 +101,7 @@ def get_policy_specs_with_proportions(
     else:
         try:
             return [_parse_policy_spec(spec=policy_arg) for policy_arg in policy_args]
-        except (ValueError, ModuleNotFoundError) as e:
+        except (ValueError, ModuleNotFoundError, httpx.HTTPError) as e:
             translated = _translate_error(e)
             console.print(f"[yellow]Error parsing policy argument: {translated}[/yellow]")
             console.print()
@@ -110,6 +113,14 @@ def get_policy_specs_with_proportions(
         console.print("\n" + ctx.get_usage())
     console.print("\n")
     raise typer.Exit(1)
+
+
+def parse_policy_spec(spec: str) -> PolicySpec:
+    return _parse_policy_spec(spec=spec).to_policy_spec()
+
+
+def translate_policy_parse_error(e: Exception) -> str:
+    return _translate_error(e)
 
 
 def _parse_policy_spec(spec: str) -> PolicySpecWithProportion:
