@@ -50,108 +50,8 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def _ensure_vibe_supports_gear(env_cfg) -> None:
-    assembler = env_cfg.game.objects.get("assembler")
-    uses_gear = False
-    if assembler is not None and hasattr(assembler, "protocols"):
-        for proto in assembler.protocols:
-            if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                uses_gear = True
-                break
-    if uses_gear:
-        change_vibe = env_cfg.game.actions.change_vibe
-        has_gear = any(v.name == "gear" for v in change_vibe.vibes)
-        if not has_gear:
-            from mettagrid.config.vibes import VIBE_BY_NAME
-
-            change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
-
-
 # Cache for policy action space sizes to avoid reloading checkpoints
 _policy_action_space_cache: Dict[str, int] = {}
-
-
-def _get_policy_action_space(policy_path: str) -> Optional[int]:
-    """Detect the action space size from a policy checkpoint.
-
-    Returns the number of actions the policy was trained with, or None if detection fails.
-    """
-    if not policy_path:
-        return None
-    if policy_path in _policy_action_space_cache:
-        return _policy_action_space_cache[policy_path]
-    if "://" not in policy_path:
-        if not Path(policy_path).expanduser().exists():
-            return None
-
-    try:
-        spec = policy_spec_from_uri(policy_path)
-        if not spec.data_path:
-            return None
-        for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
-            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                detected = int(tensor.shape[0])
-                _policy_action_space_cache[policy_path] = detected
-                logger.info(f"Detected policy action space: {detected} actions")
-                return detected
-        return None
-    except Exception as e:
-        logger.warning(f"Failed to detect policy action space: {e}")
-        return None
-
-
-def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
-    """Configure environment vibes to match a specific action space.
-
-    Action space = 1 noop + 4 move + N vibes
-    So num_vibes = num_actions - 5
-    """
-    from mettagrid.config import vibes as vibes_module
-
-    # Calculate number of vibes needed
-    # Action space = noop (1) + move (4) + change_vibe (N)
-    num_vibes = num_actions - 5
-
-    if num_vibes <= 0:
-        logger.warning(f"Invalid action space {num_actions}, skipping vibe configuration")
-        return
-
-    # Select the appropriate vibe set
-    if num_vibes == 16:
-        # First 16 vibes (standard training set)
-        vibe_names = [v.name for v in vibes_module.VIBES[:16]]
-    elif num_vibes == 13:
-        # First 13 vibes (cvc_random_maps style)
-        vibe_names = [v.name for v in vibes_module.VIBES[:13]]
-    elif num_vibes <= len(vibes_module.VIBES):
-        # Use first N vibes from VIBES list
-        vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
-    else:
-        # Policy has more vibes than we have defined - use all available
-        vibe_names = [v.name for v in vibes_module.VIBES]
-
-    env_cfg.game.vibe_names = vibe_names
-
-    if env_cfg.game.actions:
-        # Configure vibe action count
-        if env_cfg.game.actions.change_vibe:
-            env_cfg.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
-            # Filter initial vibe if out of range
-            if env_cfg.game.agent.initial_vibe >= len(vibe_names):
-                env_cfg.game.agent.initial_vibe = 0
-
-        # Disable attack action (usually not part of training action space)
-        if env_cfg.game.actions.attack:
-            env_cfg.game.actions.attack.enabled = False
-
-    # Prune vibe transfers to only allowed vibes
-    allowed_vibes = set(vibe_names)
-    chest = env_cfg.game.objects.get("chest")
-    if chest:
-        vibe_transfers = getattr(chest, "vibe_transfers", None)
-        if isinstance(vibe_transfers, dict):
-            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
-            chest.vibe_transfers = new_transfers
 
 
 @dataclass
@@ -248,86 +148,133 @@ def _run_case(
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
-    try:
-        mission = base_mission.with_variants(mission_variants)
-        env_config = mission.make_env()
-        _ensure_vibe_supports_gear(env_config)
+    mission = base_mission.with_variants(mission_variants)
+    env_config = mission.make_env()
 
-        # Auto-detect policy action space and configure environment to match
-        policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
-        if policy_action_space is not None:
-            _configure_env_for_action_space(env_config, policy_action_space)
+    assembler = env_config.game.objects.get("assembler")
+    if assembler is not None and hasattr(assembler, "protocols"):
+        for proto in assembler.protocols:
+            if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                change_vibe = env_config.game.actions.change_vibe
+                if not any(v.name == "gear" for v in change_vibe.vibes):
+                    from mettagrid.config.vibes import VIBE_BY_NAME
 
-        if variant is None or getattr(variant, "max_steps_override", None) is None:
-            env_config.game.max_steps = max_steps
+                    change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
+                break
 
-        # For evaluation, only heart rewards should count (not resource rewards)
-        if not env_config.game.agent.rewards.stats:
-            env_config.game.agent.rewards.stats = {}
-        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats[resource_stat] = 0.0
-        if not env_config.game.agent.rewards.stats_max:
-            env_config.game.agent.rewards.stats_max = {}
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+    policy_action_space = None
+    policy_path = agent_config.data_path or agent_config.policy_path
+    if policy_path:
+        policy_action_space = _policy_action_space_cache.get(policy_path)
+        if policy_action_space is None:
+            try:
+                spec = policy_spec_from_uri(policy_path)
+                if spec.data_path:
+                    for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
+                        if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                            policy_action_space = int(tensor.shape[0])
+                            _policy_action_space_cache[policy_path] = policy_action_space
+                            logger.info(f"Detected policy action space: {policy_action_space} actions")
+                            break
+            except Exception as exc:
+                logger.warning(f"Failed to detect policy action space: {exc}")
 
-        actual_max_steps = env_config.game.max_steps
-        policy_spec = PolicySpec(
-            class_path=agent_config.policy_path,
-            data_path=agent_config.data_path,
-            init_kwargs=agent_config.init_kwargs or {},
+    if policy_action_space is not None:
+        num_vibes = policy_action_space - 5
+        if num_vibes <= 0:
+            logger.warning(f"Invalid action space {policy_action_space}, skipping vibe configuration")
+        else:
+            from mettagrid.config import vibes as vibes_module
+
+            if num_vibes == 16:
+                vibe_names = [v.name for v in vibes_module.VIBES[:16]]
+            elif num_vibes == 13:
+                vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+            elif num_vibes <= len(vibes_module.VIBES):
+                vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
+            else:
+                vibe_names = [v.name for v in vibes_module.VIBES]
+
+            env_config.game.vibe_names = vibe_names
+
+            if env_config.game.actions:
+                if env_config.game.actions.change_vibe:
+                    env_config.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
+                    if env_config.game.agent.initial_vibe >= len(vibe_names):
+                        env_config.game.agent.initial_vibe = 0
+                if env_config.game.actions.attack:
+                    env_config.game.actions.attack.enabled = False
+
+            allowed_vibes = set(vibe_names)
+            chest = env_config.game.objects.get("chest")
+            if chest:
+                vibe_transfers = getattr(chest, "vibe_transfers", None)
+                if isinstance(vibe_transfers, dict):
+                    chest.vibe_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+
+    if variant is None or getattr(variant, "max_steps_override", None) is None:
+        env_config.game.max_steps = max_steps
+
+    # For evaluation, only heart rewards should count (not resource rewards)
+    env_config.game.agent.rewards.stats = env_config.game.agent.rewards.stats or {}
+    resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
+    for resource_stat in resource_stats:
+        env_config.game.agent.rewards.stats[resource_stat] = 0.0
+    env_config.game.agent.rewards.stats_max = env_config.game.agent.rewards.stats_max or {}
+    for resource_stat in resource_stats:
+        env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+
+    actual_max_steps = env_config.game.max_steps
+    policy_spec = PolicySpec(
+        class_path=agent_config.policy_path,
+        data_path=agent_config.data_path,
+        init_kwargs=agent_config.init_kwargs or {},
+    )
+
+    out: List[EvalResult] = []
+    assignments = [0] * num_cogs
+    for run_idx in range(runs_per_case):
+        run_seed = seed + run_idx
+        job = PureSingleEpisodeSpecJob(
+            policy_specs=[policy_spec],
+            assignments=assignments,
+            env=env_config,
+            seed=run_seed,
+            max_action_time_ms=10000,
         )
+        results, _replay = run_pure_single_episode_from_specs(job, device="cpu")
 
-        out: List[EvalResult] = []
-        assignments = [0] * num_cogs
-        for run_idx in range(runs_per_case):
-            run_seed = seed + run_idx
-            job = PureSingleEpisodeSpecJob(
-                policy_specs=[policy_spec],
-                assignments=assignments,
-                env=env_config,
-                seed=run_seed,
-                max_action_time_ms=10000,
+        total_reward = float(sum(results.rewards))
+        avg_reward_per_agent = total_reward / max(1, num_cogs)
+
+        heart_gained = 0.0
+        episode_stats = results.stats
+        if "agent" in episode_stats:
+            agent_stats_list = episode_stats["agent"]
+            for agent_stats in agent_stats_list:
+                heart_gained += float(agent_stats.get("heart.gained", 0.0))
+        avg_heart_gained_per_agent = heart_gained / max(1, num_cogs)
+
+        out.append(
+            EvalResult(
+                agent=agent_config.label,
+                experiment=exp_name,
+                num_cogs=num_cogs,
+                difficulty=variant_name or "base",
+                clip_period=clip_period,
+                total_reward=total_reward,
+                avg_reward_per_agent=avg_reward_per_agent,
+                hearts_assembled=int(total_reward),
+                heart_gained=heart_gained,
+                avg_heart_gained_per_agent=avg_heart_gained_per_agent,
+                steps_taken=results.steps + 1,
+                max_steps=actual_max_steps,
+                success=total_reward > 0,
+                seed_used=run_seed,
+                run_index=run_idx + 1,
             )
-            results, _replay = run_pure_single_episode_from_specs(job, device="cpu")
-
-            total_reward = float(sum(results.rewards))
-            avg_reward_per_agent = total_reward / max(1, num_cogs)
-
-            heart_gained = 0.0
-            episode_stats = results.stats
-            if "agent" in episode_stats:
-                agent_stats_list = episode_stats["agent"]
-                for agent_stats in agent_stats_list:
-                    heart_gained += float(agent_stats.get("heart.gained", 0.0))
-            avg_heart_gained_per_agent = heart_gained / max(1, num_cogs)
-
-            out.append(
-                EvalResult(
-                    agent=agent_config.label,
-                    experiment=exp_name,
-                    num_cogs=num_cogs,
-                    difficulty=variant_name or "base",
-                    clip_period=clip_period,
-                    total_reward=total_reward,
-                    avg_reward_per_agent=avg_reward_per_agent,
-                    hearts_assembled=int(total_reward),
-                    heart_gained=heart_gained,
-                    avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                    steps_taken=results.steps + 1,
-                    max_steps=actual_max_steps,
-                    success=total_reward > 0,
-                    seed_used=run_seed,
-                    run_index=run_idx + 1,
-                )
-            )
-        return out
-    except Exception as e:
-        # Log the error but exclude failed runs from results
-        # This prevents zero-reward results from being included when runs actually failed
-        logger.warning(f"Failed to run case: {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) - {e}")
-        return []  # Return empty list to exclude failed runs from results
+        )
+    return out
 
 
 def run_evaluation(

@@ -131,25 +131,23 @@ def pickup(
                     seed=seed + episode_idx,
                     max_action_time_ms=action_timeout_ms,
                 )
-                results, replay = run_pure_single_episode_from_specs(job, device="cpu")
+                episode_result, replay = run_pure_single_episode_from_specs(job, device="cpu")
 
                 if replay_path is not None:
-                    if replay is None:
-                        raise ValueError("No replay was generated")
-                    if replay_path.endswith(".z"):
-                        replay.set_compression("zlib")
-                    elif replay_path.endswith(".gz"):
+                    if replay_path.endswith(".gz"):
                         replay.set_compression("gzip")
+                    elif replay_path.endswith(".z"):
+                        replay.set_compression("zlib")
                     replay.write_replay(replay_path)
 
                 episode_results.append(
                     EpisodeRolloutResult(
                         assignments=assignments.copy(),
-                        rewards=np.array(results.rewards, dtype=float),
-                        action_timeouts=np.array(results.action_timeouts, dtype=float),
-                        stats=results.stats,
+                        rewards=np.array(episode_result.rewards, dtype=float),
+                        action_timeouts=np.array(episode_result.action_timeouts, dtype=float),
+                        stats=episode_result.stats,
                         replay_path=replay_path,
-                        steps=results.steps,
+                        steps=episode_result.steps,
                         max_steps=env_cfg.game.max_steps,
                     )
                 )

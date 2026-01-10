@@ -11,8 +11,8 @@ class ScoredMatchLike(Protocol):
 
 
 def compute_weighted_scores(
-    policy_version_ids: list[UUID],
-    matches: list[ScoredMatchLike],
+    policy_version_ids: Sequence[UUID],
+    matches: Sequence[ScoredMatchLike],
 ) -> dict[UUID, float]:
     weighted_sums: dict[UUID, float] = {pv: 0.0 for pv in policy_version_ids}
     weight_totals: dict[UUID, float] = {pv: 0.0 for pv in policy_version_ids}

@@ -38,23 +38,6 @@ class RawMissionEvaluationResult(BaseModel):
     per_episode_timeouts: list[np.ndarray]
 
 
-def _compute_policy_agent_counts(num_agents: int, proportions: list[float]) -> list[int]:
-    total = sum(proportions)
-    if total <= 0:
-        raise ValueError("Total policy proportion must be positive.")
-    fractions = [proportion / total for proportion in proportions]
-
-    ideals = [num_agents * f for f in fractions]
-    counts = [int(x) for x in ideals]
-    remaining = num_agents - sum(counts)
-
-    remainders = [(i, ideals[i] - counts[i]) for i in range(len(fractions))]
-    remainders.sort(key=lambda x: x[1], reverse=True)
-    for i in range(remaining):
-        counts[remainders[i][0]] += 1
-    return counts
-
-
 def evaluate(
     console: Console,
     missions: list[tuple[str, MettaGridConfig]],
@@ -87,7 +70,19 @@ def evaluate(
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
-        policy_counts = _compute_policy_agent_counts(env_cfg.game.num_agents, proportions)
+        total = sum(proportions)
+        if total <= 0:
+            raise ValueError("Total policy proportion must be positive.")
+        fractions = [proportion / total for proportion in proportions]
+
+        ideals = [env_cfg.game.num_agents * f for f in fractions]
+        policy_counts = [int(x) for x in ideals]
+        remaining = env_cfg.game.num_agents - sum(policy_counts)
+
+        remainders = [(i, ideals[i] - policy_counts[i]) for i in range(len(fractions))]
+        remainders.sort(key=lambda x: x[1], reverse=True)
+        for i in range(remaining):
+            policy_counts[remainders[i][0]] += 1
         assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
         rng = np.random.default_rng(seed)
 
@@ -112,12 +107,10 @@ def evaluate(
                 results, replay = run_pure_single_episode_from_specs(job, device="cpu")
 
                 if replay_path is not None:
-                    if replay is None:
-                        raise ValueError("No replay was generated")
-                    if replay_path.endswith(".z"):
-                        replay.set_compression("zlib")
-                    elif replay_path.endswith(".gz"):
+                    if replay_path.endswith(".gz"):
                         replay.set_compression("gzip")
+                    elif replay_path.endswith(".z"):
+                        replay.set_compression("zlib")
                     replay.write_replay(replay_path)
                     all_replay_paths.append(replay_path)
 

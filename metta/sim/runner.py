@@ -66,12 +66,10 @@ def _run_single_simulation(
         results, replay = run_pure_single_episode_from_specs(job, device=device)
 
         if replay_path is not None:
-            if replay is None:
-                raise ValueError("No replay was generated")
-            if replay_path.endswith(".z"):
-                replay.set_compression("zlib")
-            elif replay_path.endswith(".gz"):
+            if replay_path.endswith(".gz"):
                 replay.set_compression("gzip")
+            elif replay_path.endswith(".z"):
+                replay.set_compression("zlib")
             replay.write_replay(replay_path)
 
         episode_results.append(
