@@ -640,31 +640,44 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _detect_oscillation(self, state: HarvestState) -> bool:
         """Detect if agent is oscillating between 2-3 positions.
 
-        FIX ISSUE #4: Detect oscillation patterns that aren't caught by failed move counting.
-        STRENGTHENED: Detect faster (10 steps) and with stricter criteria.
+        ULTRA-FAST DETECTION: Catch oscillation in 5 steps instead of 10.
+        This prevents wasting thousands of steps in oscillation loops.
 
         Returns:
             True if agent is oscillating (stuck), False otherwise.
         """
-        # STRENGTHENED: Detect after just 10 steps instead of 20
-        if len(state.position_history) < 10:
-            return False  # Not enough history
+        # ULTRA-FAST: Detect 2-position oscillation in just 5 steps
+        if len(state.position_history) >= 5:
+            recent_5 = state.position_history[-5:]
+            unique_5 = set(recent_5)
 
-        recent_positions = state.position_history[-10:]
-        unique_positions = set(recent_positions)
+            # Classic 2-position oscillation: A-B-A-B-A pattern
+            if len(unique_5) == 2:
+                pos_list = list(unique_5)
+                count_0 = recent_5.count(pos_list[0])
+                count_1 = recent_5.count(pos_list[1])
+                # If alternating (2-3, 3-2 pattern) → immediate oscillation
+                if count_0 >= 2 and count_1 >= 2:
+                    self._logger.error(f"  OSCILLATION DETECTED (5 steps): Alternating between {pos_list[0]} ↔ {pos_list[1]}")
+                    # Set forced exploration direction to break the pattern
+                    self._set_forced_escape_direction(state, pos_list)
+                    return True
 
-        # STRENGTHENED: Detect 2-position oscillation (most common pattern)
-        if len(unique_positions) == 2:
-            # Check if alternating between exactly 2 positions
-            pos_list = list(unique_positions)
-            # Count how many times each position appears
-            count_0 = recent_positions.count(pos_list[0])
-            count_1 = recent_positions.count(pos_list[1])
-            # If both positions appear 3+ times in last 10 steps → oscillating
-            if count_0 >= 3 and count_1 >= 3:
-                self._logger.warning(f"  OSCILLATION: Alternating between {pos_list[0]} and {pos_list[1]} "
-                                   f"({count_0} and {count_1} times in last 10 steps)")
-                return True
+        # Medium-term check: 10 steps for less obvious patterns
+        if len(state.position_history) >= 10:
+            recent_positions = state.position_history[-10:]
+            unique_positions = set(recent_positions)
+
+            # 2-position oscillation over 10 steps
+            if len(unique_positions) == 2:
+                pos_list = list(unique_positions)
+                count_0 = recent_positions.count(pos_list[0])
+                count_1 = recent_positions.count(pos_list[1])
+                if count_0 >= 3 and count_1 >= 3:
+                    self._logger.warning(f"  OSCILLATION: Alternating between {pos_list[0]} and {pos_list[1]} "
+                                       f"({count_0} and {count_1} times in last 10 steps)")
+                    self._set_forced_escape_direction(state, pos_list)
+                    return True
 
         # Original check: visiting only 2-3 unique positions in last 10 steps
         if len(unique_positions) > 3:
@@ -690,6 +703,38 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # No progress toward any target and visiting only 2-3 positions → Oscillating!
         return True
+
+    def _set_forced_escape_direction(self, state: HarvestState, oscillating_positions: list[tuple[int, int]]) -> None:
+        """Set a forced exploration direction to escape oscillation.
+
+        When oscillating between 2 positions, determine which directions are causing
+        the oscillation and force movement in a perpendicular direction.
+
+        Args:
+            state: Current agent state
+            oscillating_positions: List of 2 positions being alternated
+        """
+        if len(oscillating_positions) < 2:
+            return
+
+        pos1, pos2 = oscillating_positions[0], oscillating_positions[1]
+        dr = pos2[0] - pos1[0]
+        dc = pos2[1] - pos1[1]
+
+        # Determine perpendicular directions to break the oscillation
+        if dr != 0:
+            # Oscillating north-south, force east or west
+            perpendicular = ["east", "west"]
+        elif dc != 0:
+            # Oscillating east-west, force north or south
+            perpendicular = ["north", "south"]
+        else:
+            # Same position, try any direction
+            perpendicular = ["north", "south", "east", "west"]
+
+        # Set forced direction for next 5 steps to break pattern
+        state.forced_exploration_direction = perpendicular[0]  # Try first perpendicular direction
+        self._logger.info(f"  ANTI-OSCILLATION: Forcing {state.forced_exploration_direction} movement for 5 steps")
 
     def _verify_move_success(self, state: HarvestState, obs: AgentObservation, dr: int, dc: int) -> bool:
         """Verify if the last move succeeded using multiple methods.
@@ -2067,17 +2112,44 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_assemble(self, state: HarvestState) -> Action:
         """Assemble hearts at the assembler.
 
-        ANTI-OSCILLATION FIX: Add stuck recovery like recharge phase.
+        IMPROVED NAVIGATION: Instead of just exploring when stuck, try smarter navigation:
+        1. Check if adjacent to assembler - move directly onto it
+        2. Check if standing ON assembler - use it
+        3. If oscillating, clear the stuck flag and retry with forced direction
+        4. Only explore as last resort
         """
-        # ANTI-OSCILLATION: If stuck OR oscillating trying to reach assembler, force exploration
-        # This prevents oscillation loops where agent alternates between 2 positions
-        # Check BOTH consecutive_failed_moves AND stuck_recovery_active (set by oscillation detection)
-        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
-            self._logger.error(f"  ASSEMBLE: STUCK/OSCILLATING (fails={state.consecutive_failed_moves}, stuck_active={state.stuck_recovery_active}) - forcing exploration to find alternate route")
-            # Ensure stuck recovery is active
-            state.stuck_recovery_active = True
-            # Try exploration to find alternate path
+        assembler_pos = state.stations.get("assembler")
+        if not assembler_pos:
+            self._logger.error(f"  ASSEMBLE: No assembler found!")
             return self._explore(state)
+
+        # Check if standing ON the assembler
+        if (state.row, state.col) == assembler_pos:
+            self._logger.info(f"  ASSEMBLE: Standing ON assembler, attempting assembly")
+            # Try all assembly actions
+            return self._actions.noop.Noop()  # Using assembler
+
+        # Check if adjacent to assembler - move directly onto it
+        dr = assembler_pos[0] - state.row
+        dc = assembler_pos[1] - state.col
+        if abs(dr) + abs(dc) == 1:  # Manhattan distance = 1 (adjacent)
+            direction = None
+            if dr == -1: direction = "north"
+            elif dr == 1: direction = "south"
+            elif dc == 1: direction = "east"
+            elif dc == -1: direction = "west"
+
+            if direction and self._is_direction_clear_in_obs(state, direction):
+                self._logger.info(f"  ASSEMBLE: Adjacent to assembler, moving {direction} onto it")
+                return self._actions.move.Move(direction)
+
+        # If oscillating, clear stuck flag to allow retry with forced direction
+        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
+            self._logger.warning(f"  ASSEMBLE: Stuck/oscillating (fails={state.consecutive_failed_moves}), clearing flags and retrying navigation")
+            # Clear oscillation to allow another attempt with anti-oscillation measures
+            state.stuck_recovery_active = False
+            state.consecutive_failed_moves = 0
+            # The anti-oscillation logic in pathfinding will handle it
 
         # Normal navigation to assembler
         return self._navigate_to_station(state, "assembler")
@@ -2085,13 +2157,37 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_deliver(self, state: HarvestState) -> Action:
         """Deliver hearts to the chest.
 
-        ANTI-OSCILLATION FIX: Add stuck recovery like assemble phase.
+        IMPROVED NAVIGATION: Same smart navigation as ASSEMBLE phase.
         """
-        # ANTI-OSCILLATION: If stuck OR oscillating trying to reach chest, force exploration
-        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
-            self._logger.error(f"  DELIVER: STUCK/OSCILLATING (fails={state.consecutive_failed_moves}, stuck_active={state.stuck_recovery_active}) - forcing exploration to find alternate route")
-            state.stuck_recovery_active = True
+        chest_pos = state.stations.get("chest")
+        if not chest_pos:
+            self._logger.error(f"  DELIVER: No chest found!")
             return self._explore(state)
+
+        # Check if standing ON the chest
+        if (state.row, state.col) == chest_pos:
+            self._logger.info(f"  DELIVER: Standing ON chest, attempting delivery")
+            return self._actions.noop.Noop()  # Using chest
+
+        # Check if adjacent to chest - move directly onto it
+        dr = chest_pos[0] - state.row
+        dc = chest_pos[1] - state.col
+        if abs(dr) + abs(dc) == 1:  # Manhattan distance = 1 (adjacent)
+            direction = None
+            if dr == -1: direction = "north"
+            elif dr == 1: direction = "south"
+            elif dc == 1: direction = "east"
+            elif dc == -1: direction = "west"
+
+            if direction and self._is_direction_clear_in_obs(state, direction):
+                self._logger.info(f"  DELIVER: Adjacent to chest, moving {direction} onto it")
+                return self._actions.move.Move(direction)
+
+        # If oscillating, clear stuck flag to allow retry with forced direction
+        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
+            self._logger.warning(f"  DELIVER: Stuck/oscillating (fails={state.consecutive_failed_moves}), clearing flags and retrying navigation")
+            state.stuck_recovery_active = False
+            state.consecutive_failed_moves = 0
 
         # Normal navigation to chest
         return self._navigate_to_station(state, "chest")
@@ -2702,6 +2798,19 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             # Move in direction that gets us CLOSER to target (Manhattan distance)
             self._logger.warning(f"Step {state.step_count}: PATHFIND FAILED to {target}, using greedy approach")
 
+            # FORCED DIRECTION: If oscillation was detected, force movement in escape direction
+            if hasattr(state, 'forced_exploration_direction') and state.forced_exploration_direction:
+                forced_dir = state.forced_exploration_direction
+                if self._is_direction_clear_in_obs(state, forced_dir):
+                    self._logger.info(f"Step {state.step_count}: Using FORCED direction {forced_dir} to escape oscillation")
+                    # Clear forced direction after using it
+                    state.forced_exploration_direction = None
+                    return self._actions.move.Move(forced_dir)
+                else:
+                    # Forced direction blocked, clear it and try normal greedy
+                    self._logger.warning(f"Step {state.step_count}: Forced direction {forced_dir} blocked, trying greedy")
+                    state.forced_exploration_direction = None
+
             current_dist = abs(target[0] - state.row) + abs(target[1] - state.col)
 
             # Calculate distance for each direction
@@ -2718,12 +2827,21 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                         self._logger.debug(f"  Skipping {direction} - leads to dead-end at ({new_r},{new_c})")
                         continue
 
-                    # Penalty for opposite of last move (anti-oscillation)
+                    # ANTI-OSCILLATION: Heavy penalty for revisiting recent positions
                     penalty = 0
+                    if len(state.position_history) >= 5:
+                        recent_positions = state.position_history[-5:]
+                        position_count = recent_positions.count((new_r, new_c))
+                        if position_count > 0:
+                            # Exponential penalty for revisiting: 1st time=50, 2nd=100, 3rd=200
+                            penalty += 50 * (2 ** position_count)
+                            self._logger.debug(f"  {direction} → ({new_r},{new_c}) visited {position_count}x recently, penalty={penalty}")
+
+                    # Penalty for opposite of last move (immediate reversal)
                     if hasattr(state, 'last_move_direction') and state.last_move_direction:
                         opposite = {"north": "south", "south": "north", "east": "west", "west": "east"}
                         if direction == opposite.get(state.last_move_direction):
-                            penalty = 100  # Large penalty for reversing
+                            penalty += 100  # Large penalty for reversing
 
                     direction_scores.append((new_dist + penalty, direction))
 
