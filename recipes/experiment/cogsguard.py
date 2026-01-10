@@ -53,48 +53,76 @@ from mettagrid.config.mettagrid_config import (
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
 
+gear = ["aligner", "scrambler", "miner", "scout"]
+elements = ["oxygen", "carbon", "germanium", "silicon"]
+
 resources = [
     "energy",
-    "carbon",
-    "oxygen",
-    "germanium",
-    "silicon",
     "heart",
-    "weapon",
-    "shield",
-    "battery",
-    "gear",
     "damage",
+    "influence",
+    *elements,
+    *gear,
 ]
 
 vibes = [
     Vibe("😐", "default"),
-    Vibe("⚔️", "weapon"),
-    Vibe("🛡️", "shield"),
-    Vibe("🔋", "battery"),
-    Vibe("⚙️", "gear"),
     Vibe("❤️", "heart"),
 ]
 
 
-def supply_depot_config(map_name: str) -> CollectiveChestConfig:
-    """Supply depot that receives element resources via default vibe into collective.
+def influence_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that provides influence to nearby agents."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"influence": 10, "energy": 100, "damage": -100},
+        members_only=True,
+    )
 
-    Also emits AOE effect that restores energy and reduces damage for nearby agents.
-    """
+
+def attack_aoe(range: int = 10) -> AOEEffectConfig:
+    """AOE effect that attacks nearby agents."""
+    return AOEEffectConfig(
+        range=range,
+        resource_deltas={"damage": 1, "influence": -100},
+        ignore_members=True,
+    )
+
+
+def supply_depot_config(map_name: str, team: Optional[str] = None, has_aoe: bool = True) -> CollectiveChestConfig:
+    """Supply depot that receives element resources via default vibe into collective."""
+    aoes = [influence_aoe(), attack_aoe()]
     return CollectiveChestConfig(
         name="supply_depot",
         map_name=map_name,
         render_symbol="📦",
+        collective=team,
+        aoes=aoes if has_aoe else [],
+    )
+
+
+def main_nexus_config(map_name: str) -> AssemblerConfig:
+    """Main nexus assembler with influence AOE effect."""
+    return AssemblerConfig(
+        name="main_nexus",
+        map_name=map_name,
+        render_symbol="🏛️",
+        clip_immune=True,
+        chest_search_distance=10,
         collective="cogs",
-        vibe_transfers={"default": {"carbon": 255, "oxygen": 255, "germanium": 255, "silicon": 255}},
-        aoes=[
-            AOEEffectConfig(
-                range=10,
-                resource_deltas={"energy": 100, "damage": -100},
-                members_only=True,
-            )
+        protocols=[
+            ProtocolConfig(
+                vibes=["heart"],
+                input_resources={
+                    "carbon": 10,
+                    "oxygen": 10,
+                    "germanium": 10,
+                    "silicon": 10,
+                },
+                output_resources={"heart": 1},
+            ),
         ],
+        aoes=[influence_aoe()],
     )
 
 
@@ -108,13 +136,12 @@ def resource_chest_config(map_name: str, resource: str, amount: int = 100) -> Ch
             limits={resource: ResourceLimitsConfig(limit=amount, resources=[resource])},
             initial={resource: amount},
         ),
-        vibe_transfers={"default": {resource: -255}},  # negative = withdraw
+        vibe_transfers={"default": {resource: 10}},
     )
 
 
 class CogAssemblerConfig(CvCStationConfig):
     def station_cfg(self) -> AssemblerConfig:
-        # gear = [("carbon", "decoder"), ("oxygen", "modulator"), ("germanium", "scrambler"), ("silicon", "resonator")]
         return AssemblerConfig(
             name="assembler",
             render_symbol="",
@@ -132,6 +159,8 @@ class CogAssemblerConfig(CvCStationConfig):
                     output_resources={"heart": 1},
                 ),
             ],
+            collective="cogs",
+            aoes=[influence_aoe()],
         )
 
 
@@ -176,56 +205,50 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                 vibes=["battery", "heart", "gear"],  # Transfer triggered for these vibes
             ),
             align=AlignActionConfig(
-                vibe="heart",
+                vibe="default",
                 cost={"heart": 1},
                 collective_cost={},
+                required_resources={"aligner": 1, "influence": 1},
             ),
             scramble=AlignActionConfig(
-                vibe="weapon",
+                vibe="default",
                 set_to_none=True,
+                required_resources={"scrambler": 1},
             ),
         ),
         agent=AgentConfig(
             collective="cogs",
             inventory=InventoryConfig(
                 limits={
+                    "gear": ResourceLimitsConfig(limit=5, resources=gear),
                     "heart": ResourceLimitsConfig(limit=20000, resources=["heart"]),
-                    "energy": ResourceLimitsConfig(limit=0, resources=["energy"], modifiers={"battery": 25}),
-                    "cargo": ResourceLimitsConfig(limit=255, resources=["carbon", "oxygen", "germanium", "silicon"]),
-                    "gear": ResourceLimitsConfig(
-                        limit=0, resources=["weapon", "shield", "battery"], modifiers={"gear": 1}
-                    ),
+                    "energy": ResourceLimitsConfig(limit=100, resources=["energy"], modifiers={"scout": 100}),
+                    "cargo": ResourceLimitsConfig(limit=10, resources=elements, modifiers={"miner": 100}),
+                    "influence": ResourceLimitsConfig(limit=0, resources=["influence"], modifiers={"aligner": 20}),
                 },
                 initial={
-                    "gear": 10,
-                    "battery": 4,
                     "energy": 100,
-                    "weapon": 1,
-                    "shield": 0,
                     "silicon": 50,
                     "oxygen": 50,
                     "carbon": 50,
                     "germanium": 50,
                     "heart": 5,
+                    "aligner": 1,
+                    "scrambler": 1,
+                    "miner": 1,
+                    "scout": 1,
                 },
                 regen_amounts={
                     "default": {
                         "energy": 1,
                         "damage": 1,
+                        "influence": -1,
                     },
                 },
             ),
             rewards=AgentRewards(
                 inventory={
                     "heart": 1,
-                    "carbon": 0.001,
-                    "oxygen": 0.001,
-                    "germanium": 0.001,
-                    "silicon": 0.001,
-                    "weapon": 0.01,
-                    "shield": 0.01,
-                    "battery": 0.01,
-                    "gear": 0.1,
                 },
                 collective_inventory={
                     "carbon": 0.01,
@@ -236,16 +259,15 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             ),
             damage=DamageConfig(
                 threshold={"damage": 200},
-                resources={"battery": 1, "weapon": 0, "shield": 0},  # resource -> minimum (won't go below)
+                resources={g: 0 for g in gear},
             ),
-            freeze_duration=5,
         ),
         inventory_regen_interval=1,
         objects={
             "wall": CvCWallConfig().station_cfg(),
-            "assembler": CogAssemblerConfig().station_cfg().model_copy(update={"collective": "cogs"}),
-            "charger": supply_depot_config("charger"),
-            "chest": supply_depot_config("chest"),
+            "assembler": main_nexus_config("assembler"),
+            "charger": supply_depot_config("charger", "clips"),
+            "chest": supply_depot_config("chest", "cogs", has_aoe=False),
             "carbon_extractor": resource_chest_config("carbon_extractor", "carbon"),
             "oxygen_extractor": resource_chest_config("oxygen_extractor", "oxygen"),
             "germanium_extractor": resource_chest_config("germanium_extractor", "germanium"),
@@ -269,6 +291,9 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                         "heart": 0,
                     },
                 ),
+            ),
+            CollectiveConfig(
+                name="clips",
             ),
         ],
     )
