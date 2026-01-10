@@ -9,6 +9,7 @@
 # - Packages not listed here won't be scanned, so contracts can't check their imports
 # - The "metta" parent namespace is NOT listed to avoid "shared descendants" errors
 root_packages =
+    alo
     metta.tools
     metta.gridworks
     metta.setup

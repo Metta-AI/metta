@@ -9,6 +9,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "heavyball>=2.0.0",
+  "alo",
   "mettagrid==0.2.0.58",
   "packaging>=24.0.0",
   "pufferlib-core",
@@ -54,6 +55,7 @@ source = ["cogames"]
 
 [tool.uv.sources]
 mettagrid = { workspace = true }
+alo = { workspace = true }
 
 [tool.uv]
 cache-keys = [
