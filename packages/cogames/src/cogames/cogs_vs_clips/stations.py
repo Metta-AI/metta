@@ -5,7 +5,6 @@ from pydantic import Field
 from mettagrid.base_config import Config
 from mettagrid.config import vibes
 from mettagrid.config.mettagrid_config import (
-    ActivationHandler,
     ActorCollectiveHas,
     ActorHas,
     Align,
@@ -16,12 +15,14 @@ from mettagrid.config.mettagrid_config import (
     CollectiveDeposit,
     CollectiveWithdraw,
     GridObjectConfig,
+    Handler,
     InventoryConfig,
     ProtocolConfig,
     RemoveAlignment,
     TargetCollectiveUpdate,
     UpdateActor,
     WallConfig,
+    Withdraw,
     isAligned,
     isEnemy,
     isNeutral,
@@ -288,26 +289,28 @@ class CvCAssemblerConfig(CvCStationConfig):
 
 
 class SimpleExtractorConfig(CvCStationConfig):
-    """Simple resource extractor with inventory that transfers resources to actors.
-
-    Uses vibe_transfers to control extraction amounts:
-    - "default" vibe: extract small_amount
-    - "miner" vibe: extract large_amount
-    """
+    """Simple resource extractor with inventory that transfers resources to actors."""
 
     resource: str = Field(description="The resource to extract")
     initial_amount: int = Field(default=100, description="Initial amount of resource in extractor")
-    small_amount: int = Field(default=1, description="Amount extracted with default vibe")
-    large_amount: int = Field(default=10, description="Amount extracted with miner vibe")
+    small_amount: int = Field(default=1, description="Amount extracted without mining equipment")
+    large_amount: int = Field(default=10, description="Amount extracted with mining equipment")
 
     def station_cfg(self) -> ChestConfig:
         return ChestConfig(
-            name=f"{self.resource}_chest",
+            name=f"{self.resource}_extractor",
             map_name=f"{self.resource}_extractor",
             render_symbol="📦",
-            vibe_transfers={
-                "default": {self.resource: self.small_amount},
-                "miner": {self.resource: self.large_amount},
+            on_use_handlers={
+                # Order matters: miner first so agents with miner gear get the bonus
+                "miner": Handler(
+                    filters=[ActorHas({"miner": 1})],
+                    mutations=[Withdraw({self.resource: self.large_amount})],
+                ),
+                "extract": Handler(
+                    filters=[],
+                    mutations=[Withdraw({self.resource: self.small_amount})],
+                ),
             },
             inventory=InventoryConfig(initial={self.resource: self.initial_amount}),
         )
@@ -335,16 +338,16 @@ class JunctionConfig(CvCStationConfig):
                 AOEEffectConfig(range=self.aoe_range, resource_deltas=self.influence_deltas, filters=[isAligned()]),
                 AOEEffectConfig(range=self.aoe_range, resource_deltas=self.attack_deltas, filters=[isEnemy()]),
             ],
-            handlers={
-                "deposit": ActivationHandler(
+            on_use_handlers={
+                "deposit": Handler(
                     filters=[isAligned()],
                     mutations=[CollectiveDeposit({resource: 100 for resource in self.elements})],
                 ),
-                "align": ActivationHandler(
+                "align": Handler(
                     filters=[isNeutral(), ActorHas({"aligner": 1, "influence": 1, **self.align_cost})],
                     mutations=[UpdateActor(_neg(self.align_cost)), Align()],
                 ),
-                "scramble": ActivationHandler(
+                "scramble": Handler(
                     filters=[isEnemy(), ActorHas({"scrambler": 1, **self.scramble_cost})],
                     mutations=[RemoveAlignment(), UpdateActor(_neg(self.scramble_cost))],
                 ),
@@ -358,7 +361,8 @@ class HubConfig(JunctionConfig):
     def station_cfg(self) -> GridObjectConfig:
         cfg = super().station_cfg()
         cfg.name = "hub"  # override the name
-        cfg.handlers = {}  # remove the align/scramble handlers
+        del cfg.on_use_handlers["align"]
+        del cfg.on_use_handlers["scramble"]
         return cfg
 
 
@@ -374,12 +378,12 @@ class CogsGuardChestConfig(CvCStationConfig):
             map_name="chest",
             render_symbol="📦",
             collective=self.collective,
-            handlers={
-                "get_heart": ActivationHandler(
+            on_use_handlers={
+                "get_heart": Handler(
                     filters=[isAligned()],
                     mutations=[CollectiveWithdraw({"heart": 1})],
                 ),
-                "make_heart": ActivationHandler(
+                "make_heart": Handler(
                     filters=[isAligned(), ActorCollectiveHas(self.heart_cost)],
                     mutations=[
                         TargetCollectiveUpdate(_neg(self.heart_cost)),
@@ -404,12 +408,12 @@ class GearStationConfig(CvCStationConfig):
             map_name=f"{self.gear_type}_station",
             render_symbol=COGSGUARD_GEAR_SYMBOLS.get(self.gear_type, "⚙️"),
             collective=self.collective,
-            handlers={
-                "keep_gear": ActivationHandler(
+            on_use_handlers={
+                "keep_gear": Handler(
                     filters=[isAligned(), ActorHas({self.gear_type: 1})],
                     mutations=[],
                 ),
-                "change_gear": ActivationHandler(
+                "change_gear": Handler(
                     filters=[isAligned(), ActorCollectiveHas(cost)],
                     mutations=[
                         ClearInventoryMutation(target="actor", limit_name="gear"),

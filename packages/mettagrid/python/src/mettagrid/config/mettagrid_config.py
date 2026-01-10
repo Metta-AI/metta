@@ -234,15 +234,9 @@ class AgentConfig(Config):
         description="Resource names that contribute to inventory diversity metrics",
     )
     initial_vibe: int = Field(default=0, ge=0, description="Initial vibe value for this agent instance")
-<<<<<<< HEAD
     handlers: list[Handler] = Field(
         default_factory=list,
         description="Handlers triggered when another agent moves onto this agent",
-=======
-    handlers: dict[str, "ActivationHandler"] = Field(
-        default_factory=dict,
-        description="Handlers triggered when another agent moves onto this agent (name -> handler)",
->>>>>>> cf88d01b85 (cp)
     )
     damage: Optional[DamageConfig] = Field(
         default=None,
@@ -335,7 +329,12 @@ class GridObjectConfig(Config):
         default_factory=list,
         description="List of AOE effects this object emits to agents within range each tick",
     )
-<<<<<<< HEAD
+
+    # Handlers - dict[name, Handler] for backwards compatibility
+    handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered when an agent moves onto this object (name -> handler)",
+    )
 
     # Three types of handlers on GridObject (name -> handler)
     on_use_handlers: dict[str, Handler] = Field(
@@ -349,11 +348,6 @@ class GridObjectConfig(Config):
     aoe_handlers: dict[str, Handler] = Field(
         default_factory=dict,
         description="Handlers triggered per-tick for objects within radius (context: actor=this, target=affected)",
-=======
-    handlers: dict[str, ActivationHandler] = Field(
-        default_factory=dict,
-        description="Handlers triggered when an agent moves onto this object (name -> handler)",
->>>>>>> cf88d01b85 (cp)
     )
     aoes: list[AOEEffectConfig] = Field(
         default_factory=list,
