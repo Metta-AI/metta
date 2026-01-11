@@ -15,7 +15,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic.main import BaseModel
 
-from metta.app_backend.auth import user_from_header_or_token
+from metta.app_backend.auth import get_user
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     eval_task_routes,
@@ -136,8 +136,8 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
-        user_id = await user_from_header_or_token(request)
-        return WhoAmIResponse(user_email=user_id or "unknown")
+        user = await get_user(request)
+        return WhoAmIResponse(user_email=user.email if user else "unknown")
 
     return app
 

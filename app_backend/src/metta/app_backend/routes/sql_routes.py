@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from psycopg import errors as pg_errors
 from pydantic import BaseModel
 
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import CheckSoftmaxUser
 from metta.app_backend.config import settings
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.query_logger import execute_query_and_log
@@ -50,7 +50,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/tables")
     @timed_route("list_tables")
-    async def list_tables(user: UserOrToken) -> List[TableInfo]:
+    async def list_tables(user: CheckSoftmaxUser) -> List[TableInfo]:
         """List all available tables in the database (excluding migrations)."""
         try:
             async with metta_repo.connect() as con:
@@ -90,7 +90,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.get("/tables/{table_name}/schema")
     @timed_route("get_table_schema")
-    async def get_table_schema(table_name: str, user: UserOrToken) -> TableSchema:
+    async def get_table_schema(table_name: str, user: CheckSoftmaxUser) -> TableSchema:
         """Get the schema for a specific table."""
         try:
             async with metta_repo.connect() as con:
@@ -138,7 +138,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/query")
     @timed_route("execute_sql_query")
-    async def execute_query(request: SQLQueryRequest, user: UserOrToken) -> SQLQueryResponse:
+    async def execute_query(request: SQLQueryRequest, user: CheckSoftmaxUser) -> SQLQueryResponse:
         """Execute a SQL query with a 20-second timeout."""
         try:
             # Basic validation to prevent access to schema_migrations
@@ -203,7 +203,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
 
     @router.post("/generate-query")
     @timed_route("generate_ai_query")
-    async def generate_ai_query(request: AIQueryRequest, user: UserOrToken) -> AIQueryResponse:
+    async def generate_ai_query(request: AIQueryRequest, user: CheckSoftmaxUser) -> AIQueryResponse:
         """Generate a SQL query from natural language description using Claude."""
         # Get API key from environment variable
         if not settings.ANTHROPIC_API_KEY:

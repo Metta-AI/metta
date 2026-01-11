@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import gitta as git
-from metta.app_backend.auth import UserOrToken
+from metta.app_backend.auth import CheckUser
 from metta.app_backend.metta_repo import EvalTaskRow, FinishedTaskStatus, MettaRepo, TaskAttemptRow, TaskStatus
 from metta.app_backend.route_logger import timed_http_handler
 from metta.common.util.git_repo import REPO_SLUG
@@ -106,7 +106,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
 
     @router.post("")
     @timed_http_handler
-    async def create_task(request: TaskCreateRequest, user: UserOrToken) -> EvalTaskRow:
+    async def create_task(request: TaskCreateRequest, user: CheckUser) -> EvalTaskRow:
         data_uri = None
         if request.data_file:
             file_path = f"data_file_{uuid.uuid4()}.json"
@@ -125,7 +125,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             command=request.command,
             git_hash=request.git_hash or await get_cached_latest_commit(),
             attributes=request.attributes,
-            user_id=user,
+            user_id=user.id,
             data_uri=data_uri,
         )
         return task

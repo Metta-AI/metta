@@ -1,6 +1,8 @@
 import clsx from 'clsx'
-import { FC, PropsWithChildren } from 'react'
+import { FC, PropsWithChildren, useContext } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+
+import { AppContext } from './AppContext'
 
 const MenuLink: FC<PropsWithChildren<{ to: string; isActive: boolean }>> = ({ to, children, isActive = false }) => {
   return (
@@ -21,8 +23,10 @@ export const TopMenu: FC = () => {
 
   const isPoliciesActive = location.pathname === '/' || location.pathname.startsWith('/policies')
 
+  const { currentUser } = useContext(AppContext)
+
   return (
-    <nav className="border-b border-gray-300 px-5">
+    <nav className="border-b border-gray-300 px-5 flex justify-between items-center">
       <div className="max-w-7xl mx-auto flex items-center">
         <div className="flex">
           <MenuLink to="/" isActive={isPoliciesActive}>
@@ -41,6 +45,9 @@ export const TopMenu: FC = () => {
             SQL Query
           </MenuLink>
         </div>
+      </div>
+      <div className="flex items-center">
+        <span className="text-sm text-gray-500">{currentUser}</span>
       </div>
     </nav>
   )

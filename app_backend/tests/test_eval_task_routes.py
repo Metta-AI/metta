@@ -22,9 +22,7 @@ class TestEvalTaskRoutes:
         """Create an eval task client for testing."""
         # Create client without a real token - auth will use X-Auth-Request-Email header
         client = EvalTaskClient(backend_url=str(test_client.base_url), machine_token=None)
-
-        # Replace httpx client with TestClientAdapter
-        client._http_client = TestClientAdapter(test_client)  # type: ignore
+        client._http_client = TestClientAdapter.with_softmax_user(test_client)
 
         return client
 
@@ -183,8 +181,8 @@ class TestEvalTaskRoutes:
     def test_invalid_status_update(
         self,
         eval_task_client: EvalTaskClient,
-        test_client,
-        test_user_headers: dict[str, str],
+        test_client: TestClient,
+        auth_headers: dict[str, str],
     ):
         """Test that invalid status updates are rejected."""
         task_response = eval_task_client.create_task(
@@ -203,7 +201,7 @@ class TestEvalTaskRoutes:
         update_response = test_client.post(
             f"/tasks/{task_id}/finish",
             json={"task_id": task_id, "status": "invalid_status"},
-            headers=test_user_headers,
+            headers=auth_headers,
         )
         assert update_response.status_code == 422
 

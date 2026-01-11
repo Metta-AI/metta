@@ -181,7 +181,7 @@ class TestBulkEpisodeUpload:
         self,
         mock_aioboto3: MagicMock,
         test_client: TestClient,
-        test_user_headers: dict[str, str],
+        auth_headers: dict[str, str],
         stats_repo: MettaRepo,
     ):
         """Test uploading multiple episodes at once using presigned URL flow."""
@@ -214,7 +214,7 @@ class TestBulkEpisodeUpload:
         conn.close()
 
         self._setup_s3_mocks(mock_aioboto3, db_path)
-        data = self._call_presigned_upload_flow(test_client, test_user_headers)
+        data = self._call_presigned_upload_flow(test_client, auth_headers)
 
         assert data["episodes_created"] == 3
 
@@ -231,7 +231,7 @@ class TestBulkEpisodeUpload:
         self,
         mock_aioboto3: MagicMock,
         test_client: TestClient,
-        test_user_headers: dict[str, str],
+        auth_headers: dict[str, str],
         stats_repo: MettaRepo,
     ):
         """Test that agent metrics are correctly aggregated to policy metrics using presigned URL flow."""
@@ -266,7 +266,7 @@ class TestBulkEpisodeUpload:
         conn.close()
 
         self._setup_s3_mocks(mock_aioboto3, db_path)
-        self._call_presigned_upload_flow(test_client, test_user_headers)
+        self._call_presigned_upload_flow(test_client, auth_headers)
 
         # Verify aggregation
         async with stats_repo.connect() as con:
@@ -309,7 +309,7 @@ class TestBulkEpisodeUpload:
         self,
         mock_aioboto3: MagicMock,
         test_client: TestClient,
-        test_user_headers: dict[str, str],
+        auth_headers: dict[str, str],
         stats_repo: MettaRepo,
     ):
         """Test that only 'reward' metrics are stored (whitelist) using presigned URL flow."""
@@ -341,7 +341,7 @@ class TestBulkEpisodeUpload:
         conn.close()
 
         self._setup_s3_mocks(mock_aioboto3, db_path)
-        self._call_presigned_upload_flow(test_client, test_user_headers)
+        self._call_presigned_upload_flow(test_client, auth_headers)
 
         # Verify only reward metric is stored
         async with stats_repo.connect() as con:
