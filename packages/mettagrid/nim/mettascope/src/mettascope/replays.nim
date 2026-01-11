@@ -24,6 +24,12 @@ type
     numTokens*: int
     tokenValueBase*: int
 
+  AOEConfig* = object
+    range*: int
+    resourceDeltas*: Table[string, int]
+    membersOnly*: bool
+    ignoreMembers*: bool
+
   ObjectConfig* = object
     name*: string
     typeId*: int
@@ -33,6 +39,7 @@ type
     `type`*: string
     swappable*: bool
     recipes*: seq[RecipeInfoConfig]
+    aoes*: seq[AOEConfig]
 
   GameConfig* = object
     resourceNames*: seq[string]
@@ -98,9 +105,16 @@ type
     currentRecipeId*: int
     protocols*: seq[Protocol]
 
+    # Alignable fields.
+    collectiveId*: int = -1
+
     # Computed fields.
     gainMap*: seq[seq[ItemAmount]]
     isAgent*: bool
+
+  CollectiveInventorySnapshot* = object
+    step*: int
+    inventory*: Table[string, int]  ## itemName -> count
 
   Replay* = ref object
     version*: int
@@ -122,6 +136,9 @@ type
     rewardSharingMatrix*: seq[seq[float]]
 
     agents*: seq[Entity]
+
+    # Collective inventory over time: collective_name -> list of snapshots
+    collectiveInventory*: Table[string, seq[CollectiveInventorySnapshot]]
 
     drawnAgentActionMask*: uint64
     mgConfig*: JsonNode
@@ -181,10 +198,13 @@ type
     allowPartialUsage*: bool
     protocols*: seq[Protocol]
 
+    # Alignable fields.
+    collectiveId*: int = -1
 
   ReplayStep* = ref object
     step*: int
     objects*: seq[ReplayEntity]
+    collective_inventory*: Table[string, Table[string, int]]  ## collective_name -> {item_name: count}
 
 ## Empty replays is used before a real replay is loaded,
 ## so that we don't need to check for nil everywhere.
@@ -510,7 +530,9 @@ proc computeGainMap(replay: Replay) =
     newSeq[int](replay.itemNames.len),
     newSeq[int](replay.itemNames.len)
   ]
-  for agent in replay.agents:
+  let numAgents = replay.agents.len
+  for a in 0 ..< numAgents:
+    let agent = replay.agents[a]
     agent.gainMap = newSeq[seq[ItemAmount]](replay.maxSteps)
 
     # Gain map for step 0.
@@ -813,11 +835,33 @@ proc loadReplayString*(jsonData: string, fileName: string): Replay =
     if "protocols" in obj:
       entity.protocols = fromJson($(obj["protocols"]), seq[Protocol])
 
+    # Parse collective_id for alignable objects.
+    entity.collectiveId = getInt(obj, "collective_id", -1)
+
     replay.objects.add(entity)
 
     # Populate the agents field for agent entities
     if "agent_id" in obj:
       replay.agents.add(entity)
+
+  # Load collective inventory snapshots
+  replay.collectiveInventory = initTable[string, seq[CollectiveInventorySnapshot]]()
+  if "collective_inventory" in jsonObj:
+    let collectiveInvObj = jsonObj["collective_inventory"]
+    if collectiveInvObj.kind == JObject:
+      for collectiveName, snapshots in collectiveInvObj.pairs:
+        var snapshotSeq: seq[CollectiveInventorySnapshot] = @[]
+        if snapshots.kind == JArray:
+          for snapshot in snapshots:
+            if snapshot.kind == JArray and snapshot.len >= 2:
+              let step = snapshot[0].getInt
+              var inv = initTable[string, int]()
+              if snapshot[1].kind == JObject:
+                for itemName, count in snapshot[1].pairs:
+                  if count.kind == JInt:
+                    inv[itemName] = count.getInt
+              snapshotSeq.add(CollectiveInventorySnapshot(step: step, inventory: inv))
+        replay.collectiveInventory[collectiveName] = snapshotSeq
 
   # compute gain maps for static replays.
   computeGainMap(replay)
@@ -913,13 +957,16 @@ proc apply*(replay: Replay, step: int, objects: seq[ReplayEntity]) =
     entity.maxUses = obj.maxUses
     entity.allowPartialUsage = obj.allowPartialUsage
     entity.protocols = obj.protocols
+    entity.collectiveId = obj.collectiveId
 
   # Extend the max steps.
   replay.maxSteps = max(replay.maxSteps, step + 1)
 
   # Populate the agents field for agent entities
   if replay.agents.len == 0:
-    for obj in replay.objects:
+    let numObjects = replay.objects.len
+    for i in 0 ..< numObjects:
+      let obj = replay.objects[i]
       if obj.typeName == agentTypeName:
         replay.agents.add(obj)
     doAssert replay.agents.len == replay.numAgents, "Agents and numAgents mismatch"
@@ -930,3 +977,15 @@ proc apply*(replay: Replay, replayStepJsonData: string) =
   ## Apply a replay step to the replay.
   let replayStep = fromJson(replayStepJsonData, ReplayStep)
   replay.apply(replayStep.step, replayStep.objects)
+  # Update collective inventory from live data
+  if replayStep.collective_inventory.len > 0:
+    # Collect keys first to avoid iteration issues
+    var collectiveNames: seq[string] = @[]
+    for k in replayStep.collective_inventory.keys:
+      collectiveNames.add(k)
+    for collectiveName in collectiveNames:
+      let inventory = replayStep.collective_inventory[collectiveName]
+      let snapshot = CollectiveInventorySnapshot(step: replayStep.step, inventory: inventory)
+      if collectiveName notin replay.collectiveInventory:
+        replay.collectiveInventory[collectiveName] = @[]
+      replay.collectiveInventory[collectiveName].add(snapshot)

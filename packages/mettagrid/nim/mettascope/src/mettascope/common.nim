@@ -1,5 +1,5 @@
 import
-  std/[times, tables, os, pathnorm],
+  std/[times, tables, os, strutils, pathnorm, sets],
   boxy, windy, vmath, silky,
   replays
 
@@ -27,6 +27,7 @@ type
     showResources* = true
     showObservations* = -1
     lockFocus* = false
+    aoeEnabledCollectives*: HashSet[int]  ## Set of collective IDs to show AOE for. -1 = unaligned.
 
   PlayMode* = enum
     Historical
@@ -126,21 +127,27 @@ proc wh*(rect: IRect): IVec2 =
 
 proc getAgentById*(agentId: int): Entity =
   ## Get an agent by ID. Asserts the agent exists.
-  for obj in replay.objects:
+  let numObjects = replay.objects.len
+  for i in 0 ..< numObjects:
+    let obj = replay.objects[i]
     if obj.isAgent and obj.agentId == agentId:
       return obj
   raise newException(ValueError, "Agent with ID " & $agentId & " does not exist")
 
 proc getObjectById*(objectId: int): Entity =
   ## Get an object by ID. Asserts the object exists.
-  for obj in replay.objects:
+  let numObjects = replay.objects.len
+  for i in 0 ..< numObjects:
+    let obj = replay.objects[i]
     if obj.id == objectId:
       return obj
   raise newException(ValueError, "Object with ID " & $objectId & " does not exist")
 
 proc getObjectAtLocation*(pos: IVec2): Entity =
   ## Get the first object at the given position. Returns nil if no object is there.
-  for obj in replay.objects:
+  let numObjects = replay.objects.len
+  for i in 0 ..< numObjects:
+    let obj = replay.objects[i]
     if obj.location.at(step).xy == pos:
       return obj
   return nil
