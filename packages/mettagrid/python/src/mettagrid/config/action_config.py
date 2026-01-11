@@ -193,14 +193,26 @@ class TransferActionConfig(ActionConfig):
 class AlignActionConfig(ActionConfig):
     """Python align action configuration.
 
-    Align is triggered by move when the agent's vibe matches a vibe in vibes.
-    When triggered, attempts to align the target to the actor's collective.
+    Align is triggered by move when the agent's vibe matches the configured vibe.
+    It aligns the target's collective to the actor's collective, or sets it to none if set_to_none=True.
     """
 
     action_handler: str = Field(default="align")
-    vibes: list[str] = Field(
-        default_factory=list,
-        description="Vibe names that trigger align on move",
+    vibe: str = Field(
+        default="",
+        description="Vibe name that triggers align on move",
+    )
+    cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cost to the actor for aligning (resource name -> amount)",
+    )
+    collective_cost: dict[str, int] = Field(
+        default_factory=dict,
+        description="Cost deducted from the actor's collective (resource name -> amount)",
+    )
+    set_to_none: bool = Field(
+        default=False,
+        description="If true, sets target's collective to none instead of actor's collective (scramble mode)",
     )
 
     def _actions(self) -> list[Action]:
@@ -219,14 +231,14 @@ class ActionsConfig(Config):
     move: MoveActionConfig = Field(default_factory=lambda: MoveActionConfig())
     attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
     transfer: TransferActionConfig = Field(default_factory=lambda: TransferActionConfig(enabled=False))
+    align: AlignActionConfig | None = Field(default=None)
+    scramble: AlignActionConfig | None = Field(default=None)
     change_vibe: ChangeVibeActionConfig = Field(default_factory=lambda: ChangeVibeActionConfig())
-    align: AlignActionConfig = Field(default_factory=lambda: AlignActionConfig(enabled=False))
 
     def actions(self) -> list[Action]:
-        return sum(
-            [
-                action.actions()
-                for action in [self.noop, self.move, self.attack, self.transfer, self.change_vibe, self.align]
-            ],
-            [],
-        )
+        action_configs = [self.noop, self.move, self.attack, self.transfer, self.change_vibe]
+        if self.align:
+            action_configs.append(self.align)
+        if self.scramble:
+            action_configs.append(self.scramble)
+        return sum([action.actions() for action in action_configs], [])

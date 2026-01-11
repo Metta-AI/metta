@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
-    Discriminator,
     Field,
     PrivateAttr,
-    SerializeAsAny,
-    Tag,
     model_validator,
 )
 
@@ -29,14 +26,53 @@ from mettagrid.config.action_config import (
     TransferActionConfig,
     VibeTransfer,
 )
+from mettagrid.config.handler_config import (
+    ActorCollectiveHas,
+    ActorCollectiveUpdate,
+    ActorHas,
+    Align,
+    AlignmentCondition,
+    AlignmentFilter,
+    AlignmentMutation,
+    AlignmentTarget,
+    AlignTo,
+    AnyFilter,
+    AnyMutation,
+    AOEEffectConfig,
+    AttackMutation,
+    ClearInventoryMutation,
+    CollectiveDeposit,
+    CollectiveWithdraw,
+    Deposit,
+    FreezeMutation,
+    Handler,
+    HandlerTarget,
+    RemoveAlignment,
+    ResourceDeltaMutation,
+    ResourceFilter,
+    ResourceTransferMutation,
+    TargetCollectiveHas,
+    TargetCollectiveUpdate,
+    TargetHas,
+    UpdateActor,
+    UpdateTarget,
+    VibeFilter,
+    Withdraw,
+    hasCollective,
+    isAligned,
+    isEnemy,
+    isNeutral,
+    isNotAligned,
+)
 from mettagrid.config.id_map import IdMap
 from mettagrid.config.obs_config import ObsConfig
 from mettagrid.map_builder.ascii import AsciiMapBuilder
 from mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from mettagrid.map_builder.random_map import RandomMapBuilder
 
-# Re-export action types for backwards compatibility
+# Re-export types
 __all__ = [
+    # Action types
     "ActionConfig",
     "ActionsConfig",
     "AlignActionConfig",
@@ -51,6 +87,42 @@ __all__ = [
     "NoopActionConfig",
     "TransferActionConfig",
     "VibeTransfer",
+    # Handler types
+    "Handler",
+    "HandlerTarget",
+    "AlignmentTarget",
+    "AlignmentCondition",
+    "AlignTo",
+    "ActorCollectiveHas",
+    "ActorCollectiveUpdate",
+    "ActorHas",
+    "Align",
+    "AlignmentFilter",
+    "AlignmentMutation",
+    "AnyFilter",
+    "AnyMutation",
+    "AttackMutation",
+    "ClearInventoryMutation",
+    "CollectiveDeposit",
+    "CollectiveWithdraw",
+    "Deposit",
+    "FreezeMutation",
+    "hasCollective",
+    "isAligned",
+    "isEnemy",
+    "isNeutral",
+    "isNotAligned",
+    "RemoveAlignment",
+    "ResourceDeltaMutation",
+    "ResourceFilter",
+    "ResourceTransferMutation",
+    "TargetCollectiveHas",
+    "TargetCollectiveUpdate",
+    "TargetHas",
+    "UpdateActor",
+    "UpdateTarget",
+    "VibeFilter",
+    "Withdraw",
 ]
 
 # ===== Python Configuration Models =====
@@ -63,6 +135,12 @@ class AgentRewards(Config):
     # is that it's easier for us to assert that these inventory items exist, and thus catch typos.
     inventory: dict[str, float] = Field(default_factory=dict)
     inventory_max: dict[str, float] = Field(default_factory=dict)
+    # collective_inventory rewards agents based on the inventory of the collective they belong to
+    collective_inventory: dict[str, float] = Field(default_factory=dict)
+    collective_inventory_max: dict[str, float] = Field(default_factory=dict)
+    # collective_stats rewards agents based on stats of the collective they belong to (e.g., aligned.charger.held)
+    collective_stats: dict[str, float] = Field(default_factory=dict)
+    collective_stats_max: dict[str, float] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
     stats_max: dict[str, float] = Field(default_factory=dict)
 
@@ -118,35 +196,24 @@ class InventoryConfig(Config):
 class DamageConfig(Config):
     """Damage configuration for agents.
 
-    When an agent's inventory items reach or exceed all threshold values, one random
-    resource from the resources map is destroyed (weighted by quantity above minimum)
-    and the threshold amounts are subtracted from inventory.
+    When the threshold resources reach their specified amounts, damage is triggered.
+    Damage removes one unit from a randomly selected resource (weighted by quantity above minimum).
+
+    Example:
+        DamageConfig(
+            threshold={"damage": 10},  # Trigger when "damage" reaches 10
+            resources={"battery": 0, "weapon": 0, "shield": 0},  # Minimum values for each resource
+        )
     """
 
     threshold: dict[str, int] = Field(
         default_factory=dict,
-        description="Map of resource names to threshold values. All must be reached to trigger damage.",
+        description="Resource thresholds that trigger damage. Maps resource name to threshold value.",
     )
     resources: dict[str, int] = Field(
         default_factory=dict,
-        description="Map of resources that can be destroyed, with minimum values. "
-        "Only resources listed here can be destroyed. Resources at or below minimum are protected.",
+        description="Resources that can be removed by damage. Maps resource name to minimum value.",
     )
-
-    @model_validator(mode="after")
-    def _validate_distinct_keys(self) -> "DamageConfig":
-        """Ensure that threshold and resources keys don't overlap."""
-        threshold_keys = set(self.threshold.keys())
-        resources_keys = set(self.resources.keys())
-        overlapping_keys = threshold_keys.intersection(resources_keys)
-
-        if overlapping_keys:
-            raise ValueError(
-                f"Resources cannot appear in both threshold and resources maps. "
-                f"Overlapping keys: {sorted(overlapping_keys)}"
-            )
-
-        return self
 
 
 # TODO: this should probably subclass GridObjectConfig
@@ -158,6 +225,10 @@ class AgentConfig(Config):
     freeze_duration: int = Field(default=10, ge=-1, description="Duration agent remains frozen after certain actions")
     team_id: int = Field(default=0, ge=0, description="Team identifier for grouping agents")
     tags: list[str] = Field(default_factory=lambda: ["agent"], description="Tags for this agent instance")
+    collective: Optional[str] = Field(
+        default=None,
+        description="Name of collective this agent belongs to. Adds 'collective:{name}' tag automatically.",
+    )
     diversity_tracked_resources: list[str] = Field(
         default_factory=list,
         description="Resource names that contribute to inventory diversity metrics",
@@ -192,6 +263,11 @@ class GridObjectConfig(Config):
     Python uses only names. Numeric type_ids are an internal C++ detail and are
     computed during Python→C++ conversion; they are never part of Python config
     or observations.
+
+    Handlers:
+      - on_use_handlers: Triggered when agent uses/activates this object
+      - on_update_handlers: Triggered after mutations are applied to this object
+      - aoe_handlers: Triggered per-tick for objects within radius
     """
 
     name: str = Field(description="Canonical type_name (human-readable)")
@@ -203,6 +279,24 @@ class GridObjectConfig(Config):
     collective: Optional[str] = Field(
         default=None,
         description="Name of collective this object belongs to. Adds 'collective:{name}' tag automatically.",
+    )
+
+    # Three types of handlers on GridObject (name -> handler)
+    on_use_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered when agent uses/activates this object (context: actor=agent, target=this)",
+    )
+    on_update_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered after mutations are applied (context: actor=null, target=this)",
+    )
+    aoe_handlers: dict[str, Handler] = Field(
+        default_factory=dict,
+        description="Handlers triggered per-tick for objects within radius (context: actor=this, target=affected)",
+    )
+    aoes: list[AOEEffectConfig] = Field(
+        default_factory=list,
+        description="Simplified AOE effects (converted to aoe_handlers internally)",
     )
 
     @model_validator(mode="after")
@@ -297,6 +391,13 @@ class ChestConfig(GridObjectConfig):
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
+class CollectiveChestConfig(GridObjectConfig):
+    """Chest that interacts with collectives."""
+
+    pydantic_type: Literal["collective_chest"] = "collective_chest"
+    name: str = Field(default="collective_chest")
+
+
 class ClipperConfig(Config):
     """
     Global clipper that probabilistically clips assemblers each tick.
@@ -331,21 +432,22 @@ class CollectiveConfig(Config):
     Objects are associated with a collective via tags of the form "collective:{name}".
     Grid objects can specify collective="name" in their config to automatically add
     this tag.
+
+    Note: Collective name is typically provided as the dict key when defining collectives.
     """
 
-    name: str = Field(description="Unique name for this collective")
+    name: str = Field(default="", description="Unique name for this collective (typically set from dict key)")
     inventory: InventoryConfig = Field(default_factory=InventoryConfig, description="Inventory configuration")
 
 
-AnyGridObjectConfig = SerializeAsAny[
-    Annotated[
-        Union[
-            Annotated[WallConfig, Tag("wall")],
-            Annotated[AssemblerConfig, Tag("assembler")],
-            Annotated[ChestConfig, Tag("chest")],
-        ],
-        Discriminator("pydantic_type"),
-    ]
+# Note: GridObjectConfig is included to allow direct use of the base class for simple objects
+# that only need handlers/aoes without specialized features like protocols or inventory.
+AnyGridObjectConfig = Union[
+    WallConfig,
+    AssemblerConfig,
+    ChestConfig,
+    CollectiveChestConfig,
+    GridObjectConfig,
 ]
 
 
@@ -401,9 +503,9 @@ class GameConfig(Config):
     clipper: Optional[ClipperConfig] = Field(default=None, description="Global clipper configuration")
 
     # Collectives - shared inventories that grid objects can belong to
-    collectives: list[CollectiveConfig] = Field(
-        default_factory=list,
-        description="List of collectives (shared inventories) that grid objects can belong to",
+    collectives: dict[str, CollectiveConfig] = Field(
+        default_factory=dict,
+        description="Collectives (shared inventories) that grid objects can belong to (name -> config)",
     )
 
     # Map builder configuration - accepts any MapBuilder config

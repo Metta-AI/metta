@@ -342,7 +342,19 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("get_collective_inventories", &MettaGrid::get_collective_inventories);
 
   // Expose this so we can cast python WallConfig / AgentConfig to a common GridConfig cpp object.
-  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig");
+  py::class_<GridObjectConfig, std::shared_ptr<GridObjectConfig>>(m, "GridObjectConfig")
+      .def(py::init<TypeId, const std::string&, ObservationType>(),
+           py::arg("type_id"),
+           py::arg("type_name"),
+           py::arg("initial_vibe") = 0)
+      .def_readwrite("type_id", &GridObjectConfig::type_id)
+      .def_readwrite("type_name", &GridObjectConfig::type_name)
+      .def_readwrite("name", &GridObjectConfig::name)
+      .def_readwrite("tag_ids", &GridObjectConfig::tag_ids)
+      .def_readwrite("initial_vibe", &GridObjectConfig::initial_vibe)
+      .def_readwrite("on_use_handlers", &GridObjectConfig::on_use_handlers)
+      .def_readwrite("on_update_handlers", &GridObjectConfig::on_update_handlers)
+      .def_readwrite("aoe_handlers", &GridObjectConfig::aoe_handlers);
 
   bind_wall_config(m);
 
@@ -370,10 +382,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_clipper_config(m);
   bind_game_config(m);
 
-  // AOE system bindings
+  // AOE system bindings (kept for backwards compatibility with tests)
   bind_aoe_config(m);
 
-  // Activation handler bindings
+  // Handler bindings
   bind_handler_config(m);
 
   // Export data types from types.hpp
