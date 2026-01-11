@@ -1,8 +1,8 @@
 from functools import lru_cache
 
-from cogames.cogs_vs_clips.mission import Mission
+from cogames.cogs_vs_clips.mission import CogsGuardMission, Mission
 from cogames.cogs_vs_clips.mission_utils import get_map
-from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY
+from cogames.cogs_vs_clips.sites import HELLO_WORLD, MACHINA_1, TRAINING_FACILITY, make_cogsguard_arena_site
 from cogames.cogs_vs_clips.variants import (
     AssemblerDrawsFromChestsVariant,
     BalancedCornersVariant,
@@ -124,6 +124,20 @@ HelloWorldUnclipMission = Mission(
     num_cogs=4,
     variants=[ClipPeriodOnVariant(), InventoryHeartTuneVariant(hearts=1), ClipHubStationsVariant()],
 )
+
+
+# CogsGuard Missions
+
+
+def make_cogsguard_mission(num_agents: int = 10, max_steps: int = 1000) -> CogsGuardMission:
+    """Create a CogsGuard mission with configurable parameters."""
+    return CogsGuardMission(
+        name="basic",
+        description="Basic CogsGuard mission",
+        site=make_cogsguard_arena_site(num_agents),
+        num_cogs=num_agents,
+        max_steps=max_steps,
+    )
 
 
 _CORE_MISSIONS: list[Mission] = [

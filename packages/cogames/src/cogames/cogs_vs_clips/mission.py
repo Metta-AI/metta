@@ -5,15 +5,23 @@ from typing import override
 
 from pydantic import Field
 
+from cogames.cogs_vs_clips.cog import CogConfig
 from cogames.cogs_vs_clips.stations import (
+    COGSGUARD_ELEMENTS,
+    COGSGUARD_GEAR,
     CarbonExtractorConfig,
     ChargerConfig,
+    CogsGuardChestConfig,
     CvCAssemblerConfig,
     CvCChestConfig,
     CvCWallConfig,
+    GearStationConfig,
     GermaniumExtractorConfig,
+    HubConfig,
+    JunctionConfig,
     OxygenExtractorConfig,
     SiliconExtractorConfig,
+    SimpleExtractorConfig,
     resources,
 )
 from mettagrid.base_config import Config
@@ -24,6 +32,7 @@ from mettagrid.config.mettagrid_config import (
     AgentRewards,
     ChangeVibeActionConfig,
     ClipperConfig,
+    CollectiveConfig,
     GameConfig,
     GlobalObsConfig,
     InventoryConfig,
@@ -291,5 +300,144 @@ class Mission(Config):
         for variant in self.variants:
             variant.modify_env(self, env)
             env.label += f".{variant.name}"
+
+        return env
+
+
+# CogsGuard vibes
+COGSGUARD_VIBES = [
+    Vibe("😐", "default"),
+    Vibe("❤️", "heart"),
+    Vibe("⚙️", "gear"),
+    Vibe("🌀", "scrambler"),
+    Vibe("🔗", "aligner"),
+    Vibe("⛏️", "miner"),
+    Vibe("🔭", "scout"),
+]
+
+
+class CogsGuardMission(Config):
+    """Mission configuration for CogsGuard game mode."""
+
+    name: str
+    description: str
+    site: Site
+    num_cogs: int | None = None
+
+    # Game parameters
+    max_steps: int = Field(default=1000)
+    inventory_regen_interval: int = Field(default=1)
+
+    # Agent configuration
+    cog: CogConfig = Field(default_factory=CogConfig)
+
+    # Collective initial resources
+    collective_initial_carbon: int = Field(default=10)
+    collective_initial_oxygen: int = Field(default=10)
+    collective_initial_germanium: int = Field(default=10)
+    collective_initial_silicon: int = Field(default=10)
+    collective_initial_heart: int = Field(default=5)
+
+    # Station configs
+    wall: CvCWallConfig = Field(default_factory=CvCWallConfig)
+
+    def full_name(self) -> str:
+        return f"{self.site.name}{MAP_MISSION_DELIMITER}{self.name}"
+
+    def make_env(self) -> MettaGridConfig:
+        """Create a MettaGridConfig from this mission."""
+        map_builder = self.site.map_builder
+        num_cogs = self.num_cogs if self.num_cogs is not None else self.site.min_cogs
+
+        gear = COGSGUARD_GEAR
+        elements = COGSGUARD_ELEMENTS
+        resources_list = ["energy", "heart", "hp", "influence", *elements, *gear]
+        vibe_names = [vibe.name for vibe in COGSGUARD_VIBES]
+
+        extractor_objects = {
+            f"{resource}_extractor": SimpleExtractorConfig(resource=resource).station_cfg() for resource in elements
+        }
+        gear_objects = {f"{g}_station": GearStationConfig(gear_type=g).station_cfg() for g in gear}
+
+        game = GameConfig(
+            map_builder=map_builder,
+            max_steps=self.max_steps,
+            num_agents=num_cogs,
+            resource_names=resources_list,
+            vibe_names=vibe_names,
+            global_obs=GlobalObsConfig(),
+            actions=ActionsConfig(
+                move=MoveActionConfig(consumed_resources={"energy": self.cog.move_energy_cost}),
+                noop=NoopActionConfig(),
+                change_vibe=ChangeVibeActionConfig(vibes=COGSGUARD_VIBES),
+            ),
+            agent=AgentConfig(
+                collective="cogs",
+                inventory=InventoryConfig(
+                    limits={
+                        "gear": ResourceLimitsConfig(limit=self.cog.gear_limit, resources=gear),
+                        "hp": ResourceLimitsConfig(
+                            limit=self.cog.hp_limit, resources=["hp"], modifiers=self.cog.hp_modifiers
+                        ),
+                        "heart": ResourceLimitsConfig(limit=self.cog.heart_limit, resources=["heart"]),
+                        "energy": ResourceLimitsConfig(
+                            limit=self.cog.energy_limit, resources=["energy"], modifiers=self.cog.energy_modifiers
+                        ),
+                        "cargo": ResourceLimitsConfig(
+                            limit=self.cog.cargo_limit, resources=elements, modifiers=self.cog.cargo_modifiers
+                        ),
+                        "influence": ResourceLimitsConfig(
+                            limit=self.cog.influence_limit,
+                            resources=["influence"],
+                            modifiers=self.cog.influence_modifiers,
+                        ),
+                    },
+                    initial={"energy": self.cog.initial_energy, "hp": self.cog.initial_hp},
+                    regen_amounts={
+                        "default": {
+                            "energy": self.cog.energy_regen,
+                            "hp": self.cog.hp_regen,
+                            "influence": self.cog.influence_regen,
+                        },
+                    },
+                ),
+                rewards=AgentRewards(
+                    collective_stats={
+                        "aligned.junction.held": 1.0 / self.max_steps,
+                    },
+                ),
+            ),
+            inventory_regen_interval=self.inventory_regen_interval,
+            objects={
+                "wall": self.wall.station_cfg(),
+                "assembler": HubConfig(map_name="assembler", team="cogs").station_cfg(),
+                "junction": JunctionConfig(map_name="charger", team="clips").station_cfg(),
+                "chest": CogsGuardChestConfig().station_cfg(),
+                **extractor_objects,
+                **gear_objects,
+            },
+            collectives={
+                "cogs": CollectiveConfig(
+                    inventory=InventoryConfig(
+                        limits={
+                            "resources": ResourceLimitsConfig(limit=10000, resources=elements),
+                            "hearts": ResourceLimitsConfig(limit=65535, resources=["heart"]),
+                        },
+                        initial={
+                            "carbon": self.collective_initial_carbon,
+                            "oxygen": self.collective_initial_oxygen,
+                            "germanium": self.collective_initial_germanium,
+                            "silicon": self.collective_initial_silicon,
+                            "heart": self.collective_initial_heart,
+                        },
+                    ),
+                ),
+                "clips": CollectiveConfig(),
+            },
+        )
+
+        env = MettaGridConfig(game=game)
+        env = env.model_copy(deep=True)
+        env.label = self.full_name()
 
         return env
