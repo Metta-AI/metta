@@ -5,10 +5,10 @@ import uuid
 from typing import Optional
 
 import torch
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from pydantic import model_validator
 from rich.console import Console
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig

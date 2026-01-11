@@ -37,9 +37,9 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from safetensors.torch import load_file as load_safetensors_file
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS

@@ -5,9 +5,8 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Tuple
 
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
-
 import cogames.policy.nim_agents.agents as na
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from cogames.cli.utils import suppress_noisy_logs
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, NumCogsVariant

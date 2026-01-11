@@ -3,10 +3,10 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Callable, Sequence
 
-from alo.assignments import build_assignments
-from alo.rollouts import run_multi_episode_rollout
 from pydantic import BaseModel, ConfigDict, Field
 
+from alo.assignments import build_assignments
+from alo.rollouts import run_multi_episode_rollout
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult

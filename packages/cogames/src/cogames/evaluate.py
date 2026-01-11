@@ -10,12 +10,12 @@ from typing import Literal, Optional, TypeAlias
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
-from alo.assignments import build_assignments
-from alo.rollouts import run_single_episode_rollout
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
+from alo.assignments import build_assignments
+from alo.rollouts import run_single_episode_rollout
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult

@@ -5,10 +5,10 @@ import uuid
 from pathlib import Path
 from typing import Optional, cast
 
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
-from alo.replay import write_replay
 from rich.console import Console
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+from alo.replay import write_replay
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.renderer.renderer import RenderMode

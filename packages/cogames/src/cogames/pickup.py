@@ -6,12 +6,12 @@ from typing import Optional
 
 import numpy as np
 import typer
-from alo.assignments import allocate_counts
-from alo.rollouts import run_multi_episode_rollout
-from alo.scoring import VorTotals, overall_value_over_replacement, summarize_vor_scenario, value_over_replacement
 from rich.console import Console
 from rich.table import Table
 
+from alo.assignments import allocate_counts
+from alo.rollouts import run_multi_episode_rollout
+from alo.scoring import VorTotals, overall_value_over_replacement, summarize_vor_scenario, value_over_replacement
 from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from mettagrid import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen

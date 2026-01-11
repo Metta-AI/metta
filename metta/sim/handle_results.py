@@ -6,11 +6,11 @@ from typing import Any, NewType
 
 import duckdb
 import wandb
-from alo.pure_single_episode_runner import PureSingleEpisodeResult
 from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
+from alo.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.episode_stats_db import (
     episode_stats_db,

@@ -9,7 +9,6 @@ import logging
 from typing import get_args
 
 from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
-
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random_map import RandomMapBuilder

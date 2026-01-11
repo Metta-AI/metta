@@ -7,9 +7,9 @@ import tempfile
 import uuid
 from uuid import UUID
 
-from alo.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
 from pydantic import BaseModel
 
+from alo.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
