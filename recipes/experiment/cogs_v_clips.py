@@ -5,6 +5,8 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
+from __future__ import annotations
+
 import itertools
 import logging
 from typing import TYPE_CHECKING, Optional, Sequence
@@ -30,15 +32,10 @@ from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRu
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
 from mettagrid.config.mettagrid_config import MettaGridConfig
+import metta.tools as tools
 
 if TYPE_CHECKING:
     from metta.sweep.core import ParameterSpec
-    from metta.tools.eval import EvaluateTool
-    from metta.tools.play import PlayTool
-    from metta.tools.request_remote_eval import RequestRemoteEvalTool
-    from metta.tools.stub import StubTool
-    from metta.tools.sweep import SweepTool
-    from metta.tools.train import TrainTool
 
 logger = logging.getLogger(__name__)
 
@@ -338,9 +335,8 @@ def train(
     dr_misc: bool = False,
     maps_cache_size: Optional[int] = 30,
     build_eval_suite: bool = True,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Create a training tool for CoGs vs Clips."""
-    from metta.tools.train import TrainTool
 
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
@@ -386,7 +382,7 @@ def train(
         epoch_interval=150,
     )
 
-    tt = TrainTool(
+    tt = tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
@@ -421,7 +417,7 @@ def train_variants(
     eval_difficulty: str | None = "standard",
     train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
     Loads all available variants and creates a curriculum task for each one,
@@ -483,7 +479,7 @@ def train_single_mission(
     teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
     build_eval_suite: bool = True,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Train on a single mission without curriculum."""
     if train_difficulty is None:
         train_difficulty = eval_difficulty
@@ -520,11 +516,10 @@ def evaluate(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> "EvaluateTool":
+) -> tools.EvaluateTool:
     """Evaluate policies on CoGs vs Clips missions."""
-    from metta.tools.eval import EvaluateTool
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -542,11 +537,10 @@ def evaluate_remote(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> "RequestRemoteEvalTool":
+) -> tools.RequestRemoteEvalTool:
     """Evaluate policies on CoGs vs Clips missions remotely."""
-    from metta.tools.request_remote_eval import RequestRemoteEvalTool
 
-    return RequestRemoteEvalTool(
+    return tools.RequestRemoteEvalTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -564,9 +558,8 @@ def play(
     mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> "PlayTool":
+) -> tools.PlayTool:
     """Play a single mission with a policy."""
-    from metta.tools.play import PlayTool
 
     env = make_training_env(
         num_cogs=num_cogs,
@@ -578,14 +571,14 @@ def play(
         name=f"{mission}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def play_training_env(
     policy_uri: Optional[str] = None,
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> "PlayTool":
+) -> tools.PlayTool:
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
@@ -601,7 +594,7 @@ def train_coordination(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
     return train(
         num_cogs=num_cogs,
@@ -619,7 +612,7 @@ def train_sweep(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
     base_variants = ["heart_chorus"]
     if variants:
@@ -640,11 +633,10 @@ def train_sweep(
     return tool
 
 
-def evaluate_stub(*args, **kwargs) -> "StubTool":
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
     """No-op evaluator for sweeps (avoids dispatching eval jobs)."""
-    from metta.tools.stub import StubTool
 
-    return StubTool()
+    return tools.StubTool()
 
 
 def get_cvc_sweep_search_space() -> dict[str, "ParameterSpec"]:
@@ -780,7 +772,7 @@ def sweep(
     eval_difficulty: str | None = "standard",
     max_trials: int = 80,
     num_parallel_trials: int = 4,
-) -> "SweepTool":
+) -> tools.SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
     from metta.sweep.core import make_sweep
 
@@ -800,9 +792,8 @@ def sweep(
 
 
 # CI/stable job registrations live in recipes.experiment.cogs_v_clips_ci.
-def train_ci() -> "TrainTool":
+def train_ci() -> tools.TrainTool:
     """Minimal CvC train for CI smoke test."""
-    from metta.tools.train import TrainTool
 
     env = make_training_env(
         num_cogs=2,
@@ -810,7 +801,7 @@ def train_ci() -> "TrainTool":
         variants=["heart_chorus"],
     )
     curriculum_cfg = cc.env_curriculum(env)
-    return TrainTool(
+    return tools.TrainTool(
         trainer=TrainerConfig(
             total_timesteps=64,
             minibatch_size=8,
@@ -833,23 +824,22 @@ def train_ci() -> "TrainTool":
     )
 
 
-def play_ci() -> "PlayTool":
+def play_ci() -> tools.PlayTool:
     """CvC play test with random policy."""
-    from metta.tools.play import PlayTool
 
     env = make_training_env(num_cogs=2, mission="training_facility.harvest")
     sim = SimulationConfig(suite="cogs_vs_clips", name="harvest_ci", env=env)
-    return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
+    return tools.PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
 
 
-def train_200ep() -> "TrainTool":
+def train_200ep() -> tools.TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
     tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 200 * 524288
     return tool
 
 
-def train_2b() -> "TrainTool":
+def train_2b() -> tools.TrainTool:
     """CvC multi GPU - 2B timesteps."""
     tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 2_000_000_000

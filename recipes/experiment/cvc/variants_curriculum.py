@@ -35,10 +35,8 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
 from recipes.experiment import cogs_v_clips
+import metta.tools as tools
 
 # Create mission name mapping for eval missions and training facility missions
 _MISSION_BY_NAME: dict[str, Mission] = {}
@@ -209,7 +207,7 @@ def train(
     exclude_variants: Optional[Sequence[str]] = None,
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
-) -> TrainTool:
+) -> tools.TrainTool:
     """Create a training tool for CoGs vs Clips with variants curriculum.
 
     Args:
@@ -246,7 +244,7 @@ def train(
         simulations=eval_suite,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
@@ -259,9 +257,9 @@ def evaluate(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> EvaluateTool:
+) -> tools.EvaluateTool:
     """Evaluate policies on CoGs vs Clips missions."""
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=cogs_v_clips.make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -277,7 +275,7 @@ def play(
     mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play a single mission with a policy."""
     env = cogs_v_clips.make_training_env(
         num_cogs=num_cogs,
@@ -285,7 +283,7 @@ def play(
         variants=variants,
     )
     sim = SimulationConfig(suite="cogs_vs_clips", name=f"{mission}_{num_cogs}cogs", env=env)
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def experiment(

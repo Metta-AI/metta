@@ -1,15 +1,12 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from typing import TYPE_CHECKING, Optional, Sequence
+from __future__ import annotations
+
+from typing import Optional, Sequence
 
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
-
-if TYPE_CHECKING:
-    from metta.tools.stub import StubTool
-    from metta.tools.sweep import SweepTool
-    from metta.tools.train import TrainTool
-
+import metta.tools as tools
 
 def train(
     num_cogs: int = 4,
@@ -18,7 +15,7 @@ def train(
     eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     from metta.agent.policies.vit import ViTDefaultConfig
     from metta.sim.simulation_config import SimulationConfig
@@ -84,7 +81,7 @@ def train_sweep(
     eval_difficulty: str | None = None,
     policy_architecture: PolicyArchitecture | None = None,
     teacher: TeacherConfig | None = None,
-) -> "TrainTool":
+) -> tools.TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
     from recipes.experiment.cogs_v_clips import _normalize_variant_names
 
@@ -103,11 +100,10 @@ def train_sweep(
     return tt
 
 
-def evaluate_stub(*args, **kwargs) -> "StubTool":
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
     """No-op evaluator for sweeps."""
-    from metta.tools.stub import StubTool
 
-    return StubTool()
+    return tools.StubTool()
 
 
 def sweep(
@@ -116,7 +112,7 @@ def sweep(
     eval_difficulty: str | None = "standard",
     max_trials: int = 80,
     num_parallel_trials: int = 4,
-) -> "SweepTool":
+) -> tools.SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
     from metta.sweep.core import make_sweep
     from recipes.experiment.cogs_v_clips import get_cvc_sweep_search_space

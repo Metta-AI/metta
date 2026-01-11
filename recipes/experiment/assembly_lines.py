@@ -2,6 +2,8 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from __future__ import annotations
+
 import random
 import subprocess
 import time
@@ -13,10 +15,6 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from mettagrid.builder import empty_assemblers
 from mettagrid.builder.envs import make_assembly_lines
 from mettagrid.config.mettagrid_config import (
@@ -24,6 +22,7 @@ from mettagrid.config.mettagrid_config import (
     ProtocolConfig,
 )
 from recipes.experiment.architectures import get_architecture
+import metta.tools as tools
 
 curriculum_args = {
     "level_0": {
@@ -407,13 +406,13 @@ def make_task_generator_cfg(
 def train(
     curriculum_style: str = "level_0",
     arch_type: str = "vit",
-) -> TrainTool:
+) -> tools.TrainTool:
     task_generator_cfg = make_task_generator_cfg(**curriculum_args[curriculum_style])
     curriculum = CurriculumConfig(task_generator=task_generator_cfg, algorithm_config=LearningProgressConfig())
 
     policy_config = get_architecture(arch_type)
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         policy_architecture=policy_config,
         evaluator=EvaluatorConfig(simulations=make_assembly_line_eval_suite()),
@@ -425,26 +424,26 @@ def make_mettagrid(task_generator: AssemblyLinesTaskGenerator) -> MettaGridConfi
     return task_generator.get_task(random.randint(0, 1000000))
 
 
-def evaluate(policy_uris: str | list[str] | None = None) -> EvaluateTool:
+def evaluate(policy_uris: str | list[str] | None = None) -> tools.EvaluateTool:
     """Evaluate policies on assembly line tasks."""
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=make_assembly_line_eval_suite(),
         policy_uris=policy_uris or [],
     )
 
 
-def play(curriculum_style: str = "level_0") -> PlayTool:
+def play(curriculum_style: str = "level_0") -> tools.PlayTool:
     task_generator = AssemblyLinesTaskGenerator(make_task_generator_cfg(**curriculum_args[curriculum_style]))
-    return PlayTool(sim=SimulationConfig(env=make_mettagrid(task_generator), suite="assembly_lines", name="play"))
+    return tools.PlayTool(sim=SimulationConfig(env=make_mettagrid(task_generator), suite="assembly_lines", name="play"))
 
 
 def replay(
     curriculum_style: str = "level_0",
-) -> ReplayTool:
+) -> tools.ReplayTool:
     task_generator = AssemblyLinesTaskGenerator(make_task_generator_cfg(**curriculum_args[curriculum_style]))
     # Default to the research policy if none specified
     default_policy_uri = "s3://softmax-public/policies/icl_resource_chain_terrain_1.2.2025-09-24/icl_resource_chain_terrain_1.2.2025-09-24:v2070.pt"
-    return ReplayTool(
+    return tools.ReplayTool(
         sim=SimulationConfig(env=make_mettagrid(task_generator), suite="assembly_lines", name="replay"),
         policy_uri=default_policy_uri,
     )

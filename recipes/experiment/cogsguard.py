@@ -27,10 +27,6 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
@@ -51,6 +47,7 @@ from mettagrid.config.mettagrid_config import (
 )
 from mettagrid.config.vibes import Vibe
 from mettagrid.mapgen.mapgen import MapGen
+import metta.tools as tools
 
 resources = [
     "energy",
@@ -260,12 +257,12 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 
 def train(
     curriculum: Optional[CurriculumConfig] = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     resolved_curriculum = curriculum or make_curriculum()
     trainer_cfg = TrainerConfig()
     evaluator_cfg = EvaluatorConfig(simulations=simulations())
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
@@ -274,7 +271,7 @@ def train(
 
 def evaluate(
     policy_uris: str | Sequence[str] | None = None,
-) -> EvaluateTool:
+) -> tools.EvaluateTool:
     resolved_policy_uris: str | list[str]
     if policy_uris is None:
         resolved_policy_uris = []
@@ -282,17 +279,17 @@ def evaluate(
         resolved_policy_uris = policy_uris
     else:
         resolved_policy_uris = list(policy_uris)
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=simulations(),
         policy_uris=resolved_policy_uris,
     )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
     """Interactive play with a policy."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
     """Generate replay from a policy."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

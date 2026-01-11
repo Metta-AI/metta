@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any, Optional
 
 from cortex.config import CortexStackConfig
@@ -6,7 +8,6 @@ from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.policies.cortex import CortexBaseConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.tools.train import TrainTool
 from mettagrid.util.module import load_symbol
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
@@ -21,6 +22,7 @@ from recipes.prod.arena_basic_easy_shaped import (
     train as base_train,
 )
 
+import metta.tools as tools
 
 def _override_cortex_stack(policy_cfg: CortexBaseConfig, stack: Any) -> CortexBaseConfig:
     """Replace the stack inside any CortexTD components in the policy config."""
@@ -50,7 +52,7 @@ def train(
     stack: Any | None = None,
     stack_builder: Optional[str] = None,
     stack_cfg: Optional[dict] = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     # Default to Cortex policy and apply optional stack overrides
     if policy_architecture is None:
         policy_architecture = CortexBaseConfig()

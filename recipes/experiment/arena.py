@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -9,11 +11,8 @@ from metta.cogworks.curriculum.curriculum import (
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
+import metta.tools as tools
 
 # TODO(dehydration): make sure this trains as well as main on arena
 # it's possible the maps are now different
@@ -77,10 +76,10 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> tools.TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(
             simulations=simulations(),
@@ -88,7 +87,7 @@ def train(
     )
 
 
-def train_shaped(rewards: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> tools.TrainTool:
     env_cfg = mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
@@ -113,7 +112,7 @@ def train_shaped(rewards: bool = True) -> TrainTool:
             }
         )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=cc.env_curriculum(env_cfg)),
         evaluator=EvaluatorConfig(simulations=simulations()),
     )
@@ -121,16 +120,16 @@ def train_shaped(rewards: bool = True) -> TrainTool:
 
 def evaluate(
     policy_uris: list[str] | str,
-) -> EvaluateTool:
-    return EvaluateTool(
+) -> tools.EvaluateTool:
+    return tools.EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)

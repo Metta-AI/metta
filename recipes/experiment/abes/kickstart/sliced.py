@@ -2,6 +2,8 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -23,14 +25,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
+import metta.tools as tools
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -103,7 +99,7 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
@@ -120,7 +116,7 @@ def train(
         teacher_led_proportion=0.2,
     )
 
-    tt = TrainTool(
+    tt = tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=eval_simulations),
@@ -141,12 +137,12 @@ def train(
     return tt
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(policy_uris: Optional[Sequence[str]] = None) -> tools.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return tools.EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
-def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
+def evaluate_latest_in_dir(dir_path: Path) -> tools.EvaluateTool:
     """Evaluate the latest policy on arena simulations."""
     checkpoints = [p for p in dir_path.iterdir() if p.is_dir() and (p / "policy_spec.json").exists()]
     checkpoints = sorted(checkpoints, key=lambda x: x.stat().st_mtime)
@@ -154,22 +150,22 @@ def evaluate_latest_in_dir(dir_path: Path) -> EvaluateTool:
         raise ValueError(f"No policies found in {dir_path}")
     policy_uri = checkpoints[-1].as_posix()
     sim = mettagrid(num_agents=6)
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim)], policy_uris=[policy_uri]
     )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
     """Interactive play with a policy."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
     """Generate replay from a policy."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+def evaluate_in_sweep(policy_uri: str) -> tools.EvaluateTool:
     """Evaluation tool for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -203,17 +199,17 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         ),
     ]
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
 
 
-def evaluate_stub(*args, **kwargs) -> StubTool:
-    return StubTool()
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
+    return tools.StubTool()
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> tools.SweepTool:
     """
     Prototypical sweep function.
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.

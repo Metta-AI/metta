@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -11,17 +13,13 @@ from metta.cogworks.curriculum.task_generator import Span
 from metta.map.terrain_from_numpy import NavigationFromNumpy
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import AsciiMapBuilder, MettaGridConfig
 from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.mean_distance import MeanDistance
 from recipes.experiment.architectures import get_architecture
 from recipes.experiment.cfg import NAVIGATION_EVALS
-
+import metta.tools as tools
 
 def make_nav_eval_env(env: MettaGridConfig) -> MettaGridConfig:
     """Set the heart reward to 0.333 for normalization"""
@@ -171,14 +169,14 @@ def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
     arch_type: str = "vit",
-) -> TrainTool:
+) -> tools.TrainTool:
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     evaluator_cfg = EvaluatorConfig(
         simulations=make_navigation_eval_suite(),
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
         policy_architecture=get_architecture(arch_type),
@@ -187,24 +185,24 @@ def train(
 
 def evaluate(
     policy_uris: list[str] | str,
-) -> EvaluateTool:
-    return EvaluateTool(
+) -> tools.EvaluateTool:
+    return tools.EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
 
 
-def play_training_env(policy_uri: Optional[str] = None) -> PlayTool:
+def play_training_env(policy_uri: Optional[str] = None) -> tools.PlayTool:
     env = mettagrid()
-    return PlayTool(
+    return tools.PlayTool(
         sim=SimulationConfig(suite="navigation", name="training_env", env=env),
         policy_uri=policy_uri,
     )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)

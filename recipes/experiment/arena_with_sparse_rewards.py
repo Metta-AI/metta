@@ -1,5 +1,7 @@
 """Arena recipe with contrastive loss enabled and sparse rewards: ore -> battery -> heart."""
 
+from __future__ import annotations
+
 from typing import Optional, Sequence
 
 import metta.cogworks.curriculum as cc
@@ -17,13 +19,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
+import metta.tools as tools
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     """Create arena environment with sparse rewards: only heart gives reward."""
@@ -95,7 +92,7 @@ def train(
     # These parameters can now be swept over.
     temperature: float = 0.07,
     contrastive_coef: float = 0.1,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train with sparse rewards and optional contrastive loss."""
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
@@ -111,27 +108,27 @@ def train(
         losses=LossesConfig(contrastive=contrastive_config),
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_config,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
     """Interactive play with sparse reward environment."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
     """Replay with sparse reward environment."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
 def evaluate(
     policy_uris: Sequence[str] | str | None = None,
     eval_simulations: Optional[Sequence[SimulationConfig]] = None,
-) -> EvaluateTool:
+) -> tools.EvaluateTool:
     """Evaluate with sparse reward environments."""
     sims = list(eval_simulations) if eval_simulations is not None else simulations()
 
@@ -142,7 +139,7 @@ def evaluate(
     else:
         normalized_policy_uris = list(policy_uris)
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=sims,
         policy_uris=normalized_policy_uris,
     )
@@ -153,7 +150,7 @@ def evaluate(
 SWEEP_EVAL_SUITE = "sweep_arena_sparse"
 
 
-def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+def evaluate_in_sweep(policy_uri: str) -> tools.EvaluateTool:
     basic_env = mettagrid()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -165,13 +162,13 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         SimulationConfig(suite=SWEEP_EVAL_SUITE, name="combat", env=combat_env),
     ]
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> tools.SweepTool:
     parameters = [
         SP.LEARNING_RATE,
         SP.PPO_CLIP_COEF,

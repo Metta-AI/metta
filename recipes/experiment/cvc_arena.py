@@ -4,6 +4,8 @@ This is meant as a basic testbed for CvC buildings / mechanics.
 This recipe is automatically validated in CI and release processes.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -16,13 +18,9 @@ from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgre
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from mettagrid.builder import building
 from mettagrid.config import AssemblerConfig, MettaGridConfig
-
+import metta.tools as tools
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -86,7 +84,7 @@ def simulations(env: Optional[MettaGridConfig] = None) -> list[SimulationConfig]
 def train(
     curriculum: Optional[CurriculumConfig] = None,
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> tools.TrainTool:
     resolved_curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     trainer_cfg = TrainerConfig()
@@ -98,14 +96,14 @@ def train(
         ],
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
     )
 
 
-def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True, assemblers: bool = True) -> tools.TrainTool:
     env_cfg = mettagrid()
     env_cfg.game.agent.rewards.inventory["heart"] = 1
     env_cfg.game.agent.rewards.inventory_max["heart"] = 100
@@ -140,7 +138,7 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
 
     curriculum = cc.env_curriculum(env_cfg)
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=EvaluatorConfig(simulations=simulations(env_cfg)),
@@ -149,18 +147,18 @@ def train_shaped(rewards: bool = True, assemblers: bool = True) -> TrainTool:
 
 def evaluate(
     policy_uris: list[str] | str,
-) -> EvaluateTool:
-    return EvaluateTool(
+) -> tools.EvaluateTool:
+    return tools.EvaluateTool(
         simulations=simulations(),
         policy_uris=policy_uris,
     )
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
     """Interactive play with a policy."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
     """Generate replay from a policy."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
