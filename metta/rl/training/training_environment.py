@@ -72,7 +72,7 @@ class TrainingEnvironmentConfig(Config):
     supervisor_policy_uri: Optional[str] = Field(default=None)
 
     maps_cache_size: Optional[int] = Field(default=None, ge=1)
-    """Number of maps to cache in shared memory. None for unlimited."""
+    """Number of maps to cache in shared memory. None disables caching."""
 
 
 @dataclass
