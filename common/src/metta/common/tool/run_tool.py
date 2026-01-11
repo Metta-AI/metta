@@ -31,11 +31,6 @@ from metta.common.tool.schema import get_pydantic_field_info
 from metta.common.tool.tool_path import parse_two_token_syntax, resolve_and_load_tool_maker
 from metta.common.util.log_config import init_logging, init_mettagrid_system_environment
 from metta.common.util.text_styles import bold, cyan, green, red, yellow
-from metta.rl.torch_init import (
-    configure_torch_for_determinism,
-    configure_torch_globally_for_performance,
-    seed_everything_distributed_aware,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +39,6 @@ _KNOWN_TOOLS = {"train", "evaluate", "evaluate_remote", "play", "replay", "sweep
 # --------------------------------------------------------------------------------------
 # Environment setup
 # --------------------------------------------------------------------------------------
-
-# This should be called early.
-configure_torch_globally_for_performance()
 
 # --------------------------------------------------------------------------------------
 # Output handling
@@ -657,9 +649,12 @@ constructor/function vs configuration overrides based on introspection.
     # Seed & Run
     # ----------------------------------------------------------------------------------
 
-    seed_everything_distributed_aware(tool_cfg.system.seed)
+    from metta.rl import torch_init
+
+    torch_init.configure_torch_globally_for_performance()
+    torch_init.seed_everything_distributed_aware(tool_cfg.system.seed)
     if tool_cfg.system.torch_deterministic:
-        configure_torch_for_determinism()
+        torch_init.configure_torch_for_determinism()
 
     output_info(f"\n{bold(green('Running tool...'))}\n")
 

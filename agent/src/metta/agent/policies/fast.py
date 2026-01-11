@@ -14,7 +14,8 @@ from metta.agent.components.actor import ActionProbs, ActionProbsConfig
 from metta.agent.components.cnn_encoder import CNNEncoder, CNNEncoderConfig
 from metta.agent.components.cortex import CortexTD, CortexTDConfig
 from metta.agent.components.obs_shim import ObsShimBox, ObsShimBoxConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import Policy
+from metta.agent.policy_architecture import PolicyArchitecture
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 
 logger = logging.getLogger(__name__)

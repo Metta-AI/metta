@@ -8,7 +8,8 @@ import torch
 from pydantic import Field
 from safetensors.torch import load_file as load_safetensors_file
 
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import Policy
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager
 from metta.rl.training import DistributedHelper, TrainerComponent
 from mettagrid.base_config import Config

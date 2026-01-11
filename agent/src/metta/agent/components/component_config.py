@@ -1,7 +1,10 @@
-from abc import ABC, abstractmethod
-from typing import Any
+from __future__ import annotations
 
-import torch.nn as nn
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import torch.nn as nn
 
 from mettagrid.base_config import Config
 

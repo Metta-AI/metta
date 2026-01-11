@@ -2,7 +2,7 @@
 
 from typing import Optional, Sequence
 
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool

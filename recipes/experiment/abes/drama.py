@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
 from metta.tools.train import TrainTool

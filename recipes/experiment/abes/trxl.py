@@ -1,4 +1,4 @@
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from recipes.experiment.architectures import get_architecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,

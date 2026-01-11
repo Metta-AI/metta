@@ -8,7 +8,7 @@ from cortex.stacks import build_cortex_auto_config
 import metta.cogworks.curriculum as cc
 import mettagrid.builder.envs as eb
 from metta.agent.policies.cortex import CortexBaseConfig
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,

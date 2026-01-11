@@ -7,7 +7,8 @@ from torch import nn
 
 from metta.agent.components.actor import ActionProbsConfig
 from metta.agent.policies.fast import FastConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import Policy
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.cogworks.curriculum import env_curriculum
 from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_bundle
 from metta.rl.system_config import SystemConfig

@@ -6,7 +6,7 @@ helpers to fetch a fresh PolicyArchitecture by short name.
 
 from __future__ import annotations
 
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from mettagrid.util.module import load_symbol
 
 # Short names -> class paths. Keep this list small and focused on architectures

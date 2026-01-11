@@ -1,5 +1,5 @@
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,

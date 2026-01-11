@@ -21,13 +21,6 @@ from metta.rl.training import (
 from metta.rl.training.optimizer import create_optimizer, is_schedulefree_optimizer
 from mettagrid.profiling.stopwatch import Stopwatch
 
-
-def _ensure_pufferlib_loaded() -> None:
-    try:
-        importlib.import_module("pufferlib._C")
-    except ImportError:
-        raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
-
 logger = getRankAwareLogger(__name__)
 
 
@@ -55,7 +48,10 @@ class Trainer:
         self._policy = policy
         self._cfg = cfg
         self._device = device
-        _ensure_pufferlib_loaded()
+        try:
+            importlib.import_module("pufferlib._C")
+        except ImportError:
+            raise ImportError("Failed to import C/CUDA kernel. Try: pip install --no-build-isolation") from None
         if self._cfg.detect_anomaly:
             torch.autograd.set_detect_anomaly(True)
             logger.warning("Torch autograd anomaly detection enabled; backward will be slower.")

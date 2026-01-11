@@ -5,7 +5,7 @@ from typing import Optional, Sequence
 from cortex.stacks import build_cortex_auto_config
 
 from metta.agent.policies.cortex import CortexBaseConfig
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig

@@ -1,5 +1,5 @@
 from metta.agent.policies.vit_sliding_trans import ViTSlidingTransConfig
-from metta.agent.policy import PolicyArchitecture
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.rl.trainer_config import OptimizerConfig
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,

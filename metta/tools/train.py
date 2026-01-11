@@ -12,9 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import Field
 
-from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import PolicyArchitecture
-from metta.agent.util.torch_backends import build_sdpa_context
+from metta.agent.policy_architecture import PolicyArchitecture
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
@@ -66,12 +64,18 @@ if TYPE_CHECKING:
 logger = getRankAwareLogger(__name__)
 
 
+def _default_policy_architecture() -> PolicyArchitecture:
+    from metta.agent.policies.vit import ViTDefaultConfig
+
+    return ViTDefaultConfig()
+
+
 class TrainTool(Tool):
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=_default_policy_architecture)
     initial_policy_uri: Optional[str] = None
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
@@ -395,6 +399,7 @@ class TrainTool(Tool):
 
     def _configure_torch_backends(self) -> None:
         import torch
+        from metta.agent.util.torch_backends import build_sdpa_context
 
         if not torch.cuda.is_available():
             return
