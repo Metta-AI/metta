@@ -52,9 +52,7 @@ def _run_single_simulation(
     device = device_override or "cpu"
     max_action_time_ms = sim_cfg.max_action_time_ms or 10000
     policy_env_info = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
-    policies = [
-        initialize_or_load_policy(policy_env_info, spec, device_override=device) for spec in policy_specs
-    ]
+    policies = [initialize_or_load_policy(policy_env_info, spec, device_override=device) for spec in policy_specs]
 
     for episode_idx in range(sim_cfg.num_episodes):
         rng.shuffle(assignments)
