@@ -19,8 +19,7 @@ using namespace mettagrid;
 // Resource names for testing
 static std::vector<std::string> test_resource_names = {"health", "energy", "gold"};
 
-// Simple GridObject subclass for testing
-// Note: GridObject already inherits from HasInventory and Alignable, so we only need to inherit from GridObject
+// Simple GridObject subclass - GridObject now has inventory and is alignable
 class TestActivationObject : public GridObject {
 public:
   explicit TestActivationObject(const std::string& type = "test_object", ObservationType initial_vibe = 0)
@@ -433,7 +432,7 @@ void test_clear_inventory_mutation_specific() {
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
-  config.resource_id = 1;  // Clear only energy
+  config.resource_ids = {1};  // Clear only energy
 
   ClearInventoryMutation mutation(config);
   mutation.apply(ctx);
@@ -458,7 +457,7 @@ void test_clear_inventory_mutation_all() {
 
   ClearInventoryMutationConfig config;
   config.entity = EntityRef::target;
-  config.resource_id = 255;  // Clear all
+  config.resource_ids = {};  // Empty = clear all
 
   ClearInventoryMutation mutation(config);
   mutation.apply(ctx);
@@ -502,7 +501,7 @@ void test_attack_mutation() {
 // Handler Tests
 // ============================================================================
 
-void test_handler_filters_pass() {
+void test_activation_handler_filters_pass() {
   std::cout << "Testing Handler filters pass..." << std::endl;
 
   CollectiveConfig coll_config = create_test_collective_config("team_a");
@@ -543,7 +542,7 @@ void test_handler_filters_pass() {
   std::cout << "✓ Handler filters pass test passed" << std::endl;
 }
 
-void test_handler_filters_fail() {
+void test_activation_handler_filters_fail() {
   std::cout << "Testing Handler filters fail..." << std::endl;
 
   CollectiveConfig coll_config_a = create_test_collective_config("team_a");
@@ -579,7 +578,7 @@ void test_handler_filters_fail() {
   std::cout << "✓ Handler filters fail test passed" << std::endl;
 }
 
-void test_handler_multiple_mutations() {
+void test_activation_handler_multiple_mutations() {
   std::cout << "Testing Handler multiple mutations..." << std::endl;
 
   TestActivationObject actor("actor");
@@ -615,7 +614,7 @@ void test_handler_multiple_mutations() {
   std::cout << "✓ Handler multiple mutations test passed" << std::endl;
 }
 
-void test_handler_check_filters_only() {
+void test_activation_handler_check_filters_only() {
   std::cout << "Testing Handler check_filters..." << std::endl;
 
   TestActivationObject actor("actor");
@@ -675,10 +674,10 @@ int main() {
   test_attack_mutation();
 
   // Handler tests
-  test_handler_filters_pass();
-  test_handler_filters_fail();
-  test_handler_multiple_mutations();
-  test_handler_check_filters_only();
+  test_activation_handler_filters_pass();
+  test_activation_handler_filters_fail();
+  test_activation_handler_multiple_mutations();
+  test_activation_handler_check_filters_only();
 
   std::cout << "================================================" << std::endl;
   std::cout << "All Handler tests passed! ✓" << std::endl;

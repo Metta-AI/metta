@@ -1,13 +1,17 @@
+from mettagrid.config.mettagrid_c_mutations import convert_entity_ref, convert_mutations
 from mettagrid.config.mettagrid_config import (
     AgentConfig,
     AssemblerConfig,
     ChestConfig,
     ClipperConfig,
     GameConfig,
+    GridObjectConfig,
     WallConfig,
 )
 from mettagrid.mettagrid_c import ActionConfig as CppActionConfig
 from mettagrid.mettagrid_c import AgentConfig as CppAgentConfig
+from mettagrid.mettagrid_c import AlignmentCondition as CppAlignmentCondition
+from mettagrid.mettagrid_c import AlignmentFilterConfig as CppAlignmentFilterConfig
 from mettagrid.mettagrid_c import AssemblerConfig as CppAssemblerConfig
 from mettagrid.mettagrid_c import AttackActionConfig as CppAttackActionConfig
 from mettagrid.mettagrid_c import AttackOutcome as CppAttackOutcome
@@ -18,13 +22,124 @@ from mettagrid.mettagrid_c import CollectiveConfig as CppCollectiveConfig
 from mettagrid.mettagrid_c import DamageConfig as CppDamageConfig
 from mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
+from mettagrid.mettagrid_c import GridObjectConfig as CppGridObjectConfig
+from mettagrid.mettagrid_c import HandlerConfig as CppHandlerConfig
 from mettagrid.mettagrid_c import InventoryConfig as CppInventoryConfig
 from mettagrid.mettagrid_c import LimitDef as CppLimitDef
 from mettagrid.mettagrid_c import MoveActionConfig as CppMoveActionConfig
 from mettagrid.mettagrid_c import Protocol as CppProtocol
+from mettagrid.mettagrid_c import ResourceFilterConfig as CppResourceFilterConfig
 from mettagrid.mettagrid_c import TransferActionConfig as CppTransferActionConfig
 from mettagrid.mettagrid_c import VibeTransferEffect as CppVibeTransferEffect
 from mettagrid.mettagrid_c import WallConfig as CppWallConfig
+
+
+def _convert_alignment_condition(alignment) -> CppAlignmentCondition:
+    """Convert Python AlignmentCondition to C++ AlignmentCondition enum."""
+    from mettagrid.config.handler_config import AlignmentCondition
+
+    mapping = {
+        AlignmentCondition.ALIGNED: CppAlignmentCondition.aligned,
+        AlignmentCondition.UNALIGNED: CppAlignmentCondition.unaligned,
+        AlignmentCondition.SAME_COLLECTIVE: CppAlignmentCondition.same_collective,
+        AlignmentCondition.DIFFERENT_COLLECTIVE: CppAlignmentCondition.different_collective,
+    }
+    return mapping.get(alignment, CppAlignmentCondition.same_collective)
+
+
+def _convert_handlers(handlers_dict, resource_name_to_id, limit_name_to_resource_ids):
+    """Convert Python Handler dict to C++ HandlerConfig list.
+
+    Args:
+        handlers_dict: Dict mapping handler name to Handler config
+        resource_name_to_id: Dict mapping resource names to IDs
+        limit_name_to_resource_ids: Dict mapping limit names to lists of resource IDs
+
+    Returns:
+        List of CppHandlerConfig objects
+    """
+    cpp_handlers = []
+
+    for handler_name, handler in handlers_dict.items():
+        cpp_handler = CppHandlerConfig(handler_name)
+        cpp_handler.radius = handler.radius
+
+        # Convert filters
+        for filter_config in handler.filters:
+            filter_type = getattr(filter_config, "filter_type", None)
+
+            if filter_type == "alignment":
+                cpp_filter = CppAlignmentFilterConfig()
+                cpp_filter.condition = _convert_alignment_condition(filter_config.alignment)
+                cpp_handler.add_alignment_filter(cpp_filter)
+
+            elif filter_type == "resource":
+                # Resource filter can have multiple resources - add one filter per resource
+                for resource_name, min_amount in filter_config.resources.items():
+                    if resource_name in resource_name_to_id:
+                        cpp_filter = CppResourceFilterConfig()
+                        cpp_filter.entity = convert_entity_ref(filter_config.target)
+                        cpp_filter.resource_id = resource_name_to_id[resource_name]
+                        cpp_filter.min_amount = min_amount
+                        cpp_handler.add_resource_filter(cpp_filter)
+
+        # Convert mutations using shared utility
+        convert_mutations(
+            handler.mutations,
+            cpp_handler,
+            resource_name_to_id,
+            limit_name_to_resource_ids,
+            context=f"handler '{handler_name}'",
+        )
+
+        cpp_handlers.append(cpp_handler)
+
+    return cpp_handlers
+
+
+def _convert_aoes_to_handlers(aoes, resource_name_to_id):
+    """Convert Python AOEEffectConfig list to C++ HandlerConfig list.
+
+    Converts the simplified AOEEffectConfig format (with resource_deltas and filters)
+    into the full Handler format that the C++ AOE system uses.
+
+    Args:
+        aoes: List of AOEEffectConfig from Python
+        resource_name_to_id: Dict mapping resource names to IDs
+
+    Returns:
+        List of CppHandlerConfig objects
+    """
+    from mettagrid.mettagrid_c import EntityRef as CppEntityRef
+    from mettagrid.mettagrid_c import ResourceDeltaMutationConfig as CppResourceDeltaMutationConfig
+
+    cpp_handlers = []
+
+    for idx, aoe in enumerate(aoes):
+        cpp_handler = CppHandlerConfig(f"aoe_{idx}")
+        cpp_handler.radius = aoe.range
+
+        # Convert filters
+        for filter_config in aoe.filters:
+            filter_type = getattr(filter_config, "filter_type", None)
+
+            if filter_type == "alignment":
+                cpp_filter = CppAlignmentFilterConfig()
+                cpp_filter.condition = _convert_alignment_condition(filter_config.alignment)
+                cpp_handler.add_alignment_filter(cpp_filter)
+
+        # Convert resource_deltas to mutations
+        for resource_name, delta in aoe.resource_deltas.items():
+            if resource_name in resource_name_to_id:
+                mutation = CppResourceDeltaMutationConfig()
+                mutation.entity = CppEntityRef.target  # AOE affects target
+                mutation.resource_id = resource_name_to_id[resource_name]
+                mutation.delta = delta
+                cpp_handler.add_resource_delta_mutation(mutation)
+
+        cpp_handlers.append(cpp_handler)
+
+    return cpp_handlers
 
 
 def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
@@ -64,6 +179,15 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
     # These are the baseline settings for all agents
     default_agent_config_dict = game_config.agent.model_dump()
     default_resource_limit = default_agent_config_dict["inventory"]["default_limit"]
+
+    # Build limit_name -> resource_ids mapping from default agent inventory config
+    # This is used by ClearInventoryMutation to resolve limit names to resource IDs
+    limit_name_to_resource_ids = {}
+    default_agent_inv_config = default_agent_config_dict.get("inventory", {})
+    for limit_name, limit_config in default_agent_inv_config.get("limits", {}).items():
+        limit_resource_names = limit_config.get("resources", [])
+        limit_resource_ids = [resource_name_to_id[name] for name in limit_resource_names if name in resource_name_to_id]
+        limit_name_to_resource_ids[limit_name] = limit_resource_ids
 
     # If no agents specified, create default agents with appropriate team IDs
     if not game_config.agents:
@@ -243,16 +367,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
-        if isinstance(object_config, WallConfig):
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
+        cpp_config = None  # Will hold the created C++ config object
 
-            cpp_wall_config = CppWallConfig(
-                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
-            )
-            cpp_wall_config.tag_ids = tag_ids
-            # Key by map_name so map grid (which uses map_name) resolves directly.
-            objects_cpp_params[object_config.map_name or object_type] = cpp_wall_config
+        # Common GridObjectConfig fields - computed once
+        type_id = type_id_by_type_name[object_type]
+        tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
+
+        if isinstance(object_config, WallConfig):
+            cpp_config = CppWallConfig(type_id=type_id, type_name=object_type, initial_vibe=object_config.vibe)
         elif isinstance(object_config, AssemblerConfig):
             protocols = []
             seen_vibes_and_min_agents = []
@@ -290,25 +412,14 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 cpp_protocol.cooldown = protocol_config.cooldown
                 protocols.append(cpp_protocol)
 
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
-
-            cpp_assembler_config = CppAssemblerConfig(
-                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
-            )
-            cpp_assembler_config.tag_ids = tag_ids
-            cpp_assembler_config.protocols = protocols
-            cpp_assembler_config.allow_partial_usage = object_config.allow_partial_usage
-            cpp_assembler_config.max_uses = object_config.max_uses
-            cpp_assembler_config.clip_immune = object_config.clip_immune
-            cpp_assembler_config.start_clipped = object_config.start_clipped
-            cpp_assembler_config.chest_search_distance = object_config.chest_search_distance
-            # Key by map_name so map grid (which uses map_name) resolves directly.
-            objects_cpp_params[object_config.map_name or object_type] = cpp_assembler_config
+            cpp_config = CppAssemblerConfig(type_id=type_id, type_name=object_type, initial_vibe=object_config.vibe)
+            cpp_config.protocols = protocols
+            cpp_config.allow_partial_usage = object_config.allow_partial_usage
+            cpp_config.max_uses = object_config.max_uses
+            cpp_config.clip_immune = object_config.clip_immune
+            cpp_config.start_clipped = object_config.start_clipped
+            cpp_config.chest_search_distance = object_config.chest_search_distance
         elif isinstance(object_config, ChestConfig):
-            # Convert tag names to IDs
-            tag_ids = [tag_name_to_id[tag] for tag in object_config.tags]
-
             # Convert vibe_transfers: vibe -> resource -> delta
             vibe_transfers_map = {}
             for vibe_name, resource_deltas in object_config.vibe_transfers.items():
@@ -346,17 +457,45 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
             inventory_config = CppInventoryConfig()
             inventory_config.limit_defs = limit_defs
 
-            cpp_chest_config = CppChestConfig(
-                type_id=type_id_by_type_name[object_type], type_name=object_type, initial_vibe=object_config.vibe
-            )
-            cpp_chest_config.vibe_transfers = vibe_transfers_map
-            cpp_chest_config.initial_inventory = initial_inventory_cpp
-            cpp_chest_config.inventory_config = inventory_config
-            cpp_chest_config.tag_ids = tag_ids
-            # Key by map_name so map grid (which uses map_name) resolves directly.
-            objects_cpp_params[object_config.map_name or object_type] = cpp_chest_config
+            cpp_config = CppChestConfig(type_id=type_id, type_name=object_type, initial_vibe=object_config.vibe)
+            cpp_config.vibe_transfers = vibe_transfers_map
+            cpp_config.initial_inventory = initial_inventory_cpp
+            cpp_config.inventory_config = inventory_config
+        elif isinstance(object_config, GridObjectConfig):
+            # Handle base GridObjectConfig as a static object (like a wall with AOEs)
+            cpp_config = CppGridObjectConfig(type_id=type_id, type_name=object_type, initial_vibe=object_config.vibe)
         else:
             raise ValueError(f"Unknown object type: {object_type}")
+
+        # Set common GridObjectConfig fields generically
+        if cpp_config is not None:
+            cpp_config.tag_ids = tag_ids
+
+            # Convert the three handler types
+            if object_config.on_use_handlers:
+                cpp_config.on_use_handlers = _convert_handlers(
+                    object_config.on_use_handlers, resource_name_to_id, limit_name_to_resource_ids
+                )
+            if object_config.on_update_handlers:
+                cpp_config.on_update_handlers = _convert_handlers(
+                    object_config.on_update_handlers, resource_name_to_id, limit_name_to_resource_ids
+                )
+            if object_config.aoe_handlers:
+                cpp_config.aoe_handlers = _convert_handlers(
+                    object_config.aoe_handlers, resource_name_to_id, limit_name_to_resource_ids
+                )
+
+            # Convert aoes (AOEEffectConfig) to AOE handlers
+            if object_config.aoes:
+                aoe_handlers_from_aoes = _convert_aoes_to_handlers(object_config.aoes, resource_name_to_id)
+                # Append to existing aoe_handlers if any
+                if cpp_config.aoe_handlers:
+                    cpp_config.aoe_handlers.extend(aoe_handlers_from_aoes)
+                else:
+                    cpp_config.aoe_handlers = aoe_handlers_from_aoes
+
+            # Key by map_name so map grid (which uses map_name) resolves directly.
+            objects_cpp_params[object_config.map_name or object_type] = cpp_config
 
     game_cpp_params = game_config.model_dump(exclude_none=True)
     del game_cpp_params["agent"]
@@ -543,7 +682,7 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
 
     # Convert collective configurations
     collectives_cpp = {}
-    for collective_cfg in game_config.collectives:
+    for collective_name, collective_cfg in game_config.collectives.items():
         # Build inventory config with limits
         limit_defs = []
         for resource_limit in collective_cfg.inventory.limits.values():
@@ -567,10 +706,10 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
                 resource_id = resource_name_to_id[resource]
                 initial_inventory_cpp[resource_id] = amount
 
-        cpp_collective_config = CppCollectiveConfig(collective_cfg.name)
+        cpp_collective_config = CppCollectiveConfig(collective_name)
         cpp_collective_config.inventory_config = inventory_config
         cpp_collective_config.initial_inventory = initial_inventory_cpp
-        collectives_cpp[collective_cfg.name] = cpp_collective_config
+        collectives_cpp[collective_name] = cpp_collective_config
 
     game_cpp_params["collectives"] = collectives_cpp
 

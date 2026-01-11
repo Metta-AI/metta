@@ -2,7 +2,9 @@
 #define PACKAGES_METTAGRID_CPP_INCLUDE_METTAGRID_OBJECTS_INVENTORY_HPP_
 
 #include <limits>
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include "core/types.hpp"
 #include "objects/constants.hpp"

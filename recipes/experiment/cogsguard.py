@@ -186,8 +186,8 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
             "germanium_extractor": GermaniumExtractorConfig().station_cfg(),
             "silicon_extractor": SiliconExtractorConfig().station_cfg(),
         },
-        collectives=[
-            CollectiveConfig(
+        collectives={
+            "cogs": CollectiveConfig(
                 name="cogs",
                 inventory=InventoryConfig(
                     limits={
@@ -205,7 +205,7 @@ def make_env(num_agents: int = 10) -> MettaGridConfig:
                     },
                 ),
             ),
-        ],
+        },
     )
 
     env = MettaGridConfig(game=game)

@@ -88,7 +88,14 @@ class MettascopeRenderer(Renderer):
                 )
             )
 
-        step_replay = {"step": self._sim.current_step, "objects": grid_objects}
+        # Get collective inventories for mettascope commons panel
+        collective_inventory = self._sim._c_sim.get_collective_inventories()
+
+        step_replay = {
+            "step": self._sim.current_step,
+            "objects": grid_objects,
+            "collective_inventory": collective_inventory,
+        }
 
         # Render and get user input
         try:

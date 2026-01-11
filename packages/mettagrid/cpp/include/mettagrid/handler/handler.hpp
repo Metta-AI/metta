@@ -14,12 +14,16 @@
 namespace mettagrid {
 
 /**
- * Handler processes object activations through configurable
- * filter chains and mutation chains.
+ * Handler processes events through configurable filter chains and mutation chains.
+ *
+ * Used for three handler types:
+ *   - on_use: Triggered when agent uses/activates an object
+ *   - on_update: Triggered after mutations are applied to an object
+ *   - aoe: Triggered per-tick for objects within radius
  *
  * Usage:
  *   1. Create handler with HandlerConfig
- *   2. Call try_apply() with actor and target
+ *   2. Call try_apply() with appropriate context
  *   3. Returns true if all filters passed and mutations were applied
  */
 class Handler {
@@ -31,9 +35,21 @@ public:
     return _name;
   }
 
-  // Try to apply this handler to the given activation
+  // Get AOE radius (0 for non-AOE handlers)
+  int radius() const {
+    return _radius;
+  }
+
+  // Try to apply this handler with the given context
+  // Returns true if all filters passed and mutations were applied
+  bool try_apply(HandlerContext& ctx);
+
+  // Try to apply this handler to the given actor and target
   // Returns true if all filters passed and mutations were applied
   bool try_apply(HasInventory* actor, HasInventory* target);
+
+  // Check if all filters pass without applying mutations
+  bool check_filters(const HandlerContext& ctx) const;
 
   // Check if all filters pass without applying mutations
   bool check_filters(HasInventory* actor, HasInventory* target) const;
@@ -46,6 +62,7 @@ private:
   static std::unique_ptr<Mutation> create_mutation(const MutationConfig& config);
 
   std::string _name;
+  int _radius = 0;  // AOE radius (0 for non-AOE handlers)
   std::vector<std::unique_ptr<Filter>> _filters;
   std::vector<std::unique_ptr<Mutation>> _mutations;
 };

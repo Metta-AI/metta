@@ -11,8 +11,8 @@ namespace mettagrid {
 
 // Entity reference for resolving actor/target in filters and mutations
 enum class EntityRef {
-  actor,             // The object performing the activation
-  target,            // The object being activated
+  actor,             // The object performing the action (or source for AOE)
+  target,            // The object being affected
   actor_collective,  // The collective of the actor
   target_collective  // The collective of the target
 };
@@ -29,6 +29,13 @@ enum class AlignmentCondition {
 enum class AlignTo {
   actor_collective,  // Align target to actor's collective
   none               // Remove target's collective alignment
+};
+
+// Handler types
+enum class HandlerType {
+  on_use,     // Triggered when agent uses/activates the object
+  on_update,  // Triggered after mutations are applied to this object
+  aoe         // Triggered per-tick for objects within radius
 };
 
 // ============================================================================
@@ -85,8 +92,8 @@ struct FreezeMutationConfig {
 
 struct ClearInventoryMutationConfig {
   EntityRef entity = EntityRef::target;
-  // If resource_id is set, only clear that resource; otherwise clear all
-  InventoryItem resource_id = 255;  // 255 = clear all
+  // List of resource IDs to clear. If empty, clears all resources.
+  std::vector<InventoryItem> resource_ids;
 };
 
 struct AttackMutationConfig {
@@ -112,6 +119,9 @@ struct HandlerConfig {
   std::string name;
   std::vector<FilterConfig> filters;      // All must pass for handler to trigger
   std::vector<MutationConfig> mutations;  // Applied sequentially if filters pass
+
+  // AOE-specific fields (only used for aoe handlers)
+  int radius = 0;  // L-infinity (Chebyshev) distance for AOE
 
   HandlerConfig() = default;
   explicit HandlerConfig(const std::string& handler_name) : name(handler_name) {}
