@@ -3,7 +3,7 @@
 import ctypes
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar, cast
+from typing import Any, Generic, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 import torch
@@ -254,9 +254,9 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             self._initialize_state(self._simulation)
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
-        state = cast(StateType, self._state)
         with torch.no_grad():
-            action, self._state = self._base_policy.step_with_state(obs, state)
+            assert self._state is not None
+            action, self._state = self._base_policy.step_with_state(obs, self._state)
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
 from mettagrid.config.id_map import ObservationFeatureSpec
 from mettagrid.config.mettagrid_config import ActionsConfig, MettaGridConfig
-from mettagrid.mettagrid_c import dtype_observations
+from mettagrid.mettagrid_c import AssemblerConfig, dtype_observations
 
 
 class PolicyEnvInterface(BaseModel):
@@ -92,7 +92,7 @@ class PolicyEnvInterface(BaseModel):
         # Extract assembler protocols if available
         assembler_protocols = []
         assembler_config = mg_cfg.game.objects.get("assembler")
-        if assembler_config and hasattr(assembler_config, "protocols"):
+        if assembler_config and isinstance(assembler_config, AssemblerConfig):
             assembler_protocols = assembler_config.protocols
 
         # Get tag ID to name mapping from id_map
@@ -107,7 +107,10 @@ class PolicyEnvInterface(BaseModel):
             actions=mg_cfg.game.actions,
             num_agents=mg_cfg.game.num_agents,
             observation_space=gym.spaces.Box(
-                0, 255, (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim), dtype=dtype_observations
+                0,
+                255,
+                (mg_cfg.game.obs.num_tokens, mg_cfg.game.obs.token_dim),
+                dtype=dtype_observations,  # type: ignore[arg-type]
             ),
             action_space=gym.spaces.Discrete(len(mg_cfg.game.actions.actions())),
             obs_width=mg_cfg.game.obs.width,

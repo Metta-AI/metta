@@ -4,7 +4,19 @@ import inspect
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, ClassVar, Generic, Self, TypeVar, cast, get_args, get_origin
+from typing import (
+    Any,
+    ClassVar,
+    Generic,
+    Optional,
+    Protocol,
+    Self,
+    TypeVar,
+    cast,
+    get_args,
+    get_origin,
+    runtime_checkable,
+)
 
 import numpy as np
 import yaml
@@ -252,3 +264,10 @@ class MapBuilder(ABC, Generic[ConfigT]):
             self.shuffle_spawn_indices(spawn_indices)
             for idx in spawn_indices[num_agents:]:
                 game_map.grid[tuple(idx)] = "empty"
+
+
+@runtime_checkable
+class HasSeed(Protocol):
+    """Useful for type-safe checks for configs that have a seed."""
+
+    seed: Optional[int]

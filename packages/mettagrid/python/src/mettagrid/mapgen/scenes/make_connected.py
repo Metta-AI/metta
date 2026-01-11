@@ -60,7 +60,8 @@ class MakeConnected(Scene[MakeConnectedConfig]):
         empty = self.grid == "empty"
 
         # === Phase 1: Ensure connectivity ===
-        labels, num = ndimage.label(empty, structure=STRUCTURE_4_CONNECTED)
+        labels: np.ndarray
+        labels, num = ndimage.label(empty, structure=STRUCTURE_4_CONNECTED)  # type: ignore[misc]
         if num > 1:
             self._connect_components(labels, num, empty, height, width)
 
@@ -98,7 +99,7 @@ class MakeConnected(Scene[MakeConnectedConfig]):
             self._dig_path(start_y, start_x, predecessors, empty)
 
         # Verify connectivity
-        labels_final, num_final = ndimage.label(self.grid == "empty", structure=STRUCTURE_4_CONNECTED)
+        _, num_final = ndimage.label(self.grid == "empty", structure=STRUCTURE_4_CONNECTED)  # type: ignore[misc]
         assert num_final == 1, "Map must end up with a single connected component"
 
     def _weighted_distances(

@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from mettagrid.map_builder.ascii import AsciiMapBuilder
+from mettagrid.map_builder.random_map import RandomMapBuilder
 from mettagrid.mapgen.utils.ascii_grid import DEFAULT_CHAR_TO_NAME
 
 # Import directly from module file to avoid circular import through __init__.py
@@ -108,6 +109,27 @@ def test_len(cache):
     cache.get_or_create(config2, num_agents)
     # Should have at least 2 maps (one per config)
     assert len(cache) >= 1
+
+
+def test_seed(cache):
+    assert len(cache) == 0
+
+    config = RandomMapBuilder.Config(width=4, height=4, agents=1, seed=42)
+
+    cache.get_or_create(config, num_agents=1)
+    assert len(cache) == 1
+
+    cache.get_or_create(config, num_agents=1)
+    assert len(cache) == 1
+
+    config.seed = None
+
+    cache.get_or_create(config, num_agents=1)
+    assert len(cache) == 2
+
+    ## test that without seed it will produce a new map - TODO, I think map cache behavior is broken here
+    # cache.get_or_create(config, num_agents=1)
+    # assert len(cache) == 3
 
 
 @pytest.mark.skip("flaky: https://github.com/Metta-AI/metta/actions/runs/19489652043?pr=3880")

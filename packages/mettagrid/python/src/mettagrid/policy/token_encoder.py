@@ -28,6 +28,8 @@ def coordinates(observations: torch.Tensor, dtype: torch.dtype = torch.uint8) ->
 class TokenPolicyNet(torch.nn.Module):
     """Token-aware per-step encoder inspired by Metta's basic baseline."""
 
+    _feature_scale: torch.Tensor
+
     def __init__(self, features: list[ObservationFeatureSpec], actions_cfg: ActionsConfig):
         super().__init__()
 

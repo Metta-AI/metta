@@ -15,7 +15,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from mettagrid.map_builder.map_builder import GameMap, MapBuilderConfig
+from mettagrid.map_builder.map_builder import GameMap, HasSeed, MapBuilderConfig
 
 """
 This is an LLM Generated memory cache for GameMap objects across processes. Ideally
@@ -133,8 +133,9 @@ class SharedMapCache:
             GameMap from cache or newly created.
         """
         cache_key = self._make_key(map_builder, num_agents)
-        seed_is_set = hasattr(map_builder, "seed") and map_builder.seed is not None
+        seed_is_set = isinstance(map_builder, HasSeed) and map_builder.seed is not None
         maps_per_key = 1 if seed_is_set else _maps_per_key
+
         lock_file = _get_lock_file()
 
         def _reconstruct_or_refresh(cache_entry: dict) -> GameMap:
