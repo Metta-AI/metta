@@ -98,7 +98,6 @@ class AgentConfig(GridObjectConfig):
         initial_inventory: dict[int, int] = {},
         inventory_regen_amounts: dict[int, dict[int, int]] | None = None,
         diversity_tracked_resources: list[int] | None = None,
-        initial_vibe: int = 0,
         damage_config: DamageConfig = ...,
     ) -> None: ...
     type_id: int
@@ -133,13 +132,6 @@ class Protocol:
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     cooldown: int
-
-class InventoryConfig:
-    def __init__(
-        self,
-        limits: list[tuple[list[int], int]] = [],
-    ) -> None: ...
-    limits: list[tuple[list[int], int]]
 
 class AssemblerConfig(GridObjectConfig):
     def __init__(

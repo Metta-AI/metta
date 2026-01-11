@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 
 from mettagrid.map_builder.utils import create_grid
@@ -30,7 +32,7 @@ def assert_raw_grid(grid: MapGrid, ascii_grid: str, name_to_char: dict[str, str]
 
 def assert_grid_map(scene: Scene, ascii_grid: str, char_to_name: dict[str, str] | None = None):
     if char_to_name:
-        name_to_char: dict[str, str] = {}
+        name_to_char: Optional[dict[str, str]] = {}
         # First pass: add all mappings
         for char, name in char_to_name.items():
             if name not in name_to_char:

@@ -1,10 +1,8 @@
 import random
 from typing import Any, Optional
 
-import numpy as np
-
 from mettagrid.config.mettagrid_config import Direction
-from mettagrid.mettagrid_c import MettaGrid, dtype_actions
+from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.simulator import Action, Simulation
 from mettagrid.test_support.orientation import Orientation
 
@@ -73,7 +71,7 @@ def move(sim: Simulation, direction: Orientation | Direction, agent_idx: int = 0
     return result
 
 
-def noop(env: Simulation | MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
+def noop(env: Simulation, agent_idx: int = 0) -> dict[str, Any]:
     """
     Perform a no-operation action.
 
@@ -86,33 +84,17 @@ def noop(env: Simulation | MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     """
     result = {"success": False, "error": None}
 
-    # Handle both Simulation (property) and MettaGrid (method)
-    if isinstance(env, Simulation):
-        action_names = env.action_names
-    else:
-        action_names = env.action_names() if callable(env.action_names) else env.action_names
+    action_names = env.action_names
 
     if "noop" not in action_names:
         result["error"] = "Noop action not available"
         return result
 
-    # Handle Simulation vs MettaGrid
-    if isinstance(env, Simulation):
-        action = Action(name="noop")
-        for i in range(env.num_agents):
-            env.agent(i).set_action(action)
-        env.step()
-        action_success = env.action_success
-    else:
-        noop_idx = action_names.index("noop")
-        c_env = env._c_sim if hasattr(env, "_c_sim") else env
-        c_env.actions()[:, 0] = 0
-        c_env.actions()[agent_idx, 0] = noop_idx
-        if hasattr(env, "step") and hasattr(env, "_c_sim"):
-            env.step()
-        else:
-            c_env.step()
-        action_success = c_env.action_success if not callable(c_env.action_success) else c_env.action_success()
+    action = Action(name="noop")
+    for i in range(env.num_agents):
+        env.agent(i).set_action(action)
+    env.step()
+    action_success = env.action_success
 
     result["success"] = bool(action_success[agent_idx])
     if not result["success"]:
@@ -121,7 +103,7 @@ def noop(env: Simulation | MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
     return result
 
 
-def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str, Any]:
+def attack(env: Simulation, target_arg: int = 0, agent_idx: int = 0) -> dict[str, Any]:
     """
     Perform an attack action.
 
@@ -153,11 +135,7 @@ def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0)
         "defense_used": False,
     }
 
-    # Handle both Simulation (property) and MettaGrid (method)
-    if isinstance(env, Simulation):
-        action_names = env.action_names
-    else:
-        action_names = env.action_names() if callable(env.action_names) else env.action_names
+    action_names = env.action_names
 
     attack_variants = sorted(
         (name for name in action_names if name.startswith("attack_") and name.removeprefix("attack_").isdigit()),
@@ -190,22 +168,15 @@ def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0)
             attacker_resources_before = obj_data.get("resources", {}).copy()
             break
 
-    # Perform attack - handle Simulation vs MettaGrid
-    if isinstance(env, Simulation):
-        action = Action(name=attack_name)
-        for i in range(env.num_agents):
-            if i == agent_idx:
-                env.agent(i).set_action(action)
-            else:
-                env.agent(i).set_action(Action(name="noop"))
-        env.step()
-        action_success = env.action_success
-    else:
-        attack_idx = action_names.index(attack_name)
-        attack_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-        attack_action[agent_idx] = attack_idx
-        env.step(attack_action)
-        action_success = env.action_success if not callable(env.action_success) else env.action_success()
+    # Perform attack
+    action = Action(name=attack_name)
+    for i in range(env.num_agents):
+        if i == agent_idx:
+            env.agent(i).set_action(action)
+        else:
+            env.agent(i).set_action(Action(name="noop"))
+    env.step()
+    action_success = env.action_success
 
     result["success"] = bool(action_success[agent_idx])
 
@@ -268,68 +239,9 @@ def attack(env: Simulation | MettaGrid, target_arg: int = 0, agent_idx: int = 0)
     return result
 
 
-def get_current_observation(env: MettaGrid, agent_idx: int):
-    """Get current observation using noop action."""
-    try:
-        # Try to get action_names from Simulation if available
-        if hasattr(env, "_sim"):
-            action_names = env._sim.action_names
-        elif hasattr(env, "action_names"):
-            action_names = env.action_names
-            if callable(action_names):
-                action_names = action_names()
-        else:
-            raise AttributeError("Cannot determine action_names")
-
-        if "noop" in action_names:
-            noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents,), dtype=dtype_actions)
-            noop_action[agent_idx] = noop_idx
-            obs, _, _, _, _ = env.step(noop_action)
-            return obs.copy()
-        else:
-            # If no noop, just reset and return observation
-            obs, _ = env.reset()
-            return obs.copy()
-    except Exception:
-        obs, _ = env.reset()
-        return obs.copy()
-
-
 def get_agent_position(env: Simulation | MettaGrid, agent_idx: int = 0) -> tuple[int, int]:
     grid_objects = env.grid_objects() if isinstance(env, Simulation) else env.grid_objects()
     for _obj_id, obj_data in grid_objects.items():
         if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
             return (obj_data["r"], obj_data["c"])
     raise ValueError(f"Agent {agent_idx} not found in grid objects")
-
-
-def get_agent_orientation(env: Simulation | MettaGrid, agent_idx: int = 0) -> int:
-    grid_objects = env.grid_objects()
-    for _obj_id, obj_data in grid_objects.items():
-        if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
-            return obj_data["agent:orientation"]
-    raise ValueError(f"Agent {agent_idx} not found in grid objects")
-
-
-def action_index(env, base: str, orientation: Orientation | None = None) -> int:
-    """Return the flattened action index for a given action name."""
-    target = base if orientation is None else f"{base}_{orientation.name.lower()}"
-
-    # Try to get action_names from Simulation if available
-    if isinstance(env, Simulation):
-        names = env.action_names
-    elif hasattr(env, "_sim"):
-        names = env._sim.action_names
-    else:
-        names_getter = getattr(env, "action_names", None)
-        if callable(names_getter):
-            names = names_getter()
-        else:
-            names = names_getter
-
-    if names is None:
-        raise AttributeError("Cannot determine action_names for this environment")
-    if target not in names:
-        raise AssertionError(f"Action {target} not available; available actions: {names}")
-    return names.index(target)

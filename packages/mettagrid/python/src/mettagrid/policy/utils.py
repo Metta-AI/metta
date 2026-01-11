@@ -40,11 +40,9 @@ class LSTMState:
     @classmethod
     def from_tuple(
         cls,
-        state: Optional[LSTMStateTuple],
+        state: LSTMStateTuple,
         expected_layers: Optional[int],
-    ) -> Optional["LSTMState"]:
-        if state is None:
-            return None
+    ) -> LSTMState:
         hidden, cell = state
         return cls(
             _canonical_component(hidden, expected_layers),

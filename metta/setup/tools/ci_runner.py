@@ -192,6 +192,7 @@ def _run_recipe_tests(*, verbose: bool = False, name_filter: str | None = None, 
 _CHECK_PYRIGHT_PACKAGES = [
     "packages/cogames",
     "app_backend",
+    "packages/mettagrid/python/src",  # mettagrid/tests is not type-safe yet
 ]
 
 

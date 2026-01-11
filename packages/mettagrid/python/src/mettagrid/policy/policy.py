@@ -254,9 +254,13 @@ class StatefulAgentPolicy(AgentPolicy, Generic[StateType]):
             self._initialize_state(self._simulation)
         if hasattr(self._base_policy, "set_active_agent"):
             self._base_policy.set_active_agent(self._agent_id)
-        state = cast(StateType, self._state)
         with torch.no_grad():
-            action, self._state = self._base_policy.step_with_state(obs, state)
+            action, self._state = self._base_policy.step_with_state(
+                obs,
+                # `_initialize_state` guarantees that the state is set, but we can't assert that it's not None
+                # because some trivial policies have None state.
+                cast(StateType, self._state),
+            )
         if self._agent_id is not None:
             self._agent_states[self._agent_id] = self._state
         return action

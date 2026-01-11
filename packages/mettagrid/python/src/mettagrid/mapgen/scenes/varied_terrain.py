@@ -260,8 +260,8 @@ class VariedTerrain(Scene[VariedTerrainConfig]):
         """
         block_count = self._blocks.get("count", 0)
         for _ in range(block_count):
-            block_w = self.rng.integers(2, 15)  # 2 to 14 inclusive.
-            block_h = self.rng.integers(2, 15)
+            block_w = int(self.rng.integers(2, 15))  # 2 to 14 inclusive.
+            block_h = int(self.rng.integers(2, 15))
             candidates = self._find_candidates((block_h, block_w))
             if candidates:
                 r, c = candidates[self.rng.integers(0, len(candidates))]
