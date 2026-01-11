@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "actions/action_handler.hpp"
+#include "actions/activation_handler_bindings.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_vibe.hpp"
 #include "actions/move.hpp"
@@ -20,6 +21,7 @@
 #include "actions/noop.hpp"
 #include "actions/transfer.hpp"
 #include "config/observation_features.hpp"
+#include "core/aoe_bindings.hpp"
 #include "core/grid.hpp"
 #include "core/types.hpp"
 #include "objects/agent.hpp"
@@ -1066,6 +1068,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
   bind_global_obs_config(m);
   bind_clipper_config(m);
   bind_game_config(m);
+
+  // AOE system bindings
+  bind_aoe_config(m);
+
+  // Activation handler bindings
+  bind_activation_handler_config(m);
 
   // Export data types from types.hpp
   m.attr("dtype_observations") = dtype_observations();
