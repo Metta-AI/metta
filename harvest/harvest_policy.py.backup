@@ -2263,17 +2263,6 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             dr, dc = dir_offsets[adj_dir]
             target_world_pos = (state.row + dr, state.col + dc)
 
-            # Add detailed logging for assembler interactions
-            if station_type == "assembler":
-                self._logger.error(f"  ╔══ ASSEMBLER INTERACTION ══")
-                self._logger.error(f"  ║ Agent pos: ({state.row},{state.col}), Assembler: {adj_dir} at {target_world_pos}")
-                self._logger.error(f"  ║ Distance: {abs(state.row - target_world_pos[0]) + abs(state.col - target_world_pos[1])} (should be 1)")
-                self._logger.error(f"  ║ Vibe: {state.current_glyph} (need: heart_a)")
-                self._logger.error(f"  ║ Energy: {state.energy} (need: ≥1)")
-                self._logger.error(f"  ║ C:{state.carbon}≥1? O:{state.oxygen}≥1? Ge:{state.germanium}≥1? Si:{state.silicon}≥1?")
-                self._logger.error(f"  ║ Hearts BEFORE: {state.hearts}")
-                self._logger.error(f"  ╚════════════════════════════")
-
             self._logger.info(f"  ✓✓✓ {station_type.upper()}: ADJACENT at {target_world_pos}, using NOOP to interact")
             state.using_object_this_step = True
             state.stuck_recovery_active = False

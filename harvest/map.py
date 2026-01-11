@@ -248,7 +248,7 @@ class MapManager:
 
         # UNKNOWN cells are NOT traversable - we can't path through unexplored territory
         # WALL and DEAD_END are NOT traversable
-        # CHARGER, ASSEMBLER, CHEST are NOT traversable for pathfinding (can't path THROUGH them)
+        # CHARGER, ASSEMBLER, CHEST, EXTRACTORS are NOT traversable for pathfinding (can't path THROUGH them)
         # However, they ARE valid as final destinations (you move ONTO them to use them)
         # Pathfinding should avoid routing through these cells but can target them directly
         return cell_type not in (
@@ -257,7 +257,11 @@ class MapManager:
             MapCellType.DEAD_END,
             MapCellType.CHARGER,
             MapCellType.ASSEMBLER,
-            MapCellType.CHEST
+            MapCellType.CHEST,
+            MapCellType.CARBON_EXTRACTOR,
+            MapCellType.OXYGEN_EXTRACTOR,
+            MapCellType.GERMANIUM_EXTRACTOR,
+            MapCellType.SILICON_EXTRACTOR
         )
 
     def get_nearest_object(
