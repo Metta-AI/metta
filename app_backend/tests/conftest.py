@@ -3,7 +3,6 @@
 from metta.common.util.log_config import suppress_noisy_logs
 
 suppress_noisy_logs()
-from typing import Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,7 +13,11 @@ from testcontainers.postgres import PostgresContainer
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.app_backend.test_support.client_adapter import create_test_stats_client
+from metta.app_backend.test_support.client_adapter import (
+    create_test_stats_client,
+    get_fake_softmax_user,
+    get_user_headers,
+)
 from metta.common.tests_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
@@ -26,7 +29,7 @@ def pytest_configure(config):
     from metta.app_backend import config as app_config
 
     app_config.settings.RUN_MIGRATIONS = True
-    app_config.settings.DEBUG_USER_EMAIL = "test@example.com"
+    app_config.settings.OBSERVATORY_AUTH_SECRET = "test_secret"
 
 
 # Skip all tests that use postgres_container; it is flaky
@@ -88,22 +91,15 @@ def test_client(test_app: FastAPI) -> TestClient:
 
 
 @pytest.fixture(scope="class")
-def test_user_headers() -> Dict[str, str]:
-    """Headers for authenticated requests (empty since auth is via debug_user_email)."""
-    return {}
-
-
-@pytest.fixture(scope="class")
-def auth_headers() -> Dict[str, str]:
-    """Authentication headers for requests (empty since auth is via debug_user_email)."""
-    return {}
+def auth_headers() -> dict[str, str]:
+    """Authentication headers for requests."""
+    return get_user_headers(get_fake_softmax_user())
 
 
 @pytest.fixture(scope="class")
 def stats_client(test_client: TestClient) -> StatsClient:
     """Create a stats client for testing."""
-    # Auth is handled via debug_user_email, no need for headers
-    return create_test_stats_client(test_client, machine_token="dummy_token")
+    return create_test_stats_client(test_client, user=get_fake_softmax_user())
 
 
 @pytest.fixture(autouse=True)
@@ -153,5 +149,4 @@ def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
 @pytest.fixture(scope="function")
 def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
     """Create a stats client with isolated database for testing."""
-    # Auth is handled via debug_user_email, no need for headers
-    return create_test_stats_client(isolated_test_client, machine_token="dummy_token")
+    return create_test_stats_client(isolated_test_client, user=get_fake_softmax_user())

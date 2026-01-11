@@ -91,10 +91,6 @@ class TestDockerIntegration:
                 DockerContainer(image="test-app-backend:latest")
                 .with_exposed_ports(8000)
                 .with_env("STATS_DB_URI", db_uri)
-                .with_env(
-                    "DEBUG_USER_EMAIL",
-                    "",  # Disable debug mode
-                )
                 .with_kwargs(network=network.name)
             )
 

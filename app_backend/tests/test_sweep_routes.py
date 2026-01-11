@@ -19,13 +19,13 @@ def mock_metta_repo():
 
 
 @pytest.fixture
-def test_client(mock_metta_repo):
+def test_client(mock_metta_repo: MagicMock):
     """Create a test client with mocked dependencies."""
     app = create_app(mock_metta_repo)
     return TestClient(app)
 
 
-def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
+def test_create_sweep_creates_new(test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]):
     """Test creating a new sweep."""
     mock_metta_repo.get_sweep_by_name.return_value = None
     test_sweep_id = uuid.uuid4()
@@ -55,7 +55,9 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
     )
 
 
-def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_headers):
+def test_create_sweep_returns_existing(
+    test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]
+):
     """Test returning existing sweep info (idempotent)."""
     existing_sweep_id = uuid.uuid4()
     existing_sweep = SweepRow(
@@ -90,7 +92,7 @@ def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_header
     mock_metta_repo.create_sweep.assert_not_called()
 
 
-def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
+def test_create_sweep_with_machine_token(test_client: TestClient, mock_metta_repo: MagicMock):
     """Test creating sweep with machine token authentication."""
     mock_metta_repo.get_sweep_by_name.return_value = None
     test_sweep_id = uuid.uuid4()
@@ -99,36 +101,34 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
     # Mock the login service validation to return a valid user_id
     mock_validate = AsyncMock(return_value=User(id="machine_user_id", email="machine_user@example.com"))
 
-    # Disable DEBUG_USER_EMAIL to test token-based auth
-    with patch("metta.app_backend.config.settings.DEBUG_USER_EMAIL", None):
-        with patch("metta.app_backend.auth.validate_token_via_login_service", mock_validate):
-            response = test_client.post(
-                "/sweeps/test_sweep/create_sweep",
-                json={
-                    "project": "test_project",
-                    "entity": "test_entity",
-                    "wandb_sweep_id": "wandb_123",
-                },
-                headers={"X-Auth-Token": "machine_token_123"},
-            )
+    with patch("metta.app_backend.auth.validate_token_via_login_service", mock_validate):
+        response = test_client.post(
+            "/sweeps/test_sweep/create_sweep",
+            json={
+                "project": "test_project",
+                "entity": "test_entity",
+                "wandb_sweep_id": "wandb_123",
+            },
+            headers={"X-Auth-Token": "machine_token_123"},
+        )
 
-            assert response.status_code == 200
-            assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
+        assert response.status_code == 200
+        assert response.json() == {"created": True, "sweep_id": str(test_sweep_id)}
 
-            # Verify the login service was called to validate the token
-            mock_validate.assert_called_once_with("machine_token_123")
+        # Verify the login service was called to validate the token
+        mock_validate.assert_called_once_with("machine_token_123")
 
-            # Verify the sweep was created with the user_id from the token validation
-            mock_metta_repo.create_sweep.assert_called_once_with(
-                name="test_sweep",
-                project="test_project",
-                entity="test_entity",
-                wandb_sweep_id="wandb_123",
-                user_id="machine_user_id",
-            )
+        # Verify the sweep was created with the user_id from the token validation
+        mock_metta_repo.create_sweep.assert_called_once_with(
+            name="test_sweep",
+            project="test_project",
+            entity="test_entity",
+            wandb_sweep_id="wandb_123",
+            user_id="machine_user_id",
+        )
 
 
-def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
+def test_get_sweep_exists(test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]):
     """Test getting an existing sweep."""
     sweep_id = uuid.uuid4()
     mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
@@ -152,7 +152,7 @@ def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
     assert data["wandb_sweep_id"] == "wandb_123"
 
 
-def test_get_sweep_not_exists(test_client, mock_metta_repo, auth_headers):
+def test_get_sweep_not_exists(test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]):
     """Test getting a non-existent sweep."""
     mock_metta_repo.get_sweep_by_name.return_value = None
 
@@ -164,7 +164,7 @@ def test_get_sweep_not_exists(test_client, mock_metta_repo, auth_headers):
     assert data["wandb_sweep_id"] == ""
 
 
-def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
+def test_get_next_run_id(test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]):
     """Test getting the next run ID (atomic counter)."""
     sweep_id = uuid.uuid4()
     mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
@@ -192,7 +192,9 @@ def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
     mock_metta_repo.get_next_sweep_run_counter.assert_called_once_with(sweep_id)
 
 
-def test_get_next_run_id_sweep_not_found(test_client, mock_metta_repo, auth_headers):
+def test_get_next_run_id_sweep_not_found(
+    test_client: TestClient, mock_metta_repo: MagicMock, auth_headers: dict[str, str]
+):
     """Test getting next run ID for non-existent sweep."""
     mock_metta_repo.get_sweep_by_name.return_value = None
 

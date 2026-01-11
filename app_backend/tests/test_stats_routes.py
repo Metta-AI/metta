@@ -10,6 +10,7 @@ from metta.app_backend.metta_repo import MettaRepo
 async def test_query_episodes_by_id_includes_avg_rewards_and_replay(
     isolated_stats_repo: MettaRepo,
     isolated_test_client: TestClient,
+    auth_headers: dict[str, str],
 ) -> None:
     user = "episodes@example.com"
     policy_id = await isolated_stats_repo.upsert_policy(name="episodes-policy", user_id=user, attributes={})
@@ -38,6 +39,7 @@ async def test_query_episodes_by_id_includes_avg_rewards_and_replay(
     response = isolated_test_client.post(
         "/stats/episodes/query",
         json={"episode_ids": [str(episode_id)], "limit": 1},
+        headers=auth_headers,
     )
 
     assert response.status_code == 200

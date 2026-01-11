@@ -33,7 +33,6 @@ LOCAL_BACKEND_URL_FROM_K8S = f"http://host.docker.internal:{SERVER_PORT}"
 LOCAL_MACHINE_TOKEN = "local-dev-token"
 LOCAL_K8S_CONTEXT = "orbstack"
 LOCAL_AWS_PROFILE = "softmax"
-DEBUG_USER_EMAIL = "localdev@example.com"
 
 
 def handle_errors(fn):
@@ -106,7 +105,6 @@ def _base_env() -> dict[str, str]:
 def _local_dev_env() -> dict[str, str]:
     env = _base_env()
     env["STATS_DB_URI"] = LOCAL_DB_URI
-    env["DEBUG_USER_EMAIL"] = DEBUG_USER_EMAIL
     env["RUN_MIGRATIONS"] = "true"
     env["EPISODE_RUNNER_IMAGE"] = LOCAL_METTA_POLICY_EVAL_IMG_NAME
     env["MACHINE_TOKEN"] = LOCAL_MACHINE_TOKEN

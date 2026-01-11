@@ -14,12 +14,6 @@ from metta.app_backend.test_support.base_async_test import BaseAsyncTest
 class TestSQLConcurrency(BaseAsyncTest):
     """Tests for SQL route concurrency to validate async behavior."""
 
-    @pytest.fixture(scope="function")
-    def base_url(self, test_app: FastAPI) -> str:
-        """Get the base URL for the test app."""
-        # For this test, we'll use httpx.AsyncClient with the app directly
-        return "http://test"
-
     @pytest.mark.asyncio
     async def test_sql_query_concurrency(self, test_app: FastAPI, auth_headers: dict) -> None:
         """

@@ -43,7 +43,7 @@ class TestEvalTaskOrchestratorIntegration:
     def eval_task_client(self, test_client: TestClient) -> EvalTaskClient:
         """Create an eval task client for testing."""
         client = EvalTaskClient(backend_url=str(test_client.base_url), machine_token=None)
-        client._http_client = TestClientAdapter(test_client)  # type: ignore
+        client._http_client = TestClientAdapter.with_softmax_user(test_client)
         return client
 
     def create_success_worker(self, worker_name: str, eval_task_client: EvalTaskClient) -> EvalTaskWorker:

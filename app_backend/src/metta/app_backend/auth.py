@@ -25,9 +25,6 @@ class User(BaseModel):
 
 
 def get_user_from_header(request: Request) -> Optional[User]:
-    if settings.DEBUG_USER_EMAIL:
-        return User(id="debug_user_id", email=settings.DEBUG_USER_EMAIL, is_softmax_team_member=True)
-
     if not settings.OBSERVATORY_AUTH_SECRET:
         return None
 
@@ -41,7 +38,7 @@ def get_user_from_header(request: Request) -> Optional[User]:
         "X-User-Email",
         "",  # TODO - allowed empty value for now - current softmax.com doesn't set this header
     )
-    is_softmax_team_member = request.headers.get("X-User-Is-Softmax-Team-Member", "false") == "true"
+    is_softmax_team_member = request.headers.get("X-User-Is-Softmax-Team-Member", "false").lower() == "true"
 
     if user_id:
         return User(id=user_id, email=user_email, is_softmax_team_member=is_softmax_team_member)
