@@ -223,9 +223,9 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 - `train`: map seed = `--seed + env_seed` (reproducible variety).
 - `play`/`eval`: map layout is fixed per run by `--seed`.
 - For fully reproducible play/eval runs, set `--seed`.
-- Recipe `maps_cache_size` controls how many distinct procedural maps are cached when the MapGen seed is unset (mission
-  seed is `None`, typically in programmatic configs that do not set a seed); set it to `None` to disable caching (more
-  diversity, slower) or `1` for a single cached map.
+- Recipe `maps_cache_size` controls how many distinct procedural maps are cached when the MapGen seed is unset (e.g.,
+  programmatic configs that do not set a seed); set it to `None` to disable caching (more diversity, slower) or `1` for a
+  single cached map.
 
 Example programmatic override using the shared `SeedVariant` helper:
 

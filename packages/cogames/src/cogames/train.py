@@ -409,11 +409,11 @@ class _EnvCreator:
         self,
         env_cfg: Optional[MettaGridConfig],
         env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
-        fallback_seed: Optional[int],
+        seed: int,
     ) -> None:
         self._env_cfg = env_cfg
         self._env_cfg_supplier = env_cfg_supplier
-        self._fallback_seed = fallback_seed
+        self._seed = seed
 
     def clone_cfg(self) -> MettaGridConfig:
         if self._env_cfg_supplier is not None:
@@ -434,9 +434,7 @@ class _EnvCreator:
 
         map_builder = getattr(target_cfg.game, "map_builder", None)
         if isinstance(map_builder, MapGen.Config):
-            base_seed = self._fallback_seed
-            if base_seed is not None:
-                map_builder.seed = base_seed + (seed or 0)
+            map_builder.seed = self._seed + (seed or 0)
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())
