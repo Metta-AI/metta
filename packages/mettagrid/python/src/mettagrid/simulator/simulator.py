@@ -270,14 +270,12 @@ class Simulation:
     def _seeded_map_builder(self, map_builder: MapBuilderConfig) -> MapBuilderConfig:
         if not hasattr(map_builder, "seed"):
             return map_builder
-        base_seed = map_builder.seed if map_builder.seed is not None else self._seed
-        if base_seed is None:
+        if map_builder.seed is None:
+            return map_builder
+        if self._simulator is None:
             return map_builder
         map_builder = map_builder.model_copy(deep=True)
-        if self._simulator is not None:
-            map_builder.seed = self._simulator.next_map_seed(base_seed)
-        else:
-            map_builder.seed = base_seed
+        map_builder.seed = self._simulator.next_map_seed(map_builder.seed)
         return map_builder
 
 
