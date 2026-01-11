@@ -262,16 +262,15 @@ class Simulation:
         return self.__c_sim.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def _make_map(self) -> GameMap:
-        map_builder = self._config.game.map_builder
+        map_builder = self._seeded_map_builder(self._config.game.map_builder)
         if self._maps_cache is None:
-            map_builder = self._seeded_map_builder(map_builder)
             return map_builder.create().build_for_num_agents(self._config.game.num_agents)
         return self._maps_cache.get_or_create(map_builder, self._config.game.num_agents)
 
     def _seeded_map_builder(self, map_builder: MapBuilderConfig) -> MapBuilderConfig:
-        base_seed: Optional[int] = getattr(map_builder, "seed", None)
-        if base_seed is None:
-            base_seed = self._seed
+        if not hasattr(map_builder, "seed"):
+            return map_builder
+        base_seed = map_builder.seed if map_builder.seed is not None else self._seed
         if base_seed is None:
             return map_builder
         map_builder = map_builder.model_copy(deep=True)
@@ -285,6 +284,7 @@ class Simulation:
 class Simulator:
     def __init__(self, maps_cache_size: Optional[int] = None):
         self._maps_cache = None
+        self._maps_cache_size = maps_cache_size
         if maps_cache_size is not None:
             self._maps_cache = get_shared_cache(maps_per_key=maps_cache_size)
 
@@ -330,7 +330,10 @@ class Simulator:
             self._current_simulation.close()
 
     def next_map_seed(self, base_seed: int) -> int:
-        seed = base_seed + self._map_seed_offset
+        if self._maps_cache_size is None:
+            seed = base_seed + self._map_seed_offset
+        else:
+            seed = base_seed + (self._map_seed_offset % self._maps_cache_size)
         self._map_seed_offset += 1
         return seed
 
