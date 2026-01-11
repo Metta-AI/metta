@@ -29,7 +29,7 @@ _TOOL_MODULES = {
 def __getattr__(name: str) -> object:
     module_path = _TOOL_MODULES.get(name)
     if module_path is None:
-        raise AttributeError(f\"module {__name__!r} has no attribute {name!r}\")
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     module = import_module(module_path)
     return getattr(module, name)
 
