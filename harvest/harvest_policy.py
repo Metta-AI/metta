@@ -617,29 +617,71 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                              f"tried to go to ({target_r},{target_c})) - "
                              f"consecutive_fails={state.consecutive_failed_moves}")
 
-            # CRITICAL FIX: Mark the target cell as OBSTACLE to learn from failures
-            # This prevents repeatedly trying invalid moves to the same cell
-            bounds_check = path_is_within_bounds(state, target_r, target_c)
-            if not bounds_check:
-                self._logger.warning(f"  BOUNDS CHECK FAILED: ({target_r},{target_c}) out of bounds "
-                                   f"(map={state.map_height}x{state.map_width})")
+            # CRITICAL FIX: DON'T blindly mark failed move targets as walls!
+            # Move failures can happen for many reasons (position errors, temporary obstacles, timing).
+            # Only mark as wall if observation EXPLICITLY shows a wall tag at that location.
+            # Otherwise, we trap ourselves by marking valid cells as permanent walls.
 
-            if bounds_check:
-                state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
-                # Remove from explored cells since it's blocked
-                state.explored_cells.discard((target_r, target_c))
+            # Check if target cell has a wall tag in observation
+            target_is_wall = False
+            if obs and obs.tokens:
+                # Convert target position to observation coordinates
+                obs_r = target_r - state.row + self._obs_hr
+                obs_c = target_c - state.col + self._obs_wr
 
-                # CRITICAL: Also update MapManager grid so pathfinding learns from failures
-                # Without this, pathfinder will keep planning routes through blocked cells
-                if self.map_manager:
-                    self.map_manager.mark_wall(target_r, target_c)
-                    self._logger.debug(f"  LEARNED WALL: Marked ({target_r},{target_c}) as WALL due to failed move")
+                # Check if within observation bounds
+                if 0 <= obs_r < (2 * self._obs_hr + 1) and 0 <= obs_c < (2 * self._obs_wr + 1):
+                    # Check for wall tag at this location
+                    for tok in obs.tokens:
+                        if tok.location == (obs_r, obs_c) and tok.feature.name == "tag":
+                            tag_name = self._tag_names.get(tok.value, "").lower()
+                            if "wall" in tag_name:
+                                target_is_wall = True
+                                break
+
+            # Only mark as wall if observation confirms it's a wall
+            if target_is_wall:
+                bounds_check = path_is_within_bounds(state, target_r, target_c)
+                if bounds_check:
+                    state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
+                    state.explored_cells.discard((target_r, target_c))
+                    if self.map_manager:
+                        self.map_manager.mark_wall(target_r, target_c)
+                        self._logger.debug(f"  LEARNED WALL: Marked ({target_r},{target_c}) as WALL (confirmed by observation)")
+            else:
+                self._logger.debug(f"  FAILED MOVE: ({target_r},{target_c}) blocked but NOT marking as wall (may be temporary obstacle)")
 
             # If too many consecutive failed moves, invalidate cached paths
             # This suggests position drift - our map may be out of sync
             if state.consecutive_failed_moves >= 5:
                 state.cached_path = None
                 state.cached_path_target = None
+
+            # CRITICAL FIX: If SEVERELY stuck, reset the occupancy map AND MapManager
+            # Position tracking errors cause map corruption. When stuck for 20+ moves,
+            # clear all learned walls and rebuild from observations. This prevents permanent trapping.
+            if state.consecutive_failed_moves == 20:
+                self._logger.error(f"  MAP RESET: Severely stuck ({state.consecutive_failed_moves} fails) - "
+                                 f"clearing all maps to escape corruption")
+                # Reset occupancy grid to all FREE (CellType already imported at module level)
+                state.occupancy = [[CellType.FREE.value for _ in range(state.map_width)]
+                                 for _ in range(state.map_height)]
+                state.explored_cells.clear()
+
+                # Reset MapManager grid to all UNKNOWN (will rebuild from observations)
+                if self.map_manager:
+                    from .map import MapCellType
+                    self.map_manager.grid = [
+                        [MapCellType.UNKNOWN for _ in range(state.map_width)]
+                        for _ in range(state.map_height)
+                    ]
+                    # Keep station locations but clear wall markings
+                    self.map_manager.dead_ends.clear()
+
+                # Clear stuck recovery flags to allow retry
+                state.stuck_recovery_active = False
+                state.dead_end_positions.clear()
+                self._logger.warning(f"  MAP RESET: All maps cleared, will rebuild from observations")
 
         # Store new landmark and energy for next step's verification
         self._store_landmarks(state, obs)
@@ -2242,15 +2284,15 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         else:
             self._logger.warning(f"  ASSEMBLE: FAR from assembler (dist={dist_to_assembler})")
 
-        # If oscillating, clear stuck flag to allow retry with forced direction
-        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
-            self._logger.warning(f"  ASSEMBLE: Stuck/oscillating (fails={state.consecutive_failed_moves}), clearing flags and retrying navigation")
-            # Clear oscillation to allow another attempt with anti-oscillation measures
-            state.stuck_recovery_active = False
-            state.consecutive_failed_moves = 0
-            # The anti-oscillation logic in pathfinding will handle it
+        # If stuck/oscillating, ACTIVATE stuck recovery (don't reset counters!)
+        # CRITICAL FIX: DON'T reset consecutive_failed_moves - that prevents stuck recovery!
+        if state.consecutive_failed_moves >= 10:
+            self._logger.error(f"  ASSEMBLE: STUCK with {state.consecutive_failed_moves} failed moves - activating stuck recovery")
+            state.stuck_recovery_active = True
+            # Don't reset counters - let _navigate_to_station see the high failure count
+            # and activate observation-only exploration to find alternate route
 
-        # Normal navigation to assembler
+        # Navigate to assembler (will use stuck recovery if activated)
         return self._navigate_to_station(state, "assembler")
 
     def _do_deliver(self, state: HarvestState) -> Action:
@@ -2282,13 +2324,14 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 self._logger.info(f"  DELIVER: Adjacent to chest, moving {direction} onto it")
                 return self._actions.move.Move(direction)
 
-        # If oscillating, clear stuck flag to allow retry with forced direction
-        if state.consecutive_failed_moves >= 10 or state.stuck_recovery_active:
-            self._logger.warning(f"  DELIVER: Stuck/oscillating (fails={state.consecutive_failed_moves}), clearing flags and retrying navigation")
-            state.stuck_recovery_active = False
-            state.consecutive_failed_moves = 0
+        # If stuck/oscillating, ACTIVATE stuck recovery (don't reset counters!)
+        # CRITICAL FIX: DON'T reset consecutive_failed_moves - that prevents stuck recovery!
+        if state.consecutive_failed_moves >= 10:
+            self._logger.error(f"  DELIVER: STUCK with {state.consecutive_failed_moves} failed moves - activating stuck recovery")
+            state.stuck_recovery_active = True
+            # Don't reset counters - let _navigate_to_station see the high failure count
 
-        # Normal navigation to chest
+        # Navigate to chest (will use stuck recovery if activated)
         return self._navigate_to_station(state, "chest")
 
     def _do_recharge(self, state: HarvestState) -> Action:
