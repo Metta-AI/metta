@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class MettascopeRenderer(Renderer):
     """Renderer for GUI mode using mettascope."""
 
-    def __init__(self):
+    def __init__(self, autostart: bool = False):
         super().__init__()
         nim_root = _resolve_nim_root()
         nim_bindings_path = nim_root / "bindings" / "generated" if nim_root else None
@@ -29,6 +29,7 @@ class MettascopeRenderer(Renderer):
         self._mettascope = mettascope
         self._data_dir = str(nim_root / "data") if nim_root else "."
         os.environ.setdefault("METTASCOPE_DISABLE_CTRL_C", "1")
+        self._autostart = autostart
 
     def on_episode_start(self) -> None:
         # Get the GameConfig from MettaGridConfig
@@ -53,10 +54,10 @@ class MettascopeRenderer(Renderer):
             "objects": [],
         }
 
-        # mettascope.init requires data_dir and replay arguments
+        # mettascope.init requires data_dir, replay, and autostart arguments
         json_str = json.dumps(initial_replay, allow_nan=False)
         try:
-            self.response = self._mettascope.init(self._data_dir, json_str)
+            self.response = self._mettascope.init(self._data_dir, json_str, self._autostart)
         except KeyboardInterrupt:
             logger.info("Interrupt received during mettascope init; ending episode.")
             self._sim.end_episode()
