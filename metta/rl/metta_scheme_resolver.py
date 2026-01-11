@@ -90,7 +90,7 @@ class MettaSchemeResolver(SchemeResolver):
 
         if not self._stats_server_uri:
             raise ValueError("Cannot resolve metta:// URI: stats server not configured")
-        stats_client = StatsClient(backend_url=self._stats_server_uri)
+        stats_client = StatsClient.create(self._stats_server_uri)
 
         if _is_uuid(path_parts[1]):
             policy_version = stats_client.get_policy_version(uuid.UUID(path_parts[1]))

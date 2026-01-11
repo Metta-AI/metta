@@ -6,12 +6,15 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Callable, Sequence
 
 import numpy as np
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
+from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
+from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
+from mettagrid.simulator.replay_log_writer import InMemoryReplayWriter
+from mettagrid.simulator.rollout import Rollout
 
 
 def _run_single_simulation(
@@ -48,6 +51,10 @@ def _run_single_simulation(
     episode_results = []
     device = device_override or "cpu"
     max_action_time_ms = sim_cfg.max_action_time_ms or 10000
+    policy_env_info = PolicyEnvInterface.from_mg_cfg(sim_cfg.env)
+    policies = [
+        initialize_or_load_policy(policy_env_info, spec, device_override=device) for spec in policy_specs
+    ]
 
     for episode_idx in range(sim_cfg.num_episodes):
         rng.shuffle(assignments)
@@ -55,15 +62,24 @@ def _run_single_simulation(
         if replay_dir:
             replay_path = os.path.join(replay_dir, f"{uuid.uuid4()}.json.z")
 
-        job = PureSingleEpisodeSpecJob(
-            policy_specs=policy_specs,
-            assignments=assignments.tolist(),
-            env=sim_cfg.env,
-            replay_uri=replay_path,
-            seed=seed + episode_idx,
+        agent_policies = [
+            policies[assignment].agent_policy(agent_id) for agent_id, assignment in enumerate(assignments)
+        ]
+        replay_writer = InMemoryReplayWriter() if replay_path is not None else None
+        rollout = Rollout(
+            sim_cfg.env,
+            agent_policies,
             max_action_time_ms=max_action_time_ms,
+            seed=seed + episode_idx,
+            event_handlers=[replay_writer] if replay_writer is not None else None,
         )
-        results, replay = run_pure_single_episode_from_specs(job, device=device)
+        rollout.run_until_done()
+        replay = None
+        if replay_writer is not None:
+            replays = replay_writer.get_completed_replays()
+            if len(replays) != 1:
+                raise ValueError(f"Expected 1 replay, got {len(replays)}")
+            replay = replays[0]
 
         if replay_path is not None:
             if replay_path.endswith(".gz"):
@@ -75,11 +91,11 @@ def _run_single_simulation(
         episode_results.append(
             EpisodeRolloutResult(
                 assignments=assignments.copy(),
-                rewards=np.array(results.rewards, dtype=float),
-                action_timeouts=np.array(results.action_timeouts, dtype=float),
-                stats=results.stats,
+                rewards=np.array(rollout._sim.episode_rewards, dtype=float),
+                action_timeouts=np.array(rollout.timeout_counts, dtype=float),
+                stats=rollout._sim.episode_stats,
                 replay_path=replay_path,
-                steps=results.steps,
+                steps=rollout._sim.current_step,
                 max_steps=sim_cfg.env.game.max_steps,
             )
         )
