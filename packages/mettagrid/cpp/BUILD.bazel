@@ -42,6 +42,7 @@ pybind_extension(
     srcs = [
         "bindings/mettagrid_c.cpp",
         "bindings/mettagrid_c.hpp",
+        "bindings/mettagrid_py.cpp",
     ] + glob([
         "src/mettagrid/**/*.cpp",
         "include/mettagrid/**/*.hpp",

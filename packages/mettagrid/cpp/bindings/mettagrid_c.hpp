@@ -93,6 +93,7 @@ public:
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::list action_success_py();
+  py::dict get_collective_inventories();
 
   using Actions = py::array_t<ActionType, py::array::c_style>;
   using ActionSuccess = std::vector<bool>;
