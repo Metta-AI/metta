@@ -617,13 +617,13 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                              f"tried to go to ({target_r},{target_c})) - "
                              f"consecutive_fails={state.consecutive_failed_moves}")
 
-            # CRITICAL FIX: DON'T blindly mark failed move targets as walls!
-            # Move failures can happen for many reasons (position errors, temporary obstacles, timing).
-            # Only mark as wall if observation EXPLICITLY shows a wall tag at that location.
-            # Otherwise, we trap ourselves by marking valid cells as permanent walls.
+            # IMPROVED WALL LEARNING: Game state (failed move) is ground truth
+            # Mark cells as walls more aggressively to prevent repeated failures
+            # Only skip marking if we can confirm it's a temporary obstacle (agent, extractor we should be able to walk through)
 
-            # Check if target cell has a wall tag in observation
-            target_is_wall = False
+            should_mark_wall = True  # Default: learn from failures
+            reason = "move failed"
+
             if obs and obs.tokens:
                 # Convert target position to observation coordinates
                 obs_r = target_r - state.row + self._obs_hr
@@ -631,25 +631,44 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
                 # Check if within observation bounds
                 if 0 <= obs_r < (2 * self._obs_hr + 1) and 0 <= obs_c < (2 * self._obs_wr + 1):
-                    # Check for wall tag at this location
+                    # Check what's at this location
                     for tok in obs.tokens:
                         if tok.location == (obs_r, obs_c) and tok.feature.name == "tag":
                             tag_name = self._tag_names.get(tok.value, "").lower()
+
+                            # Definitely walls
                             if "wall" in tag_name:
-                                target_is_wall = True
+                                should_mark_wall = True
+                                reason = "wall tag"
+                                break
+                            # Non-traversable stations (can't path through them)
+                            elif any(s in tag_name for s in ["charger", "assembler", "chest"]):
+                                should_mark_wall = True
+                                reason = f"station ({tag_name})"
+                                break
+                            # Other agents - temporary obstacle, don't mark
+                            elif "agent" in tag_name:
+                                should_mark_wall = False
+                                reason = "agent (temporary)"
+                                break
+                            # Extractors should be traversable but might be blocked temporarily
+                            # Mark as wall if failed - they may not actually be traversable
+                            elif "extractor" in tag_name:
+                                should_mark_wall = True
+                                reason = f"extractor ({tag_name}) - not traversable as expected"
                                 break
 
-            # Only mark as wall if observation confirms it's a wall
-            if target_is_wall:
+            # Mark as wall if appropriate
+            if should_mark_wall:
                 bounds_check = path_is_within_bounds(state, target_r, target_c)
                 if bounds_check:
                     state.occupancy[target_r][target_c] = CellType.OBSTACLE.value
                     state.explored_cells.discard((target_r, target_c))
                     if self.map_manager:
                         self.map_manager.mark_wall(target_r, target_c)
-                        self._logger.debug(f"  LEARNED WALL: Marked ({target_r},{target_c}) as WALL (confirmed by observation)")
+                        self._logger.debug(f"  LEARNED WALL: Marked ({target_r},{target_c}) as WALL ({reason})")
             else:
-                self._logger.debug(f"  FAILED MOVE: ({target_r},{target_c}) blocked but NOT marking as wall (may be temporary obstacle)")
+                self._logger.debug(f"  FAILED MOVE: ({target_r},{target_c}) blocked but NOT marking as wall ({reason})")
 
             # If too many consecutive failed moves, invalidate cached paths
             # This suggests position drift - our map may be out of sync
@@ -2255,6 +2274,13 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         CRITICAL FIX: Use observation-based navigation ONLY. state.stations may have wrong positions!
         """
+        # DEBUG: Log critical assembly state
+        self._logger.error(f"  🔧 ASSEMBLE DEBUG: Step {state.step_count}")
+        self._logger.error(f"  🔧   vibe={state.current_glyph}")
+        self._logger.error(f"  🔧   inventory: C:{state.carbon} O:{state.oxygen} Ge:{state.germanium} Si:{state.silicon} H:{state.hearts}")
+        self._logger.error(f"  🔧   recipe: {state.heart_recipe}")
+        self._logger.error(f"  🔧   can_assemble={self._can_assemble(state)}")
+
         # If stuck/oscillating, ACTIVATE stuck recovery (don't reset counters!)
         if state.consecutive_failed_moves >= 10:
             self._logger.error(f"  ASSEMBLE: STUCK with {state.consecutive_failed_moves} failed moves - activating stuck recovery")
@@ -2262,7 +2288,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         # Navigate to assembler using observation-based navigation
         # _navigate_to_station will find assembler in observation and navigate correctly
-        return self._navigate_to_station(state, "assembler")
+        action = self._navigate_to_station(state, "assembler")
+        self._logger.error(f"  🔧   action returned: {action.name}")
+        return action
 
     def _do_deliver(self, state: HarvestState) -> Action:
         """Deliver hearts to the chest.
@@ -3444,13 +3472,22 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
             if tok.location == target_obs_pos and tok.feature.name == "tag":
                 tag_name = self._tag_names.get(tok.value, "").lower()
 
-                # CRITICAL FIX: Chargers, assemblers, chests, extractors ARE TRAVERSABLE!
-                # You move ONTO them to use them - they are DESTINATIONS, not obstacles.
-                # ONLY block walls and other agents.
+                # Block walls and other agents (always impassable)
                 if "wall" in tag_name or "agent" in tag_name:
                     if state.step_count < 100:
                         self._logger.info(f"  OBS_CHECK: Blocking {direction} - found impassable '{tag_name}' at {target_obs_pos}")
                     return False
+
+                # Block chargers, assemblers, chests (non-traversable stations)
+                # These are used from ADJACENT positions with NOOP, not by moving onto them
+                if any(s in tag_name for s in ["charger", "assembler", "chest"]):
+                    if state.step_count < 100:
+                        self._logger.info(f"  OBS_CHECK: Blocking {direction} - found non-traversable station '{tag_name}' at {target_obs_pos}")
+                    return False
+
+                # Extractors SHOULD be traversable (you stand on them to use)
+                # But if we're seeing failures, maybe they're not traversable in practice
+                # Let move verification handle this - be optimistic here
 
         # No blocking object found - path is clear
         return True
