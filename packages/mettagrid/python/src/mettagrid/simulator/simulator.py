@@ -11,7 +11,7 @@ import numpy as np
 import mettagrid.config.mettagrid_c_config as mettagrid_c_config
 import mettagrid.config.mettagrid_config as mettagrid_config
 from mettagrid.config.id_map import ObservationFeatureSpec
-from mettagrid.map_builder.map_builder import GameMap
+from mettagrid.map_builder.map_builder import GameMap, MapBuilderConfig
 from mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from mettagrid.mettagrid_c import PackedCoordinate
 from mettagrid.profiling.stopwatch import Stopwatch, with_instance_timer
@@ -262,17 +262,31 @@ class Simulation:
         return self.__c_sim.grid_objects(bbox.min_row, bbox.max_row, bbox.min_col, bbox.max_col, ignore_list)
 
     def _make_map(self) -> GameMap:
+        map_builder = self._seeded_map_builder(self._config.game.map_builder)
         if self._maps_cache is None:
-            return self._config.game.map_builder.create().build_for_num_agents(self._config.game.num_agents)
-        return self._maps_cache.get_or_create(self._config.game.map_builder, self._config.game.num_agents)
+            return map_builder.create().build_for_num_agents(self._config.game.num_agents)
+        return self._maps_cache.get_or_create(map_builder, self._config.game.num_agents)
+
+    def _seeded_map_builder(self, map_builder: MapBuilderConfig) -> MapBuilderConfig:
+        if not hasattr(map_builder, "seed"):
+            return map_builder
+        if map_builder.seed is None:
+            return map_builder
+        if self._simulator is None:
+            return map_builder
+        map_builder = map_builder.model_copy(deep=True)
+        map_builder.seed = self._simulator.next_map_seed(map_builder.seed)
+        return map_builder
 
 
 class Simulator:
     def __init__(self, maps_cache_size: Optional[int] = None):
         self._maps_cache = None
+        self._maps_cache_size = maps_cache_size
         if maps_cache_size is not None:
             self._maps_cache = get_shared_cache(maps_per_key=maps_cache_size)
 
+        self._map_seed_offset = 0
         self._config_invariants = None
         self._event_handlers = []
         self._current_simulation = None
@@ -312,6 +326,14 @@ class Simulator:
         """Shut down the simulator."""
         if self._current_simulation is not None:
             self._current_simulation.close()
+
+    def next_map_seed(self, base_seed: int) -> int:
+        if self._maps_cache_size is None:
+            seed = base_seed + self._map_seed_offset
+        else:
+            seed = base_seed + (self._map_seed_offset % self._maps_cache_size)
+        self._map_seed_offset += 1
+        return seed
 
     def _compute_config_invariants(self, config: mettagrid_config.MettaGridConfig) -> dict[str, Any]:
         return {
