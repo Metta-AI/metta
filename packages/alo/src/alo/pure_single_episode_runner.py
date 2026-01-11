@@ -117,7 +117,7 @@ def _run_pure_single_episode(
     max_action_time_ms: int,
     seed: int,
     replay_uri: str | None,
-    device: str,
+    device: str | None,
     render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     env_interface = PolicyEnvInterface.from_mg_cfg(job_env)
@@ -205,7 +205,7 @@ def run_pure_single_episode(
 
 def run_pure_single_episode_from_specs(
     job: PureSingleEpisodeSpecJob,
-    device: str,
+    device: str | None = None,
     render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     return _run_pure_single_episode(

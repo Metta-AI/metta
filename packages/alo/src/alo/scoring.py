@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, Sequence
 from uuid import UUID
+
+import numpy as np
+
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 
 
 class ScoredMatchLike(Protocol):
@@ -47,3 +52,59 @@ def overall_value_over_replacement(weighted_sum: float, total_agents: int, repla
     if total_agents <= 0:
         return None
     return weighted_sum / total_agents - replacement_score
+
+
+@dataclass
+class VorScenarioSummary:
+    candidate_mean: float | None
+    replacement_mean: float | None
+    candidate_episode_count: int
+
+
+@dataclass
+class VorTotals:
+    replacement_mean: float | None = None
+    total_candidate_weighted_sum: float = 0.0
+    total_candidate_agents: int = 0
+
+    def update(self, candidate_count: int, summary: VorScenarioSummary) -> None:
+        if candidate_count == 0:
+            self.replacement_mean = summary.replacement_mean
+            return
+        if summary.candidate_mean is None or summary.candidate_episode_count == 0:
+            return
+        self.total_candidate_weighted_sum += summary.candidate_mean * candidate_count * summary.candidate_episode_count
+        self.total_candidate_agents += candidate_count * summary.candidate_episode_count
+
+
+def summarize_vor_scenario(
+    rollout: MultiEpisodeRolloutResult,
+    *,
+    candidate_policy_index: int,
+    candidate_count: int,
+) -> VorScenarioSummary:
+    candidate_sum = 0.0
+    candidate_episode_count = 0
+    replacement_sum = 0.0
+    replacement_episode_count = 0
+
+    for episode in rollout.episodes:
+        if episode.rewards.size == 0:
+            continue
+        if candidate_count == 0:
+            replacement_sum += float(episode.rewards.mean())
+            replacement_episode_count += 1
+        else:
+            mask = episode.assignments == candidate_policy_index
+            if np.any(mask):
+                candidate_sum += float(episode.rewards[mask].mean())
+                candidate_episode_count += 1
+
+    candidate_mean = candidate_sum / candidate_episode_count if candidate_episode_count else None
+    replacement_mean = replacement_sum / replacement_episode_count if replacement_episode_count else None
+
+    return VorScenarioSummary(
+        candidate_mean=candidate_mean,
+        replacement_mean=replacement_mean,
+        candidate_episode_count=candidate_episode_count,
+    )

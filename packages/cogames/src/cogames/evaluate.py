@@ -5,23 +5,21 @@ from __future__ import annotations
 import json
 import uuid
 from collections import defaultdict
-from typing import Literal, Optional, TypeAlias, cast
+from typing import Literal, Optional, TypeAlias
 
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
 from alo.assignments import build_assignments
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
-from alo.replay import write_replay
+from alo.rollouts import run_single_episode_rollout
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
 from mettagrid import MettaGridConfig
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
-from mettagrid.simulator.replay_log_writer import EpisodeReplay
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
 
@@ -78,42 +76,28 @@ def evaluate(
         assignments = build_assignments(env_cfg.game.num_agents, proportions)
         rng = np.random.default_rng(seed)
 
-        episode_results: list[EpisodeRolloutResult] = []
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
         with typer.progressbar(progress_iterable, label=progress_label) as progress:
+            episode_results = []
             for episode_idx in progress:
                 rng.shuffle(assignments)
                 replay_path = None
                 if save_replay is not None:
                     replay_path = f"{save_replay}/{uuid.uuid4()}.json.z"
 
-                job = PureSingleEpisodeSpecJob(
+                episode_result = run_single_episode_rollout(
                     policy_specs=policy_specs,
-                    assignments=assignments.tolist(),
-                    env=env_cfg,
-                    replay_uri=replay_path,
+                    assignments=assignments,
+                    env_cfg=env_cfg,
                     seed=seed + episode_idx,
                     max_action_time_ms=action_timeout_ms,
+                    replay_path=replay_path,
+                    device="cpu",
                 )
-                results, replay = run_pure_single_episode_from_specs(job, device="cpu")
-
                 if replay_path is not None:
-                    replay = cast(EpisodeReplay, replay)
-                    write_replay(replay, replay_path)
                     all_replay_paths.append(replay_path)
-
-                episode_results.append(
-                    EpisodeRolloutResult(
-                        assignments=assignments.copy(),
-                        rewards=np.array(results.rewards, dtype=float),
-                        action_timeouts=np.array(results.action_timeouts, dtype=float),
-                        stats=results.stats,
-                        replay_path=replay_path,
-                        steps=results.steps,
-                        max_steps=env_cfg.game.max_steps,
-                    )
-                )
+                episode_results.append(episode_result)
 
         mission_results.append(MultiEpisodeRolloutResult(episodes=episode_results))
 

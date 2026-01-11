@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, cast
+from typing import Optional
 
 import numpy as np
 import typer
 from alo.assignments import allocate_counts
-from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
-from alo.replay import write_replay
-from alo.scoring import overall_value_over_replacement, value_over_replacement
+from alo.rollouts import run_multi_episode_rollout
+from alo.scoring import VorTotals, overall_value_over_replacement, summarize_vor_scenario, value_over_replacement
 from rich.console import Console
 from rich.table import Table
 
@@ -18,8 +16,6 @@ from cogames.cogs_vs_clips.missions import Machina1OpenWorldMission
 from mettagrid import MettaGridConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.simulator.multi_episode.rollout import EpisodeRolloutResult, MultiEpisodeRolloutResult
-from mettagrid.simulator.replay_log_writer import EpisodeReplay
 
 
 def make_machina1_open_world_env(
@@ -96,86 +92,36 @@ def pickup(
     console.print("Pool: " + ", ".join(f"{idx + 1}:{label}" for idx, label in enumerate(pool_display)))
 
     results: list[PickupScenarioResult] = []
-    replacement_mean: Optional[float] = None
-    total_candidate_weighted_sum = 0.0
-    total_candidate_agents = 0
+    totals = VorTotals()
 
     with typer.progressbar(scenarios, label="Simulating") as progress:
         for scenario in progress:
             assignments = np.repeat(np.arange(len(policy_specs)), [scenario.candidate_count, *scenario.pool_counts])
-            rng = np.random.default_rng(seed)
 
-            episode_results = []
-            for episode_idx in range(episodes):
-                rng.shuffle(assignments)
-                replay_path = None
-                if save_replay_dir:
-                    replay_path = str(save_replay_dir / f"{uuid.uuid4()}.json.z")
-
-                job = PureSingleEpisodeSpecJob(
-                    policy_specs=policy_specs,
-                    assignments=assignments.tolist(),
-                    env=env_cfg,
-                    replay_uri=replay_path,
-                    seed=seed + episode_idx,
-                    max_action_time_ms=action_timeout_ms,
-                )
-                episode_result, replay = run_pure_single_episode_from_specs(job, device="cpu")
-
-                if replay_path is not None:
-                    replay = cast(EpisodeReplay, replay)
-                    write_replay(replay, replay_path)
-
-                episode_results.append(
-                    EpisodeRolloutResult(
-                        assignments=assignments.copy(),
-                        rewards=np.array(episode_result.rewards, dtype=float),
-                        action_timeouts=np.array(episode_result.action_timeouts, dtype=float),
-                        stats=episode_result.stats,
-                        replay_path=replay_path,
-                        steps=episode_result.steps,
-                        max_steps=env_cfg.game.max_steps,
-                    )
-                )
-
-            rollout = MultiEpisodeRolloutResult(episodes=episode_results)
-
-            candidate_sum = 0.0
-            candidate_count = 0
-            replacement_sum = 0.0
-            replacement_count = 0
-            replay_paths: list[str] = []
-
-            for episode in rollout.episodes:
-                if episode.replay_path:
-                    replay_paths.append(episode.replay_path)
-                if episode.rewards.size == 0:
-                    continue
-                if scenario.candidate_count == 0:
-                    replacement_sum += float(episode.rewards.mean())
-                    replacement_count += 1
-                else:
-                    mask = episode.assignments == 0
-                    if np.any(mask):
-                        candidate_sum += float(episode.rewards[mask].mean())
-                        candidate_count += 1
-
-            candidate_mean = candidate_sum / candidate_count if candidate_count else None
-            scenario_replacement_mean = replacement_sum / replacement_count if replacement_count else None
+            rollout, replay_paths = run_multi_episode_rollout(
+                policy_specs=policy_specs,
+                assignments=assignments,
+                env_cfg=env_cfg,
+                episodes=episodes,
+                seed=seed,
+                max_action_time_ms=action_timeout_ms,
+                replay_dir=save_replay_dir,
+                device="cpu",
+            )
+            summary = summarize_vor_scenario(
+                rollout,
+                candidate_policy_index=0,
+                candidate_count=scenario.candidate_count,
+            )
             results.append(
                 PickupScenarioResult(
                     scenario=scenario,
-                    candidate_mean=candidate_mean,
-                    replacement_mean=scenario_replacement_mean,
+                    candidate_mean=summary.candidate_mean,
+                    replacement_mean=summary.replacement_mean,
                     replay_paths=replay_paths,
                 )
             )
-
-            if scenario.candidate_count == 0:
-                replacement_mean = scenario_replacement_mean
-            elif candidate_mean is not None:
-                total_candidate_weighted_sum += candidate_mean * scenario.candidate_count * candidate_count
-                total_candidate_agents += scenario.candidate_count * candidate_count
+            totals.update(scenario.candidate_count, summary)
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Scenario")
@@ -201,13 +147,13 @@ def pickup(
     console.print("\n[bold cyan]Scenario Scores[/bold cyan]")
     console.print(table)
 
-    if replacement_mean is None:
+    if totals.replacement_mean is None:
         console.print("[yellow]No replacement baseline available (missing c0 scenario).[/yellow]")
         if save_replay_dir:
             console.print(f"[dim]Replays saved to {save_replay_dir}[/dim]")
         return
 
-    console.print(f"\n[bold cyan]Replacement Baseline[/bold cyan] {replacement_mean:.2f}")
+    console.print(f"\n[bold cyan]Replacement Baseline[/bold cyan] {totals.replacement_mean:.2f}")
 
     vor_table = Table(show_header=True, header_style="bold magenta")
     vor_table.add_column("Candidate Count", justify="right")
@@ -223,7 +169,7 @@ def pickup(
             vor = None
         else:
             candidate_score = result.candidate_mean
-            vor = value_over_replacement(candidate_score, replacement_mean)
+            vor = value_over_replacement(candidate_score, totals.replacement_mean)
 
         candidate_text = f"{candidate_score:.2f}" if candidate_score is not None else "-"
         vor_text = f"{vor:.2f}" if vor is not None else "-"
@@ -232,7 +178,11 @@ def pickup(
     console.print("\n[bold cyan]Value Over Replacement[/bold cyan]")
     console.print(vor_table)
 
-    overall_vor = overall_value_over_replacement(total_candidate_weighted_sum, total_candidate_agents, replacement_mean)
+    overall_vor = overall_value_over_replacement(
+        totals.total_candidate_weighted_sum,
+        totals.total_candidate_agents,
+        totals.replacement_mean,
+    )
 
     if overall_vor is not None:
         console.print(f"\n[bold cyan]Overall VOR[/bold cyan] {overall_vor:.2f}")
