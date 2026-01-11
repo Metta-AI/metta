@@ -381,7 +381,7 @@ def play_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for simulator/policy RNG and procedural map layout (overrides MapGen seed)",
+        help="Seed for simulator/policy RNG and procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -588,7 +588,7 @@ def train_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for training RNG and procedural map layout (overrides MapGen seed)",
+        help="Seed for training RNG and procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -702,7 +702,7 @@ def run_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for evaluation RNG and procedural map layout (overrides MapGen seed)",
+        help="Seed for evaluation RNG and procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(

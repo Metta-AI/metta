@@ -68,23 +68,23 @@ class PairingReferee(RefereeBase):
                     existing = config_counts[key]
                     needed = self.matches_per_config - existing
                     for match_i in range(needed):
-                        map_seed_offset = c_idx * 1000 + match_i + existing
-                        pending.append((existing, pp1, pp2, config, map_seed_offset))
+                        seed_offset = c_idx * 1000 + match_i + existing
+                        pending.append((existing, pp1, pp2, config, seed_offset))
                         existing += 1
 
         pending.sort(key=lambda x: x[0])
-        # map_seed_offset ensures all pairs get the same map for a given (config, match_num)
+        # seed_offset ensures all pairs get the same map for a given (config, match_num)
         seed = 42
         return [
             MatchRequest(
                 pool_player_ids=[pp1, pp2],
                 assignments=config,
-                env=_make_env(seed + map_seed_offset),
+                env=_make_env(seed + seed_offset),
                 episode_tags={
                     "match_type": "pairing",
                     "assignments": str(config),
                 },
                 seed=seed,
             )
-            for _, pp1, pp2, config, map_seed_offset in pending
+            for _, pp1, pp2, config, seed_offset in pending
         ]

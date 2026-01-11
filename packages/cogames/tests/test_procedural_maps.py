@@ -4,7 +4,7 @@ from typing import Literal, cast
 import pytest
 
 from cogames.cogs_vs_clips.missions import HelloWorldOpenWorldMission
-from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, MapSeedVariant
+from cogames.cogs_vs_clips.procedural import MachinaArenaConfig, SeedVariant
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.base_hub import DEFAULT_EXTRACTORS, BaseHub
 
@@ -216,10 +216,10 @@ def test_procedural_builder_deterministic_with_seed():
     assert (m1.grid == m2.grid).all()
 
 
-def test_map_seed_variant_sets_seed_and_produces_deterministic_map():
+def test_seed_variant_sets_seed_and_produces_deterministic_map():
     # HelloWorldOpenWorldMission uses the HELLO_WORLD site, which is MapGen-based.
     base_mission = HelloWorldOpenWorldMission
-    seed_variant = MapSeedVariant(seed=123)
+    seed_variant = SeedVariant(seed=123)
     mission_with_seed = base_mission.with_variants([seed_variant])
 
     env_cfg_1 = mission_with_seed.make_env()

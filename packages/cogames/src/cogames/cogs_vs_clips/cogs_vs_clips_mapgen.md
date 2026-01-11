@@ -219,21 +219,21 @@ CLI variants are composed in order, so `cogames play -m machina_procedural.open_
 ### Seeds and Reproducibility
 
 - `MapGen.Config.seed` (`env.game.map_builder.seed`) controls **map layout**.
-- `--seed` controls simulator/policy RNG and always overrides MapGen layout seeding in CLI commands.
+- CLI `--seed` controls simulator/policy RNG and is used to seed MapGen layout.
 - `train`: map seed = `--seed + env_seed` (reproducible variety).
 - `play`/`eval`: map layout is fixed per run by `--seed`.
 - For fully reproducible play/eval runs, set `--seed`.
 - Recipe `maps_cache_size` controls how many distinct procedural maps are cached when the MapGen seed is unset (mission
-  seed is `None`, typically in programmatic configs that do not override map seeding); set it to `None` to disable
-  caching (more diversity, slower) or `1` for a single cached map.
+  seed is `None`, typically in programmatic configs that do not set a seed); set it to `None` to disable caching (more
+  diversity, slower) or `1` for a single cached map.
 
-Example programmatic override using the shared `MapSeedVariant` helper:
+Example programmatic override using the shared `SeedVariant` helper:
 
 ```python
-from cogames.cogs_vs_clips.procedural import MapSeedVariant
+from cogames.cogs_vs_clips.procedural import SeedVariant
 
 base_mission = HelloWorldOpenWorldMission
-seeded_mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
+seeded_mission = base_mission.with_variants([SeedVariant(seed=1234)])
 env_cfg = seeded_mission.make_env()
 # env_cfg.game.map_builder is a MapGen.Config with seed=1234; calling builder.build()
 # will now deterministically reproduce the same grid.

@@ -569,18 +569,18 @@ class MapGenVariant(EnvNodeVariant[MapGenConfig]):
         return map_builder
 
 
-class MapSeedVariant(MapGenVariant):
+class SeedVariant(MapGenVariant):
     """Variant that sets the MapGen seed for deterministic map generation.
 
     This is primarily meant for programmatic control from experiments / pipelines:
 
-        mission = base_mission.with_variants([MapSeedVariant(seed=1234)])
+        mission = base_mission.with_variants([SeedVariant(seed=1234)])
         env_cfg = mission.make_env()
 
     """
 
-    name: str = "map_seed"
-    description: str = "Set MapGen seed for deterministic map generation."
+    name: str = "seed"
+    description: str = "Set seed for deterministic map generation."
     seed: int
 
     @override
