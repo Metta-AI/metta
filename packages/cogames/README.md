@@ -209,6 +209,37 @@ You can also specify multiple missions with `*` wildcards:
 - `--batch-size N`: Batch size (default: 4096)
 - `--num-workers N`: Worker processes (default: CPU count)
 
+### `cogames preseason -p [POLICY]`
+
+Evaluate a policy against standardized baseline agents to assess performance.
+
+This command runs your policy through three scenarios on the `machina_1.open_world` mission:
+
+1. **Self-Play**: Candidate vs Candidate (tests capabilities)
+2. **With Ladybug**: 50% Candidate, 50% Ladybug baseline (tests adaptability)
+3. **With Baseline**: 50% Candidate, 50% Baseline agent (tests robustness)
+
+**Example:**
+
+```bash
+# Evaluate a trained policy
+cogames preseason -p stateless:./train_dir/policy.pt
+
+# Evaluate with more episodes for better statistics
+cogames preseason -p lstm:./weights.pt --episodes 20
+
+# Save replays for analysis
+cogames preseason -p stateless:./train_dir/policy.pt --save-replay-dir ./replays
+```
+
+**Options:**
+
+- `--episodes N`: Number of episodes per scenario (default: 10)
+- `--cogs N`: Number of agents per episode (default: 4)
+- `--steps N`: Max steps per episode (default: 1000)
+- `--action-timeout-ms N`: Max milliseconds per action (default: 250)
+- `--save-replay-dir PATH`: Directory to save replays
+
 ### Custom Policy Architectures
 
 CoGames supports torch-based policy architectures out of the box (such as `stateless` and `lstm`). To create your own

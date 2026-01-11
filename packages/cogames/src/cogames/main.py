@@ -773,6 +773,62 @@ def run_cmd(
     )
 
 
+@app.command(name="preseason", help="Evaluate a policy against preseason baseline agents")
+def preseason_cmd(
+    ctx: typer.Context,
+    policy: str = typer.Option(..., "--policy", "-p", help=f"Policy to evaluate ({policy_arg_example})"),
+    episodes: int = typer.Option(10, "--episodes", "-e", help="Number of episodes per scenario", min=1),
+    cogs: int = typer.Option(4, "--cogs", "-c", help="Number of cogs (agents)", min=1),
+    action_timeout_ms: int = typer.Option(
+        250,
+        "--action-timeout-ms",
+        help="Max milliseconds afforded to generate each action before noop is used by default",
+        min=1,
+    ),
+    steps: Optional[int] = typer.Option(1000, "--steps", "-s", help="Max steps per episode", min=1),
+    seed: int = typer.Option(42, "--seed", help="Base random seed for evaluation", min=0),
+    format_: Optional[Literal["yaml", "json"]] = typer.Option(
+        None,
+        "--format",
+        help="Output results in YAML or JSON format",
+    ),
+    save_replay_dir: Optional[Path] = typer.Option(  # noqa: B008
+        None,
+        "--save-replay-dir",
+        help=(
+            "Directory to save replays. Directory will be created if it doesn't exist. "
+            "Each replay will be saved with a unique UUID-based filename."
+        ),
+    ),
+) -> None:
+    """Evaluate a policy against preseason baseline agents.
+
+    This runs three scenarios on the machina_1.open_world mission:
+    1. Self-play: Candidate vs Candidate
+    2. With Ladybug: 50% Candidate, 50% Ladybug baseline
+    3. With Baseline: 50% Candidate, 50% Baseline agent
+
+    Example:
+        cogames preseason -p stateless:./train_dir/policy.pt
+        cogames preseason -p lstm:./weights.pt --episodes 20
+    """
+    from cogames import preseason_eval
+
+    policy_spec = get_policy_spec(ctx, policy)
+
+    preseason_eval.evaluate_preseason(
+        console=console,
+        candidate_policy_spec=policy_spec,
+        episodes=episodes,
+        action_timeout_ms=action_timeout_ms,
+        seed=seed,
+        num_cogs=cogs,
+        steps=steps,
+        output_format=format_,
+        save_replay_dir=str(save_replay_dir) if save_replay_dir else None,
+    )
+
+
 @app.command(name="version", help="Show version information")
 def version_cmd() -> None:
     def public_version(dist_name: str) -> str:
