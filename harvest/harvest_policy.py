@@ -2087,6 +2087,22 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
 
         Returns direction to the station if adjacent, or None.
         """
+        # CRITICAL DEBUG: First log ALL station tags in entire observation
+        all_station_tags = []
+        if state.current_obs and state.current_obs.tokens:
+            for tok in state.current_obs.tokens:
+                if tok.feature.name == "tag":
+                    tag_name = self._tag_names.get(tok.value, "").lower()
+                    if station_type in tag_name:
+                        world_r = tok.location[0] - self._obs_hr + state.row
+                        world_c = tok.location[1] - self._obs_wr + state.col
+                        all_station_tags.append(f"{tag_name}@obs{tok.location}=world({world_r},{world_c})")
+
+        if all_station_tags and len(all_station_tags) > 0:
+            known_station = state.stations.get(station_type)
+            self._logger.error(f"  OBS_SCAN: Agent at ({state.row},{state.col}), known {station_type}: {known_station}")
+            self._logger.error(f"  OBS_SCAN: All '{station_type}' tags in observation: {all_station_tags}")
+
         dir_offsets = {"north": (-1, 0), "south": (1, 0), "east": (0, 1), "west": (0, -1)}
 
         for direction, (dr, dc) in dir_offsets.items():
@@ -2095,6 +2111,9 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
                 if tok.location == adj_obs_pos and tok.feature.name == "tag":
                     tag_name = self._tag_names.get(tok.value, "").lower()
                     if station_type in tag_name:
+                        # CRITICAL DEBUG: Log what we found and where
+                        world_pos = (state.row + dr, state.col + dc)
+                        self._logger.error(f"  ADJACENT_MATCH: Returning direction '{direction}' for {station_type} at world {world_pos}")
                         return direction
         return None
 
@@ -2146,30 +2165,30 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
         # This is the critical bug that prevented assembly!
         if state.current_obs and state.current_obs.tokens:
             center_pos = (self._obs_hr, self._obs_wr)
+            self._logger.error(f"  STATION CHECK: Looking for {station_type} at center_pos={center_pos}")
             for tok in state.current_obs.tokens:
                 if tok.location == center_pos and tok.feature.name == "tag":
                     tag_name = self._tag_names.get(tok.value, "").lower()
+                    self._logger.error(f"  STATION CHECK: Found tag '{tag_name}' at center")
                     if station_type in tag_name:
-                        self._logger.info(f"  {station_type.upper()}: Standing ON {station_type}, using it (noop)")
+                        self._logger.error(f"  ★★★ {station_type.upper()}: Standing ON {station_type}, using it (noop)!")
                         state.using_object_this_step = True
                         state.stuck_recovery_active = False
                         return self._actions.noop.Noop()
 
-        # Priority 1: Check if station is adjacent in observation - move onto it
+        # Priority 1: Check if station is adjacent in observation - move onto it!
         # (Always check this, even when stuck - we might have found it!)
         adj_dir = self._find_station_adjacent_in_obs(state, station_type)
         if adj_dir is not None:
-            # CRITICAL FIX: Check if direction is actually clear before moving!
-            # Station may be adjacent but blocked by another agent or obstacle
+            # CRITICAL: Assemblers, chests, and chargers all require moving ONTO them to interact
+            # This is verified by test_cvc_assembler_hearts.py which shows move_action to assembler_pos
             if self._is_direction_clear_in_obs(state, adj_dir):
-                self._logger.info(f"  {station_type.upper()}: Adjacent in direction {adj_dir}, moving onto it")
+                self._logger.info(f"  ✓✓✓ {station_type.upper()}: Adjacent in direction {adj_dir}, moving onto it to use")
                 state.using_object_this_step = True
-                # Exit stuck recovery since we found what we need
                 state.stuck_recovery_active = False
                 return self._actions.move.Move(adj_dir)
             else:
                 self._logger.warning(f"  {station_type.upper()}: Adjacent {adj_dir} but BLOCKED - will try alternate route")
-                # Don't return - fall through to other priorities to find alternate route
 
         # Priority 2: Check if station is visible (but not adjacent)
         nav_result = self._find_station_direction_in_obs(state, station_type)
@@ -2234,104 +2253,28 @@ class HarvestAgentPolicy(StatefulPolicyImpl[HarvestState]):
     def _do_assemble(self, state: HarvestState) -> Action:
         """Assemble hearts at the assembler.
 
-        IMPROVED NAVIGATION + DETAILED DEBUGGING to understand why no hearts are being assembled.
+        CRITICAL FIX: Use observation-based navigation ONLY. state.stations may have wrong positions!
         """
-        assembler_pos = state.stations.get("assembler")
-
-        # DEBUGGING: Log current state
-        dist_to_assembler = abs(state.row - assembler_pos[0]) + abs(state.col - assembler_pos[1]) if assembler_pos else 999
-        self._logger.error(f"╔══ ASSEMBLE DEBUG ══════════════════════════════════")
-        self._logger.error(f"║ Position: ({state.row},{state.col})")
-        self._logger.error(f"║ Assembler: {assembler_pos}")
-        self._logger.error(f"║ Distance to assembler: {dist_to_assembler}")
-        self._logger.error(f"║ Inventory: C:{state.carbon} O:{state.oxygen} G:{state.germanium} Si:{state.silicon} H:{state.hearts}")
-        self._logger.error(f"║ Recipe: {state.heart_recipe}")
-        self._logger.error(f"║ Energy: {state.energy}")
-        self._logger.error(f"║ Consecutive fails: {state.consecutive_failed_moves}")
-        self._logger.error(f"╚════════════════════════════════════════════════════")
-
-        if not assembler_pos:
-            self._logger.error(f"  ASSEMBLE: No assembler found - exploring!")
-            return self._explore(state)
-
-        # Check if standing ON the assembler
-        if (state.row, state.col) == assembler_pos:
-            self._logger.error(f"  ✓✓✓ ASSEMBLE: STANDING ON ASSEMBLER! Attempting assembly...")
-            # Try all assembly actions
-            return self._actions.noop.Noop()  # Using assembler
-
-        # Check if adjacent to assembler - move directly onto it
-        dr = assembler_pos[0] - state.row
-        dc = assembler_pos[1] - state.col
-        if abs(dr) + abs(dc) == 1:  # Manhattan distance = 1 (adjacent)
-            direction = None
-            if dr == -1: direction = "north"
-            elif dr == 1: direction = "south"
-            elif dc == 1: direction = "east"
-            elif dc == -1: direction = "west"
-
-            if direction and self._is_direction_clear_in_obs(state, direction):
-                self._logger.error(f"  >>> ASSEMBLE: ADJACENT to assembler! Moving {direction} onto it")
-                return self._actions.move.Move(direction)
-            else:
-                self._logger.error(f"  ASSEMBLE: Adjacent but direction {direction} is BLOCKED")
-
-        # Log navigation attempt
-        if dist_to_assembler <= 10:
-            self._logger.error(f"  ASSEMBLE: Close to assembler (dist={dist_to_assembler}), navigating...")
-        elif dist_to_assembler <= 30:
-            self._logger.warning(f"  ASSEMBLE: Medium distance to assembler (dist={dist_to_assembler})")
-        else:
-            self._logger.warning(f"  ASSEMBLE: FAR from assembler (dist={dist_to_assembler})")
-
         # If stuck/oscillating, ACTIVATE stuck recovery (don't reset counters!)
-        # CRITICAL FIX: DON'T reset consecutive_failed_moves - that prevents stuck recovery!
         if state.consecutive_failed_moves >= 10:
             self._logger.error(f"  ASSEMBLE: STUCK with {state.consecutive_failed_moves} failed moves - activating stuck recovery")
             state.stuck_recovery_active = True
-            # Don't reset counters - let _navigate_to_station see the high failure count
-            # and activate observation-only exploration to find alternate route
 
-        # Navigate to assembler (will use stuck recovery if activated)
+        # Navigate to assembler using observation-based navigation
+        # _navigate_to_station will find assembler in observation and navigate correctly
         return self._navigate_to_station(state, "assembler")
 
     def _do_deliver(self, state: HarvestState) -> Action:
         """Deliver hearts to the chest.
 
-        IMPROVED NAVIGATION: Same smart navigation as ASSEMBLE phase.
+        CRITICAL FIX: Use observation-based navigation ONLY. state.stations may have wrong positions!
         """
-        chest_pos = state.stations.get("chest")
-        if not chest_pos:
-            self._logger.error(f"  DELIVER: No chest found!")
-            return self._explore(state)
-
-        # Check if standing ON the chest
-        if (state.row, state.col) == chest_pos:
-            self._logger.info(f"  DELIVER: Standing ON chest, attempting delivery")
-            return self._actions.noop.Noop()  # Using chest
-
-        # Check if adjacent to chest - move directly onto it
-        dr = chest_pos[0] - state.row
-        dc = chest_pos[1] - state.col
-        if abs(dr) + abs(dc) == 1:  # Manhattan distance = 1 (adjacent)
-            direction = None
-            if dr == -1: direction = "north"
-            elif dr == 1: direction = "south"
-            elif dc == 1: direction = "east"
-            elif dc == -1: direction = "west"
-
-            if direction and self._is_direction_clear_in_obs(state, direction):
-                self._logger.info(f"  DELIVER: Adjacent to chest, moving {direction} onto it")
-                return self._actions.move.Move(direction)
-
         # If stuck/oscillating, ACTIVATE stuck recovery (don't reset counters!)
-        # CRITICAL FIX: DON'T reset consecutive_failed_moves - that prevents stuck recovery!
         if state.consecutive_failed_moves >= 10:
             self._logger.error(f"  DELIVER: STUCK with {state.consecutive_failed_moves} failed moves - activating stuck recovery")
             state.stuck_recovery_active = True
-            # Don't reset counters - let _navigate_to_station see the high failure count
 
-        # Navigate to chest (will use stuck recovery if activated)
+        # Navigate to chest using observation-based navigation
         return self._navigate_to_station(state, "chest")
 
     def _do_recharge(self, state: HarvestState) -> Action:
