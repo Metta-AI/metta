@@ -86,6 +86,7 @@ def train(
     seed: int,
     batch_size: int,
     minibatch_size: int,
+    map_seed: Optional[int] = None,
     missions_arg: Optional[list[str]] = None,
     vector_num_envs: Optional[int] = None,
     vector_batch_size: Optional[int] = None,
@@ -175,7 +176,7 @@ def train(
         envs_per_worker,
     )
 
-    env_creator = _EnvCreator(env_cfg, env_cfg_supplier, seed)
+    env_creator = _EnvCreator(env_cfg, env_cfg_supplier, map_seed, seed)
     base_cfg = env_creator.clone_cfg()
 
     vecenv = pvector.make(
@@ -409,10 +410,12 @@ class _EnvCreator:
         self,
         env_cfg: Optional[MettaGridConfig],
         env_cfg_supplier: Optional[Callable[[], MettaGridConfig]],
+        map_seed: Optional[int],
         seed: int,
     ) -> None:
         self._env_cfg = env_cfg
         self._env_cfg_supplier = env_cfg_supplier
+        self._map_seed = map_seed
         self._seed = seed
 
     def clone_cfg(self) -> MettaGridConfig:
@@ -434,7 +437,11 @@ class _EnvCreator:
 
         map_builder = getattr(target_cfg.game, "map_builder", None)
         if isinstance(map_builder, MapGen.Config):
-            map_builder.seed = self._seed + (seed or 0)
+            env_seed = seed if seed is not None else 0
+            if self._map_seed is not None:
+                map_builder.seed = self._map_seed + env_seed
+            elif map_builder.seed is None:
+                map_builder.seed = self._seed + env_seed
         simulator = Simulator()
         simulator.add_event_handler(StatsTracker(NoopStatsWriter()))
         simulator.add_event_handler(EarlyResetHandler())

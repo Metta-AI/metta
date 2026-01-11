@@ -381,7 +381,13 @@ def play_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for simulator/policy RNG and procedural map layout",
+        help="Seed for simulator/policy RNG",
+        min=0,
+    ),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     print_cvc_config: bool = typer.Option(
@@ -406,9 +412,10 @@ def play_cmd(
             console.print(f"[red]Error printing config: {exc}[/red]")
             raise typer.Exit(1) from exc
 
-    map_builder = getattr(env_cfg.game, "map_builder", None)
-    if isinstance(map_builder, MapGen.Config):
-        map_builder.seed = seed
+    if map_seed is not None:
+        map_builder = getattr(env_cfg.game, "map_builder", None)
+        if isinstance(map_builder, MapGen.Config):
+            map_builder.seed = map_seed
 
     policy_spec = get_policy_spec(ctx, policy)
     console.print(f"[cyan]Playing {resolved_mission}[/cyan]")
@@ -588,7 +595,13 @@ def train_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for training RNG and procedural map layout",
+        help="Seed for training RNG",
+        min=0,
+    ),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     batch_size: int = typer.Option(4096, "--batch-size", help="Batch size for training", min=1),
@@ -638,6 +651,7 @@ def train_cmd(
             num_steps=steps,
             checkpoints_path=Path(checkpoints_path),
             seed=seed,
+            map_seed=map_seed,
             batch_size=batch_size,
             minibatch_size=minibatch_size,
             vector_num_workers=num_workers,
@@ -702,7 +716,13 @@ def run_cmd(
     seed: int = typer.Option(
         42,
         "--seed",
-        help="Seed for evaluation RNG and procedural map layout",
+        help="Seed for evaluation RNG",
+        min=0,
+    ),
+    map_seed: Optional[int] = typer.Option(
+        None,
+        "--map-seed",
+        help="MapGen seed base for procedural map layout",
         min=0,
     ),
     format_: Optional[Literal["yaml", "json"]] = typer.Option(
@@ -741,10 +761,11 @@ def run_cmd(
 
     selected_missions = get_mission_names_and_configs(ctx, missions, variants_arg=variant, cogs=cogs, steps=steps)
 
-    for _, env_cfg in selected_missions:
-        map_builder = getattr(env_cfg.game, "map_builder", None)
-        if isinstance(map_builder, MapGen.Config):
-            map_builder.seed = seed
+    if map_seed is not None:
+        for _, env_cfg in selected_missions:
+            map_builder = getattr(env_cfg.game, "map_builder", None)
+            if isinstance(map_builder, MapGen.Config):
+                map_builder.seed = map_seed
 
     policy_specs = get_policy_specs_with_proportions(ctx, policies)
 
