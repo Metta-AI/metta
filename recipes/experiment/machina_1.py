@@ -1,6 +1,6 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers."""
 
-from typing import Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig

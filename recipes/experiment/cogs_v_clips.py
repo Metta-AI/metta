@@ -7,7 +7,7 @@ recipes should import from here and extend via custom defaults, similar to how
 
 import itertools
 import logging
-from typing import Optional, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
