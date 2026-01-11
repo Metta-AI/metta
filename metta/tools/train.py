@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import logging
 import multiprocessing
@@ -6,22 +8,17 @@ import platform
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-import torch
 from pydantic import Field
 
 from metta.agent.policies.vit import ViTDefaultConfig
-from metta.agent.policy import Policy, PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum import Curriculum
 from metta.common.tool import Tool
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.log_config import getRankAwareLogger, init_logging
 from metta.common.wandb.context import WandbConfig, WandbContext, WandbRun
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.trainer import Trainer
 from metta.rl.trainer_config import TorchProfilerConfig, TrainerConfig
 from metta.rl.training import (
     Checkpointer,
@@ -58,6 +55,13 @@ from metta.tools.utils.auto_config import (
 from mettagrid.policy.loader import resolve_policy_class_path
 from mettagrid.policy.policy import PolicySpec
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_uri
+
+if TYPE_CHECKING:
+    from metta.agent.policy import Policy
+    from metta.app_backend.clients.stats_client import StatsClient
+    from metta.cogworks.curriculum import Curriculum
+    from metta.rl.checkpoint_manager import CheckpointManager
+    from metta.rl.trainer import Trainer
 
 logger = getRankAwareLogger(__name__)
 
@@ -96,6 +100,8 @@ class TrainTool(Tool):
         return {"policy_uri": policy_uri}
 
     def invoke(self, args: dict[str, str]) -> int | None:
+        from metta.rl.checkpoint_manager import CheckpointManager
+
         if "run" in args:
             assert self.run is None, "run cannot be set via args if already provided in TrainTool config"
             self.run = args["run"]
@@ -265,6 +271,9 @@ class TrainTool(Tool):
         policy: Policy,
         distributed_helper: DistributedHelper,
     ) -> Trainer:
+        import torch
+        from metta.rl.trainer import Trainer
+
         trainer = Trainer(
             self.trainer,
             env,
@@ -306,6 +315,8 @@ class TrainTool(Tool):
         run_name: str,
         wandb_run: WandbRun | None,
     ) -> None:
+        import torch
+
         components: list[TrainerComponent] = []
 
         heartbeat_cfg = getattr(self.trainer, "heartbeat", None)
@@ -383,6 +394,8 @@ class TrainTool(Tool):
             trainer.register(LossScheduler(self.scheduler))
 
     def _configure_torch_backends(self) -> None:
+        import torch
+
         if not torch.cuda.is_available():
             return
 
@@ -427,6 +440,8 @@ class TrainTool(Tool):
         logger.info(f"Config saved to {config_path}")
 
     def _maybe_create_stats_client(self, distributed_helper: DistributedHelper) -> Optional[StatsClient]:
+        from metta.app_backend.clients.stats_client import StatsClient
+
         if not (distributed_helper.is_master() and self.stats_server_uri):
             return None
         try:
@@ -455,6 +470,8 @@ class TrainTool(Tool):
 
     def _apply_sandbox_config(self) -> None:
         """Apply sandbox mode configuration for fast validation testing."""
+        from metta.cogworks.curriculum import Curriculum
+
         # Reduce total timesteps for very quick testing (1M instead of 50B)
         self.trainer.total_timesteps = 1_000_000
 

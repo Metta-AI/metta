@@ -36,38 +36,29 @@ class RecipeRegistry:
 
     def get(self, module_path: str) -> Recipe | None:
         """Get a recipe by module path (tries both short and full paths)."""
+        self._ensure_discovered()
+
         # Try exact match first
         if module_path in self.path_to_recipe:
             return self.path_to_recipe[module_path]
 
-        candidate_paths: list[str] = []
-        if module_path.startswith("recipes."):
-            candidate_paths.append(module_path)
-        else:
-            candidate_paths.extend(
-                [
-                    f"recipes.prod.{module_path}",
-                    f"recipes.experiment.{module_path}",
-                    module_path,
-                ]
-            )
+        # Try with prefix if it's a short name
+        if not module_path.startswith("recipes."):
+            # Try prod first, then experiment
+            for prefix in ["recipes.prod", "recipes.experiment"]:
+                full_path = f"{prefix}.{module_path}"
+                if full_path in self.path_to_recipe:
+                    return self.path_to_recipe[full_path]
 
-        for candidate_path in candidate_paths:
-            if candidate_path in self.path_to_recipe:
-                recipe = self.path_to_recipe[candidate_path]
-                if module_path not in self.path_to_recipe:
-                    self.path_to_recipe[module_path] = recipe
+        # Try to load directly as a fallback for recipes outside recipes package
+        # This supports test fixtures and external recipe packages
+        recipe = Recipe.load(module_path)
+        if recipe:
+            # Check if it has tool makers (valid recipe)
+            if recipe.get_explicit_tool_makers():
+                # Cache it for future lookups
+                self.path_to_recipe[module_path] = recipe
                 return recipe
-
-            recipe = Recipe.load(candidate_path)
-            if recipe and recipe.get_all_tool_maker_names():
-                self.path_to_recipe[candidate_path] = recipe
-                if module_path not in self.path_to_recipe:
-                    self.path_to_recipe[module_path] = recipe
-                return recipe
-
-        if self._discovered:
-            return self.path_to_recipe.get(module_path)
 
         return None
 
