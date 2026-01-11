@@ -11,7 +11,6 @@ from typing import Any, Optional
 import torch
 from pydantic import Field
 
-from metta.agent.policies.vit import ViTDefaultConfig
 from metta.agent.policy import Policy, PolicyArchitecture
 from metta.agent.util.torch_backends import build_sdpa_context
 from metta.app_backend.clients.stats_client import StatsClient
@@ -62,12 +61,18 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri, resolve_u
 logger = getRankAwareLogger(__name__)
 
 
+def _default_policy_architecture() -> PolicyArchitecture:
+    from metta.agent.policies.vit import ViTDefaultConfig
+
+    return ViTDefaultConfig()
+
+
 class TrainTool(Tool):
     run: Optional[str] = None
 
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     training_env: TrainingEnvironmentConfig
-    policy_architecture: PolicyArchitecture = Field(default_factory=ViTDefaultConfig)
+    policy_architecture: PolicyArchitecture = Field(default_factory=_default_policy_architecture)
     initial_policy_uri: Optional[str] = None
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     gradient_reporter: GradientReporterConfig = Field(default_factory=GradientReporterConfig)
