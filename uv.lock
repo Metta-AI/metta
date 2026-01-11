@@ -616,6 +616,7 @@ requires-dist = [
 name = "cogames"
 source = { editable = "packages/cogames" }
 dependencies = [
+    { name = "alo" },
     { name = "einops" },
     { name = "fastapi" },
     { name = "heavyball" },
@@ -633,6 +634,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alo", editable = "packages/alo" },
     { name = "einops", specifier = ">=0.8.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "heavyball", specifier = ">=2.0.0" },
