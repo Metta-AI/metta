@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from metta.agent.policies.smollm import SmolLLMConfig
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.sweep import SweepTool
 from metta.tools.train import TrainTool

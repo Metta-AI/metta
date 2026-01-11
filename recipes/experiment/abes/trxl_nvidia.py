@@ -1,6 +1,6 @@
 from metta.agent.policies.transformer import TransformerPolicyConfig
 from metta.agent.policies.trxl_nvidia import TRXLNvidiaConfig
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.rl.trainer_config import OptimizerConfig
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,

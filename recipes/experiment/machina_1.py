@@ -2,7 +2,7 @@
 
 from typing import Optional, Sequence
 
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.rl.training.teacher import TeacherConfig
 from metta.tools.stub import StubTool
 from metta.tools.sweep import SweepTool
@@ -38,6 +38,7 @@ def train(
         eval_difficulty=eval_difficulty,
         teacher=teacher,
         maps_cache_size=None,
+        build_eval_suite=False,
     )
     tt.policy_architecture = policy_architecture or ViTDefaultConfig()
     tt.system.torch_deterministic = False

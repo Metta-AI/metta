@@ -339,6 +339,7 @@ def train(
     dr_rewards: bool = True,
     dr_misc: bool = False,
     maps_cache_size: Optional[int] = 30,
+    build_eval_suite: bool = True,
 ) -> TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
@@ -370,13 +371,15 @@ def train(
     elif eval_mission_source != "integrated_evals":
         raise ValueError(f"Unknown eval_mission_source: {eval_mission_source}")
 
-    eval_suite = make_eval_suite(
-        num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-        max_evals=max_evals,
-        missions=eval_missions,
-    )
+    eval_suite: list[SimulationConfig] = []
+    if build_eval_suite:
+        eval_suite = make_eval_suite(
+            num_cogs=num_cogs,
+            difficulty=eval_difficulty,
+            variants=resolved_eval_variants,
+            max_evals=max_evals,
+            missions=eval_missions,
+        )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
@@ -479,6 +482,7 @@ def train_single_mission(
     train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
+    build_eval_suite: bool = True,
 ) -> TrainTool:
     """Train on a single mission without curriculum."""
     if train_difficulty is None:
@@ -506,6 +510,7 @@ def train_single_mission(
         train_difficulty=train_difficulty,
         teacher=teacher,
         maps_cache_size=maps_cache_size,
+        build_eval_suite=build_eval_suite,
     )
 
 

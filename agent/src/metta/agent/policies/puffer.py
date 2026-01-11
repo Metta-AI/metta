@@ -9,8 +9,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 import pufferlib.pytorch
 from metta.agent.components.actor import ActionProbs, ActionProbsConfig
-from metta.agent.policy import Policy
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import Policy, PolicyArchitecture
 from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.token_encoder import coordinates
 

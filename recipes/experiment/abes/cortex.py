@@ -4,7 +4,7 @@ from cortex.config import CortexStackConfig
 
 from metta.agent.components.cortex import CortexTDConfig
 from metta.agent.policies.cortex import CortexBaseConfig
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.tools.train import TrainTool
 from mettagrid.util.module import load_symbol

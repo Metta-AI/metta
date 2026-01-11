@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from metta.agent.policies.cortex import CortexBaseConfig
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 
 
 def test_cortex_architecture_to_spec_round_trip() -> None:

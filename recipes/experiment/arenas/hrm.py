@@ -1,7 +1,7 @@
 """Arena recipe with HRM policy architecture."""
 
 from metta.agent.policies.hrm import HRMTinyConfig
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import PolicyArchitecture
 from recipes.experiment import arena as base
 
 mettagrid = base.mettagrid

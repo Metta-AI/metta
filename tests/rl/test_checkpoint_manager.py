@@ -12,8 +12,7 @@ from tensordict import TensorDict
 import mettagrid.builder.envs as eb
 from metta.agent.components.action import ActionEmbedding, ActionEmbeddingConfig
 from metta.agent.mocks import MockAgent
-from metta.agent.policy import Policy
-from metta.agent.policy_architecture import PolicyArchitecture
+from metta.agent.policy import Policy, PolicyArchitecture
 from metta.rl.checkpoint_manager import CheckpointManager, write_checkpoint_bundle
 from metta.rl.system_config import SystemConfig
 from mettagrid.base_config import Config
