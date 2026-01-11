@@ -7,7 +7,9 @@ from typing import Optional, cast
 
 import numpy as np
 import typer
+from alo.assignments import allocate_counts
 from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+from alo.replay import write_replay
 from alo.scoring import overall_value_over_replacement, value_over_replacement
 from rich.console import Console
 from rich.table import Table
@@ -36,21 +38,6 @@ def make_machina1_open_world_env(
             map_builder.seed = effective_map_seed
 
     return env_cfg
-
-
-def allocate_counts(total: int, weights: list[float]) -> list[int]:
-    total_weight = sum(weights)
-    if total_weight == 0:
-        return [0] * len(weights)
-    fractions = [weight / total_weight for weight in weights]
-    ideals = [total * fraction for fraction in fractions]
-    counts = [int(value) for value in ideals]
-    remaining = total - sum(counts)
-
-    remainders = [ideal - count for ideal, count in zip(ideals, counts, strict=True)]
-    for i in sorted(range(len(remainders)), key=remainders.__getitem__, reverse=True)[:remaining]:
-        counts[i] += 1
-    return counts
 
 
 @dataclass(frozen=True)
@@ -95,7 +82,7 @@ def pickup(
     scenarios: list[PickupScenario] = [
         PickupScenario(
             candidate_count=candidate_count,
-            pool_counts=allocate_counts(num_cogs - candidate_count, [1.0] * len(pool_specs)),
+            pool_counts=allocate_counts(num_cogs - candidate_count, [1.0] * len(pool_specs), allow_zero_total=True),
         )
         for candidate_count in range(num_cogs, -1, -1)
     ]
@@ -137,11 +124,7 @@ def pickup(
 
                 if replay_path is not None:
                     replay = cast(EpisodeReplay, replay)
-                    if replay_path.endswith(".gz"):
-                        replay.set_compression("gzip")
-                    elif replay_path.endswith(".z"):
-                        replay.set_compression("zlib")
-                    replay.write_replay(replay_path)
+                    write_replay(replay, replay_path)
 
                 episode_results.append(
                     EpisodeRolloutResult(

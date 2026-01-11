@@ -1,4 +1,3 @@
-import math
 import multiprocessing
 import os
 import uuid
@@ -6,6 +5,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, Callable, Sequence
 
 import numpy as np
+from alo.assignments import build_assignments
+from alo.replay import write_replay
 from pydantic import BaseModel, ConfigDict, Field
 
 from mettagrid import MettaGridConfig
@@ -33,20 +34,9 @@ def _run_single_simulation(
     proportions = list(sim_cfg.proportions) if sim_cfg.proportions is not None else [1.0] * len(policy_specs)
     if len(proportions) != len(policy_specs):
         raise ValueError("Number of proportions must match number of policies.")
-    total = sum(proportions)
-    if total <= 0:
+    if sum(proportions) <= 0:
         raise ValueError("Total policy proportion must be positive.")
-    fractions = [proportion / total for proportion in proportions]
-
-    ideals = [sim_cfg.env.game.num_agents * f for f in fractions]
-    counts = [math.floor(x) for x in ideals]
-    remaining = sim_cfg.env.game.num_agents - sum(counts)
-    remainders = [(i, ideals[i] - counts[i]) for i in range(len(fractions))]
-    remainders.sort(key=lambda x: x[1], reverse=True)
-    for i in range(remaining):
-        counts[remainders[i][0]] += 1
-
-    assignments = np.repeat(np.arange(len(policy_specs)), counts)
+    assignments = build_assignments(sim_cfg.env.game.num_agents, proportions)
     rng = np.random.default_rng(seed)
     episode_results = []
     max_action_time_ms = sim_cfg.max_action_time_ms or 10000
@@ -81,11 +71,7 @@ def _run_single_simulation(
             replay = replays[0]
 
         if replay_path is not None:
-            if replay_path.endswith(".gz"):
-                replay.set_compression("gzip")
-            elif replay_path.endswith(".z"):
-                replay.set_compression("zlib")
-            replay.write_replay(replay_path)
+            write_replay(replay, replay_path)
 
         episode_results.append(
             EpisodeRolloutResult(

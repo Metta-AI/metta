@@ -5,6 +5,7 @@ from contextlib import contextmanager, nullcontext
 
 from pydantic import BaseModel, model_validator
 
+from alo.replay import write_replay
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
@@ -178,11 +179,7 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
         results, replay = run_pure_single_episode(job, device)
 
     if job.replay_uri is not None:
-        if job.replay_uri.endswith(".gz"):
-            replay.set_compression("gzip")
-        elif job.replay_uri.endswith(".z"):
-            replay.set_compression("zlib")
-        replay.write_replay(job.replay_uri)
+        write_replay(replay, job.replay_uri)
     if job.results_uri is not None:
         write_data(job.results_uri, results.model_dump_json(), content_type="application/json")
 

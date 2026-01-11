@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional, cast
 
 from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+from alo.replay import write_replay
 from rich.console import Console
 
 from mettagrid import MettaGridConfig
@@ -67,11 +68,7 @@ def play(
     # Print replay command if replay was saved
     if replay_path:
         replay = cast(EpisodeReplay, replay)
-        if str(replay_path).endswith(".gz"):
-            replay.set_compression("gzip")
-        elif str(replay_path).endswith(".z"):
-            replay.set_compression("zlib")
-        replay.write_replay(str(replay_path))
+        write_replay(replay, str(replay_path))
 
         console.print("\n[bold cyan]Replay saved![/bold cyan]")
         console.print("To watch the replay, run:")

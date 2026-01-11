@@ -10,7 +10,9 @@ from typing import Literal, Optional, TypeAlias, cast
 import numpy as np
 import typer
 import yaml  # type: ignore[import]
+from alo.assignments import build_assignments
 from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
+from alo.replay import write_replay
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
@@ -56,6 +58,8 @@ def evaluate(
         raise ValueError("At least one policy specification must be provided for evaluation.")
     if len(proportions) != len(policy_specs):
         raise ValueError("Number of proportions must match number of policies.")
+    if sum(proportions) <= 0:
+        raise ValueError("Total policy proportion must be positive.")
 
     mission_names = [mission_name for mission_name, _ in missions]
     if len(missions) == 1:
@@ -71,20 +75,7 @@ def evaluate(
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
-        total = sum(proportions)
-        if total <= 0:
-            raise ValueError("Total policy proportion must be positive.")
-        fractions = [proportion / total for proportion in proportions]
-
-        ideals = [env_cfg.game.num_agents * f for f in fractions]
-        policy_counts = [int(x) for x in ideals]
-        remaining = env_cfg.game.num_agents - sum(policy_counts)
-
-        remainders = [(i, ideals[i] - policy_counts[i]) for i in range(len(fractions))]
-        remainders.sort(key=lambda x: x[1], reverse=True)
-        for i in range(remaining):
-            policy_counts[remainders[i][0]] += 1
-        assignments = np.repeat(np.arange(len(policy_specs)), policy_counts)
+        assignments = build_assignments(env_cfg.game.num_agents, proportions)
         rng = np.random.default_rng(seed)
 
         episode_results: list[EpisodeRolloutResult] = []
@@ -109,11 +100,7 @@ def evaluate(
 
                 if replay_path is not None:
                     replay = cast(EpisodeReplay, replay)
-                    if replay_path.endswith(".gz"):
-                        replay.set_compression("gzip")
-                    elif replay_path.endswith(".z"):
-                        replay.set_compression("zlib")
-                    replay.write_replay(replay_path)
+                    write_replay(replay, replay_path)
                     all_replay_paths.append(replay_path)
 
                 episode_results.append(
