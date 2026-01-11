@@ -9,13 +9,13 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from alo.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.models.job_request import JobRequestUpdate
 from metta.common.auth.auth_config_reader_writer import observatory_auth_config
 from metta.common.util.log_config import init_logging, suppress_noisy_logs
 from metta.rl.metta_scheme_resolver import MettaSchemeResolver
 from metta.sim.handle_results import write_single_episode_to_observatory
-from metta.sim.pure_single_episode_runner import PureSingleEpisodeJob, PureSingleEpisodeResult
 from mettagrid import MettaGridConfig
 from mettagrid.util.file import copy_data, read
 from mettagrid.util.uri_resolvers.schemes import parse_uri
@@ -75,7 +75,7 @@ def main():
                 [
                     sys.executable,
                     "-m",
-                    "metta.sim.pure_single_episode_runner",
+                    "alo.pure_single_episode_runner",
                     temp_file.name,
                 ],
                 capture_output=True,

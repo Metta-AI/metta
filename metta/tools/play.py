@@ -8,17 +8,14 @@ import torch
 from pydantic import model_validator
 from rich.console import Console
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.tool import Tool
 from metta.common.wandb.context import WandbConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random_agent import RandomMultiAgentPolicy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 
 logger = logging.getLogger(__name__)
@@ -59,8 +56,6 @@ class PlayTool(Tool):
 
         # Get environment config
         env_cfg = self.sim.env
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-
         # Set max_steps in config if specified
         if self.max_steps is not None:
             env_cfg.game.max_steps = self.max_steps
@@ -77,40 +72,25 @@ class PlayTool(Tool):
             if not s3_path:
                 raise ValueError(f"Policy version {self.policy_version_id} has no s3 path")
 
-        agent_policies: list[MultiAgentPolicy] = []
+        policy_specs: list[PolicySpec] = []
         if s3_path:
-            policy = initialize_or_load_policy(
-                policy_env_info,
-                policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True),
-            )
-            agent_policies.append(policy)
+            policy_specs.append(policy_spec_from_uri(s3_path, remove_downloaded_copy_on_exit=True))
             logger.info("Loaded policy from s3 path")
         elif self.policy_uri:
             logger.info(f"Loading policy from URI: {self.policy_uri}")
-            policy = initialize_or_load_policy(
-                policy_env_info,
-                policy_spec_from_uri(self.policy_uri, device=str(device)),
-                device_override=str(device),
-            )
-            if hasattr(policy, "initialize_to_environment"):
-                policy.initialize_to_environment(policy_env_info, device)
-            if hasattr(policy, "eval"):
-                policy.eval()
-            agent_policies.append(policy)
+            policy_specs.append(policy_spec_from_uri(self.policy_uri, device=str(device)))
             logger.info("Loaded policy from deprecated-format policy uri")
         else:
-            # Fall back to random policies only when no policy was configured explicitly.
-            agent_policies.append(RandomMultiAgentPolicy(policy_env_info))
+            policy_specs.append(PolicySpec(class_path="mettagrid.policy.random_agent.RandomMultiAgentPolicy"))
 
-        rollout_result = multi_episode_rollout(
-            env_cfg=env_cfg,
-            policies=agent_policies,
-            episodes=1,
+        job = PureSingleEpisodeSpecJob(
+            policy_specs=policy_specs,
+            assignments=[0] * env_cfg.game.num_agents,
+            env=env_cfg,
             seed=self.seed,
-            render_mode=self.render,
             max_action_time_ms=10000,
         )
-        episode = rollout_result.episodes[0]
+        episode_results, _replay = run_pure_single_episode_from_specs(job, device=str(device), render_mode=self.render)
 
         # Run the rollout
         logger.info("Starting interactive play session")
@@ -120,8 +100,8 @@ class PlayTool(Tool):
 
         # Print summary
         console.print("\n[bold green]Episode Complete![/bold green]")
-        console.print(f"Steps: {episode.steps}")
-        console.print(f"Total Rewards: {episode.rewards}")
-        console.print(f"Final Reward Sum: {float(episode.rewards.sum()):.2f}")
+        console.print(f"Steps: {episode_results.steps}")
+        console.print(f"Total Rewards: {episode_results.rewards}")
+        console.print(f"Final Reward Sum: {float(sum(episode_results.rewards)):.2f}")
 
         return None

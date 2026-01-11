@@ -27,6 +27,7 @@ exclude = [
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
 known-first-party = [
+  "alo",
   "codebot",
   "cogames",
   "gitta",

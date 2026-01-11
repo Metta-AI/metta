@@ -11,6 +11,7 @@ dependencies = [
   "altair>=5.5.0",
   "anywidget>=0.9.18",
   "asana>=5.2.2",
+  "alo",
   "bidict>=0.23.1",
   "boto3>=1.38.32",
   "codebot",
@@ -143,6 +144,7 @@ members = [
   "agent",
   "app_backend",
   "common",
+  "packages/alo",
   "packages/codebot",
   "packages/cogames",
   "packages/cortex",
@@ -154,6 +156,7 @@ members = [
 ]
 
 [tool.uv.sources]
+alo = { workspace = true }
 codebot = { workspace = true }
 cogames = { workspace = true }
 cortexcore = { workspace = true }

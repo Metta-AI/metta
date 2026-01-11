@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections import defaultdict
 from typing import Literal, Optional, TypeAlias
 
@@ -13,11 +14,11 @@ from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.table import Table
 
+from alo.assignments import build_assignments
+from alo.rollouts import run_single_episode_rollout
 from mettagrid import MettaGridConfig
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy import MultiAgentPolicy, PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult, multi_episode_rollout
+from mettagrid.policy.policy import PolicySpec
+from mettagrid.simulator.multi_episode.rollout import MultiEpisodeRolloutResult
 from mettagrid.simulator.multi_episode.summary import MultiEpisodeRolloutSummary, build_multi_episode_rollout_summaries
 
 MissionResultsSummary: TypeAlias = list[MultiEpisodeRolloutSummary]
@@ -53,6 +54,10 @@ def evaluate(
         raise ValueError("At least one mission must be provided for evaluation.")
     if not policy_specs:
         raise ValueError("At least one policy specification must be provided for evaluation.")
+    if len(proportions) != len(policy_specs):
+        raise ValueError("Number of proportions must match number of policies.")
+    if sum(proportions) <= 0:
+        raise ValueError("Total policy proportion must be positive.")
 
     mission_names = [mission_name for mission_name, _ in missions]
     if len(missions) == 1:
@@ -68,37 +73,33 @@ def evaluate(
     mission_results: list[MultiEpisodeRolloutResult] = []
     all_replay_paths: list[str] = []
     for mission_name, env_cfg in missions:
-        env_interface = PolicyEnvInterface.from_mg_cfg(env_cfg)
-        policy_instances: list[MultiAgentPolicy] = [
-            initialize_or_load_policy(env_interface, spec) for spec in policy_specs
-        ]
+        assignments = build_assignments(env_cfg.game.num_agents, proportions)
+        rng = np.random.default_rng(seed)
 
         progress_label = f"Simulating ({mission_name})"
         progress_iterable = range(episodes)
         with typer.progressbar(progress_iterable, label=progress_label) as progress:
-            iterator = iter(progress)
+            episode_results = []
+            for episode_idx in progress:
+                rng.shuffle(assignments)
+                replay_path = None
+                if save_replay is not None:
+                    replay_path = f"{save_replay}/{uuid.uuid4()}.json.z"
 
-            def _progress_callback(_: int, progress_iter=iterator) -> None:
-                try:
-                    next(progress_iter)
-                except StopIteration:
-                    pass
+                episode_result = run_single_episode_rollout(
+                    policy_specs=policy_specs,
+                    assignments=assignments,
+                    env_cfg=env_cfg,
+                    seed=seed + episode_idx,
+                    max_action_time_ms=action_timeout_ms,
+                    replay_path=replay_path,
+                    device="cpu",
+                )
+                if replay_path is not None:
+                    all_replay_paths.append(replay_path)
+                episode_results.append(episode_result)
 
-            rollout_payload = multi_episode_rollout(
-                env_cfg=env_cfg,
-                policies=policy_instances,
-                proportions=proportions,
-                episodes=episodes,
-                max_action_time_ms=action_timeout_ms,
-                seed=seed,
-                progress_callback=_progress_callback,
-                save_replay=save_replay,
-            )
-        mission_results.append(rollout_payload)
-        # Collect replay paths from this mission
-        for episode in rollout_payload.episodes:
-            if episode.replay_path:
-                all_replay_paths.append(episode.replay_path)
+        mission_results.append(MultiEpisodeRolloutResult(episodes=episode_results))
 
     summaries = build_multi_episode_rollout_summaries(mission_results, num_policies=len(policy_specs))
     mission_names = [mission_name for mission_name, _ in missions]

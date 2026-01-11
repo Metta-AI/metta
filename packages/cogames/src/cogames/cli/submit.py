@@ -23,8 +23,6 @@ from cogames.cli.policy import PolicySpec, get_policy_spec
 if TYPE_CHECKING:
     from cogames.cli.client import TournamentServerClient
 
-from mettagrid.policy.loader import initialize_or_load_policy
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
 from mettagrid.policy.submission import POLICY_SPEC_FILENAME, SubmissionPolicySpec
 
 DEFAULT_SUBMIT_SERVER = "https://api.observatory.softmax-research.net"
@@ -192,24 +190,23 @@ def copy_files_maintaining_structure(files: list[Path], dest_dir: Path) -> None:
 def validate_policy_spec(policy_spec: PolicySpec) -> None:
     """Validate policy works.
 
-    Loads the policy and runs a single episode (up to 10 steps) using the same
-    multi_episode_rollout flow as `cogames eval`.
+    Runs a single episode (up to 10 steps) using the same alo rollout flow as `cogames eval`.
     """
     from cogames.cli.mission import get_mission
-    from mettagrid.simulator.multi_episode.rollout import multi_episode_rollout
 
     _, env_cfg, _ = get_mission("machina_1")
-    policy_env_info = PolicyEnvInterface.from_mg_cfg(env_cfg)
-    policy = initialize_or_load_policy(policy_env_info, policy_spec)
+    from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 
     # Run 1 episode for up to 10 steps to validate the policy works
     env_cfg.game.max_steps = 10
-    multi_episode_rollout(
-        env_cfg=env_cfg,
-        policies=[policy],
-        episodes=1,
+    job = PureSingleEpisodeSpecJob(
+        policy_specs=[policy_spec],
+        assignments=[0] * env_cfg.game.num_agents,
+        env=env_cfg,
         seed=42,
+        max_action_time_ms=10000,
     )
+    run_pure_single_episode_from_specs(job, device="cpu")
 
 
 def validate_policy_in_isolation(

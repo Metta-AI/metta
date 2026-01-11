@@ -5,9 +5,12 @@ from contextlib import contextmanager, nullcontext
 
 from pydantic import BaseModel, model_validator
 
+from alo.replay import write_replay
 from mettagrid import MettaGridConfig
 from mettagrid.policy.loader import AgentPolicy, PolicyEnvInterface, initialize_or_load_policy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.policy.prepare_policy_spec import download_policy_spec_from_s3_as_zip
+from mettagrid.renderer.renderer import RenderMode
 from mettagrid.simulator.replay_log_writer import EpisodeReplay, InMemoryReplayWriter
 from mettagrid.simulator.rollout import Rollout
 from mettagrid.types import EpisodeStats
@@ -64,6 +67,23 @@ class PureSingleEpisodeJob(BaseModel):
         return self
 
 
+class PureSingleEpisodeSpecJob(BaseModel):
+    policy_specs: list[PolicySpec]
+    assignments: list[int]
+    env: MettaGridConfig
+    replay_uri: str | None = None
+    seed: int = 0
+    max_action_time_ms: int = 10000
+
+    @model_validator(mode="after")
+    def validate_assignments(self) -> "PureSingleEpisodeSpecJob":
+        if not all(0 <= assignment < len(self.policy_specs) for assignment in self.assignments):
+            raise ValueError("Assignment index out of range")
+        if len(self.assignments) != self.env.game.num_agents:
+            raise ValueError("Number of assignments must match number of agents")
+        return self
+
+
 class PureSingleEpisodeResult(BaseModel):
     rewards: list[float]
     action_timeouts: list[int]
@@ -89,6 +109,54 @@ def _no_python_sockets():
         socket.getaddrinfo = _real_getaddrinfo
 
 
+def _run_pure_single_episode(
+    *,
+    policy_specs: list[PolicySpec],
+    job_env: MettaGridConfig,
+    assignments: list[int],
+    max_action_time_ms: int,
+    seed: int,
+    replay_uri: str | None,
+    device: str | None,
+    render_mode: RenderMode | None = None,
+) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
+    env_interface = PolicyEnvInterface.from_mg_cfg(job_env)
+    agent_policies: list[AgentPolicy] = [
+        initialize_or_load_policy(env_interface, policy_specs[assignment], device_override=device).agent_policy(
+            agent_id
+        )
+        for agent_id, assignment in enumerate(assignments)
+    ]
+    replay_writer: InMemoryReplayWriter | None = None
+    if replay_uri is not None:
+        replay_writer = InMemoryReplayWriter()
+
+    rollout = Rollout(
+        job_env,
+        agent_policies,
+        max_action_time_ms=max_action_time_ms,
+        render_mode=render_mode,
+        seed=seed,
+        event_handlers=[replay_writer] if replay_writer is not None else None,
+    )
+    rollout.run_until_done()
+
+    results = PureSingleEpisodeResult(
+        rewards=list(rollout._sim.episode_rewards),
+        action_timeouts=list(rollout.timeout_counts),
+        stats=rollout._sim.episode_stats,
+        steps=rollout._sim.current_step,
+    )
+    replay: EpisodeReplay | None = None
+    if replay_writer is not None:
+        replays = replay_writer.get_completed_replays()
+        if len(replays) != 1:
+            raise ValueError(f"Expected 1 replay, got {len(replays)}")
+        replay = replays[0]
+
+    return results, replay
+
+
 def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, device: str = "cpu") -> None:
     job = job.model_copy()
     # Pull each policy onto the local filesystem, leave them as zip files
@@ -111,14 +179,7 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
         results, replay = run_pure_single_episode(job, device)
 
     if job.replay_uri is not None:
-        if replay is not None:
-            if job.replay_uri.endswith(".z"):
-                replay.set_compression("zlib")
-            elif job.replay_uri.endswith(".gz"):
-                replay.set_compression("gzip")
-            replay.write_replay(job.replay_uri)
-        else:
-            raise ValueError("No replay was generated")
+        write_replay(replay, job.replay_uri)
     if job.results_uri is not None:
         write_data(job.results_uri, results.model_dump_json(), content_type="application/json")
 
@@ -126,45 +187,37 @@ def run_single_episode(job: PureSingleEpisodeJob, allow_network: bool = False, d
 def run_pure_single_episode(
     job: PureSingleEpisodeJob,
     device: str,
+    render_mode: RenderMode | None = None,
 ) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
     policy_specs = [policy_spec_from_uri(uri) for uri in job.policy_uris]
 
-    env_interface = PolicyEnvInterface.from_mg_cfg(job.env)
-    agent_policies: list[AgentPolicy] = [
-        initialize_or_load_policy(env_interface, policy_specs[assignment], device_override=device).agent_policy(
-            agent_id
-        )
-        for agent_id, assignment in enumerate(job.assignments)
-    ]
-    replay_writer: InMemoryReplayWriter | None = None
-    if job.replay_uri is not None:
-        replay_writer = InMemoryReplayWriter()
-
-    rollout = Rollout(
-        job.env,
-        agent_policies,
+    return _run_pure_single_episode(
+        policy_specs=policy_specs,
+        job_env=job.env,
+        assignments=job.assignments,
         max_action_time_ms=job.max_action_time_ms,
-        render_mode="none",
         seed=job.seed,
-        event_handlers=[replay_writer] if replay_writer is not None else None,
+        replay_uri=job.replay_uri,
+        device=device,
+        render_mode=render_mode,
     )
-    rollout.run_until_done()
 
-    results = PureSingleEpisodeResult(
-        rewards=list(rollout._sim.episode_rewards),
-        action_timeouts=list(rollout.timeout_counts),
-        stats=rollout._sim.episode_stats,
-        steps=rollout._sim.current_step,
+
+def run_pure_single_episode_from_specs(
+    job: PureSingleEpisodeSpecJob,
+    device: str | None = None,
+    render_mode: RenderMode | None = None,
+) -> tuple[PureSingleEpisodeResult, EpisodeReplay | None]:
+    return _run_pure_single_episode(
+        policy_specs=job.policy_specs,
+        job_env=job.env,
+        assignments=job.assignments,
+        max_action_time_ms=job.max_action_time_ms,
+        seed=job.seed,
+        replay_uri=job.replay_uri,
+        device=device,
+        render_mode=render_mode,
     )
-    replay: EpisodeReplay | None = None
-    if replay_writer is not None:
-        replays = replay_writer.get_completed_replays()
-        if len(replays) != 1:
-            raise ValueError(f"Expected 1 replay, got {len(replays)}")
-        assert job.replay_uri is not None
-        replay = replays[0]
-
-    return results, replay
 
 
 if __name__ == "__main__":

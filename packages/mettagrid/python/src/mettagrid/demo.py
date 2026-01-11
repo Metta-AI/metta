@@ -8,13 +8,12 @@ import argparse
 import logging
 from typing import get_args
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from mettagrid.builder import building
 from mettagrid.config.mettagrid_config import MettaGridConfig
 from mettagrid.map_builder.random_map import RandomMapBuilder
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.policy.random_agent import RandomMultiAgentPolicy
+from mettagrid.policy.policy import PolicySpec
 from mettagrid.renderer.renderer import RenderMode
-from mettagrid.simulator.rollout import Rollout
 
 logger = logging.getLogger("mettagrid.demo")
 
@@ -95,23 +94,22 @@ def main():
     logger.info("=== Map Generated ===")
     logger.debug(game_map.grid)
 
-    # Create a copy of actions with change_vibe disabled for the random policy
-    # Create a modified config for the policy
-    policy_cfg = cfg.model_copy(deep=True)
-    policy_cfg.game.actions.change_vibe.enabled = False
-    policy = RandomMultiAgentPolicy(PolicyEnvInterface.from_mg_cfg(policy_cfg))
-    agent_policies = policy.agent_policies(cfg.game.num_agents)
-
-    # Create rollout with renderer
-    rollout = Rollout(config=cfg, policies=agent_policies, render_mode=args.render)
+    policy_spec = PolicySpec(class_path="mettagrid.policy.random_agent.RandomMultiAgentPolicy")
+    job = PureSingleEpisodeSpecJob(
+        policy_specs=[policy_spec],
+        assignments=[0] * cfg.game.num_agents,
+        env=cfg,
+        seed=42,
+        max_action_time_ms=10000,
+    )
 
     logger.info("\n=== Running simulation ===")
-    rollout.run_until_done()
+    results, _replay = run_pure_single_episode_from_specs(job, device="cpu", render_mode=args.render)
     logger.info("=== Simulation complete ===")
-    logger.info(f"Total steps: {rollout._sim.current_step}")
-    logger.info(f"Total rewards: {rollout._sim.episode_rewards}")
-    logger.info(f"Total stats: {rollout._sim.episode_stats}")
-    logger.info(f"Done: {rollout.is_done()}")
+    logger.info(f"Total steps: {results.steps}")
+    logger.info(f"Total rewards: {results.rewards}")
+    logger.info(f"Total stats: {results.stats}")
+    logger.info("Done: True")
 
 
 if __name__ == "__main__":

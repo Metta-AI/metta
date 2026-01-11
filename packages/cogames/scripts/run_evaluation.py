@@ -27,7 +27,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import matplotlib
 
@@ -37,128 +37,21 @@ from mettagrid.util.uri_resolvers.schemes import policy_spec_from_uri
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
 from safetensors.torch import load_file as load_safetensors_file
 
+from alo.pure_single_episode_runner import PureSingleEpisodeSpecJob, run_pure_single_episode_from_specs
 from cogames.cogs_vs_clips.evals.diagnostic_evals import DIAGNOSTIC_EVALS
 from cogames.cogs_vs_clips.mission import Mission, MissionVariant, NumCogsVariant
 from cogames.cogs_vs_clips.missions import MISSIONS as ALL_MISSIONS
 from cogames.cogs_vs_clips.variants import VARIANTS
-from mettagrid.policy.loader import initialize_or_load_policy
 from mettagrid.policy.policy import PolicySpec
-from mettagrid.policy.policy_env_interface import PolicyEnvInterface
-from mettagrid.simulator.rollout import Rollout
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-# Cache for loaded policies to avoid reloading for each case (used in sequential mode)
-_cached_policy = None
-_cached_policy_key = None
-
-
-def _ensure_vibe_supports_gear(env_cfg) -> None:
-    assembler = env_cfg.game.objects.get("assembler")
-    uses_gear = False
-    if assembler is not None and hasattr(assembler, "protocols"):
-        for proto in assembler.protocols:
-            if any(v == "gear" for v in getattr(proto, "vibes", [])):
-                uses_gear = True
-                break
-    if uses_gear:
-        change_vibe = env_cfg.game.actions.change_vibe
-        has_gear = any(v.name == "gear" for v in change_vibe.vibes)
-        if not has_gear:
-            from mettagrid.config.vibes import VIBE_BY_NAME
-
-            change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
-
 
 # Cache for policy action space sizes to avoid reloading checkpoints
 _policy_action_space_cache: Dict[str, int] = {}
-
-
-def _get_policy_action_space(policy_path: str) -> Optional[int]:
-    """Detect the action space size from a policy checkpoint.
-
-    Returns the number of actions the policy was trained with, or None if detection fails.
-    """
-    if not policy_path:
-        return None
-    if policy_path in _policy_action_space_cache:
-        return _policy_action_space_cache[policy_path]
-    if "://" not in policy_path:
-        if not Path(policy_path).expanduser().exists():
-            return None
-
-    try:
-        spec = policy_spec_from_uri(policy_path)
-        if not spec.data_path:
-            return None
-        for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
-            if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
-                detected = int(tensor.shape[0])
-                _policy_action_space_cache[policy_path] = detected
-                logger.info(f"Detected policy action space: {detected} actions")
-                return detected
-        return None
-    except Exception as e:
-        logger.warning(f"Failed to detect policy action space: {e}")
-        return None
-
-
-def _configure_env_for_action_space(env_cfg, num_actions: int) -> None:
-    """Configure environment vibes to match a specific action space.
-
-    Action space = 1 noop + 4 move + N vibes
-    So num_vibes = num_actions - 5
-    """
-    from mettagrid.config import vibes as vibes_module
-
-    # Calculate number of vibes needed
-    # Action space = noop (1) + move (4) + change_vibe (N)
-    num_vibes = num_actions - 5
-
-    if num_vibes <= 0:
-        logger.warning(f"Invalid action space {num_actions}, skipping vibe configuration")
-        return
-
-    # Select the appropriate vibe set
-    if num_vibes == 16:
-        # First 16 vibes (standard training set)
-        vibe_names = [v.name for v in vibes_module.VIBES[:16]]
-    elif num_vibes == 13:
-        # First 13 vibes (cvc_random_maps style)
-        vibe_names = [v.name for v in vibes_module.VIBES[:13]]
-    elif num_vibes <= len(vibes_module.VIBES):
-        # Use first N vibes from VIBES list
-        vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
-    else:
-        # Policy has more vibes than we have defined - use all available
-        vibe_names = [v.name for v in vibes_module.VIBES]
-
-    env_cfg.game.vibe_names = vibe_names
-
-    if env_cfg.game.actions:
-        # Configure vibe action count
-        if env_cfg.game.actions.change_vibe:
-            env_cfg.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
-            # Filter initial vibe if out of range
-            if env_cfg.game.agent.initial_vibe >= len(vibe_names):
-                env_cfg.game.agent.initial_vibe = 0
-
-        # Disable attack action (usually not part of training action space)
-        if env_cfg.game.actions.attack:
-            env_cfg.game.actions.attack.enabled = False
-
-    # Prune vibe transfers to only allowed vibes
-    allowed_vibes = set(vibe_names)
-    chest = env_cfg.game.objects.get("chest")
-    if chest:
-        vibe_transfers = getattr(chest, "vibe_transfers", None)
-        if isinstance(vibe_transfers, dict):
-            new_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
-            chest.vibe_transfers = new_transfers
 
 
 @dataclass
@@ -198,34 +91,6 @@ def _policy_source_is_s3(agent_config: AgentConfig) -> bool:
     return any(
         is_s3_uri(path) for path in (agent_config.source, agent_config.policy_path, agent_config.data_path) if path
     )
-
-
-def load_policy(
-    policy_env_info: PolicyEnvInterface,
-    policy_path: str,
-    checkpoint_path: Optional[str] = None,
-    init_kwargs: Optional[dict[str, str]] = None,
-    device: Optional[torch.device] = None,
-):
-    device = device or torch.device("cpu")
-    init_kwargs = init_kwargs or {}
-
-    if checkpoint_path and is_s3_uri(checkpoint_path):
-        logger.info(f"Loading policy from S3 URI: {checkpoint_path}")
-        spec = policy_spec_from_uri(checkpoint_path, device=str(device))
-        if init_kwargs:
-            spec.init_kwargs.update(init_kwargs)
-        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
-
-    if is_s3_uri(policy_path):
-        logger.info(f"Loading policy from S3 URI: {policy_path}")
-        spec = policy_spec_from_uri(policy_path, device=str(device))
-        if init_kwargs:
-            spec.init_kwargs.update(init_kwargs)
-        return initialize_or_load_policy(policy_env_info, spec, device_override=str(device))
-
-    policy_spec = PolicySpec(class_path=policy_path, data_path=checkpoint_path, init_kwargs=init_kwargs)
-    return initialize_or_load_policy(policy_env_info, policy_spec, device_override=str(device))
 
 
 AGENT_CONFIGS: Dict[str, AgentConfig] = {
@@ -279,108 +144,138 @@ def _run_case(
     seed: int,
     runs_per_case: int,
     agent_config: AgentConfig,
-    cached_policy=None,  # Optional pre-loaded policy to reuse
 ) -> List[EvalResult]:
-    global _cached_policy, _cached_policy_key
-
     mission_variants: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs)]
     if variant:
         mission_variants.insert(0, variant)
-    try:
-        mission = base_mission.with_variants(mission_variants)
-        env_config = mission.make_env()
-        _ensure_vibe_supports_gear(env_config)
+    mission = base_mission.with_variants(mission_variants)
+    env_config = mission.make_env()
 
-        # Auto-detect policy action space and configure environment to match
-        policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
-        if policy_action_space is not None:
-            _configure_env_for_action_space(env_config, policy_action_space)
+    assembler = env_config.game.objects.get("assembler")
+    protocols = getattr(assembler, "protocols", None) if assembler is not None else None
+    if protocols:
+        for proto in protocols:
+            if any(v == "gear" for v in getattr(proto, "vibes", [])):
+                change_vibe = env_config.game.actions.change_vibe
+                if not any(v.name == "gear" for v in change_vibe.vibes):
+                    from mettagrid.config.vibes import VIBE_BY_NAME
 
-        if variant is None or getattr(variant, "max_steps_override", None) is None:
-            env_config.game.max_steps = max_steps
+                    change_vibe.vibes = list(change_vibe.vibes) + [VIBE_BY_NAME["gear"]]
+                break
 
-        # For evaluation, only heart rewards should count (not resource rewards)
-        if not env_config.game.agent.rewards.stats:
-            env_config.game.agent.rewards.stats = {}
-        resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats[resource_stat] = 0.0
-        if not env_config.game.agent.rewards.stats_max:
-            env_config.game.agent.rewards.stats_max = {}
-        for resource_stat in resource_stats:
-            env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+    policy_action_space = None
+    policy_path = agent_config.data_path or agent_config.policy_path
+    if policy_path:
+        policy_action_space = _policy_action_space_cache.get(policy_path)
+        if policy_action_space is None:
+            try:
+                spec = policy_spec_from_uri(policy_path)
+                if spec.data_path:
+                    for key, tensor in load_safetensors_file(str(Path(spec.data_path))).items():
+                        if "actor_head" in key and "weight" in key and len(tensor.shape) == 2:
+                            policy_action_space = int(tensor.shape[0])
+                            _policy_action_space_cache[policy_path] = policy_action_space
+                            logger.info(f"Detected policy action space: {policy_action_space} actions")
+                            break
+            except Exception as exc:
+                logger.warning(f"Failed to detect policy action space: {exc}")
 
-        actual_max_steps = env_config.game.max_steps
-        policy_env_info = PolicyEnvInterface.from_mg_cfg(env_config)
-
-        # Use cached policy if provided, otherwise try global cache, otherwise load fresh
-        if cached_policy is not None:
-            policy = cached_policy
-        elif _cached_policy is not None and _cached_policy_key == agent_config.policy_path:
-            # Reuse globally cached policy
-            policy = _cached_policy
+    if policy_action_space is not None:
+        num_vibes = policy_action_space - 5
+        if num_vibes <= 0:
+            logger.warning(f"Invalid action space {policy_action_space}, skipping vibe configuration")
         else:
-            # Load fresh and cache it globally for S3 policies
-            policy = load_policy(
-                policy_env_info,
-                agent_config.policy_path,
-                agent_config.data_path,
-                init_kwargs=agent_config.init_kwargs,
+            from mettagrid.config import vibes as vibes_module
+
+            if num_vibes == 16:
+                vibe_names = [v.name for v in vibes_module.VIBES[:16]]
+            elif num_vibes == 13:
+                vibe_names = [v.name for v in vibes_module.VIBES[:13]]
+            elif num_vibes <= len(vibes_module.VIBES):
+                vibe_names = [v.name for v in vibes_module.VIBES[:num_vibes]]
+            else:
+                vibe_names = [v.name for v in vibes_module.VIBES]
+
+            env_config.game.vibe_names = vibe_names
+
+            if env_config.game.actions:
+                if env_config.game.actions.change_vibe:
+                    env_config.game.actions.change_vibe.vibes = [vibes_module.VIBE_BY_NAME[name] for name in vibe_names]
+                    if env_config.game.agent.initial_vibe >= len(vibe_names):
+                        env_config.game.agent.initial_vibe = 0
+                if env_config.game.actions.attack:
+                    env_config.game.actions.attack.enabled = False
+
+            allowed_vibes = set(vibe_names)
+            chest = env_config.game.objects.get("chest")
+            if chest:
+                vibe_transfers = getattr(chest, "vibe_transfers", None)
+                if isinstance(vibe_transfers, dict):
+                    cast(Any, chest).vibe_transfers = {v: t for v, t in vibe_transfers.items() if v in allowed_vibes}
+
+    if variant is None or getattr(variant, "max_steps_override", None) is None:
+        env_config.game.max_steps = max_steps
+
+    # For evaluation, only heart rewards should count (not resource rewards)
+    env_config.game.agent.rewards.stats = env_config.game.agent.rewards.stats or {}
+    resource_stats = ["carbon.gained", "oxygen.gained", "germanium.gained", "silicon.gained"]
+    for resource_stat in resource_stats:
+        env_config.game.agent.rewards.stats[resource_stat] = 0.0
+    env_config.game.agent.rewards.stats_max = env_config.game.agent.rewards.stats_max or {}
+    for resource_stat in resource_stats:
+        env_config.game.agent.rewards.stats_max[resource_stat] = 0.0
+
+    actual_max_steps = env_config.game.max_steps
+    policy_spec = PolicySpec(
+        class_path=agent_config.policy_path,
+        data_path=agent_config.data_path,
+        init_kwargs=agent_config.init_kwargs or {},
+    )
+
+    out: List[EvalResult] = []
+    assignments = [0] * num_cogs
+    for run_idx in range(runs_per_case):
+        run_seed = seed + run_idx
+        job = PureSingleEpisodeSpecJob(
+            policy_specs=[policy_spec],
+            assignments=assignments,
+            env=env_config,
+            seed=run_seed,
+            max_action_time_ms=10000,
+        )
+        results, _replay = run_pure_single_episode_from_specs(job, device="cpu")
+
+        total_reward = float(sum(results.rewards))
+        avg_reward_per_agent = total_reward / max(1, num_cogs)
+
+        heart_gained = 0.0
+        episode_stats = results.stats
+        if "agent" in episode_stats:
+            agent_stats_list = episode_stats["agent"]
+            for agent_stats in agent_stats_list:
+                heart_gained += float(agent_stats.get("heart.gained", 0.0))
+        avg_heart_gained_per_agent = heart_gained / max(1, num_cogs)
+
+        out.append(
+            EvalResult(
+                agent=agent_config.label,
+                experiment=exp_name,
+                num_cogs=num_cogs,
+                difficulty=variant_name or "base",
+                clip_period=clip_period,
+                total_reward=total_reward,
+                avg_reward_per_agent=avg_reward_per_agent,
+                hearts_assembled=int(total_reward),
+                heart_gained=heart_gained,
+                avg_heart_gained_per_agent=avg_heart_gained_per_agent,
+                steps_taken=results.steps + 1,
+                max_steps=actual_max_steps,
+                success=total_reward > 0,
+                seed_used=run_seed,
+                run_index=run_idx + 1,
             )
-            if _policy_source_is_s3(agent_config):
-                _cached_policy = policy
-                _cached_policy_key = agent_config.policy_path
-
-        agent_policies = [policy.agent_policy(i) for i in range(num_cogs)]
-
-        out: List[EvalResult] = []
-        for run_idx in range(runs_per_case):
-            run_seed = seed + run_idx
-            rollout = Rollout(
-                env_config,
-                agent_policies,
-                render_mode="none",
-                seed=run_seed,
-            )
-            rollout.run_until_done()
-
-            total_reward = float(sum(rollout._sim.episode_rewards))
-            avg_reward_per_agent = total_reward / max(1, num_cogs)
-            final_step = rollout._sim.current_step
-
-            heart_gained = 0.0
-            episode_stats = rollout._sim.episode_stats
-            if "agent" in episode_stats:
-                agent_stats_list = episode_stats["agent"]
-                for agent_stats in agent_stats_list:
-                    heart_gained += float(agent_stats.get("heart.gained", 0.0))
-            avg_heart_gained_per_agent = heart_gained / max(1, num_cogs)
-
-            out.append(
-                EvalResult(
-                    agent=agent_config.label,
-                    experiment=exp_name,
-                    num_cogs=num_cogs,
-                    difficulty=variant_name or "base",
-                    clip_period=clip_period,
-                    total_reward=total_reward,
-                    avg_reward_per_agent=avg_reward_per_agent,
-                    hearts_assembled=int(total_reward),
-                    heart_gained=heart_gained,
-                    avg_heart_gained_per_agent=avg_heart_gained_per_agent,
-                    steps_taken=final_step + 1,
-                    max_steps=actual_max_steps,
-                    success=total_reward > 0,
-                    seed_used=run_seed,
-                    run_index=run_idx + 1,
-                )
-            )
-        return out
-    except Exception as e:
-        # Log the error but exclude failed runs from results
-        # This prevents zero-reward results from being included when runs actually failed
-        logger.warning(f"Failed to run case: {exp_name} | {variant_name or 'base'} | {num_cogs} agent(s) - {e}")
-        return []  # Return empty list to exclude failed runs from results
+        )
+    return out
 
 
 def run_evaluation(
@@ -460,43 +355,10 @@ def run_evaluation(
                     f"(progress {completed}/{total_tests})"
                 )
     else:
-        # Sequential execution for S3 policies (TensorDict doesn't work well with threading)
         if _policy_source_is_s3(agent_config):
             logger.info("Running sequentially (S3 policies require sequential execution due to TensorDict)")
         else:
             logger.info("Running sequentially (--jobs 1)")
-
-        # Pre-load the policy once using the first case's env config
-        cached_policy = None
-        if cases and _policy_source_is_s3(agent_config):
-            first_case = cases[0]
-            exp_name_0, variant_name_0, num_cogs_0, base_mission_0, variant_0, _ = first_case
-            try:
-                mission_variants_0: List[MissionVariant] = [NumCogsVariant(num_cogs=num_cogs_0)]
-                if variant_0:
-                    mission_variants_0.insert(0, variant_0)
-                mission_0 = base_mission_0.with_variants(mission_variants_0)
-                env_config_0 = mission_0.make_env()
-                _ensure_vibe_supports_gear(env_config_0)
-
-                # Auto-detect policy action space and configure environment to match
-                policy_action_space = _get_policy_action_space(agent_config.data_path or agent_config.policy_path)
-                if policy_action_space is not None:
-                    _configure_env_for_action_space(env_config_0, policy_action_space)
-
-                policy_env_info_0 = PolicyEnvInterface.from_mg_cfg(env_config_0)
-                policy_ref = agent_config.source or agent_config.data_path or agent_config.policy_path
-                logger.info(f"Pre-loading policy from {policy_ref}...")
-                cached_policy = load_policy(
-                    policy_env_info_0,
-                    agent_config.policy_path,
-                    agent_config.data_path,
-                    init_kwargs=agent_config.init_kwargs,
-                )
-                logger.info("Policy loaded successfully, will reuse for all cases")
-            except Exception as e:
-                logger.warning(f"Failed to pre-load policy: {e}. Will load per-case instead.")
-                cached_policy = None
 
         for idx, (exp_name, variant_name, num_cogs, base_mission, variant, clip_period) in enumerate(cases, start=1):
             case_results = _run_case(
@@ -510,7 +372,6 @@ def run_evaluation(
                 seed,
                 runs_per_case,
                 agent_config,
-                cached_policy=cached_policy,
             )
             results.extend(case_results)
             completed += len(case_results)
@@ -1324,9 +1185,7 @@ def main():
         cogs_list = args.cogs if args.cogs else [1, 2, 4]
 
         # Clear policy cache between policies
-        global _cached_policy, _cached_policy_key, _policy_action_space_cache
-        _cached_policy = None
-        _cached_policy_key = None
+        global _policy_action_space_cache
         _policy_action_space_cache = {}
 
         policy_results = run_evaluation(

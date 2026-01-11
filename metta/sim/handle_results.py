@@ -10,6 +10,7 @@ from pydantic import Field
 from rich.console import Console
 from rich.table import Table
 
+from alo.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.episode_stats_db import (
     episode_stats_db,
@@ -27,7 +28,6 @@ from metta.rl.wandb import (
     POLICY_EVALUATOR_STEP_METRIC,
     setup_policy_evaluator_metrics,
 )
-from metta.sim.pure_single_episode_runner import PureSingleEpisodeResult
 from metta.sim.runner import SimulationRunResult
 from mettagrid.base_config import Config
 from mettagrid.renderer.common import METTASCOPE_REPLAY_URL_PREFIX
