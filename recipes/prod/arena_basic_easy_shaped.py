@@ -2,6 +2,8 @@
 This recipe is automatically validated in CI and release processes.
 """
 
+from __future__ import annotations
+
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -24,14 +26,8 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from mettagrid import MettaGridConfig
-
+import metta.tools as tools
 
 def mettagrid(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -104,7 +100,7 @@ def train(
     enable_detailed_slice_logging: bool = False,
     policy_architecture: Optional[PolicyArchitecture] = None,
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     curriculum = curriculum or make_curriculum(enable_detailed_slice_logging=enable_detailed_slice_logging)
 
     eval_simulations = simulations()
@@ -127,7 +123,7 @@ def train(
         default_steps=teacher.steps or 1_000_000_000,
     )
 
-    tt = TrainTool(
+    tt = tools.TrainTool(
         trainer=trainer_cfg,
         training_env=training_env_cfg,
         evaluator=EvaluatorConfig(simulations=eval_simulations, epoch_interval=300),
@@ -139,22 +135,22 @@ def train(
     return tt
 
 
-def evaluate(policy_uris: list[str] | str) -> EvaluateTool:
+def evaluate(policy_uris: list[str] | str) -> tools.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
+    return tools.EvaluateTool(simulations=simulations(), policy_uris=policy_uris)
 
 
-def play(policy_uri: Optional[str] = None) -> PlayTool:
+def play(policy_uri: Optional[str] = None) -> tools.PlayTool:
     """Interactive play with a policy."""
-    return PlayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.PlayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def replay(policy_uri: Optional[str] = None) -> ReplayTool:
+def replay(policy_uri: Optional[str] = None) -> tools.ReplayTool:
     """Generate replay from a policy."""
-    return ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
+    return tools.ReplayTool(sim=simulations()[0], policy_uri=policy_uri)
 
 
-def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+def evaluate_in_sweep(policy_uri: str) -> tools.EvaluateTool:
     """Evaluation tool for sweep runs.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -188,17 +184,17 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         ),
     ]
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=simulations,
         policy_uris=[policy_uri],
     )
 
 
-def evaluate_stub(*args, **kwargs) -> StubTool:
-    return StubTool()
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
+    return tools.StubTool()
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> tools.SweepTool:
     """
     Prototypical sweep function.
     In your own recipe, you likely only every need this. You can override other SweepTool parameters in the CLI.
@@ -267,9 +263,9 @@ def sweep(sweep_name: str) -> SweepTool:
     )
 
 
-def train_ci() -> TrainTool:
+def train_ci() -> tools.TrainTool:
     """Minimal train for CI smoke test."""
-    return TrainTool(
+    return tools.TrainTool(
         trainer=TrainerConfig(total_timesteps=100),
         training_env=TrainingEnvironmentConfig(
             curriculum=make_curriculum(),
@@ -284,9 +280,9 @@ def train_ci() -> TrainTool:
 
 
 @ci_job(timeout_s=120)
-def play_ci() -> PlayTool:
+def play_ci() -> tools.PlayTool:
     """Play test with random policy."""
-    return PlayTool(
+    return tools.PlayTool(
         sim=simulations()[0],
         max_steps=10,
         render="log",
@@ -294,11 +290,11 @@ def play_ci() -> PlayTool:
     )
 
 
-def evaluate_ci(policy_uri: str) -> EvaluateTool:
+def evaluate_ci(policy_uri: str) -> tools.EvaluateTool:
     """Evaluate the trained policy from train_ci."""
     sim = mettagrid(num_agents=6)
     sim.game.max_steps = 10
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=[SimulationConfig(suite="arena", name="very_basic", env=sim, max_time_s=60)],
         policy_uris=[policy_uri],
     )
@@ -313,9 +309,9 @@ def evaluate_ci(policy_uri: str) -> EvaluateTool:
         AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=0.1),
     ],
 )
-def train_100m() -> TrainTool:
+def train_100m() -> tools.TrainTool:
     """Arena single GPU - 100M timesteps."""
-    return TrainTool(
+    return tools.TrainTool(
         trainer=TrainerConfig(total_timesteps=100_000_000),
         training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
         policy_architecture=ViTDefaultConfig(),
@@ -331,9 +327,9 @@ def train_100m() -> TrainTool:
         AcceptanceCriterion(metric="env_agent/heart.gained", operator=">", threshold=1.0),
     ],
 )
-def train_2b() -> TrainTool:
+def train_2b() -> tools.TrainTool:
     """Arena multi GPU - 2B timesteps."""
-    return TrainTool(
+    return tools.TrainTool(
         trainer=TrainerConfig(total_timesteps=2_000_000_000),
         training_env=TrainingEnvironmentConfig(curriculum=make_curriculum()),
         policy_architecture=ViTDefaultConfig(),

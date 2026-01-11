@@ -7,8 +7,6 @@ from typing import Optional
 from metta.agent.policies.smollm import SmolLLMConfig
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from recipes.experiment.abes import smollm as smollm_recipe
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
@@ -24,6 +22,7 @@ from recipes.prod.arena_basic_easy_shaped import (
 from recipes.prod.arena_basic_easy_shaped import (
     train as base_train,
 )
+import metta.tools as tools
 
 DEFAULT_LORA_TARGETS = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
@@ -39,7 +38,7 @@ def train(
     lora_alpha: int = 32,
     lora_dropout: float = 0.05,
     lora_target_modules: Optional[list[str]] = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     if policy_architecture is None:
         config_kwargs = {
             "freeze_llm": True,
@@ -69,7 +68,7 @@ def train(
     return _apply_lora_defaults(tool)
 
 
-def _apply_lora_defaults(tool: TrainTool) -> TrainTool:
+def _apply_lora_defaults(tool: tools.TrainTool) -> tools.TrainTool:
     """Adjust training defaults for LoRA fine-tuning."""
 
     trainer = tool.trainer
@@ -127,7 +126,7 @@ make_curriculum = smollm_recipe.make_curriculum
 def sweep(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> tools.SweepTool:
     """Expose the canonical arena sweep for SmolLLM LoRA recipes."""
 
     return _delegate_sweep(sweep_name, **kwargs)
@@ -136,11 +135,11 @@ def sweep(
 def sweep_async_progressive(
     sweep_name: str,
     **kwargs: object,
-) -> SweepTool:
+) -> tools.SweepTool:
     """Backward-compatible alias maintained for historical CLI usage."""
 
     return _delegate_sweep(sweep_name, **kwargs)
 
 
-def _delegate_sweep(sweep_name: str, **kwargs: object) -> SweepTool:
+def _delegate_sweep(sweep_name: str, **kwargs: object) -> tools.SweepTool:
     return _arena_sweep(sweep_name, **kwargs)

@@ -5,6 +5,8 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Optional, Sequence
 
@@ -24,15 +26,14 @@ from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvir
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvalWithResultTool
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
 from recipes.experiment.cogs_v_clips import (
     _resolve_eval_variants,
     _resolve_mission_template,
     make_eval_suite,
     make_training_env,
 )
+
+import metta.tools as tools
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ def train(
     max_evals: Optional[int] = None,
     use_lp: bool = True,
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Create a training tool for CoGs vs Clips."""
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
@@ -198,7 +199,7 @@ def train(
         evaluate_local=False,
     )
 
-    tt = TrainTool(
+    tt = tools.TrainTool(
         trainer=trainer_cfg,
         training_env=training_env_cfg,
         evaluator=evaluator_cfg,
@@ -218,7 +219,7 @@ def train_variants(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
     Loads all available variants and creates a curriculum task for each one,
@@ -272,7 +273,7 @@ def train_single_mission(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train on a single mission without curriculum."""
     env = make_training_env(
         num_cogs=num_cogs,
@@ -298,9 +299,9 @@ def evaluate(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> EvalWithResultTool:
+) -> tools.EvalWithResultTool:
     """Evaluate policies on CoGs vs Clips missions."""
-    return EvalWithResultTool(
+    return tools.EvalWithResultTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -317,7 +318,7 @@ def play(
     mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play a single mission with a policy."""
     env = make_training_env(
         num_cogs=num_cogs,
@@ -329,14 +330,14 @@ def play(
         name=f"{mission}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def play_training_env(
     policy_uri: Optional[str] = None,
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
@@ -353,7 +354,7 @@ def train_coordination(
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
     return train(
         num_cogs=num_cogs,

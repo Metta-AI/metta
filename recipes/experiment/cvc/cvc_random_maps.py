@@ -26,15 +26,12 @@ from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.train import TrainTool
 from mettagrid.config import vibes as vibes_module
 from mettagrid.config.mettagrid_config import ProtocolConfig
 from mettagrid.mapgen.mapgen import MapGen
 from mettagrid.mapgen.scenes.random import Random
 from recipes.experiment import cogs_v_clips
-
+import metta.tools as tools
 
 def _make_assembler_protocols(
     vibes_required: list[str],
@@ -309,7 +306,7 @@ def train(
     heart_buckets=False,
     resource_buckets=False,
     initial_inventory_buckets=False,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Create a training tool for random maps curriculum.
 
     Args:
@@ -352,7 +349,7 @@ def train(
         simulations=eval_suite,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=resolved_curriculum),
         evaluator=evaluator_cfg,
@@ -364,7 +361,7 @@ def evaluate(
     num_cogs: int = 20,
     difficulty: str | None = "standard",
     variants: Optional[Sequence[str]] = None,
-) -> EvaluateTool:
+) -> tools.EvaluateTool:
     """Evaluate policies on standard CVC missions.
 
     Args:
@@ -376,7 +373,7 @@ def evaluate(
     Returns:
         An EvaluateTool configured for evaluation
     """
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=cogs_v_clips.make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -390,7 +387,7 @@ def play_sparse(
     policy_uri: Optional[str] = None,
     num_cogs: int = 20,
     room_size: int = 80,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play on a sparse randomly generated map (minimum objects).
 
     Args:
@@ -449,14 +446,14 @@ def play_sparse(
         name=f"sparse_{room_size}x{room_size}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def play_dense(
     policy_uri: Optional[str] = None,
     num_cogs: int = 20,
     room_size: int = 100,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play on a dense randomly generated map (maximum objects).
 
     Args:
@@ -513,7 +510,7 @@ def play_dense(
         name=f"dense_{room_size}x{room_size}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def replay_curriculum(
@@ -525,7 +522,7 @@ def replay_curriculum(
     num_chests: int = 10,
     num_extractors: int = 10,
     max_steps: int = 2000,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Replay a trained policy on a random map from the curriculum.
 
     Args:
@@ -591,7 +588,7 @@ def replay_curriculum(
         name=f"replay_{room_size}x{room_size}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def experiment(

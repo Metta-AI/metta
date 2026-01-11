@@ -1,13 +1,13 @@
+from __future__ import annotations
+
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 from recipes.prod import arena_basic_easy_shaped as arena
+import metta.tools as tools
 
 # CI-friendly runtime: tiny steps and small batches.
 
 
-def train() -> TrainTool:
+def train() -> tools.TrainTool:
     cfg = arena.train(curriculum=arena.make_curriculum(arena.mettagrid()))
 
     cfg.wandb.enabled = False
@@ -26,10 +26,10 @@ def train() -> TrainTool:
     return cfg
 
 
-def replay() -> ReplayTool:
+def replay() -> tools.ReplayTool:
     env = arena.mettagrid()
     env.game.max_steps = 100
-    cfg = ReplayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
+    cfg = tools.ReplayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
@@ -38,17 +38,17 @@ def replay() -> ReplayTool:
     return cfg
 
 
-def replay_null() -> ReplayTool:
+def replay_null() -> tools.ReplayTool:
     """Generate replay with no policy (null agent) for testing replay format."""
     cfg = replay()
     cfg.policy_uri = None
     return cfg
 
 
-def play() -> PlayTool:
+def play() -> tools.PlayTool:
     env = arena.mettagrid()
     env.game.max_steps = 100
-    cfg = PlayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
+    cfg = tools.PlayTool(sim=SimulationConfig(suite="arena", name="eval", env=env))
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
@@ -56,7 +56,7 @@ def play() -> PlayTool:
     return cfg
 
 
-def play_null() -> PlayTool:
+def play_null() -> tools.PlayTool:
     """Play with no policy (null agent) for testing."""
     cfg = play()
     cfg.policy_uri = None

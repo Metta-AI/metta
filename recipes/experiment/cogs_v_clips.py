@@ -5,9 +5,11 @@ recipes should import from here and extend via custom defaults, similar to how
 `recipes.experiment.abes` wraps `recipes.experiment.arena`.
 """
 
+from __future__ import annotations
+
 import itertools
 import logging
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 from cogames.cli.mission import find_mission, parse_variants
@@ -16,8 +18,6 @@ from cogames.cli.mission import find_mission, parse_variants
 from cogames.cogs_vs_clips.mission import MAP_MISSION_DELIMITER, Mission, NumCogsVariant
 from cogames.cogs_vs_clips.missions import get_core_missions
 from cogames.cogs_vs_clips.variants import VARIANTS
-from devops.stable.registry import ci_job, stable_job
-from devops.stable.runner import AcceptanceCriterion
 from metta.cogworks.curriculum.curriculum import (
     CurriculumAlgorithmConfig,
     CurriculumConfig,
@@ -31,16 +31,11 @@ from metta.rl.training import CheckpointerConfig, EvaluatorConfig, TrainingEnvir
 from metta.rl.training.scheduler import LossRunGate, SchedulerConfig, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig, apply_teacher_phase
 from metta.sim.simulation_config import SimulationConfig
-from metta.sweep.core import Distribution as D
-from metta.sweep.core import ParameterSpec, make_sweep
-from metta.sweep.core import SweepParameters as SP
-from metta.tools.eval import EvaluateTool
-from metta.tools.play import PlayTool
-from metta.tools.request_remote_eval import RequestRemoteEvalTool
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from mettagrid.config.mettagrid_config import MettaGridConfig
+import metta.tools as tools
+
+if TYPE_CHECKING:
+    from metta.sweep.core import ParameterSpec
 
 logger = logging.getLogger(__name__)
 
@@ -339,8 +334,10 @@ def train(
     dr_rewards: bool = True,
     dr_misc: bool = False,
     maps_cache_size: Optional[int] = 30,
-) -> TrainTool:
+    build_eval_suite: bool = True,
+) -> tools.TrainTool:
     """Create a training tool for CoGs vs Clips."""
+
     training_missions = base_missions or DEFAULT_CURRICULUM_MISSIONS
     if mission is not None:
         training_missions = [mission]
@@ -370,20 +367,22 @@ def train(
     elif eval_mission_source != "integrated_evals":
         raise ValueError(f"Unknown eval_mission_source: {eval_mission_source}")
 
-    eval_suite = make_eval_suite(
-        num_cogs=num_cogs,
-        difficulty=eval_difficulty,
-        variants=resolved_eval_variants,
-        max_evals=max_evals,
-        missions=eval_missions,
-    )
+    eval_suite: list[SimulationConfig] = []
+    if build_eval_suite:
+        eval_suite = make_eval_suite(
+            num_cogs=num_cogs,
+            difficulty=eval_difficulty,
+            variants=resolved_eval_variants,
+            max_evals=max_evals,
+            missions=eval_missions,
+        )
 
     evaluator_cfg = EvaluatorConfig(
         simulations=eval_suite,
         epoch_interval=150,
     )
 
-    tt = TrainTool(
+    tt = tools.TrainTool(
         trainer=trainer_cfg,
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         evaluator=evaluator_cfg,
@@ -418,7 +417,7 @@ def train_variants(
     eval_difficulty: str | None = "standard",
     train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Create a training tool with curriculum tasks for all variants.
 
     Loads all available variants and creates a curriculum task for each one,
@@ -479,7 +478,8 @@ def train_single_mission(
     train_difficulty: str | None = None,
     teacher: TeacherConfig | None = None,
     maps_cache_size: Optional[int] = 30,
-) -> TrainTool:
+    build_eval_suite: bool = True,
+) -> tools.TrainTool:
     """Train on a single mission without curriculum."""
     if train_difficulty is None:
         train_difficulty = eval_difficulty
@@ -506,6 +506,7 @@ def train_single_mission(
         train_difficulty=train_difficulty,
         teacher=teacher,
         maps_cache_size=maps_cache_size,
+        build_eval_suite=build_eval_suite,
     )
 
 
@@ -515,9 +516,10 @@ def evaluate(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> EvaluateTool:
+) -> tools.EvaluateTool:
     """Evaluate policies on CoGs vs Clips missions."""
-    return EvaluateTool(
+
+    return tools.EvaluateTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -535,9 +537,10 @@ def evaluate_remote(
     difficulty: str | None = "standard",
     subset: Optional[Sequence[str]] = None,
     variants: Optional[Sequence[str]] = None,
-) -> RequestRemoteEvalTool:
+) -> tools.RequestRemoteEvalTool:
     """Evaluate policies on CoGs vs Clips missions remotely."""
-    return RequestRemoteEvalTool(
+
+    return tools.RequestRemoteEvalTool(
         simulations=make_eval_suite(
             num_cogs=num_cogs,
             difficulty=difficulty,
@@ -555,8 +558,9 @@ def play(
     mission: str = "training_facility.harvest",
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play a single mission with a policy."""
+
     env = make_training_env(
         num_cogs=num_cogs,
         mission=mission,
@@ -567,14 +571,14 @@ def play(
         name=f"{mission}_{num_cogs}cogs",
         env=env,
     )
-    return PlayTool(sim=sim, policy_uri=policy_uri)
+    return tools.PlayTool(sim=sim, policy_uri=policy_uri)
 
 
 def play_training_env(
     policy_uri: Optional[str] = None,
     num_cogs: int = 4,
     variants: Optional[Sequence[str]] = None,
-) -> PlayTool:
+) -> tools.PlayTool:
     """Play the default training environment."""
     return play(
         policy_uri=policy_uri,
@@ -590,7 +594,7 @@ def train_coordination(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train on coordination-heavy missions or a specific target map."""
     return train(
         num_cogs=num_cogs,
@@ -608,7 +612,7 @@ def train_sweep(
     eval_variants: Optional[Sequence[str]] = None,
     eval_difficulty: str | None = "standard",
     mission: str | None = None,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train with heart_chorus baked in (CLI-friendly for sweeps)."""
     base_variants = ["heart_chorus"]
     if variants:
@@ -629,13 +633,17 @@ def train_sweep(
     return tool
 
 
-def evaluate_stub(*args, **kwargs) -> StubTool:
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
     """No-op evaluator for sweeps (avoids dispatching eval jobs)."""
-    return StubTool()
+
+    return tools.StubTool()
 
 
-def get_cvc_sweep_search_space() -> dict[str, ParameterSpec]:
+def get_cvc_sweep_search_space() -> dict[str, "ParameterSpec"]:
     """Shared sweep parameters for CvC-style PPO + schedulefree runs."""
+    from metta.sweep.core import Distribution as D
+    from metta.sweep.core import SweepParameters as SP
+
     return {
         # Optimizer
         **SP.param(
@@ -764,8 +772,9 @@ def sweep(
     eval_difficulty: str | None = "standard",
     max_trials: int = 80,
     num_parallel_trials: int = 4,
-) -> SweepTool:
+) -> tools.SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
+    from metta.sweep.core import make_sweep
 
     search_space = get_cvc_sweep_search_space()
 
@@ -782,16 +791,17 @@ def sweep(
     )
 
 
-@ci_job(timeout_s=240)
-def train_ci() -> TrainTool:
+# CI/stable job registrations live in recipes.experiment.cogs_v_clips_ci.
+def train_ci() -> tools.TrainTool:
     """Minimal CvC train for CI smoke test."""
+
     env = make_training_env(
         num_cogs=2,
         mission="training_facility.harvest",
         variants=["heart_chorus"],
     )
     curriculum_cfg = cc.env_curriculum(env)
-    return TrainTool(
+    return tools.TrainTool(
         trainer=TrainerConfig(
             total_timesteps=64,
             minibatch_size=8,
@@ -814,34 +824,22 @@ def train_ci() -> TrainTool:
     )
 
 
-@ci_job(timeout_s=120)
-def play_ci() -> PlayTool:
+def play_ci() -> tools.PlayTool:
     """CvC play test with random policy."""
+
     env = make_training_env(num_cogs=2, mission="training_facility.harvest")
     sim = SimulationConfig(suite="cogs_vs_clips", name="harvest_ci", env=env)
-    return PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
+    return tools.PlayTool(sim=sim, max_steps=10, render="log", open_browser_on_start=False)
 
 
-@stable_job(
-    remote_gpus=1,
-    remote_nodes=1,
-    timeout_s=43200,
-    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=13000)],
-)
-def train_200ep() -> TrainTool:
+def train_200ep() -> tools.TrainTool:
     """CvC 200 epochs (~105M timesteps)."""
     tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 200 * 524288
     return tool
 
 
-@stable_job(
-    remote_gpus=4,
-    remote_nodes=4,
-    timeout_s=172800,
-    acceptance=[AcceptanceCriterion(metric="overview/sps", threshold=80000)],
-)
-def train_2b() -> TrainTool:
+def train_2b() -> tools.TrainTool:
     """CvC multi GPU - 2B timesteps."""
     tool = train(num_cogs=4, variants=["heart_chorus"])
     tool.trainer.total_timesteps = 2_000_000_000

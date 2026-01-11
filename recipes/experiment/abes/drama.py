@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import platform
@@ -9,7 +11,6 @@ from typing import TYPE_CHECKING, Optional
 from metta.agent.policy import PolicyArchitecture
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.rl.trainer_config import TorchProfilerConfig
-from metta.tools.train import TrainTool
 from recipes.prod.arena_basic_easy_shaped import (
     evaluate,
     evaluate_in_sweep,
@@ -23,6 +24,8 @@ from recipes.prod.arena_basic_easy_shaped import (
 from recipes.prod.arena_basic_easy_shaped import (
     train as base_train,
 )
+
+import metta.tools as tools
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,7 @@ DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE = 1_024
 
 
 def _apply_overrides(
-    tool: TrainTool,
+    tool: tools.TrainTool,
     *,
     learning_rate: float,
     batch_size: int,
@@ -93,7 +96,7 @@ def train(
     batch_size: int = DEFAULT_BATCH_SIZE,
     minibatch_size: int = DEFAULT_MINIBATCH_SIZE,
     forward_pass_minibatch_target_size: int = DEFAULT_FORWARD_PASS_MINIBATCH_TARGET_SIZE,
-) -> TrainTool:
+) -> tools.TrainTool:
     _ensure_cuda_extras_installed()
 
     try:

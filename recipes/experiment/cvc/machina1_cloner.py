@@ -1,5 +1,7 @@
 """Machina v1 open-world recipe using the full vibe set and sweep helpers with a Cortex policy."""
 
+from __future__ import annotations
+
 from typing import Optional, Sequence
 
 from cortex.stacks import build_cortex_auto_config
@@ -10,9 +12,6 @@ from metta.rl.training.scheduler import LossRunGate, ScheduleRule
 from metta.rl.training.teacher import TeacherConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import make_sweep
-from metta.tools.stub import StubTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from mettagrid.config import vibes
 from recipes.experiment.cogs_v_clips import (
     _normalize_variant_names,
@@ -21,6 +20,7 @@ from recipes.experiment.cogs_v_clips import (
     train_single_mission,
 )
 
+import metta.tools as tools
 
 def train(
     num_cogs: int = 4,
@@ -39,7 +39,7 @@ def train(
     cortex_num_layers: int = 2,
     cortex_pattern: Sequence[str] = ("Ag,A,S",),
     ppo_during_bc: bool = True,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train on machina_1.open_world with leaderboard-aligned defaults and single-map eval."""
     if eval_variants is None:
         eval_variants = variants
@@ -221,7 +221,7 @@ def train_sweep(
     teacher: TeacherConfig | None = None,
     evaluate_local: bool = False,
     ppo_during_bc: bool = True,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Sweep-friendly train with heart_chorus baked in."""
     base_variants = ["heart_chorus"]
     if variants:
@@ -245,10 +245,10 @@ def train_sweep(
     return tt
 
 
-def evaluate_stub(*args, **kwargs) -> StubTool:
+def evaluate_stub(*args, **kwargs) -> tools.StubTool:
     """No-op evaluator for sweeps."""
 
-    return StubTool()
+    return tools.StubTool()
 
 
 def sweep(
@@ -257,7 +257,7 @@ def sweep(
     eval_difficulty: str | None = "standard",
     max_trials: int = 80,
     num_parallel_trials: int = 4,
-) -> SweepTool:
+) -> tools.SweepTool:
     """Hyperparameter sweep targeting train_sweep (heart_chorus baked in)."""
 
     search_space = get_cvc_sweep_search_space()

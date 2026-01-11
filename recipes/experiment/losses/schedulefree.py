@@ -1,5 +1,7 @@
 """Arena recipe with ScheduleFree AdamW optimizer for comparison testing."""
 
+from __future__ import annotations
+
 from typing import Optional, Sequence
 
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
@@ -8,21 +10,20 @@ from metta.sim.simulation_config import SimulationConfig
 from metta.sweep.core import Distribution as D
 from metta.sweep.core import SweepParameters as SP
 from metta.sweep.core import make_sweep
-from metta.tools.eval import EvaluateTool
-from metta.tools.sweep import SweepTool
-from metta.tools.train import TrainTool
 from recipes.experiment.arena import (
     make_curriculum,
     mettagrid,
     simulations,
 )
 
+import metta.tools as tools
+
 DEFAULT_LR = OptimizerConfig.model_fields["learning_rate"].default
 
 
 def train(
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train with ScheduleFree AdamW optimizer.
 
     This uses the same configuration as the base arena recipe but with
@@ -46,14 +47,14 @@ def train(
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
     )
 
 
-def train_shaped(rewards: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True) -> tools.TrainTool:
     """Train with ScheduleFree AdamW optimizer on shaped rewards task.
 
     This provides easier training with reward shaping.
@@ -81,19 +82,19 @@ def train_shaped(rewards: bool = True) -> TrainTool:
     )
 
     # Return a new TrainTool with the shaped environment but ScheduleFree optimizer
-    return TrainTool(
+    return tools.TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
     )
 
 
-def evaluate(policy_uris: Optional[Sequence[str]] = None) -> EvaluateTool:
+def evaluate(policy_uris: Optional[Sequence[str]] = None) -> tools.EvaluateTool:
     """Evaluate policies on arena simulations."""
-    return EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
+    return tools.EvaluateTool(simulations=simulations(), policy_uris=policy_uris or [])
 
 
-def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
+def evaluate_in_sweep(policy_uri: str) -> tools.EvaluateTool:
     """Evaluation tool for sweep runs with ScheduleFree optimizer.
 
     Uses 10 episodes per simulation with a 4-minute time limit to get
@@ -123,13 +124,13 @@ def evaluate_in_sweep(policy_uri: str) -> EvaluateTool:
         ),
     ]
 
-    return EvaluateTool(
+    return tools.EvaluateTool(
         simulations=simulations_list,
         policy_uris=[policy_uri],
     )
 
 
-def sweep(sweep_name: str) -> SweepTool:
+def sweep(sweep_name: str) -> tools.SweepTool:
     """Hyperparameter sweep for ScheduleFree optimizer.
 
     This sweep explores ScheduleFree-specific parameters along with standard RL hyperparameters.

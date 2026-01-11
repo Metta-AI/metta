@@ -1,11 +1,12 @@
 """Arena recipe with GRPO (Group Relative Policy Optimization) for comparison testing."""
 
+from __future__ import annotations
+
 from metta.agent.policies.vit_grpo import ViTGRPOConfig
 from metta.rl.loss.grpo import GRPOConfig
 from metta.rl.loss.losses import LossesConfig
 from metta.rl.trainer_config import OptimizerConfig, TrainerConfig
 from metta.rl.training import EvaluatorConfig, TrainingEnvironmentConfig
-from metta.tools.train import TrainTool
 
 # Import everything from the base arena recipe
 from recipes.experiment.arena import (
@@ -17,10 +18,11 @@ from recipes.prod.arena_basic_easy_shaped import (
     train as arena_basic_easy_shaped_train,
 )
 
+import metta.tools as tools
 
 def train(
     enable_detailed_slice_logging: bool = False,
-) -> TrainTool:
+) -> tools.TrainTool:
     """Train with GRPO loss (critic-free, group-based advantages).
 
     GRPO eliminates the value network and computes advantages by comparing
@@ -57,7 +59,7 @@ def train(
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=TrainingEnvironmentConfig(curriculum=curriculum),
         trainer=trainer_config,
         evaluator=EvaluatorConfig(simulations=simulations()),
@@ -65,7 +67,7 @@ def train(
     )
 
 
-def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True, converters: bool = True) -> tools.TrainTool:
     """Train with GRPO loss on shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
@@ -106,7 +108,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
@@ -114,7 +116,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     )
 
 
-def basic_easy_shaped() -> TrainTool:
+def basic_easy_shaped() -> tools.TrainTool:
     """Train with GRPO loss on basic easy shaped rewards task.
 
     This provides easier training with reward shaping and converters enabled,
@@ -155,7 +157,7 @@ def basic_easy_shaped() -> TrainTool:
         total_timesteps=50_000_000_000,
     )
 
-    return TrainTool(
+    return tools.TrainTool(
         training_env=base_tool.training_env,
         trainer=trainer_config,
         evaluator=base_tool.evaluator,
